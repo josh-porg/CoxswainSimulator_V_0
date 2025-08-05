@@ -10,19 +10,30 @@ class BoatParameters:
     mass: float = 1000.0  # kg
     moment_inertia: float = 500.0  # kg*m^2 (about vertical axis)
     length: float = 10.0  # m (boat length for reference)
-    C_D: float = 0.5  # Drag coefficient (placeholder)
     thrust: float = 2000.0  # N (constant thrust, placeholder)
-    C_Y_beta: float = .1 # Sideforce coefficient (placeholder)
 
+    # Hull coefficients
+    hull_C_D: float = 0.4  # Hull drag coefficient
+    hull_C_Y_beta: float = -0.1  # Hull sideforce due to sideslip
+    hull_C_N_beta: float = 0.05  # Hull yaw moment due to sideslip
+    hull_area: float = 4.0  # m^2 (hull reference area)
+
+    # Skeg coefficients
+    skeg_C_D: float = 0.1  # Skeg drag coefficient
+    skeg_C_Y_beta: float = 0.2  # Skeg sideforce due to sideslip
+    skeg_C_Y_delta_f: float = 0.3  # Skeg sideforce due to rudder deflection
+    skeg_C_N_beta: float = 0.1  # Skeg yaw moment due to sideslip
+    skeg_C_N_delta_f: float = 0.15  # Skeg yaw moment due to rudder deflection
+    skeg_area: float = 1.0  # m^2 (skeg reference area)
+
+    # Control input
+    delta_f: float = 0.0  # rad (rudder deflection angle)
+
+    # Damping coefficients
+    C_N_r: float = -0.05  # Yaw damping coefficient
 
     # Water density
     rho_water: float = 1025.0  # kg/m^3
-
-    # Reference area for drag calculation
-    ref_area: float = 5.0  # m^2
-
-    # skeg area
-    S_skeg: float = 1.0 #m^2
 
 
 class BoatState:
@@ -93,23 +104,18 @@ class BoatSimulator:
             # Drag components in body frame
             F_drag_x = -F_drag_total * (u / V)
             F_drag_y = -F_drag_total * (v / V)
-
-            # Components due to rudder use in body frame
-            F_skeg_y = self.params.C_Y_beta * self.params.S_skeg/self.params.ref_area * self.params.ref_area * q
         else:
             F_drag_x = 0.0
             F_drag_y = 0.0
-            F_skeg_y = 0.0
-            q = 0
 
         # Total forces in body frame
         F_x = F_thrust + F_drag_x
-        F_y = F_drag_y + F_skeg_y
+        F_y = F_drag_y
 
         # Moment about vertical axis (simplified model)
         # This is a placeholder - in reality would depend on hull shape, rudder, etc.
         # For now, assume some yaw damping and a moment proportional to sideslip
-        C_N_beta = 0.1  # Yaw moment coefficient due to sideslip
+        C_N_beta = -0.1  # Yaw moment coefficient due to sideslip
         C_N_r = -0.05  # Yaw damping coefficient
 
         M_z = (C_N_beta * beta + C_N_r * self.state.r) * q * self.params.ref_area * self.params.length
