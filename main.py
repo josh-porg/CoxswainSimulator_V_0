@@ -44,7 +44,7 @@ class BoatParameters:
     @property
     def total_C_Y_beta(self) -> float:
         """Total Boat sideforce coefficient due to sideslip (hull + skeg)"""
-        return self.params.hull_C_Y_beta + self.params.skeg_area / self.params.ref_area * self.params.skeg_C_Y_beta
+        return self.hull_C_Y_beta + self.skeg_area / self.ref_area * self.skeg_C_Y_beta
 
     @property
     def total_area(self) -> float:
@@ -118,26 +118,34 @@ class BoatSimulator:
             F_drag_total = self.params.total_C_D * self.params.ref_area * q
 
             # Drag components in body frame
-            F_drag_x = -F_drag_total * (u / V)
-            F_drag_y = -F_drag_total * (v / V)
+            # ToDo: remove the old versions of drag compuations
+            # F_drag_x = -F_drag_total * (u / V) # small angel approx tan beta
+            # F_drag_y = -F_drag_total * (v / V)
+
+            F_drag_x = -F_drag_total * np.cos(beta)
+            F_drag_y = -F_drag_total * np.sin(beta)
 
             # Side force in body frame
-            F_side_skeg = self.params.hull_C_Y_beta + self.params.skeg_area/self.params.ref_area * self.params.skeg_C_Y_beta
+            F_side_beta = self.params.total_C_Y_beta * beta * self.params.ref_area * q
+            F_side_delta_f = self.params.skeg_C_Y_delta_f * self.params.delta_f * self.params.ref_area * q
 
-            F_side_total
+            F_side_total = F_side_beta + F_side_delta_f
 
-            F_side_x =
-            F_side_y =
+            # rotate from airflow coordinates to body
+            F_side_x = - F_side_total * np.sin(beta)
+            F_side_y = F_side_total * np.cos(beta)
 
         else:
             F_drag_x = 0.0
             F_drag_y = 0.0
+            F_side_x = 0.0
+            F_side_y = 0.0
 
 
 
         # Total forces in body frame
-        F_x = F_thrust + F_drag_x
-        F_y = F_drag_y
+        F_x = F_thrust + F_drag_x + F_side_x
+        F_y = F_drag_y + F_side_y
 
         # Moment about vertical axis (simplified model)
         # This is a placeholder - in reality would depend on hull shape, rudder, etc.
