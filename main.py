@@ -28,7 +28,7 @@ class BoatParameters:
     skeg_area: float = .25  # m^2 (skeg reference area)
 
     # Control input
-    delta_f: float = np.pi/4  # rad (rudder deflection angle) # TODO: reset delta f to zero when done debugging
+    delta_f: float = np.pi/16  # rad (rudder deflection angle) # TODO: reset delta f to zero when done debugging
 
     # Damping coefficients
     C_N_r: float = -0.05  # Yaw damping coefficient
