@@ -21,7 +21,7 @@ class BoatParameters:
 
     # Skeg coefficients
     skeg_C_D: float = 0.1  # Skeg drag coefficient
-    skeg_C_Y_beta: float = 0.2  # Skeg sideforce due to sideslip
+    skeg_C_Y_beta: float = -0.2  # Skeg sideforce due to sideslip
     skeg_C_Y_delta_f: float = 0.3  # Skeg sideforce due to rudder deflection
     skeg_C_N_beta: float = 0.1  # Skeg yaw moment due to sideslip
     skeg_C_N_delta_f: float = 0.15  # Skeg yaw moment due to rudder deflection
