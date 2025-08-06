@@ -4,28 +4,44 @@ from dataclasses import dataclass
 from typing import Tuple, List
 
 
+
+
 @dataclass
 class BoatParameters:
     """Physical parameters of the boat"""
-    mass: float = 1000.0  # kg
-    moment_inertia: float = 500.0  # kg*m^2 (about vertical axis)
-    length: float = 10.0  # m (boat length for reference)
-    thrust: float = 2000.0  # N (constant thrust, placeholder)
-    ref_area: float = 1 # m^2 (submerged corssection area)
+    mass: float = 100.0 + 8 * 68 + 68  # kg (shell + 8 rowers + coxswain)
+    #moment_inertia: float = 500.0  # kg*m^2 (about vertical axis)
+    length: float = 17.3  # m (boat length for reference)
+    width: float = .75  # m (boat width for reference)
+    moment_inertia = (1/12 * .75 * 17.3**3) * mass / (length * width) # moment of inertia is second moment of area times denisty - assumes unifrom density, and recangle
+    thrust: float = 600*8 #178*8 #2000.0  # N (constant thrust, placeholder) want to move to
+    ref_area: float = .5 # m^2 (submerged corssection area)
+
+    # Water density
+    rho_water: float = 1025.0  # kg/m^3
 
     # Hull coefficients
-    hull_C_D: float = 0.4  # Hull drag coefficient
+    hull_C_D: float = 10.5 * 2 / rho_water / ref_area # Hull drag coefficient
     hull_C_Y_beta: float = -0.1  # Hull sideforce due to sideslip
     hull_C_N_beta: float = 0.05  # Hull yaw moment due to sideslip
     hull_area: float = 4.0  # m^2 (hull reference area)
 
+    # skeg geometry
+    skeg_span: float = 7 * 17.3/941  # m (span)
+    skeg_chord: float = 11 * 17.3/941  # m (mean geometric chord)
+    skeg_sweep_angle: float = np.radians(5)  # 15° sweep
+
     # Skeg coefficients
     skeg_C_D: float = 0.1  # Skeg drag coefficient
-    skeg_C_Y_beta: float = -0.2  # Skeg sideforce due to sideslip
+    #skeg_C_Y_beta: float = -0.2  # Skeg sideforce due to sideslip
+    skeg_x_ac = 126 * 17.3/941 # distance from bowball to location of skeg aerodynamic center
     skeg_C_Y_delta_f: float = 0.3  # Skeg sideforce due to rudder deflection
     skeg_C_N_beta: float = 0.1  # Skeg yaw moment due to sideslip
     skeg_C_N_delta_f: float = 0.15  # Skeg yaw moment due to rudder deflection
     skeg_area: float = .25  # m^2 (skeg reference area)
+
+    # assume cg is at midpoint of boat
+    x_cg = length/2
 
     # Control input
     delta_f: float = np.pi/16  # rad (rudder deflection angle) # TODO: reset delta f to zero when done debugging
@@ -33,8 +49,38 @@ class BoatParameters:
     # Damping coefficients
     C_N_r: float = -0.05  # Yaw damping coefficient
 
-    # Water density
-    rho_water: float = 1025.0  # kg/m^3
+
+
+    def __post_init__(self):
+        """Initialize computed parameters after dataclass creation"""
+        # Compute skeg area from geometry
+        self.skeg_area = self.skeg_span * self.skeg_chord
+
+        # Compute skeg aspect ratio
+        skeg_aspect_ratio = self.skeg_span ** 2 / self.skeg_area
+
+        # Use Polhamus formula to compute C_Y_beta (equivalent to C_L_alpha)
+        self.skeg_C_Y_beta = self.polhamus_lift_coefficient(skeg_aspect_ratio, self.skeg_sweep_angle)
+
+        # dimentionless moment arms
+        self.x_bar_cg = self.x_cg / self.length
+        skeg_x_bar_ac = self.skeg_x_ac / self.length
+
+        # compute C_N_beta
+        self.skeg_C_N_beta = self.skeg_area / self.ref_area * self.skeg_C_Y_beta * (skeg_x_bar_ac - self.x_bar_cg)
+
+        # compute C_D of skeg ( approximately for now assuming mix of laminar and turbluent and a resoanble velocity
+        v_guess = 4 # guessed velocity in meters per second for drag computation
+        reynolds_number = v_guess * self.skeg_chord / 1E-6 # reynolds number for room temp water
+        C_D_laminar = 2.656 / np.sqrt(reynolds_number) # if flow is laminar
+        C_D_transition = .062 / reynolds_number**(1/7)  # if flow is in trasiotion from laminar to turbulent
+        C_D_turbulent = .148 / reynolds_number ** (1 / 5)  # if flow is in trasiotion from laminar to turbulent
+        self.skeg_C_D: float = C_D_turbulent  # Skeg drag coefficient
+
+        print(f"Skeg initialized with:")
+        print(f"  Aspect Ratio: {skeg_aspect_ratio:.2f}")
+        print(f"  Sweep Angle: {np.degrees(self.skeg_sweep_angle):.1f} deg")
+        print(f"  C_Y_beta (Polhamus): {self.skeg_C_Y_beta:.3f} /rad")
 
     @property
     def total_C_D(self) -> float:
@@ -50,6 +96,33 @@ class BoatParameters:
     def total_area(self) -> float:
         """Total reference area (hull + skeg)"""
         return self.hull_area + self.skeg_area
+
+    @staticmethod
+    def polhamus_lift_coefficient(aspect_ratio: float, sweep_angle_rad: float = 0.0) -> float:
+        """
+        Compute lift coefficient using Polhamus formula for delta wings/low aspect ratio wings
+
+        Args:
+            aspect_ratio: Wing aspect ratio (b^2/S)
+            sweep_angle_rad: Leading edge sweep angle in radians (default 0 for unswept)
+
+        Returns:
+            CL_alpha: Lift coefficient per radian of angle of attack
+        """
+        # Polhamus formula for low aspect ratio wings
+        # CL_alpha = (2 * pi * AR) / (2 + sqrt(4 + AR^2 * (1 + tan^2(sweep))))
+
+        cos_sweep = np.cos(sweep_angle_rad)
+        tan_sweep = np.tan(sweep_angle_rad)
+
+        # Modified aspect ratio accounting for sweep
+        AR_eff = aspect_ratio * cos_sweep ** 2
+
+        # Polhamus formula
+        denominator = 2 + np.sqrt(4 + AR_eff ** 2 * (1 + tan_sweep ** 2))
+        CL_alpha = (2 * np.pi * AR_eff) / denominator
+
+        return CL_alpha
 
 
 class BoatState:
@@ -118,12 +191,10 @@ class BoatSimulator:
             F_drag_total = self.params.total_C_D * self.params.ref_area * q
 
             # Drag components in body frame
-            # ToDo: remove the old versions of drag compuations
-            # F_drag_x = -F_drag_total * (u / V) # small angel approx tan beta
-            # F_drag_y = -F_drag_total * (v / V)
-
             F_drag_x = -F_drag_total * np.cos(beta)
             F_drag_y = -F_drag_total * np.sin(beta)
+
+            #TODO: add induced drag
 
             # Side force in body frame
             F_side_beta = self.params.total_C_Y_beta * beta * self.params.ref_area * q
@@ -140,6 +211,7 @@ class BoatSimulator:
             F_drag_y = 0.0
             F_side_x = 0.0
             F_side_y = 0.0
+            q = 0
 
 
 
