@@ -57,7 +57,7 @@ class BoatParameters:
 
     # Control input
     delta_f: float = np.pi/16  # rad (rudder deflection angle) # TODO: reset delta f to zero when done debugging
-    r = 30 # strokes per minute (stroke rate)
+    rate = 30 # strokes per minute (stroke rate)
 
     # Damping coefficients
     C_N_r: float = -0.05  # Yaw damping coefficient
@@ -181,7 +181,7 @@ class BoatSimulator:
             'psi': [],
             'u': [],
             'v': [],
-            'r': [],
+            'rate': [],
             'beta': [],
             'V': []
         }
@@ -196,7 +196,7 @@ class BoatSimulator:
         beta = self.state.beta
 
         # Thrust force (along body x-axis)
-        tau_a = .00015625 * (self.params.r - 24)**2 - .008125 * (self.params.r - 24) + .8 # from A model for the dyamics of rowing boats formaggia et al
+        tau_a = .00015625 * (self.params.rate - 24) ** 2 - .008125 * (self.params.rate - 24) + .8 # from A model for the dyamics of rowing boats formaggia et al
         F_oarlock_x = self.params.thrust * np.sin(np.pi * self.time / tau_a) # from A model for the dyamics of rowing boats formaggia et al
         # F_thrust = self.params.thrust * np.abs(np.sin(np.pi * self.time/2))
         F_thrust = np.max([0.0,F_oarlock_x * self.params.n_oars])
@@ -223,7 +223,7 @@ class BoatSimulator:
 
             # Side force in body frame
             F_side_beta = self.params.total_C_Y_beta * beta * self.params.ref_area * q
-            F_side_delta_f = self.params.skeg_C_Y_delta_f * self.params.delta_f * self.params.ref_area * q
+            F_side_delta_f = self.params.skeg_C_Y_delta_f * self.params.delta_f * np.cos(np.pi*self.time/10) * self.params.ref_area * q
 
             F_side_total = F_side_beta + F_side_delta_f
 
@@ -239,10 +239,17 @@ class BoatSimulator:
             q = 0
 
 
+        # generate forces due to wind
+        # F_wind = 500
+        # psi_wind = 1/2* np.pi
+        # F_wind_x_inertial = F_wind * np.cos(-psi_wind)
+        # F_wind_y_inertial = F_wind * np.sin(-psi_wind)
+        # F_wind_x = F_wind_x_inertial * np.cos(self.state.psi) - F_wind_y_inertial * np.sin(self.state.psi)
+        # F_wind_y = F_wind_x_inertial * np.sin(self.state.psi) + F_wind_y_inertial * np.cos(self.state.psi)
 
         # Total forces in body frame
-        F_x = F_thrust + F_drag_x + F_side_x
-        F_y = F_drag_y + F_side_y
+        F_x = F_thrust + F_drag_x + F_side_x + F_wind_x
+        F_y = F_drag_y + F_side_y + F_wind_y
 
         # Moment about vertical axis (simplified model)
         # This is a placeholder - in reality would depend on hull shape, rudder, etc.
@@ -306,7 +313,7 @@ class BoatSimulator:
         self.history['psi'].append(np.degrees(self.state.psi))
         self.history['u'].append(self.state.u)
         self.history['v'].append(self.state.v)
-        self.history['r'].append(np.degrees(self.state.r))
+        self.history['rate'].append(np.degrees(self.state.r))
         self.history['beta'].append(np.degrees(self.state.beta))
         self.history['V'].append(self.state.V)
 
@@ -357,7 +364,7 @@ class BoatSimulator:
         axes[1, 0].grid(True)
 
         # Yaw rate
-        axes[1, 1].plot(self.history['time'], self.history['r'], 'm-', linewidth=2)
+        axes[1, 1].plot(self.history['time'], self.history['rate'], 'm-', linewidth=2)
         axes[1, 1].set_xlabel('Time (s)')
         axes[1, 1].set_ylabel('Yaw Rate (deg/s)')
         axes[1, 1].set_title('Yaw Rate vs Time')
