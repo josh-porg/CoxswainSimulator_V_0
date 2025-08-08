@@ -13,6 +13,7 @@ class BoatParameters:
     #moment_inertia: float = 500.0  # kg*m^2 (about vertical axis)
     length: float = 17.3  # m (boat length for reference)
     width: float = .75  # m (boat width for reference)
+    draft: float = .3 # m(submerged depth of hull)
     moment_inertia = (1/12 * .75 * 17.3**3) * mass / (length * width) # moment of inertia is second moment of area times denisty - assumes unifrom density, and recangle
     thrust: float = 1200 #178*8 #2000.0  # N (maximum force a rower excerts on their oarlock) want to move to
     ref_area: float = .5 # m^2 (submerged corssection area)
@@ -20,12 +21,22 @@ class BoatParameters:
 
     # Water density
     rho_water: float = 1025.0  # kg/m^3
+    mu_water: float = 0.00982 # N*s/m (absolute viscosity)
+    nu_water: float = mu_water / rho_water # m^2/s (kinematic viscosity)
 
     # Hull coefficients
     hull_C_D: float = 8* 12.5 * 2 / rho_water / ref_area # Hull drag coefficient (computed from paper -scaled to coefficecent and scaled to make good results)
     hull_C_Y_beta: float = -0.1  # Hull sideforce due to sideslip
     hull_C_N_beta: float = 0.05  # Hull yaw moment due to sideslip
     hull_area: float = 4.0  # m^2 (hull reference area)
+
+    # parameters for drag computed by first approximation from A model for the dyamics of rowing boats formaggia et al
+    gamma = length * 2 * np.pi * (width + draft) / 2 # m^2 wetted surface (approximated as a cylinder)
+    gamma_x = length * draft # m^2 (projection of wetted surface area perpendicular to the x-axis)
+    gamma_z = 2 * np.pi * (width + draft) / 2 # m^2 (projection of wetted surface area perpendicular to the x-axis)
+    C_d_x: float = .01 # shape resistance coefficient (typically about .01)
+    C_f_0: float = .075 # skin friction coefficient (typically .075)
+    C_d_w: float = .02 # wave resistance coefficient (for typical skulls .02)
 
     # skeg geometry
     skeg_span: float = 7 * 17.3/941  # m (span)
@@ -194,6 +205,15 @@ class BoatSimulator:
         if V > 1e-6:
             q = 0.5 * self.params.rho_water * V ** 2  # Dynamic pressure
             F_drag_total = self.params.total_C_D * self.params.ref_area * q
+
+            # drag computed by first approximation from A model for the dyamics of rowing boats formaggia et al
+            F_D_shape = q * self.params.gamma_x * self.params.C_d_x # shape drag
+            Re = u * self.params.length / self.params.nu_water # Reynolds number TODO: this should be mean submerged length and mean velocity
+            C_d_vis = self.params.C_f_0 / (np.log(Re) - 2)**2 # viscus drag coefficient
+            F_D_vis = q * self.params.gamma * C_d_vis # viscus drag
+            F_D_wave = q * self.params.gamma_z * self.params.C_d_w # wave drag
+
+            F_drag_total = F_D_shape + F_D_vis + F_D_wave # total steady state drag from A model for the dyamics of rowing boats formaggia et al
 
             # Drag components in body frame
             F_drag_x = -F_drag_total * np.cos(beta)
