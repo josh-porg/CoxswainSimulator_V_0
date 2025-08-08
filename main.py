@@ -14,14 +14,15 @@ class BoatParameters:
     length: float = 17.3  # m (boat length for reference)
     width: float = .75  # m (boat width for reference)
     moment_inertia = (1/12 * .75 * 17.3**3) * mass / (length * width) # moment of inertia is second moment of area times denisty - assumes unifrom density, and recangle
-    thrust: float = 600*8 #178*8 #2000.0  # N (constant thrust, placeholder) want to move to
+    thrust: float = 1200 #178*8 #2000.0  # N (maximum force a rower excerts on their oarlock) want to move to
     ref_area: float = .5 # m^2 (submerged corssection area)
+    n_oars = 8 # number of oars
 
     # Water density
     rho_water: float = 1025.0  # kg/m^3
 
     # Hull coefficients
-    hull_C_D: float = 10.5 * 2 / rho_water / ref_area # Hull drag coefficient
+    hull_C_D: float = 8* 12.5 * 2 / rho_water / ref_area # Hull drag coefficient (computed from paper -scaled to coefficecent and scaled to make good results)
     hull_C_Y_beta: float = -0.1  # Hull sideforce due to sideslip
     hull_C_N_beta: float = 0.05  # Hull yaw moment due to sideslip
     hull_area: float = 4.0  # m^2 (hull reference area)
@@ -45,6 +46,7 @@ class BoatParameters:
 
     # Control input
     delta_f: float = np.pi/16  # rad (rudder deflection angle) # TODO: reset delta f to zero when done debugging
+    r = 30 # strokes per minute (stroke rate)
 
     # Damping coefficients
     C_N_r: float = -0.05  # Yaw damping coefficient
@@ -183,7 +185,10 @@ class BoatSimulator:
         beta = self.state.beta
 
         # Thrust force (along body x-axis)
-        F_thrust = self.params.thrust
+        tau_a = .00015625 * (self.params.r - 24)**2 - .008125 * (self.params.r - 24) + .8 # from A model for the dyamics of rowing boats formaggia et al
+        F_oarlock_x = self.params.thrust * np.sin(np.pi * self.time / tau_a) # from A model for the dyamics of rowing boats formaggia et al
+        # F_thrust = self.params.thrust * np.abs(np.sin(np.pi * self.time/2))
+        F_thrust = np.max([0.0,F_oarlock_x * self.params.n_oars])
 
         # Drag force (opposite to velocity direction in body frame)
         if V > 1e-6:
