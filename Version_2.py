@@ -9,7 +9,8 @@ from typing import List, Tuple, Callable
 class RowingParameters:
     """Parameters for the rowing simulation"""
     # Boat properties
-    hull_mass: float = 49.6  # kg
+    # hull_mass: float = 49.6  # kg
+    hull_mass: float = 100 # kg
     hull_inertia: np.ndarray = None  # 3x3 inertia tensor in hull frame
 
     # Rower properties
@@ -19,7 +20,7 @@ class RowingParameters:
     rower_spacing = 2 # m between rowers
 
     # Rowing kinematics
-    cadence: float = 40.0  # strokes per minute
+    cadence: float = 30.0  # strokes per minute
     active_phase_duration: float = 0.712  # seconds
 
     # Force parameters
@@ -107,6 +108,8 @@ class RowingShell:
             phase_ratio = t_mod / self.params.active_phase_duration
             force_multiplier = np.sin(np.pi * phase_ratio)
 
+            print(f"phase_ratio_oar: {phase_ratio}")
+
             # Base forces
             f_x = self.params.F_max_x * force_multiplier
             f_z = self.params.F_max_z * force_multiplier
@@ -147,19 +150,74 @@ class RowingShell:
         # for now lets space rowers 2 meters apart
         rower_spacing = 2 #m distance between rowers
 
+        # Different motion for different body parts
+        # amplitude = 0.5 * (part_idx + 1) / self.params.n_body_parts
+        amplitude = .5  # todo: reintorduce some amount of amiplitude into the rower motion
+        vert_amplitude = 0
+
         # Simple oscillatory motion as placeholder
         omega = 2 * np.pi / self.stroke_period
 
-        # Different motion for different body parts
-        amplitude = 0.1 * (part_idx + 1) / self.params.n_body_parts
-        amplitude = 0 # todo: reintorduce some amount of amiplitude into the rower motion
-        vert_amplitude = 0
+        # Determine phase within stroke cycle
+        t_mod = t % self.stroke_period
+
+        if t_mod <= self.params.active_phase_duration:
+            # Active phase
+            t_mod = (t % self.stroke_period) % self.params.active_phase_duration
+            omega = np.pi / self.params.active_phase_duration
+            offset = 0  # angular ofset for the begining fo this strok
+        else:
+            # recovery phase
+            t_mod = ((t % self.stroke_period) - self.params.active_phase_duration) % self.recovery_duration
+            omega = np.pi / self.recovery_duration  # ToDO: smooth the transition from drive to recovery by making omega and offset a function of t%stroke period or by avergin the 2 until smooth
+            offset = np.pi
+
+        # matched with stroke nd recovery
+        if (rower_idx == 0) and (part_idx == 0):
+            print(f"phase_ratio_body: {(omega * t_mod + offset) / np.pi}")
+        x_rel = amplitude * np.cos(omega * t_mod + offset) + (self.params.n_rowers / 2 - rower_idx) * self.params.rower_spacing
+        v_rel = -amplitude * omega * np.sin(omega * t_mod + offset)
+        a_rel = -amplitude * omega ** 2 * np.cos(omega * t_mod + offset)
+
+        clip_width = 2 / 12 * part_idx + 1 # 0 is dont clip
+        clip_offset = -clip_width / 2
+        # clip_offset = 0
+
+        x_rel = np.cos(omega * t_mod + offset)  # + (self.params.n_rowers / 2 - rower_idx) * self.params.rower_spacing
+        x_rel = amplitude * np.tanh(clip_width * x_rel + clip_offset)
+        # Velocity: d/dt[amplitude * tanh(clip_width * cos(omega*t + offset) + clip_offset)]
+        # Using chain rule: amplitude * sech²(clip_width * cos_term + clip_offset) * clip_width * (-sin(omega*t + offset)) * omega
+        cos_term = np.cos(omega * t_mod + offset)
+        sin_term = np.sin(omega * t_mod + offset)
+        sech_squared = 1.0 / (np.cosh(clip_width * cos_term + clip_offset) ** 2)  # sech²(x) = 1/cosh²(x)
+        v_rel = -amplitude * clip_width * omega * sin_term * sech_squared
+
+        # Acceleration: d/dt[v_rel]
+        # This is more complex - need to differentiate the product
+        # d/dt[-amplitude * clip_width * omega * sin(omega*t + offset) * sech²(clip_width * cos(omega*t + offset) + clip_offset)]
+
+        # First term: derivative of sin term
+        term1 = -amplitude * clip_width * omega ** 2 * cos_term * sech_squared
+
+        # Second term: derivative of sech² term (using chain rule)
+        # d/dt[sech²(u)] = -2*sech²(u)*tanh(u)*du/dt where u = clip_width * cos_term + clip_offset
+        tanh_term = np.tanh(clip_width * cos_term + clip_offset)
+        dsech_dt = -2 * sech_squared * tanh_term * clip_width * (-sin_term) * omega
+        term2 = -amplitude * clip_width * omega * sin_term * dsech_dt
+
+        a_rel = term1 + term2
+
+        # x_rel = amplitude * omega * t_mod**2 +  + (
+        #             self.params.n_rowers / 2 - rower_idx) * self.params.rower_spacing
+        # v_rel = 2*amplitude * omega * t_mod * omega
+        # a_rel = 2*amplitude * omega * omega
 
         #TODO: match this up with drive and recovery timing
 
-        x_rel = amplitude * np.sin(omega * t) + (self.params.n_rowers/2 - rower_idx) * self.params.rower_spacing
-        v_rel = amplitude * omega * np.cos(omega * t)
-        a_rel = -amplitude * omega ** 2 * np.sin(omega * t)
+        # not matched to stroke and recovery
+        # x_rel = amplitude * np.sin(omega * t) + (self.params.n_rowers/2 - rower_idx) * self.params.rower_spacing
+        # v_rel = amplitude * omega * np.cos(omega * t)
+        # a_rel = -amplitude * omega ** 2 * np.sin(omega * t)
 
         position = np.array([x_rel, 0, vert_amplitude * 0.05 * np.sin(2 * omega * t)])
         velocity = np.array([v_rel, 0, vert_amplitude * 0.1 * omega * np.cos(2 * omega * t)])
@@ -199,7 +257,7 @@ class RowingShell:
         wave_resistance = np.array([0, 0, -100.0 * velocity[2]])
 
         bouyancy = np.array([0,0, -1*state[2]])
-        # bouyancy = np.zeros_like(bouyancy)
+        bouyancy = np.zeros_like(bouyancy)
 
         total_force = drag_force + wave_resistance + bouyancy
         total_moment = angular_damping
@@ -229,6 +287,8 @@ class RowingShell:
                 # Get body part position in hull frame
                 x_ij, _, _ = self.get_body_part_kinematics(t, j, i)
                 v_ij = R.T @ x_ij  # Transform to hull frame
+
+                # print(f"x_ij: {x_ij}")
 
                 # Add to mass matrix terms
                 A += m_ij * self.skew_symmetric_matrix(v_ij)
@@ -283,7 +343,7 @@ class RowingShell:
             F_or_abs = R.T @ F_or
 
             # Add to total force
-            f_total += F_ol_abs + F_or_abs
+            f_total += F_ol_abs + F_or_abs # TODO reintroduce oarlock forces
 
             # Lever arm contribution (simplified)
             lever_length = 2.0  # meters
@@ -298,6 +358,7 @@ class RowingShell:
         # 2. Rower inertial forces
         f_inertial = np.zeros(3)
         M_inertial = np.zeros(3)
+
 
         for j in range(self.params.n_rowers):
             for i in range(self.params.n_body_parts):
@@ -321,25 +382,27 @@ class RowingShell:
                 f_inertial -= m_ij * (R.T @ a_ij + coriolis + centrifugal)
                 # M_inertial -= m_ij * np.cross(R.T @ x_ij, R.T @ a_ij + coriolis + centrifugal) # TODO: reintoduce initrial moment
 
+            # print(f"f_inertial: {f_inertial}")
+
         #TODO: reintroduce interial forces when done debugging
         f_total += f_inertial
         M_total += M_inertial
 
         # 3. Gravity
         gravity_force = np.array([0, 0, -self.total_mass * self.params.gravity])
-        f_total += gravity_force #TODO: reintroduce gravity forces
+        # f_total += gravity_force #TODO: reintroduce gravity forces
 
         # 4. Hydrodynamic forces
         F_hydro, M_hydro = self.get_hydrodynamic_forces(state, t)
         f_total += F_hydro
-        M_total += M_hydro
+        # M_total += M_hydro
 
         # print(f"F_hydro:{F_hydro}")
 
         # Gyroscopic terms for angular momentum equation
         I_abs = R @ self.params.hull_inertia @ R.T
         gyro_term = -np.cross(omega, I_abs @ omega)
-        M_total += gyro_term
+        # M_total += gyro_term
 
         # print(f"f_total:{f_total}")
         # print(f"M_total:{M_total}")
