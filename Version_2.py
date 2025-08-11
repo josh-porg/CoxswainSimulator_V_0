@@ -152,16 +152,18 @@ class RowingShell:
 
         # Different motion for different body parts
         amplitude = 0.1 * (part_idx + 1) / self.params.n_body_parts
+        amplitude = 0 # todo: reintorduce some amount of amiplitude into the rower motion
+        vert_amplitude = 0
 
         #TODO: match this up with drive and recovery timing
 
         x_rel = amplitude * np.sin(omega * t) + (self.params.n_rowers/2 - rower_idx) * self.params.rower_spacing
-        v_rel = amplitude * omega * np.cos(omega * t )
+        v_rel = amplitude * omega * np.cos(omega * t)
         a_rel = -amplitude * omega ** 2 * np.sin(omega * t)
 
-        position = np.array([x_rel, 0, 0.05 * np.sin(2 * omega * t)])
-        velocity = np.array([v_rel, 0, 0.1 * omega * np.cos(2 * omega * t)])
-        acceleration = np.array([a_rel, 0, -0.2 * omega ** 2 * np.sin(2 * omega * t)])
+        position = np.array([x_rel, 0, vert_amplitude * 0.05 * np.sin(2 * omega * t)])
+        velocity = np.array([v_rel, 0, vert_amplitude * 0.1 * omega * np.cos(2 * omega * t)])
+        acceleration = np.array([a_rel, 0, vert_amplitude * -0.2 * omega ** 2 * np.sin(2 * omega * t)])
 
         return position, velocity, acceleration
 
@@ -185,7 +187,7 @@ class RowingShell:
 
         speed = np.linalg.norm(velocity)
         if speed > 0:
-            drag_coefficient = 5.0  # N⋅s²/m²
+            drag_coefficient = 50.0  # N⋅s²/m²
             drag_force = -drag_coefficient * speed * velocity
         else:
             drag_force = np.zeros(3)
@@ -196,7 +198,8 @@ class RowingShell:
         # Add some wave resistance based on vertical motion
         wave_resistance = np.array([0, 0, -100.0 * velocity[2]])
 
-        bouyancy = np.array([0,0, -state[2]])
+        bouyancy = np.array([0,0, -1*state[2]])
+        # bouyancy = np.zeros_like(bouyancy)
 
         total_force = drag_force + wave_resistance + bouyancy
         total_moment = angular_damping
@@ -290,7 +293,7 @@ class RowingShell:
             M_ol = np.cross(oarlock_left, F_ol_abs) - r_h_to_oarlock_ratio * np.cross(hand_left, F_ol_abs)
             M_or = np.cross(oarlock_right, F_or_abs) - r_h_to_oarlock_ratio * np.cross(hand_right, F_or_abs)
 
-            # M_total += M_ol + M_or
+            M_total += M_ol + M_or # TODO: oarlock moments cause blowup. fix it!
 
         # 2. Rower inertial forces
         f_inertial = np.zeros(3)
@@ -316,7 +319,7 @@ class RowingShell:
 
                 # Add inertial forces
                 f_inertial -= m_ij * (R.T @ a_ij + coriolis + centrifugal)
-                M_inertial -= m_ij * np.cross(R.T @ x_ij, R.T @ a_ij + coriolis + centrifugal)
+                # M_inertial -= m_ij * np.cross(R.T @ x_ij, R.T @ a_ij + coriolis + centrifugal) # TODO: reintoduce initrial moment
 
         #TODO: reintroduce interial forces when done debugging
         f_total += f_inertial
@@ -339,7 +342,7 @@ class RowingShell:
         M_total += gyro_term
 
         # print(f"f_total:{f_total}")
-        print(f"M_total:{M_total}")
+        # print(f"M_total:{M_total}")
         # M_total = np.zeros_like(M_total) # for dubug remove roational dof TODO: reintroduce moments
 
         return np.concatenate([f_total, M_total])
@@ -407,6 +410,10 @@ class RowingShell:
         # Compute mass matrix and forces
         M = self.compute_mass_matrix(state_for_forces, t)
         f = self.compute_forces_and_moments(state_for_forces, t)
+
+        # print(f"mass: {M}")
+        # print(f"forces: {f}")
+
 
         # Solve M * acceleration = f
         try:
