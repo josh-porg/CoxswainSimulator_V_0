@@ -52,12 +52,13 @@ class BoatParameters:
     skeg_C_N_beta: float = 0.1  # Skeg yaw moment due to sideslip
     skeg_C_N_delta_f: float = 0.15  # Skeg yaw moment due to rudder deflection
     skeg_area: float = .25  # m^2 (skeg reference area)
+    skeg_e: float = .8 # Oswald efficiency factor of skeg
 
     # assume cg is at midpoint of boat
     x_cg = length/2
 
     # Control input
-    delta_f: float = np.pi/16  # rad (rudder deflection angle) # TODO: reset delta f to zero when done debugging
+    #delta_f: float = np.pi/16  # rad (rudder deflection angle) # TODO: reset delta f to zero when done debugging
     rate = 30 # strokes per minute (stroke rate)
     # rower based control
     k_yaw: float = 500
@@ -72,10 +73,10 @@ class BoatParameters:
         self.skeg_area = self.skeg_span * self.skeg_chord
 
         # Compute skeg aspect ratio
-        skeg_aspect_ratio = self.skeg_span ** 2 / self.skeg_area
+        self.skeg_aspect_ratio = self.skeg_span ** 2 / self.skeg_area
 
         # Use Polhamus formula to compute C_Y_beta (equivalent to C_L_alpha)
-        self.skeg_C_Y_beta = self.polhamus_lift_coefficient(skeg_aspect_ratio, self.skeg_sweep_angle)
+        self.skeg_C_Y_beta = self.polhamus_lift_coefficient(self.skeg_aspect_ratio, self.skeg_sweep_angle)
 
         # dimentionless moment arms
         self.x_bar_cg = self.x_cg / self.length
@@ -93,7 +94,7 @@ class BoatParameters:
         self.skeg_C_D: float = C_D_turbulent  # Skeg drag coefficient
 
         print(f"Skeg initialized with:")
-        print(f"  Aspect Ratio: {skeg_aspect_ratio:.2f}")
+        print(f"  Aspect Ratio: {self.skeg_aspect_ratio:.2f}")
         print(f"  Sweep Angle: {np.degrees(self.skeg_sweep_angle):.1f} deg")
         print(f"  C_Y_beta (Polhamus): {self.skeg_C_Y_beta:.3f} /rad")
 
@@ -162,6 +163,9 @@ class BoatState:
         self.v = 0.0  # m/s (sideways velocity)
         self.r = 0.0  # rad/s (yaw rate)
 
+        # Control inputs
+        self.delta_f: float = np.pi / 16 # rudder angle in radians
+
     @property
     def beta(self) -> float:
         """Sideslip angle in radians"""
@@ -193,7 +197,8 @@ class BoatSimulator:
             'v': [],
             'rate': [],
             'beta': [],
-            'V': []
+            'V': [],
+            'delta_f': []
         }
 
     def get_oarlock_forces(self, t: float, psi: float, phi: float,
@@ -279,6 +284,11 @@ class BoatSimulator:
             F_D_vis = q * self.params.gamma * C_d_vis # viscus drag
             F_D_wave = q * self.params.gamma_z * self.params.C_d_w # wave drag
 
+            # induced drag due to skeg
+            C_y_skeg = self.params.skeg_C_Y_beta * beta + self.params.skeg_C_Y_delta_f * self.state.delta_f
+            C_d_i = C_y_skeg**2 / (np.pi * self.params.skeg_aspect_ratio * self.params.skeg_e) * self.params.skeg_area / self.params.ref_area
+            F_D_i = q * self.params.ref_area
+
             F_drag_total = F_D_shape + F_D_vis + F_D_wave # total steady state drag from A model for the dyamics of rowing boats formaggia et al
 
             # Drag components in body frame
@@ -288,8 +298,8 @@ class BoatSimulator:
             #TODO: add induced drag
 
             # Side force in body frame
-            F_side_beta = self.params.total_C_Y_beta * beta * self.params.ref_area * q
-            F_side_delta_f = self.params.skeg_C_Y_delta_f * self.params.delta_f * np.cos(np.pi*self.time/10) * self.params.ref_area * q
+            F_side_beta = self.params.total_C_Y_beta * beta * self.params.ref_area * q # todo allow delta_f to be an element of state (or control)
+            F_side_delta_f = self.params.skeg_C_Y_delta_f * self.state.delta_f * self.params.ref_area * q
 
             F_side_total = F_side_beta + F_side_delta_f
 
@@ -372,6 +382,9 @@ class BoatSimulator:
         # Update time
         self.time += dt
 
+        # update control
+        self.state.delta_f = np.pi/16 * np.cos(np.pi * self.time / 10)
+
         # Store history
         self.history['time'].append(self.time)
         self.history['x'].append(self.state.x)
@@ -382,6 +395,7 @@ class BoatSimulator:
         self.history['rate'].append(np.degrees(self.state.r))
         self.history['beta'].append(np.degrees(self.state.beta))
         self.history['V'].append(self.state.V)
+        self.history['delta_f'].append(self.state.delta_f)
 
     def simulate(self, duration: float, dt: float = 0.01):
         """Run simulation for specified duration"""
