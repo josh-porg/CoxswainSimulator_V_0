@@ -19,6 +19,10 @@ class BoatParameters:
     F_max_z: float = 200  # 178*8 #2000.0  # N (maximum force a rower excerts on their oarlock) want to move to
     ref_area: float = .5 # m^2 (submerged corssection area)
     n_oars = 8 # number of oars
+    n_rowers = 8 # number of rowers
+    n_body_parts = 12 # number of body parts
+    rower_mass = 68 # mass of rowers in kilograms
+    rower_spacing = 2 # m distance between rowers
 
     # Water density
     rho_water: float = 1025.0  # kg/m^3
@@ -121,6 +125,13 @@ class BoatParameters:
     def active_phase_duration(self) -> float:
         return .00015625 * (self.rate - 24) ** 2 - .008125 * (self.rate - 24) + .8 # from A model for the dyamics of rowing boats formaggia et al
 
+    @property
+    def stroke_period(self) -> float:
+        return 60.0 / params.rate  # seconds per stroke
+
+    @property
+    def recovery_duration(self) -> float:
+        return self.stroke_period - params.active_phase_duration
     @staticmethod
     def polhamus_lift_coefficient(aspect_ratio: float, sweep_angle_rad: float = 0.0) -> float:
         """
@@ -201,6 +212,31 @@ class BoatSimulator:
             'delta_f': []
         }
 
+    def euler_to_rotation_matrix(self, psi: float, theta: float, phi: float) -> np.ndarray:
+        """
+        Convert Euler angles to rotation matrix
+        Args:
+            psi: yaw angle
+            theta: pitch angle
+            phi: roll angle
+        Returns:
+            3x3 rotation matrix
+        """
+        cos_psi, sin_psi = np.cos(psi), np.sin(psi)
+        cos_theta, sin_theta = np.cos(theta), np.sin(theta)
+        cos_phi, sin_phi = np.cos(phi), np.sin(phi)
+
+        R = np.array([
+            [cos_theta * cos_psi,
+             sin_phi * sin_theta * cos_psi - cos_phi * sin_psi,
+             cos_phi * sin_theta * cos_psi + sin_phi * sin_psi],
+            [cos_theta * sin_psi,
+             sin_phi * sin_theta * sin_psi + cos_phi * cos_psi,
+             cos_phi * sin_theta * sin_psi - sin_phi * cos_psi],
+            [-sin_theta, sin_phi * cos_theta, cos_phi * cos_theta]
+        ]).T
+        return R
+
     def get_oarlock_forces(self, t: float, psi: float, phi: float,
                            rower_idx: int = 0) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -253,6 +289,93 @@ class BoatSimulator:
         right_force = np.array([f_x, 0, -f_z])  # Opposite z-component
 
         return left_force, right_force
+
+    def get_body_part_kinematics(self, t: float, rower_idx: int, part_idx: int) -> Tuple[
+        np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Placeholder for body part kinematics
+        Returns position, velocity, acceleration of body part in hull frame
+        """
+        # Placeholder implementation - replace with actual kinematics
+        # Based on experimental measurements or biomechanical models
+
+        # for now lets space rowers 2 meters apart
+        rower_spacing = 2 #m distance between rowers
+
+        # Different motion for different body parts
+        # amplitude = 0.5 * (part_idx + 1) / self.params.n_body_parts
+        amplitude = .4  # so .3 to .5 seems about right for a realistic rowing stroke
+        vert_amplitude = 0
+
+        # Simple oscillatory motion as placeholder
+        omega = 2 * np.pi / self.params.stroke_period
+
+        # Determine phase within stroke cycle
+        t_mod = t % self.params.stroke_period
+
+        if t_mod <= self.params.active_phase_duration:
+            # Active phase
+            t_mod = (t % self.params.stroke_period) % self.params.active_phase_duration
+            omega = np.pi / self.params.active_phase_duration
+            offset = 0  # angular ofset for the begining fo this strok
+        else:
+            # recovery phase
+            t_mod = ((t % self.params.stroke_period) - self.params.active_phase_duration) % self.params.recovery_duration
+            omega = np.pi / self.params.recovery_duration  # ToDO: smooth the transition from drive to recovery by making omega and offset a function of t%stroke period or by avergin the 2 until smooth
+            offset = np.pi
+
+        # matched with stroke nd recovery
+        # if (rower_idx == 0) and (part_idx == 0):
+        #     print(f"phase_ratio_body: {(omega * t_mod + offset) / np.pi}")
+        x_rel = amplitude * np.cos(omega * t_mod + offset) + (self.params.n_rowers / 2 - rower_idx) * self.params.rower_spacing
+        v_rel = -amplitude * omega * np.sin(omega * t_mod + offset)
+        a_rel = -amplitude * omega ** 2 * np.cos(omega * t_mod + offset)
+
+        clip_width = 2 / 12 * part_idx + 1 # 0 is dont clip
+        clip_offset = -clip_width / 2
+        # clip_offset = 0
+
+        x_rel = np.cos(omega * t_mod + offset)  # + (self.params.n_rowers / 2 - rower_idx) * self.params.rower_spacing
+        x_rel = amplitude * np.tanh(clip_width * x_rel + clip_offset)
+        # Velocity: d/dt[amplitude * tanh(clip_width * cos(omega*t + offset) + clip_offset)]
+        # Using chain rule: amplitude * sech²(clip_width * cos_term + clip_offset) * clip_width * (-sin(omega*t + offset)) * omega
+        cos_term = np.cos(omega * t_mod + offset)
+        sin_term = np.sin(omega * t_mod + offset)
+        sech_squared = 1.0 / (np.cosh(clip_width * cos_term + clip_offset) ** 2)  # sech²(x) = 1/cosh²(x)
+        v_rel = -amplitude * clip_width * omega * sin_term * sech_squared
+
+        # Acceleration: d/dt[v_rel]
+        # This is more complex - need to differentiate the product
+        # d/dt[-amplitude * clip_width * omega * sin(omega*t + offset) * sech²(clip_width * cos(omega*t + offset) + clip_offset)]
+
+        # First term: derivative of sin term
+        term1 = -amplitude * clip_width * omega ** 2 * cos_term * sech_squared
+
+        # Second term: derivative of sech² term (using chain rule)
+        # d/dt[sech²(u)] = -2*sech²(u)*tanh(u)*du/dt where u = clip_width * cos_term + clip_offset
+        tanh_term = np.tanh(clip_width * cos_term + clip_offset)
+        dsech_dt = -2 * sech_squared * tanh_term * clip_width * (-sin_term) * omega
+        term2 = -amplitude * clip_width * omega * sin_term * dsech_dt
+
+        a_rel = term1 + term2
+
+        # x_rel = amplitude * omega * t_mod**2 +  + (
+        #             self.params.n_rowers / 2 - rower_idx) * self.params.rower_spacing
+        # v_rel = 2*amplitude * omega * t_mod * omega
+        # a_rel = 2*amplitude * omega * omega
+
+        #TODO: match this up with drive and recovery timing
+
+        # not matched to stroke and recovery
+        # x_rel = amplitude * np.sin(omega * t) + (self.params.n_rowers/2 - rower_idx) * self.params.rower_spacing
+        # v_rel = amplitude * omega * np.cos(omega * t)
+        # a_rel = -amplitude * omega ** 2 * np.sin(omega * t)
+
+        position = np.array([x_rel, 0, vert_amplitude * 0.05 * np.sin(2 * omega * t)])
+        velocity = np.array([v_rel, 0, vert_amplitude * 0.1 * omega * np.cos(2 * omega * t)])
+        acceleration = np.array([a_rel, 0, vert_amplitude * -0.2 * omega ** 2 * np.sin(2 * omega * t)])
+
+        return position, velocity, acceleration
 
     def forces_and_moments(self) -> Tuple[float, float, float]:
         """
@@ -323,9 +446,44 @@ class BoatSimulator:
         # F_wind_x = F_wind_x_inertial * np.cos(self.state.psi) - F_wind_y_inertial * np.sin(self.state.psi)
         # F_wind_y = F_wind_x_inertial * np.sin(self.state.psi) + F_wind_y_inertial * np.cos(self.state.psi)
 
+        # 2. Rower inertial forces
+        f_inertial = np.zeros(3)
+        M_inertial = np.zeros(3)
+
+        for j in range(self.params.n_rowers):
+            for i in range(self.params.n_body_parts):
+                m_ij = self.params.rower_mass / self.params.n_body_parts
+
+                x_ij, v_ij, a_ij = self.get_body_part_kinematics(self.time, j, i)
+
+                # get transformation matrix
+                R = self.euler_to_rotation_matrix(self.state.psi, 0, 0) # fir 1 rotational DOF
+
+                # Transform to absolute frame
+                x_ij_abs = R.T @ x_ij
+                v_ij_abs = R.T @ v_ij
+                a_ij_abs = R.T @ a_ij
+
+                # Coriolis and centrifugal terms
+                # coriolis = 2 * np.cross(omega, v_ij_abs) # i belive these should be in hull frame not abs
+                # centrifugal = np.cross(omega, np.cross(omega, x_ij_abs))
+                omega = np.array([0,0,self.state.psi])
+                coriolis = 2 * np.cross(omega, R.T @ v_ij)
+                centrifugal = np.cross(omega, np.cross(omega, R.T @ x_ij))
+
+                # Add inertial forces
+                f_inertial -= m_ij * (R.T @ a_ij + coriolis + centrifugal)
+                # M_inertial -= m_ij * np.cross(R.T @ x_ij, R.T @ a_ij + coriolis + centrifugal) # TODO: reintoduce initrial moment
+
+            # print(f"f_inertial: {f_inertial}")
+
+            # TODO: reintroduce interial forces when done debugging
+            #note we only need the x and y components of f_inertial for 2 Linear DOFs
+
+
         # Total forces in body frame
-        F_x = F_thrust + F_drag_x + F_side_x #+ F_wind_x
-        F_y = F_drag_y + F_side_y #+ F_wind_y
+        F_x = F_thrust + F_drag_x + F_side_x + f_inertial[0] #+ F_wind_x
+        F_y = F_drag_y + F_side_y +  f_inertial[1]#+ F_wind_y
 
         # Moment about vertical axis (simplified model)
         # This is a placeholder - in reality would depend on hull shape, rudder, etc.
@@ -383,7 +541,7 @@ class BoatSimulator:
         self.time += dt
 
         # update control
-        self.state.delta_f = np.pi/16 * np.cos(np.pi * self.time / 10)
+        self.state.delta_f = np.pi/16 * np.cos(np.pi * self.time / 10) * 0
 
         # Store history
         self.history['time'].append(self.time)
