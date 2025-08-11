@@ -15,7 +15,8 @@ class BoatParameters:
     width: float = .75  # m (boat width for reference)
     draft: float = .3 # m(submerged depth of hull)
     moment_inertia = (1/12 * .75 * 17.3**3) * mass / (length * width) # moment of inertia is second moment of area times denisty - assumes unifrom density, and recangle
-    thrust: float = 1200 #178*8 #2000.0  # N (maximum force a rower excerts on their oarlock) want to move to
+    F_max_x: float = 1200 #178*8 #2000.0  # N (maximum force a rower excerts on their oarlock) want to move to
+    F_max_z: float = 200  # 178*8 #2000.0  # N (maximum force a rower excerts on their oarlock) want to move to
     ref_area: float = .5 # m^2 (submerged corssection area)
     n_oars = 8 # number of oars
 
@@ -58,11 +59,12 @@ class BoatParameters:
     # Control input
     delta_f: float = np.pi/16  # rad (rudder deflection angle) # TODO: reset delta f to zero when done debugging
     rate = 30 # strokes per minute (stroke rate)
+    # rower based control
+    k_yaw: float = 500
+    k_roll: float = 1000
 
     # Damping coefficients
     C_N_r: float = -0.05  # Yaw damping coefficient
-
-
 
     def __post_init__(self):
         """Initialize computed parameters after dataclass creation"""
@@ -109,6 +111,14 @@ class BoatParameters:
     def total_area(self) -> float:
         """Total reference area (hull + skeg)"""
         return self.hull_area + self.skeg_area
+
+    @property
+    def stroke_period(self) -> float:
+        return 60.0 / self.rate  # seconds per stroke
+
+    @property
+    def active_phase_duration(self) -> float:
+        return .00015625 * (self.rate - 24) ** 2 - .008125 * (self.rate - 24) + .8 # from A model for the dyamics of rowing boats formaggia et al
 
     @staticmethod
     def polhamus_lift_coefficient(aspect_ratio: float, sweep_angle_rad: float = 0.0) -> float:
@@ -186,6 +196,59 @@ class BoatSimulator:
             'V': []
         }
 
+    def get_oarlock_forces(self, t: float, psi: float, phi: float,
+                           rower_idx: int = 0) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Calculate oarlock forces for given rower
+        Args:
+            t: current time
+            psi: yaw angle
+            phi: roll angle
+            rower_idx: rower index
+        Returns:
+            tuple of (left_oarlock_force, right_oarlock_force) as 3D vectors
+        """
+        # Determine phase within stroke cycle
+        t_mod = t % self.params.stroke_period
+
+        if t_mod <= self.params.active_phase_duration:
+            # Active phase
+            phase_ratio = t_mod / self.params.active_phase_duration
+            force_multiplier = np.sin(np.pi * phase_ratio)
+
+            # Base forces
+            f_x = self.params.F_max_x * force_multiplier
+            f_z = self.params.F_max_z * force_multiplier
+
+            # Yaw control (only during active phase)
+            # Evaluate yaw angle at beginning of stroke for control decision
+            if t_mod < 0.01:  # Beginning of stroke
+                self.yaw_control_offset = -self.params.k_yaw * psi
+            else:
+                self.yaw_control_offset = getattr(self, 'yaw_control_offset', 0)
+
+            f_x_controlled = f_x + self.yaw_control_offset
+
+        else:
+            # Recovery phase
+            f_x_controlled = 0.0
+            f_z = 0.0
+            #for now we also need the uncontrolled f_x
+            f_x = 0.0
+
+        # Roll control (active throughout stroke cycle)
+        roll_control = -self.params.k_roll * phi
+        f_z_controlled = f_z + roll_control
+
+        # Forces in hull coordinate system
+        # left_force = np.array([f_x_controlled, 0, f_z_controlled])
+        # right_force = np.array([f_x_controlled, 0, -f_z_controlled])  # Opposite z-component
+        # currently uncontrolled TODO: reintroduce control when 6DOF
+        left_force = np.array([f_x, 0, f_z])
+        right_force = np.array([f_x, 0, -f_z])  # Opposite z-component
+
+        return left_force, right_force
+
     def forces_and_moments(self) -> Tuple[float, float, float]:
         """
         Calculate forces and moments based on current velocity and sideslip angle
@@ -197,9 +260,12 @@ class BoatSimulator:
 
         # Thrust force (along body x-axis)
         tau_a = .00015625 * (self.params.rate - 24) ** 2 - .008125 * (self.params.rate - 24) + .8 # from A model for the dyamics of rowing boats formaggia et al
-        F_oarlock_x = self.params.thrust * np.sin(np.pi * self.time / tau_a) # from A model for the dyamics of rowing boats formaggia et al
+        F_oarlock_x = self.params.F_max_x * np.sin(np.pi * self.time / tau_a) # from A model for the dyamics of rowing boats formaggia et al
         # F_thrust = self.params.thrust * np.abs(np.sin(np.pi * self.time/2))
         F_thrust = np.max([0.0,F_oarlock_x * self.params.n_oars])
+        F_thrust = self.get_oarlock_forces(self.time, 0, 0)[0][0] # todo replace  with real roll angle when 6DOF
+
+        F_thrust = F_thrust * self.params.n_oars
 
         # Drag force (opposite to velocity direction in body frame)
         if V > 1e-6:
@@ -248,8 +314,8 @@ class BoatSimulator:
         # F_wind_y = F_wind_x_inertial * np.sin(self.state.psi) + F_wind_y_inertial * np.cos(self.state.psi)
 
         # Total forces in body frame
-        F_x = F_thrust + F_drag_x + F_side_x + F_wind_x
-        F_y = F_drag_y + F_side_y + F_wind_y
+        F_x = F_thrust + F_drag_x + F_side_x #+ F_wind_x
+        F_y = F_drag_y + F_side_y #+ F_wind_y
 
         # Moment about vertical axis (simplified model)
         # This is a placeholder - in reality would depend on hull shape, rudder, etc.
@@ -317,7 +383,7 @@ class BoatSimulator:
         self.history['beta'].append(np.degrees(self.state.beta))
         self.history['V'].append(self.state.V)
 
-    def simulate(self, duration: float, dt: float = 0.1):
+    def simulate(self, duration: float, dt: float = 0.01):
         """Run simulation for specified duration"""
         steps = int(duration / dt)
 
