@@ -293,7 +293,7 @@ class RowingShell:
             M_ol = np.cross(oarlock_left, F_ol_abs) - r_h_to_oarlock_ratio * np.cross(hand_left, F_ol_abs)
             M_or = np.cross(oarlock_right, F_or_abs) - r_h_to_oarlock_ratio * np.cross(hand_right, F_or_abs)
 
-            M_total += M_ol + M_or # TODO: oarlock moments cause blowup. fix it!
+            # M_total += M_ol + M_or # TODO: oarlock moments cause blowup. fix it!
 
         # 2. Rower inertial forces
         f_inertial = np.zeros(3)
@@ -327,7 +327,7 @@ class RowingShell:
 
         # 3. Gravity
         gravity_force = np.array([0, 0, -self.total_mass * self.params.gravity])
-        # f_total += gravity_force TODO: reintroduce gravity forces
+        f_total += gravity_force #TODO: reintroduce gravity forces
 
         # 4. Hydrodynamic forces
         F_hydro, M_hydro = self.get_hydrodynamic_forces(state, t)
