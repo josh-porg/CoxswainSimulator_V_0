@@ -152,7 +152,7 @@ class RowingShell:
 
         # Different motion for different body parts
         # amplitude = 0.5 * (part_idx + 1) / self.params.n_body_parts
-        amplitude = .5  # todo: reintorduce some amount of amiplitude into the rower motion
+        amplitude = .4  # so .3 to .5 seems about right for a realistic rowing stroke
         vert_amplitude = 0
 
         # Simple oscillatory motion as placeholder
