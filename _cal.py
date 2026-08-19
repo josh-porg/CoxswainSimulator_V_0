@@ -1,39 +1,51 @@
 import numpy as np
 from coxswain.crew.anthropometry import RowerAnthropometry
 from coxswain.crew.stroke import StrokeTiming
-from coxswain.crew.kinematics import JointDrivenRower, JointAngles, RowerStation
+from coxswain.crew.kinematics import JointDrivenRower, RowerStation
+from coxswain.crew import stroke_data
 
 anthro = RowerAnthropometry(mass=85.0, stature=1.88)
 timing = StrokeTiming(rate=32.0)
-rower = JointDrivenRower(anthro, RowerStation(x_ankle=0.0), JointAngles.from_catch_finish(timing))
+rower = JointDrivenRower(anthro, RowerStation(x_ankle=0.0), timing)
 
-print("link lengths (m): shank %.3f thigh %.3f trunk %.3f uarm %.3f farm %.3f"%(
-    rower.shank_length,rower.thigh_length,rower.trunk_length,rower.upper_arm_length,rower.forearm_length))
-print("crew mass %.2f kg\n"%rower.total_mass)
+print(f"timing: T={timing.period:.3f}s drive={timing.drive_duration:.3f}s "
+      f"recovery={timing.recovery_duration:.3f}s ratio 1:{timing.ratio:.2f}")
+print(f"calibrated seat height above ankle: {rower.station.seat_height*1000:.1f} mm")
+print("link lengths (m): " + "  ".join(f"{n}={getattr(rower,n+'_length'):.3f}"
+      for n in ("shank","thigh","trunk","upper_arm","forearm")))
 
-for frac,label in ((0.0,"catch"),(timing.drive_fraction,"finish")):
-    jp=rower.joint_positions(frac*timing.period)
-    print(f"{label:7s} " + "  ".join(f"{k}=({v[0]:+.3f},{v[2]:+.3f})" for k,v in jp.items()))
+print("\njoint positions (hull frame, x=bow, z=up):")
+ph = stroke_data.CAPLAN_GARDNER_2010.keyframe_phases(timing.drive_fraction)
+for p,label in zip(ph, ("catch","mid-drive","finish","mid-recovery")):
+    jp = rower.joint_positions(p*timing.period)
+    print(f"  {label:13s} " + "  ".join(f"{k}=({v[0]:+.3f},{v[2]:+.3f})"
+          for k,v in jp.items() if k in ("knee","hip","shoulder","hand")))
 
-ts=np.linspace(0,timing.period,600,endpoint=False)
-hip=np.array([rower.joint_positions(t)["hip"] for t in ts])
-hand=np.array([rower.joint_positions(t)["hand"] for t in ts])
-com=np.array([rower.centre_of_mass(t) for t in ts])
-print(f"\nslide travel     {np.ptp(hip[:,0]):.3f} m   target 0.60-0.70")
-print(f"seat height var  {np.ptp(hip[:,2])*1000:.2f} mm  target ~0 (level track)")
-print(f"handle x travel  {np.ptp(hand[:,0]):.3f} m")
-print(f"handle z rise    {np.ptp(hand[:,2]):.3f} m")
-print(f"crew CoM x range {np.ptp(com[:,0]):.3f} m   target 0.45-0.60")
-print(f"crew CoM z range {np.ptp(com[:,2]):.3f} m")
-print(f"thigh angle      {np.degrees(rower.thigh_angle(ts)).min():.1f} .. {np.degrees(rower.thigh_angle(ts)).max():.1f} deg")
+print(f"\nslide travel        {rower.slide_travel():.3f} m   (measured 0.60-0.70)")
+print(f"seat height variation {rower.seat_height_variation()*1000:.1f} mm (level track)")
+print(f"handle x travel     {rower.handle_travel():.3f} m")
+ts = np.linspace(0, timing.period, 500, endpoint=False)
+com = np.array([rower.centre_of_mass(t) for t in ts])
+print(f"crew CoM x range    {com[:,0].max()-com[:,0].min():.3f} m")
+print(f"crew CoM z range    {com[:,2].max()-com[:,2].min():.3f} m")
 
-amax=0; vmax=0
+amax=vmax=0
+prev=None; jump=0
 for t in ts:
-    _,v,a=rower.segment_state(t); amax=max(amax,np.abs(a).max()); vmax=max(vmax,np.abs(v).max())
-print(f"\nmax |segment vel| {vmax:.2f} m/s   max |segment accel| {amax:.2f} m/s^2")
+    _,v,a = rower.segment_state(t)
+    vmax=max(vmax,np.abs(v).max()); amax=max(amax,np.abs(a).max())
+    if prev is not None: jump=max(jump,np.abs(a-prev).max())
+    prev=a
+print(f"\nmax |segment velocity|     {vmax:.2f} m/s")
+print(f"max |segment acceleration| {amax:.2f} m/s^2")
+print(f"max accel step between samples (dt={timing.period/500*1000:.2f} ms): {jump:.4f} m/s^2 -> continuous")
 
-# continuity across the whole cycle including the wrap
-tt=np.linspace(0,2*timing.period,4001)
-A=np.array([rower.segment_state(t)[2] for t in tt])
-jump=np.abs(np.diff(A,axis=0)).max()
-print(f"max step in accel between adjacent samples (dt={tt[1]-tt[0]:.4f}s): {jump:.4f} m/s^2  -> C2 smooth" )
+print("\nreproduced vs measured joint angles at keyframes:")
+ds = stroke_data.CAPLAN_GARDNER_2010
+for i,(p,label) in enumerate(zip(ph, ("catch","mid-drive","finish","mid-recovery"))):
+    t=p*timing.period
+    sh=np.degrees(rower.joint_angles.shank(t).value)
+    th=np.degrees(rower.thigh_angle(t))
+    tr=np.degrees(rower.joint_angles.trunk(t).value)
+    print(f"  {label:13s} shank {sh:6.1f} (data {ds.shank[i]:6.1f})   "
+          f"trunk_link {tr:6.1f} (data {ds.trunk_link[i]:6.1f})   thigh {th:6.1f} (data {ds.thigh[i]:6.1f})")

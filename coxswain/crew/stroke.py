@@ -236,6 +236,48 @@ class FourierProfile:
         return cls.fit_samples(target, timing.period, n_harmonics)
 
     @classmethod
+    def from_keyframes(cls, phases, values, timing: StrokeTiming,
+                       n_harmonics: int = 3,
+                       n_samples: int = 512) -> "FourierProfile":
+        """Smooth periodic profile through measured keyframes.
+
+        This is the entry point for published stroke kinematics: give the
+        normalised phase of each measured instant and the value there, and
+        get back a profile that passes through them smoothly.
+
+        A periodic cubic spline interpolates the keyframes; its spectrum is
+        then truncated to ``n_harmonics``.  The default of 3 harmonics is
+        deliberately low -- with only four keyframes per stroke, retaining
+        more would fit spline artefacts rather than rower motion, and the
+        segment accelerations feed straight into the hull forces.
+
+        Parameters
+        ----------
+        phases:
+            Normalised stroke phases in ``[0, 1)``, strictly increasing.
+        values:
+            Value at each phase, in whatever units the caller uses.
+        """
+        from scipy.interpolate import CubicSpline
+
+        phases = np.asarray(phases, dtype=float)
+        values = np.asarray(values, dtype=float)
+        if phases.shape != values.shape:
+            raise ValueError("phases and values must have the same length")
+        if np.any(np.diff(phases) <= 0):
+            raise ValueError("phases must be strictly increasing")
+        if not (0.0 <= phases[0] and phases[-1] < 1.0):
+            raise ValueError("phases must lie in [0, 1)")
+
+        # close the loop: repeat the first keyframe at phase 1
+        closed_phases = np.append(phases, 1.0)
+        closed_values = np.append(values, values[0])
+        spline = CubicSpline(closed_phases, closed_values, bc_type="periodic")
+
+        grid = np.arange(n_samples) / n_samples
+        return cls.fit_samples(spline(grid), timing.period, n_harmonics)
+
+    @classmethod
     def constant(cls, value: float, period: float) -> "FourierProfile":
         return cls([float(value)], [0.0], period)
 

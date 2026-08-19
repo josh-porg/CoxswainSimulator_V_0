@@ -3,60 +3,68 @@
 Formaggia et al. obtained ``x_ij``, ``x_dot_ij`` and ``x_ddot_ij`` -- the
 hull-frame position, velocity and acceleration of each of the 12 body
 segments -- by reconstructing motion-capture trajectories with fitted
-analytic functions.  Without that mocap data, this module takes the other
-route found in the literature (Serveto et al., *A three-dimensional model
-of the boat-oars-rower system using ADAMS and LifeMOD*, Proc. IMechE Part
-P, 2010): treat the rower as an actuated serial kinematic chain and
-prescribe the **joint angles**, then obtain every segment's motion by
-forward kinematics.
+analytic functions.  This module does the same thing with *published*
+motion-capture angles (:mod:`coxswain.crew.stroke_data`) in place of the
+unavailable raw trajectories: the rower is treated as an actuated serial
+kinematic chain whose **joint angles** are prescribed from measurement,
+and every segment's motion follows by forward kinematics.
+
+That is also the approach taken by Serveto et al., *A three-dimensional
+model of the boat-oars-rower system using ADAMS and LifeMOD*, Proc. IMechE
+Part P 224(1) (2010) 75-83, which drives an articulated multibody rower
+from joint coordinates.
 
 Why forward kinematics rather than inverse
 ------------------------------------------
 Driving the *seat position* and solving inverse kinematics for the knee
 introduces a ``sqrt`` that goes singular at full leg extension -- exactly
 the configuration a rower passes through at every finish, where segment
-accelerations would blow up.  Driving the joint angles directly is
-unconditionally well posed: it is pure composition of sines and cosines,
-with no branch and no singularity anywhere in the workspace.
+accelerations would blow up.  Driving joint angles is unconditionally well
+posed: pure composition of sines and cosines, no branch anywhere in the
+workspace.  The one inverse-kinematics solve that does occur, for the arm
+posture, is done **once at construction** on four keyframes, never inside
+a derivative evaluation.
 
 Exact derivatives
 -----------------
 The whole chain is evaluated in :class:`~coxswain.core.taylor.Jet2`
 arithmetic, so velocities and accelerations are differentiated
 automatically rather than by hand.  Combined with the smooth
-:class:`~coxswain.crew.stroke.FourierProfile` joint drivers, the resulting
-segment accelerations are continuous everywhere -- no impulsive force at
-the catch.
+:class:`~coxswain.crew.stroke.FourierProfile` drivers, segment
+accelerations are continuous everywhere -- no impulsive force at the
+catch.
 
 Frame
 -----
-All positions are in the **hull frame**, measured from the hull centre of
-mass ``G_h``.  The chain lies in the ``x``-``z`` plane; port/starboard
-limbs are displaced in ``y`` by a fixed half-span.  Link angles are
-measured from the ``+x`` (bow) axis, positive towards ``+z`` (up), so
-``0`` points at the bow, ``90 deg`` straight up and ``180 deg`` at the
-stern.  The rower faces the stern, so the drive sweeps the hands from
-about ``180 deg`` towards the bow.
+Positions are in the **hull frame**, measured from the hull centre of mass
+``G_h``.  The chain lies in the ``x``-``z`` plane; port/starboard limbs are
+displaced in ``y`` by a fixed half-span.  Link angles are measured from the
+``+x`` (bow) axis, positive towards ``+z`` (up): ``0`` points at the bow,
+``90 deg`` straight up, ``180 deg`` at the stern.  The rower faces the
+stern, so the drive sweeps the hands from about ``180 deg`` towards the
+bow, and the seat travels *towards the bow* as the legs extend.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Tuple
+from typing import Dict, Sequence, Tuple
 
 import numpy as np
 
 from ..core.taylor import Jet2, constant
 from .anthropometry import CENTRELINE, PORT, STARBOARD, RowerAnthropometry
-from .stroke import DEFAULT_HARMONICS, FourierProfile, StrokeTiming
+from .stroke import FourierProfile, StrokeTiming
+from .stroke_data import StrokeKinematicsDataset, default_dataset
 
 __all__ = [
     "RowerStation",
     "JointAngles",
-    "DEFAULT_JOINT_ANGLES",
-    "DEFAULT_JOINT_PHASES",
     "JointDrivenRower",
     "SEGMENT_ORDER",
+    "THIGH_MODES",
+    "DEFAULT_ARM_POSTURE",
+    "KEYFRAME_HARMONICS",
 ]
 
 #: Order in which segment quantities are returned.  Matches
@@ -69,43 +77,55 @@ SEGMENT_ORDER = (
     "shank_foot_port", "shank_foot_starboard",
 )
 
-#: Catch and finish angles for each driven joint, in degrees.
-#:
-#: These are link *direction* angles (from the +x axis towards +z), not
-#: relative joint angles, which makes them directly readable off a video
-#: frame.  Values are calibrated so the derived seat travel, trunk sweep and
-#: crew centre-of-mass excursion match published on-water measurements for a
-#: sweep eight -- see :func:`JointDrivenRower.slide_travel` and the
-#: calibration assertions in ``tests/unit/test_kinematics.py``.
-#:
-#: The thigh is **not** listed: it is not free.  The seat runs on a level
-#: track, so the hip height above the ankle is fixed and the thigh angle
-#: follows from the shank angle by
-#: ``L_thigh sin(a_thigh) = seat_height - L_shank sin(a_shank)``.
-DEFAULT_JOINT_ANGLES: Dict[str, Tuple[float, float]] = {
-    # link            (catch, finish) in degrees
-    "shank":          (95.0, 14.0),
-    "trunk":          (118.0, 62.0),
-    "upper_arm":      (191.0, 236.0),
-    "forearm":        (186.0, 132.0),
-}
+#: Harmonics retained when smoothing a four-keyframe dataset.  Deliberately
+#: low: with four measured instants per stroke, more harmonics would fit
+#: spline artefacts rather than rower motion, and segment accelerations
+#: feed straight into the hull forces.
+KEYFRAME_HARMONICS = 3
 
-#: Per-joint phase lag, as a fraction of the stroke period.
+#: How the thigh link angle is obtained.
 #:
-#: Rowers do not move every joint at once: the drive sequences legs, then
-#: back, then arms, and the recovery reverses it.  Driving all joints with
-#: a common phase concentrates the whole crew's momentum change into one
-#: burst and roughly doubles the hull's speed fluctuation -- an eight
-#: comes out swinging 2.9 m/s peak to peak instead of the measured
-#: 1.2-1.5 m/s.  Staggering the joints spreads the same total momentum
-#: transfer over more of the cycle, which is a large part of what good
-#: sequencing buys a crew.
-DEFAULT_JOINT_PHASES: Dict[str, float] = {
-    "shank": 0.00,       # legs lead
-    "trunk": 0.10,       # the back opens after the legs
-    "upper_arm": 0.18,   # arms break last
-    "forearm": 0.20,
-}
+#: ``"level_seat"``
+#:     Derive it from the shank angle by holding the hip height above the
+#:     ankle constant.  The seat physically cannot leave its rail, so this
+#:     is exact for the seat itself.  Default.
+#: ``"measured"``
+#:     Take it from the dataset's measured knee angle.  Faithful to the
+#:     source, but the implied hip-joint height then varies by about 7 cm
+#:     over the stroke -- more than the pelvis really moves, and most
+#:     likely an artefact of averaging angles across subjects at fixed time
+#:     points.  Selectable because it is what the data literally say.
+THIGH_MODES = ("level_seat", "measured")
+
+#: Hand position relative to the shoulder joint, as
+#: ``(drive_fraction, extension, elevation_deg)`` at each arm keyframe.
+#:
+#: ``drive_fraction`` locates the keyframe: values in ``[0, 1]`` are that
+#: fraction of the way through the drive, and values above 1 continue into
+#: the recovery on the same scale (so ``1.0`` is the finish).
+#: ``extension`` is the shoulder-to-hand distance as a **fraction of total
+#: arm length**, so it is stature-independent and can never demand a reach
+#: the arm does not have.  ``elevation_deg`` is the direction of the hand
+#: from the shoulder, from the bow axis towards ``+z``; values near
+#: 180 deg point at the stern, which is where a rower's hands are.
+#:
+#: Caplan & Gardner measured only the legs and trunk, so the arms are the
+#: one part of the chain not driven directly by published angles.  These
+#: postures encode the standard sequencing of the stroke -- legs, then
+#: back, then arms -- so the arms stay nearly straight through the first
+#: half of the drive and the draw is concentrated in the last third.  A
+#: uniform draw across the whole drive, which is what four evenly spaced
+#: keyframes would give, understates the peak hand speed by about half.
+#: The postures are converted to link angles by a one-off inverse
+#: kinematics solve at construction time, never inside a derivative
+#: evaluation.
+DEFAULT_ARM_POSTURE: Sequence[Tuple[float, float, float]] = (
+    (0.00, 0.97, 184.0),   # catch: arms straight, reaching for the stern
+    (0.50, 0.96, 182.0),   # mid-drive: still straight, legs doing the work
+    (0.80, 0.78, 179.0),   # late drive: arms break, draw begins
+    (1.00, 0.46, 176.0),   # finish: handle in to the lower ribs
+    (1.55, 0.86, 182.0),   # mid-recovery: hands away again
+)
 
 
 @dataclass(frozen=True)
@@ -115,13 +135,14 @@ class RowerStation:
     ``x_ankle`` places the footboard longitudinally; the whole chain grows
     from there.  Half-spans are lateral (``y``) offsets applied to the
     paired limbs.  ``seat_height`` is the height of the hip joint above the
-    ankle joint and is held constant -- the seat runs on a level track,
-    which is what removes the thigh angle as an independent driver.
+    ankle joint; when ``None`` it is calibrated from the driving dataset's
+    catch and finish keyframes, where the measured shank and knee angles
+    independently agree on it to about a millimetre.
     """
 
     x_ankle: float
     z_ankle: float = -0.05
-    seat_height: float = 0.13
+    seat_height: float = None
     foot_half_span: float = 0.16
     hip_half_span: float = 0.10
     shoulder_half_span: float = 0.20
@@ -131,41 +152,43 @@ class RowerStation:
 class JointAngles:
     """Fourier-smoothed joint-angle drivers for one rower.
 
-    The thigh is absent by design; see :data:`DEFAULT_JOINT_ANGLES`.
+    ``shank`` and ``trunk`` come from measured data.  ``thigh`` is present
+    only in ``"measured"`` mode; otherwise it is derived at evaluation time
+    from the level-seat constraint.  The two arm profiles come from the
+    keyframe inverse-kinematics solve.
     """
 
     shank: FourierProfile
     trunk: FourierProfile
-    upper_arm: FourierProfile
-    forearm: FourierProfile
+    upper_arm: FourierProfile = None
+    forearm: FourierProfile = None
+    thigh: FourierProfile = None
 
     @classmethod
-    def from_catch_finish(cls, timing: StrokeTiming,
-                          angles: Dict[str, Tuple[float, float]] = None,
-                          n_harmonics: int = DEFAULT_HARMONICS,
-                          phase_offset: float = 0.0,
-                          joint_phases: Dict[str, float] = None
-                          ) -> "JointAngles":
-        """Build drivers from catch/finish angle pairs given in degrees.
+    def from_dataset(cls, dataset: StrokeKinematicsDataset,
+                     timing: StrokeTiming,
+                     n_harmonics: int = KEYFRAME_HARMONICS,
+                     phase_offset: float = 0.0,
+                     include_thigh: bool = False) -> "JointAngles":
+        """Build the leg and trunk drivers from a measured dataset.
 
-        ``phase_offset`` shifts this rower's whole stroke in normalised
-        phase.  It is zero for a synchronised crew; a small non-zero value
-        models imperfect timing, which is one of the things a
-        coxswain-facing simulator eventually wants to quantify.
-
-        ``joint_phases`` staggers the joints *within* the stroke -- the
-        legs-back-arms sequence.  See :data:`DEFAULT_JOINT_PHASES`.
+        ``phase_offset`` shifts this rower's stroke in normalised phase.  It
+        is zero for a perfectly synchronised crew; a small non-zero value
+        models imperfect timing.
         """
-        angles = dict(DEFAULT_JOINT_ANGLES if angles is None else angles)
-        phases = dict(DEFAULT_JOINT_PHASES if joint_phases is None
-                      else joint_phases)
-        built = {}
-        for name, (catch, finish) in angles.items():
-            profile = FourierProfile.from_catch_finish(
-                np.radians(catch), np.radians(finish), timing, n_harmonics
+        phases = dataset.keyframe_phases(timing.drive_fraction)
+
+        def build(values_deg):
+            profile = FourierProfile.from_keyframes(
+                phases, np.radians(np.asarray(values_deg, dtype=float)),
+                timing, n_harmonics,
             )
-            built[name] = _shift_phase(
-                profile, phase_offset + phases.get(name, 0.0))
+            return _shift_phase(profile, phase_offset)
+
+        built = {"shank": build(dataset.shank),
+                 "trunk": build(dataset.trunk_link)}
+        if include_thigh:
+            built["thigh"] = build(dataset.thigh)
         return cls(**built)
 
 
@@ -181,7 +204,6 @@ def _shift_phase(profile: FourierProfile, phase_offset: float) -> FourierProfile
     for k in range(1, len(cos_c)):
         delta = 2.0 * np.pi * k * phase_offset
         c, s = np.cos(delta), np.sin(delta)
-        # f(t - offset*T): cos and sin coefficients mix
         shifted_cos[k] = cos_c[k] * c - sin_c[k] * s
         shifted_sin[k] = sin_c[k] * c + cos_c[k] * s
     return FourierProfile(shifted_cos, shifted_sin, profile.period)
@@ -194,22 +216,33 @@ class JointDrivenRower:
 
         ankle (fixed) -> knee -> hip/seat -> shoulder -> elbow -> hand
 
-    with the trunk treated as a single rigid link from hip to shoulder,
-    along which the three de Leva trunk masses are distributed.
+    with the trunk a single rigid link from hip to shoulder, along which
+    the three de Leva trunk masses are distributed.
     """
 
     def __init__(self, anthropometry: RowerAnthropometry,
-                 station: RowerStation, joint_angles: JointAngles):
+                 station: RowerStation, timing: StrokeTiming,
+                 dataset: StrokeKinematicsDataset = None,
+                 thigh_mode: str = "level_seat",
+                 arm_posture: Dict[str, Tuple[float, float]] = None,
+                 phase_offset: float = 0.0,
+                 n_harmonics: int = KEYFRAME_HARMONICS):
+        if thigh_mode not in THIGH_MODES:
+            raise ValueError(
+                f"thigh_mode must be one of {THIGH_MODES}, got {thigh_mode!r}"
+            )
+
         self.anthropometry = anthropometry
-        self.station = station
-        self.joint_angles = joint_angles
+        self.timing = timing
+        self.dataset = default_dataset() if dataset is None else dataset
+        self.thigh_mode = thigh_mode
 
         self._segments = {s.name: s for s in anthropometry.segments}
         self._masses = np.array(
             [self._segments[name].mass for name in SEGMENT_ORDER]
         )
 
-        # Link lengths taken straight from the anthropometry table.
+        # Link lengths straight from the anthropometry table.
         self.shank_length = anthropometry.length("shank")
         self.thigh_length = anthropometry.length("thigh")
         self.trunk_length = (anthropometry.length("lower_trunk")
@@ -219,24 +252,130 @@ class JointDrivenRower:
         self.forearm_length = (anthropometry.length("forearm")
                                + anthropometry.length("hand"))
 
+        if station.seat_height is None:
+            station = RowerStation(
+                x_ankle=station.x_ankle, z_ankle=station.z_ankle,
+                seat_height=self._calibrate_seat_height(),
+                foot_half_span=station.foot_half_span,
+                hip_half_span=station.hip_half_span,
+                shoulder_half_span=station.shoulder_half_span,
+            )
+        self.station = station
+
+        self.joint_angles = JointAngles.from_dataset(
+            self.dataset, timing, n_harmonics=n_harmonics,
+            phase_offset=phase_offset,
+            include_thigh=(thigh_mode == "measured"),
+        )
+
+        arm_posture = DEFAULT_ARM_POSTURE if arm_posture is None else arm_posture
+        self._attach_arm_drivers(arm_posture, n_harmonics, phase_offset)
         self._validate_leg_reach()
 
-    def _validate_leg_reach(self, n_samples: int = 128) -> None:
-        """Check the level-track constraint stays solvable over a stroke.
+    # -- calibration ------------------------------------------------------
+    def _calibrate_seat_height(self) -> float:
+        """Hip height above the ankle, from the dataset's catch and finish.
 
-        ``sin(a_thigh) = (seat_height - L_shank sin(a_shank)) / L_thigh``
-        has no solution if the shank angle demands more vertical drop than
-        the thigh can supply.  Catch it here, with a message naming the
-        offending angle, rather than as a ``nan`` deep inside a derivative
-        evaluation.
+        Those two keyframes are the ones where the measured shank and knee
+        angles agree on a single hip height (to about 1 mm for the default
+        dataset), because the legs are at the extremes of their range and
+        the seat is momentarily still.
         """
-        period = self.joint_angles.shank.period
+        heights = self.dataset.hip_height(self.shank_length,
+                                          self.thigh_length)
+        return float(np.mean([heights[0], heights[2]]))
+
+    def _attach_arm_drivers(self, arm_posture, n_harmonics, phase_offset):
+        """Solve arm inverse kinematics at the keyframes, then smooth."""
+        arm_length = self.upper_arm_length + self.forearm_length
+        drive = self.timing.drive_fraction
+
+        phases, upper, fore = [], [], []
+        for drive_fraction, extension, elevation in arm_posture:
+            phases.append(drive_fraction * drive)
+            reach = extension * arm_length
+            bearing = np.radians(elevation)
+            label = f"drive fraction {drive_fraction:.2f}"
+            upper_angle, fore_angle = self._solve_arm_angles(
+                reach * np.cos(bearing), reach * np.sin(bearing), label
+            )
+            upper.append(upper_angle)
+            fore.append(fore_angle)
+
+        phases = np.asarray(phases)
+        if np.any(phases >= 1.0):
+            raise ValueError(
+                "arm keyframe phases must stay within one stroke; got "
+                f"{phases.max():.3f} of a period"
+            )
+
+        # One more harmonic than the leg/trunk drivers: the arm draw is
+        # deliberately concentrated in the last third of the drive, and
+        # three harmonics cannot resolve that without rounding it away.
+        arm_harmonics = n_harmonics + 1
+
+        def build(values_deg):
+            # Unwrap before fitting.  Link angles come out of atan2 on the
+            # principal branch, so a sequence that physically sweeps through
+            # +-180 deg would otherwise be interpolated the long way round,
+            # producing a spurious full rotation and enormous accelerations.
+            radians = np.unwrap(np.radians(values_deg))
+            profile = FourierProfile.from_keyframes(
+                phases, radians, self.timing, arm_harmonics
+            )
+            return _shift_phase(profile, phase_offset)
+
+        self.joint_angles.upper_arm = build(upper)
+        self.joint_angles.forearm = build(fore)
+
+    def _solve_arm_angles(self, dx: float, dz: float, label: str):
+        """Two-link IK for the arm, in degrees, elbow trailing downwards.
+
+        Solved once per keyframe at construction, so the singularity at
+        full extension is a construction-time error with a clear message
+        rather than a ``nan`` inside an integration step.
+        """
+        reach = np.hypot(dx, dz)
+        upper, fore = self.upper_arm_length, self.forearm_length
+        if reach > 0.999 * (upper + fore):
+            raise ValueError(
+                f"arm posture {label!r} demands a reach of {reach:.3f} m but "
+                f"the arm is only {upper + fore:.3f} m long"
+            )
+        if reach < abs(upper - fore) * 1.001:
+            raise ValueError(
+                f"arm posture {label!r} folds the arm past its inner limit"
+            )
+
+        base = np.arctan2(dz, dx)
+        # law of cosines for the shoulder-side interior angle
+        cos_offset = np.clip(
+            (reach ** 2 + upper ** 2 - fore ** 2) / (2.0 * reach * upper),
+            -1.0, 1.0,
+        )
+        offset = np.arccos(cos_offset)
+
+        # Two solutions exist; take the one with the elbow trailing DOWN and
+        # behind the shoulder-hand line, which is what a rower does at the
+        # finish.  The hands are sternward (base near pi), so rotating
+        # *further* positive swings the elbow below the shoulder.
+        upper_angle = base + offset
+        elbow_x = upper * np.cos(upper_angle)
+        elbow_z = upper * np.sin(upper_angle)
+        fore_angle = np.arctan2(dz - elbow_z, dx - elbow_x)
+        return np.degrees(upper_angle), np.degrees(fore_angle)
+
+    def _validate_leg_reach(self, n_samples: int = 256) -> None:
+        """Check the level-track constraint stays solvable over a stroke."""
+        if self.thigh_mode != "level_seat":
+            return
+        period = self.timing.period
         times = np.linspace(0.0, period, n_samples, endpoint=False)
         shank_angle = self.joint_angles.shank(times).value
         sine = ((self.station.seat_height
                  - self.shank_length * np.sin(shank_angle))
                 / self.thigh_length)
-        worst = np.argmax(np.abs(sine))
+        worst = int(np.argmax(np.abs(sine)))
         if np.abs(sine[worst]) > 0.97:
             raise ValueError(
                 "level-seat constraint is unreachable: at shank angle "
@@ -257,12 +396,17 @@ class JointDrivenRower:
 
     # -- kinematics -------------------------------------------------------
     def thigh_sincos(self, t):
-        """``(sin, cos)`` of the thigh angle from the level-seat constraint.
+        """``(sin, cos)`` of the thigh link angle, as :class:`Jet2` pairs.
 
-        Returned as :class:`Jet2` pairs.  Working with the sine and cosine
-        directly avoids an ``arcsin`` -- and hence avoids introducing a
-        branch cut into a quantity that is differentiated twice.
+        In ``level_seat`` mode this comes from the constant-hip-height
+        constraint; working with the sine and cosine directly avoids an
+        ``arcsin``, and hence avoids putting a branch cut into a quantity
+        that gets differentiated twice.
         """
+        if self.thigh_mode == "measured":
+            angle = self.joint_angles.thigh(t)
+            return angle.sin(), angle.cos()
+
         shank = self.joint_angles.shank(t)
         sine = (constant(self.station.seat_height)
                 - self.shank_length * shank.sin()) / self.thigh_length
@@ -270,31 +414,12 @@ class JointDrivenRower:
         return sine, cosine
 
     def thigh_angle(self, t) -> np.ndarray:
-        """Derived thigh link angle in radians, for inspection and plots."""
+        """Thigh link angle in radians, for inspection and plots."""
         sine, cosine = self.thigh_sincos(t)
         return np.arctan2(sine.value, cosine.value)
 
     def _chain(self, t):
-        """Evaluate every joint centre as a pair of ``Jet2`` (x, z).
-
-        Single-entry cached on ``t``.  Both :meth:`segment_state` and
-        :meth:`joint_positions` need the chain, and the simulator calls
-        both at the same instant on every derivative evaluation -- without
-        the cache the chain is rebuilt once per rower per stage, which
-        dominated the run time.
-        """
-        cached_t, cached = getattr(self, "_chain_cache", (None, None))
-        if cached is not None and cached_t is not None:
-            key = t if np.isscalar(t) else None
-            if key is not None and key == cached_t:
-                return cached
-
-        value = self._chain_uncached(t)
-        if np.isscalar(t):
-            self._chain_cache = (t, value)
-        return value
-
-    def _chain_uncached(self, t):
+        """Evaluate every joint centre as a pair of ``Jet2`` (x, z)."""
         angles = self.joint_angles
 
         def link(base_x, base_z, length, angle_jet):
@@ -334,6 +459,13 @@ class JointDrivenRower:
         return {name: np.array([x.value, 0.0, z.value])
                 for name, (x, z) in chain.items()}
 
+    def hand_path(self, n_samples: int = 200) -> np.ndarray:
+        """Handle path over one stroke, shape ``(n, 2)`` as ``(x, z)``."""
+        times = np.linspace(0.0, self.timing.period, n_samples, endpoint=False)
+        chain = self._chain(times)
+        return np.column_stack([chain["hand"][0].value,
+                                chain["hand"][1].value])
+
     def segment_state(self, t):
         """Position, velocity and acceleration of all 12 segment masses.
 
@@ -347,7 +479,6 @@ class JointDrivenRower:
         anthro = self.anthropometry
 
         def along(start, end, fraction):
-            """Point a given fraction of the way from ``start`` to ``end``."""
             sx, sz = start
             ex, ez = end
             return (sx + (ex - sx) * fraction, sz + (ez - sz) * fraction)
@@ -356,7 +487,6 @@ class JointDrivenRower:
         hip, shoulder = chain["hip"], chain["shoulder"]
         elbow, hand = chain["elbow"], chain["hand"]
 
-        # Trunk sub-masses: heights above the hip along the hip->shoulder link.
         lower_len = anthro.length("lower_trunk")
         mid_len = anthro.length("mid_trunk")
         upper_len = anthro.length("upper_trunk")
@@ -426,14 +556,22 @@ class JointDrivenRower:
         position, _, _ = self.segment_state(t)
         return (self._masses[:, None] * position).sum(axis=0) / self.total_mass
 
-    def slide_travel(self, timing: StrokeTiming, n_samples: int = 400) -> float:
+    def _sample(self, key: str, index: int, n_samples: int) -> np.ndarray:
+        times = np.linspace(0.0, self.timing.period, n_samples, endpoint=False)
+        chain = self._chain(times)
+        return chain[key][index].value
+
+    def slide_travel(self, n_samples: int = 400) -> float:
         """Peak-to-peak longitudinal travel of the seat (hip joint)."""
-        times = np.linspace(0.0, timing.period, n_samples, endpoint=False)
-        hip_x = np.array([self.joint_positions(t)["hip"][0] for t in times])
+        hip_x = self._sample("hip", 0, n_samples)
         return float(hip_x.max() - hip_x.min())
 
-    def handle_travel(self, timing: StrokeTiming, n_samples: int = 400) -> float:
+    def seat_height_variation(self, n_samples: int = 400) -> float:
+        """Peak-to-peak vertical movement of the hip joint."""
+        hip_z = self._sample("hip", 1, n_samples)
+        return float(hip_z.max() - hip_z.min())
+
+    def handle_travel(self, n_samples: int = 400) -> float:
         """Peak-to-peak longitudinal travel of the hands."""
-        times = np.linspace(0.0, timing.period, n_samples, endpoint=False)
-        hand_x = np.array([self.joint_positions(t)["hand"][0] for t in times])
+        hand_x = self._sample("hand", 0, n_samples)
         return float(hand_x.max() - hand_x.min())
