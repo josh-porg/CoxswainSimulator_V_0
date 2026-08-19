@@ -48,7 +48,8 @@ import numpy as np
 
 from .stroke import StrokeTiming
 
-__all__ = ["OarForceProfile", "OarAngleSweep", "oar_force", "hull_load"]
+__all__ = ["OarForceProfile", "OarAngleSweep", "oar_force", "hull_load",
+           "oar_axis", "blade_position", "handle_position"]
 
 
 @dataclass(frozen=True)
@@ -158,3 +159,44 @@ def hull_load(force: np.ndarray, oarlock_position: np.ndarray,
              - np.asarray(hand_position, dtype=float)
              + gearing * np.asarray(hand_position, dtype=float))
     return net_force, np.cross(lever, force)
+
+
+def oar_axis(t, timing: StrokeTiming, side: int,
+             sweep: "OarAngleSweep" = None) -> np.ndarray:
+    """Unit vector along the oar shaft, oarlock -> blade, in the hull frame.
+
+    The shaft lies in the horizontal plane of the hull.  ``angle`` is
+    measured from the transverse axis, positive towards the bow, so at the
+    catch (positive angle) the blade is bow-ward of its oarlock and at the
+    finish it is stern-ward -- the sweep that drives the boat forward.
+
+    ``side`` selects which way the shaft points laterally: a port oarlock
+    carries an oar reaching out to port.
+    """
+    sweep = sweep or OarAngleSweep()
+    angle = np.asarray(sweep(t, timing), dtype=float)
+    return np.stack([
+        np.sin(angle),
+        side * np.cos(angle),
+        np.zeros_like(angle),
+    ], axis=-1)
+
+
+def blade_position(t, timing: StrokeTiming, oarlock,
+                   sweep: "OarAngleSweep" = None) -> np.ndarray:
+    """Blade centre in the hull frame, ``outboard`` out along the shaft."""
+    axis = oar_axis(t, timing, oarlock.side, sweep)
+    return np.asarray(oarlock.position, dtype=float) + oarlock.oar.outboard * axis
+
+
+def handle_position(t, timing: StrokeTiming, oarlock,
+                    sweep: "OarAngleSweep" = None) -> np.ndarray:
+    """Handle centre in the hull frame, ``inboard`` back along the shaft.
+
+    This is where the hands *must* be if they are on the oar.  The rower's
+    kinematic chain reaches its own hand position independently, so
+    comparing the two is a consistency check on the arm posture -- see
+    ``tests/integration/test_visualisation.py``.
+    """
+    axis = oar_axis(t, timing, oarlock.side, sweep)
+    return np.asarray(oarlock.position, dtype=float) - oarlock.oar.inboard * axis

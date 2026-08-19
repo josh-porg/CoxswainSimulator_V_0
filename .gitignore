@@ -1,5 +1,12 @@
 __pycache__/
 *.py[cod]
 .venv/
-_*.py
 .pytest_cache/
+
+# scratch scripts at the repo root only -- must not match __init__.py
+/_*.py
+
+# rendered output
+out/
+*.mp4
+*.gif
