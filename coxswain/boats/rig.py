@@ -58,10 +58,16 @@ class Oar:
     inboard: float
     blade_area: float = 0.11
     blade_efficiency: float = 0.78
+    grip_separation: float = 0.0
 
     def __post_init__(self) -> None:
         if not 0.0 < self.blade_efficiency <= 1.0:
             raise ValueError("blade_efficiency must lie in (0, 1]")
+        if not 0.0 <= self.grip_separation < self.inboard:
+            raise ValueError(
+                f"grip_separation ({self.grip_separation}) must lie in "
+                f"[0, inboard) = [0, {self.inboard})"
+            )
         if not 0.0 < self.inboard < self.length:
             raise ValueError(
                 f"inboard ({self.inboard}) must lie strictly between 0 and "
@@ -88,9 +94,18 @@ class Oar:
 
 
 #: World Rowing standard sweep oar: 3.70 m overall, 1.14 m inboard.
-SWEEP_OAR = Oar(length=3.70, inboard=1.14, blade_area=0.110)
+#:
+#: ``grip_separation`` is the spacing of the two hands along the handle.  A
+#: sweep rower holds one oar in both hands: the outside hand takes the very
+#: end of the handle and the inside hand sits about 0.30 m closer to the
+#: oarlock.  It is not decoration -- with both hands modelled at the same
+#: point the outside shoulder finishes 0.75 m from a 0.70 m arm, i.e. the
+#: rower cannot hold their own oar.
+SWEEP_OAR = Oar(length=3.70, inboard=1.14, blade_area=0.110,
+                grip_separation=0.30)
 
-#: Standard sculling oar: 2.88 m overall, 0.88 m inboard.
+#: Standard sculling oar: 2.88 m overall, 0.88 m inboard.  A sculler has
+#: one hand per oar, so there is no grip separation.
 SCULLING_OAR = Oar(length=2.88, inboard=0.88, blade_area=0.083)
 
 

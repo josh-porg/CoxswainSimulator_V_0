@@ -40,6 +40,7 @@ from ..crew.stroke_data import StrokeKinematicsDataset, default_dataset
 from ..hydro.appendages import LiftingSurface
 from ..hydro.hull import HullMesh, HullOffsets
 from ..hydro.resistance import FRESH_WATER, ResistanceCoefficients, WaterProperties
+from ..hydro.shallow import ShallowWaterModel
 from .rig import Rig
 
 __all__ = ["Boat", "CrewMember"]
@@ -72,7 +73,8 @@ class Boat:
                  n_girth: int = 16,
                  crew_phase_offsets: Sequence[float] = None,
                  default_anthropometry: RowerAnthropometry = None,
-                 stroke_dataset: StrokeKinematicsDataset = None):
+                 stroke_dataset: StrokeKinematicsDataset = None,
+                 shallow: ShallowWaterModel = None):
         self.name = name
         self.offsets = offsets
         self.mesh = HullMesh(offsets, n_girth=n_girth)
@@ -86,6 +88,8 @@ class Boat:
         self.force_profile = force_profile or OarForceProfile()
         self.oar_sweep = oar_sweep or OarAngleSweep()
         self.stroke_dataset = stroke_dataset or default_dataset()
+        #: Finite-depth correction; deep water unless a depth is given.
+        self.shallow = shallow or ShallowWaterModel()
 
         if self.hull_inertia.shape != (3, 3):
             raise ValueError("hull_inertia must be a 3x3 tensor")
@@ -143,17 +147,23 @@ class Boat:
         """
         from ..crew.oarlock import handle_position
 
-        def target_for(lock):
+        def target_for(lock, grip_offset=0.0):
             def target(t):
-                return handle_position(t, self.timing, lock, self.oar_sweep)
+                return handle_position(t, self.timing, lock, self.oar_sweep,
+                                       grip_offset)
             return target
 
         if seat.is_sculling:
             return {lock.side: target_for(lock) for lock in seat.oarlocks}
 
         lock = seat.oarlocks[0]
-        shared = target_for(lock)
-        return {PORT: shared, STARBOARD: shared}
+        # The outside hand -- the one away from the rigger -- takes the end
+        # of the handle; the inside hand sits a grip separation closer to
+        # the oarlock.  Without that spread the outside arm cannot reach.
+        return {
+            -lock.side: target_for(lock, 0.0),
+            lock.side: target_for(lock, lock.oar.grip_separation),
+        }
 
     def _validate(self) -> None:
         capacity = self.offsets.design_displacement(self.water.density)

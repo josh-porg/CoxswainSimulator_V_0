@@ -78,12 +78,30 @@ class OarAngleSweep:
 
     catch_angle: float = np.radians(55.0)
     finish_angle: float = np.radians(-35.0)
+    #: Blend towards a linear ramp.  The default of 0 is a pure raised
+    #: cosine, which is the physically correct choice: the oar angle has a
+    #: genuine turning point at the catch and at the finish, so its rate is
+    #: zero there.  A raised cosine peaks at 1.57 times the mean angular
+    #: rate mid-drive, which matches measured oar-angle traces.  Values
+    #: above 0 flatten the mid-drive rate at the cost of reintroducing a
+    #: corner at the ends.
+    flatness: float = 0.0
 
     def __call__(self, t, timing: StrokeTiming):
         """Oar angle at time ``t``.
 
-        Sweeps linearly in stroke phase across the drive and returns over
-        the recovery, matching the blade being out of the water.
+        The oar **reverses direction** at the catch and again at the
+        finish, so its angular rate must pass through zero there.  A
+        sweep that is linear in stroke phase instead steps the rate
+        discontinuously, which puts a corner in the handle path -- and
+        since the rower's hands are constrained to the handle, that corner
+        propagates straight into the crew's segment accelerations and
+        hence into the hull forces.
+
+        Each phase therefore uses a raised-cosine ramp blended towards a
+        linear one by ``flatness``: zero rate at both ends, near-constant
+        rate through the middle of the drive, which is what measured oar
+        angle traces show.
         """
         t = np.asarray(t, dtype=float)
         phase = timing.phase(t)
@@ -94,10 +112,22 @@ class OarAngleSweep:
         recovery_progress = np.clip((phase - drive) / (1.0 - drive), 0.0, 1.0)
 
         span = self.finish_angle - self.catch_angle
-        during_drive = self.catch_angle + span * drive_progress
-        during_recovery = self.finish_angle - span * recovery_progress
+        during_drive = self.catch_angle + span * self._ramp(drive_progress)
+        during_recovery = self.finish_angle - span * self._ramp(
+            recovery_progress)
 
         return np.where(on_drive, during_drive, during_recovery)
+
+    def _ramp(self, progress):
+        """Monotone 0 to 1 map with zero slope at both ends.
+
+        ``flatness = 0`` is a pure raised cosine; ``flatness = 1`` is the
+        linear ramp, which reintroduces the corner.
+        """
+        progress = np.clip(np.asarray(progress, dtype=float), 0.0, 1.0)
+        cosine = 0.5 * (1.0 - np.cos(np.pi * progress))
+        flatness = float(np.clip(self.flatness, 0.0, 1.0))
+        return (1.0 - flatness) * cosine + flatness * progress
 
     @property
     def total_sweep(self) -> float:
@@ -190,13 +220,17 @@ def blade_position(t, timing: StrokeTiming, oarlock,
 
 
 def handle_position(t, timing: StrokeTiming, oarlock,
-                    sweep: "OarAngleSweep" = None) -> np.ndarray:
-    """Handle centre in the hull frame, ``inboard`` back along the shaft.
+                    sweep: "OarAngleSweep" = None,
+                    grip_offset: float = 0.0) -> np.ndarray:
+    """Grip point in the hull frame, back along the shaft from the oarlock.
 
-    This is where the hands *must* be if they are on the oar.  The rower's
-    kinematic chain reaches its own hand position independently, so
-    comparing the two is a consistency check on the arm posture -- see
-    ``tests/integration/test_visualisation.py``.
+    This is where a hand *must* be if the rower is holding the oar.
+
+    ``grip_offset`` moves the grip towards the oarlock from the end of the
+    handle.  It is zero for the outside hand, which takes the very end, and
+    :attr:`~coxswain.boats.rig.Oar.grip_separation` for the inside hand of
+    a sweep rower.  A sculler has one hand per oar and uses zero for both.
     """
     axis = oar_axis(t, timing, oarlock.side, sweep)
-    return np.asarray(oarlock.position, dtype=float) - oarlock.oar.inboard * axis
+    reach = oarlock.oar.inboard - float(grip_offset)
+    return np.asarray(oarlock.position, dtype=float) - reach * axis

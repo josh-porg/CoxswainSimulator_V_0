@@ -66,6 +66,8 @@ __all__ = [
     "DEFAULT_ARM_POSTURE",
     "KEYFRAME_HARMONICS",
     "ARM_TRACK_HARMONICS",
+    "MAX_SHOULDER_PROTRACTION",
+    "MAX_TRUNK_ROTATION",
 ]
 
 #: Order in which segment quantities are returned.  Matches
@@ -90,10 +92,15 @@ KEYFRAME_HARMONICS = 3
 #: its shape would let the hands drift off the oar.
 ARM_TRACK_HARMONICS = 10
 
-#: Largest shoulder-to-handle distance, as a fraction of arm length, before
-#: the geometry is declared unreachable.  Kept below 1 so the elbow solve
-#: never sits exactly at the straight-arm singularity.
-MAX_ARM_EXTENSION = 0.995
+#: Shoulder-to-handle distance, as a fraction of arm length, at which the
+#: elbow solve stops trying to bend the arm.
+#:
+#: An extension of 1.0 is simply a straight arm, which is what a rower
+#: actually has through the middle of the drive -- it is not an error.  The
+#: clamp exists only so the elbow has a defined position rather than
+#: sitting exactly on the straight-arm singularity; the *reachability*
+#: check is separate, and compares against the arm length itself.
+MAX_ARM_EXTENSION = 0.9995
 
 #: Largest trunk rotation about the vertical, in radians.
 #:
@@ -109,6 +116,17 @@ MAX_TRUNK_ROTATION = np.radians(40.0)
 #: solve aims to stay under.  Below the hard :data:`MAX_ARM_EXTENSION` so
 #: the elbow solve keeps a usable margin from the straight-arm singularity.
 COMFORTABLE_ARM_EXTENSION = 0.95
+
+#: How far the shoulder joint can travel forward of its skeletal position,
+#: in metres, by protracting the scapula.
+#:
+#: Mid-drive a rower's arms are genuinely straight, so the required reach
+#: sits within a percent of full arm length; at the catch they reach
+#: further still by rolling the shoulder girdle forward.  Scapular
+#: protraction gives 4-6 cm of that reach and is what lets a sculler hold
+#: both handles through the middle of the drive.  Without it the model
+#: declares a perfectly ordinary rig unreachable.
+MAX_SHOULDER_PROTRACTION = 0.06
 
 #: How the thigh link angle is obtained.
 #:
@@ -541,13 +559,13 @@ class JointDrivenRower:
         for index in range(n_samples):
             worst = np.zeros(n_trial)
             for side in sides:
-                # the arms that must reach: for sweep both, sharing a handle
-                for arm_side in (PORT, STARBOARD):
-                    shoulder = self._shoulder_from_axis(
-                        axis_x[index], axis_z[index], arm_side, trials)
-                    reach = np.linalg.norm(
-                        handles[side][index] - shoulder, axis=-1)
-                    worst = np.maximum(worst, reach / arm_length)
+                # each arm reaches its OWN grip: for a sweep rower the two
+                # hands sit at different points along the same handle
+                shoulder = self._shoulder_from_axis(
+                    axis_x[index], axis_z[index], side, trials)
+                reach = np.linalg.norm(
+                    handles[side][index] - shoulder, axis=-1)
+                worst = np.maximum(worst, reach / arm_length)
 
             acceptable = np.flatnonzero(worst <= COMFORTABLE_ARM_EXTENSION)
             if acceptable.size:
@@ -569,15 +587,28 @@ class JointDrivenRower:
         reach = np.linalg.norm(reach_vector, axis=1)
         arm_length = upper + fore
 
+        # Where the arm alone is not long enough, let the shoulder girdle
+        # protract towards the handle -- the mechanism a real rower uses.
+        unit = reach_vector / np.maximum(reach, 1e-12)[:, None]
+        protraction = np.clip(
+            reach - MAX_ARM_EXTENSION * arm_length, 0.0,
+            MAX_SHOULDER_PROTRACTION)
+        shoulders = shoulders + protraction[:, None] * unit
+        reach_vector = hands - shoulders
+        reach = np.linalg.norm(reach_vector, axis=1)
+
         worst = float(reach.max() / arm_length)
-        if worst > MAX_ARM_EXTENSION:
+        if worst > 1.0:
             index = int(np.argmax(reach))
             raise ValueError(
                 f"the rower cannot reach the oar handle: at stroke phase "
                 f"{index / len(reach):.2f} the shoulder is {reach[index]:.3f} m "
                 f"from the handle but the arm is only {arm_length:.3f} m "
-                f"long. Check the rig span, the oar inboard, or the seat "
-                f"station against the athlete's stature."
+                f"long, even with {MAX_SHOULDER_PROTRACTION * 100:.0f} cm of "
+                f"shoulder protraction and up to "
+                f"{np.degrees(MAX_TRUNK_ROTATION):.0f} deg of trunk rotation. "
+                f"Check the rig span, the oar inboard, or the seat station "
+                f"against the athlete's stature."
             )
 
         safe_reach = np.minimum(reach, MAX_ARM_EXTENSION * arm_length)

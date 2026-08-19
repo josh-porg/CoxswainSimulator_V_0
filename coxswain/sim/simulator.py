@@ -196,7 +196,7 @@ class RowingSimulator:
         # -- resistance and appendages (hull frame) -----------------------
         resistance_hull, detail = hull_resistance(
             state.velocity_hull, submerged, boat.length, boat.water,
-            boat.resistance,
+            boat.resistance, boat.shallow,
         )
         # resistance acts at the centre of the wetted volume; the offset
         # from G_h is small and its moment is dominated by the appendages

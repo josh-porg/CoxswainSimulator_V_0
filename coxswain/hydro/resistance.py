@@ -43,6 +43,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from .hull import SubmergedProperties
+from .shallow import ShallowWaterModel
 
 __all__ = [
     "WaterProperties",
@@ -52,6 +53,7 @@ __all__ = [
     "PAPER_LITERAL",
     "friction_coefficient",
     "hull_resistance",
+    "DEEP_WATER",
 ]
 
 
@@ -141,11 +143,16 @@ def friction_coefficient(reynolds: float,
     return friction_zero / (np.log10(reynolds) - 2.0) ** 2
 
 
+#: The default: unbounded depth, so the shallow-water term is inert.
+DEEP_WATER = ShallowWaterModel()
+
+
 def hull_resistance(velocity_hull: np.ndarray,
                     properties: SubmergedProperties,
                     mean_wetted_length: float,
                     water: WaterProperties = FRESH_WATER,
-                    coefficients: ResistanceCoefficients = None):
+                    coefficients: ResistanceCoefficients = None,
+                    shallow: ShallowWaterModel = None):
     """Resistance force on the hull, in the hull frame.
 
     Parameters
@@ -156,6 +163,11 @@ def hull_resistance(velocity_hull: np.ndarray,
         Current submerged-surface measures.
     mean_wetted_length:
         ``L_M`` for the Reynolds number.
+    shallow:
+        Finite-depth correction; ``None`` means deep water.  Only the wave
+        term is scaled -- Day et al. note that the boundary-layer changes
+        behind the viscous term "are less likely to be sensitive to water
+        depth".
 
     Returns
     -------
@@ -174,8 +186,10 @@ def hull_resistance(velocity_hull: np.ndarray,
     shape = dynamic_pressure * properties.transverse_area * coefficients.shape
     viscous = (dynamic_pressure * properties.wetted_area * c_f
                * coefficients.form_factor)
+    shallow = shallow or DEEP_WATER
+    depth_factor = float(shallow.factor(u))
     wave = (dynamic_pressure * coefficients.wave_area(properties)
-            * coefficients.wave)
+            * coefficients.wave * depth_factor)
 
     total_longitudinal = shape + viscous + wave
     # resistance always opposes the motion
@@ -193,5 +207,7 @@ def hull_resistance(velocity_hull: np.ndarray,
         "total_longitudinal": total_longitudinal,
         "reynolds": reynolds,
         "friction_coefficient": c_f,
+        "depth_factor": depth_factor,
+        "depth_froude": float(shallow.froude(u)),
     }
     return np.array([force_x, force_y, force_z]), breakdown
