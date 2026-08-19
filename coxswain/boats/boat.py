@@ -33,9 +33,10 @@ from typing import List, Sequence, Tuple
 import numpy as np
 
 from ..crew.anthropometry import RowerAnthropometry
-from ..crew.kinematics import JointAngles, JointDrivenRower, RowerStation
+from ..crew.kinematics import JointDrivenRower, RowerStation
 from ..crew.oarlock import OarAngleSweep, OarForceProfile
 from ..crew.stroke import StrokeTiming
+from ..crew.stroke_data import StrokeKinematicsDataset, default_dataset
 from ..hydro.appendages import LiftingSurface
 from ..hydro.hull import HullMesh, HullOffsets
 from ..hydro.resistance import FRESH_WATER, ResistanceCoefficients, WaterProperties
@@ -70,7 +71,8 @@ class Boat:
                  oar_sweep: OarAngleSweep = None,
                  n_girth: int = 16,
                  crew_phase_offsets: Sequence[float] = None,
-                 default_anthropometry: RowerAnthropometry = None):
+                 default_anthropometry: RowerAnthropometry = None,
+                 stroke_dataset: StrokeKinematicsDataset = None):
         self.name = name
         self.offsets = offsets
         self.mesh = HullMesh(offsets, n_girth=n_girth)
@@ -83,6 +85,7 @@ class Boat:
         self.resistance = resistance or ResistanceCoefficients()
         self.force_profile = force_profile or OarForceProfile()
         self.oar_sweep = oar_sweep or OarAngleSweep()
+        self.stroke_dataset = stroke_dataset or default_dataset()
 
         if self.hull_inertia.shape != (3, 3):
             raise ValueError("hull_inertia must be a 3x3 tensor")
@@ -114,10 +117,11 @@ class Boat:
         for index, (athlete, seat, offset) in enumerate(
                 zip(anthropometry, self.rig.seats, offsets)):
             station = RowerStation(x_ankle=seat.station_x)
-            angles = JointAngles.from_catch_finish(self.timing,
-                                                   phase_offset=offset)
             crew.append(CrewMember(
-                rower=JointDrivenRower(athlete, station, angles),
+                rower=JointDrivenRower(
+                    athlete, station, self.timing,
+                    dataset=self.stroke_dataset, phase_offset=offset,
+                ),
                 seat_index=index,
             ))
         return tuple(crew)
