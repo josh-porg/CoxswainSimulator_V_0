@@ -41,12 +41,12 @@ about ``180 deg`` towards the bow.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Dict, Tuple
 
 import numpy as np
 
-from ..core.taylor import Jet2, constant, variable
+from ..core.taylor import Jet2, constant
 from .anthropometry import CENTRELINE, PORT, STARBOARD, RowerAnthropometry
 from .stroke import DEFAULT_HARMONICS, FourierProfile, StrokeTiming
 
