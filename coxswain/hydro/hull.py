@@ -301,13 +301,19 @@ class HullMesh:
         else:
             centre_of_buoyancy = np.zeros(3)
 
+        # The area projections feed the resistance model, which is applied
+        # in the HULL frame, so they must be projected onto the hull axes.
+        # Projecting onto absolute axes instead (as the paper's planar
+        # formulation implicitly does, since there hull x == absolute X)
+        # makes a yawed boat present its side profile as its frontal area,
+        # and breaks the exact yaw symmetry of the dynamics.
         return SubmergedProperties(
             wetted_area=float(wet_area.sum()),
             transverse_area=float(
-                0.5 * (wet_area * np.abs(normal_abs[:, 0])).sum()),
+                0.5 * (wet_area * np.abs(self.normal[:, 0])).sum()),
             lateral_area=float(
-                0.5 * (wet_area * np.abs(normal_abs[:, 1])).sum()),
-            plan_area=float(abs((wet_area * normal_abs[:, 2]).sum())),
+                0.5 * (wet_area * np.abs(self.normal[:, 1])).sum()),
+            plan_area=float(abs((wet_area * self.normal[:, 2]).sum())),
             volume=max(volume, 0.0),
             buoyancy_force=force,
             buoyancy_moment=moment,
