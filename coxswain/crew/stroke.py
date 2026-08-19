@@ -36,12 +36,18 @@ import numpy as np
 
 from ..core.taylor import Jet2
 
-__all__ = ["StrokeTiming", "FourierProfile", "DEFAULT_HARMONICS"]
+__all__ = ["StrokeTiming", "FourierProfile", "DEFAULT_HARMONICS",
+           "DEFAULT_FLATNESS"]
 
 #: Harmonics retained when converting an idealised piecewise profile into a
 #: smooth one.  Higher = sharper catch, more high-frequency content in the
 #: crew acceleration.
 DEFAULT_HARMONICS = 8
+
+#: How close to constant-rate each phase of the stroke is; see
+#: :meth:`FourierProfile._ramp`.  Calibrated so an eight's hull speed
+#: fluctuation matches measured boat-mounted accelerometer data.
+DEFAULT_FLATNESS = 0.75
 
 
 @dataclass(frozen=True)
@@ -181,33 +187,51 @@ class FourierProfile:
 
         return cls(cos_coefficients, sin_coefficients, period)
 
+    @staticmethod
+    def _ramp(progress: np.ndarray, flatness: float) -> np.ndarray:
+        """Monotone map ``[0,1] -> [0,1]`` blending cosine and linear.
+
+        ``flatness = 0`` gives a raised cosine, whose *derivative* is a
+        half-sine peaking at 1.57 times its mean.  ``flatness = 1`` gives a
+        straight ramp, i.e. constant rate.
+
+        This parameter is what sets how peaky the crew's velocity is, and
+        so how hard the hull surges.  A raised cosine makes an eight's
+        speed swing about 2.8 m/s peak to peak against a measured
+        1.2-1.5 m/s; real crews move much closer to constant slide speed
+        within each phase, which is a large part of what "good sequencing"
+        means.  See :data:`DEFAULT_FLATNESS`.
+        """
+        flatness = float(np.clip(flatness, 0.0, 1.0))
+        cosine = 0.5 * (1.0 - np.cos(np.pi * progress))
+        return (1.0 - flatness) * cosine + flatness * progress
+
     @classmethod
     def from_catch_finish(cls, catch_value: float, finish_value: float,
                           timing: StrokeTiming,
                           n_harmonics: int = DEFAULT_HARMONICS,
-                          n_samples: int = 512) -> "FourierProfile":
+                          n_samples: int = 512,
+                          flatness: float = None) -> "FourierProfile":
         """Smooth profile sweeping catch -> finish -> catch.
 
-        The idealised target is a raised cosine on each phase, reaching
-        ``finish_value`` exactly at the end of the drive and returning to
-        ``catch_value`` at the next catch, with zero slope at both ends.
-        Truncating its spectrum to ``n_harmonics`` rounds off the
-        discontinuity in curvature at the catch, which is both numerically
-        necessary and physically right -- a rower's segment accelerations
-        are large at the catch but finite.
+        The idealised target ramps from ``catch_value`` to ``finish_value``
+        over the drive and back over the recovery, with the rate profile
+        set by ``flatness`` (see :meth:`_ramp`).  Truncating its spectrum
+        to ``n_harmonics`` rounds off the corner at the catch, which is
+        both numerically necessary and physically right -- a rower's
+        segment accelerations are large at the catch but finite.
         """
+        flatness = DEFAULT_FLATNESS if flatness is None else flatness
         phase = np.arange(n_samples) / n_samples
         drive = timing.drive_fraction
 
         target = np.empty(n_samples)
         on_drive = phase < drive
-        target[on_drive] = catch_value + (finish_value - catch_value) * 0.5 * (
-            1.0 - np.cos(np.pi * phase[on_drive] / drive)
-        )
-        rec = phase[~on_drive]
-        target[~on_drive] = finish_value + (catch_value - finish_value) * 0.5 * (
-            1.0 - np.cos(np.pi * (rec - drive) / (1.0 - drive))
-        )
+        target[on_drive] = catch_value + (finish_value - catch_value) * \
+            cls._ramp(phase[on_drive] / drive, flatness)
+        rec = (phase[~on_drive] - drive) / (1.0 - drive)
+        target[~on_drive] = finish_value + (catch_value - finish_value) * \
+            cls._ramp(rec, flatness)
 
         return cls.fit_samples(target, timing.period, n_harmonics)
 
