@@ -275,7 +275,26 @@ class JointDrivenRower:
         return np.arctan2(sine.value, cosine.value)
 
     def _chain(self, t):
-        """Evaluate every joint centre as a pair of ``Jet2`` (x, z)."""
+        """Evaluate every joint centre as a pair of ``Jet2`` (x, z).
+
+        Single-entry cached on ``t``.  Both :meth:`segment_state` and
+        :meth:`joint_positions` need the chain, and the simulator calls
+        both at the same instant on every derivative evaluation -- without
+        the cache the chain is rebuilt once per rower per stage, which
+        dominated the run time.
+        """
+        cached_t, cached = getattr(self, "_chain_cache", (None, None))
+        if cached is not None and cached_t is not None:
+            key = t if np.isscalar(t) else None
+            if key is not None and key == cached_t:
+                return cached
+
+        value = self._chain_uncached(t)
+        if np.isscalar(t):
+            self._chain_cache = (t, value)
+        return value
+
+    def _chain_uncached(self, t):
         angles = self.joint_angles
 
         def link(base_x, base_z, length, angle_jet):

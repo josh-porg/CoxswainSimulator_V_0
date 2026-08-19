@@ -67,7 +67,7 @@ def _rudder(x: float, span: float = 0.090, chord: float = 0.120,
 #: modelled resistance at the boat's known cruising speed.  These values
 #: are calibrated to do that: an eight at rate 32 settles at about
 #: 5.2 m/s, which is where an eight actually cruises at that rate.
-PEAK_OARLOCK_FORCE = {"8+": 950.0, "4+": 900.0, "1x": 1200.0}
+PEAK_OARLOCK_FORCE = {"8+": 950.0, "4+": 1050.0, "1x": 700.0}
 
 
 def eight(rate: float = 32.0, rower_mass: float = 88.0,
@@ -176,7 +176,8 @@ def single_scull(rate: float = 30.0, rower_mass: float = 85.0,
         water=water,
         default_anthropometry=RowerAnthropometry(mass=rower_mass,
                                                  stature=rower_stature),
-        **kwargs,
+        **{"force_profile": OarForceProfile(
+            max_x=PEAK_OARLOCK_FORCE["1x"]), **kwargs},
     )
 
 

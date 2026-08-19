@@ -107,7 +107,7 @@ class HullOffsets:
 
 
 def parametric_offsets(length: float, max_beam: float, max_depth: float,
-                       n_stations: int = 61, fullness: float = 2.2,
+                       n_stations: int = 41, fullness: float = 2.2,
                        freeboard: float = 0.25,
                        centre_fraction: float = 0.5) -> HullOffsets:
     """Generate a plausible racing-shell offsets table.
@@ -158,8 +158,8 @@ class HullMesh:
     cost per derivative evaluation is a handful of dense array operations.
     """
 
-    def __init__(self, offsets: HullOffsets, n_girth: int = 24,
-                 n_topside: int = 4):
+    def __init__(self, offsets: HullOffsets, n_girth: int = 16,
+                 n_topside: int = 3):
         self.offsets = offsets
         self.n_girth = int(n_girth)
         self.n_topside = int(n_topside)

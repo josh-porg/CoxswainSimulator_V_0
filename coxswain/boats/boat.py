@@ -68,7 +68,7 @@ class Boat:
                  resistance: ResistanceCoefficients = None,
                  force_profile: OarForceProfile = None,
                  oar_sweep: OarAngleSweep = None,
-                 n_girth: int = 24,
+                 n_girth: int = 16,
                  crew_phase_offsets: Sequence[float] = None,
                  default_anthropometry: RowerAnthropometry = None):
         self.name = name
