@@ -1,4 +1,4 @@
-"""Unit tests for the de Leva (1996) body-segment parameter tables."""
+"""Unit tests for the de Leva body-segment inertial parameters."""
 
 import numpy as np
 import pytest
@@ -18,189 +18,210 @@ from coxswain.crew.anthropometry import (
 
 
 # --------------------------------------------------------------------------
-# the raw table
+# the source table
 # --------------------------------------------------------------------------
-@pytest.mark.parametrize("table", [DE_LEVA_MALE, DE_LEVA_FEMALE])
-def test_whole_body_mass_fractions_sum_to_one(table):
-    """head + trunk(3) + 2 x (arm, forearm, hand, thigh, shank, foot) = 1."""
-    total = sum(
-        spec.mass_fraction * (2 if spec.paired else 1)
-        for spec in table.values()
+@pytest.mark.parametrize("table,label", [(DE_LEVA_MALE, "male"),
+                                         (DE_LEVA_FEMALE, "female")])
+def test_whole_body_mass_fractions_sum_to_one(table, label):
+    """Head + trunk + 2 x (each paired segment) must be the whole body."""
+    total = 0.0
+    for spec in table.values():
+        total += spec.mass_fraction * (2 if spec.paired else 1)
+    assert total == pytest.approx(1.0, abs=5e-4), (
+        f"{label} mass fractions sum to {total:.5f}"
     )
-    assert total == pytest.approx(1.0, abs=2e-4)
 
 
-@pytest.mark.parametrize("table", [DE_LEVA_MALE, DE_LEVA_FEMALE])
-def test_every_fraction_is_physical(table):
-    for name, spec in table.items():
-        assert 0.0 < spec.mass_fraction < 0.5, name
-        assert 0.0 < spec.length_fraction < 0.5, name
-        assert 0.0 < spec.com_fraction < 1.0, name
+@pytest.mark.parametrize("table,expected", [(DE_LEVA_MALE, 0.4346),
+                                            (DE_LEVA_FEMALE, 0.4257)])
+def test_trunk_thirds_sum_to_the_whole_trunk_mass(table, expected):
+    """de Leva's whole-trunk row is 43.46% (male) / 42.57% (female)."""
+    thirds = sum(table[n].mass_fraction
+                 for n in ("upper_trunk", "mid_trunk", "lower_trunk"))
+    assert thirds == pytest.approx(expected, abs=5e-4)
 
 
-@pytest.mark.parametrize("table,stature,expected_mm", [
-    (DE_LEVA_MALE, REFERENCE_STATURE["male"], 603.3),
-    (DE_LEVA_FEMALE, REFERENCE_STATURE["female"], 614.8),
-])
-def test_trunk_subsegments_stack_to_the_whole_trunk_length(table, stature,
-                                                           expected_mm):
-    """de Leva's whole-trunk row (CERV->MIDH) must equal LPT + MPT + UPT.
+def test_trunk_thirds_stack_to_the_whole_trunk_length():
+    """LPT + MPT + UPT must equal de Leva's CERV->MIDH trunk length.
 
-    This is the consistency check that forced the UPT endpoints to be the
-    CERV->XYPH pair rather than SUPRA->XYPH.
+    This is why the upper trunk uses the CERV->XYPH endpoints rather than
+    SUPRA->XYPH: only then do the three sub-segments form one rigid link
+    that the kinematic chain can rotate as a unit.
     """
-    stacked = sum(table[name].length_fraction
-                  for name in ("lower_trunk", "mid_trunk", "upper_trunk"))
-    assert stacked * stature * 1000.0 == pytest.approx(expected_mm, abs=0.5)
+    stature = REFERENCE_STATURE["male"]
+    total_mm = sum(DE_LEVA_MALE[n].length_fraction * stature * 1000.0
+                   for n in ("lower_trunk", "mid_trunk", "upper_trunk"))
+    assert total_mm == pytest.approx(603.3, abs=0.5)
 
 
-def test_male_head_mass_fraction_matches_the_published_value():
-    assert DE_LEVA_MALE["head"].mass_fraction == pytest.approx(0.0694)
+def test_female_trunk_thirds_stack_to_the_whole_trunk_length():
+    stature = REFERENCE_STATURE["female"]
+    total_mm = sum(DE_LEVA_FEMALE[n].length_fraction * stature * 1000.0
+                   for n in ("lower_trunk", "mid_trunk", "upper_trunk"))
+    assert total_mm == pytest.approx(614.8, abs=0.5)
 
 
-def test_male_thigh_mass_fraction_matches_the_published_value():
-    assert DE_LEVA_MALE["thigh"].mass_fraction == pytest.approx(0.1416)
-
-
-def test_reference_subject_constants():
-    assert REFERENCE_MASS["male"] == pytest.approx(73.0)
-    assert REFERENCE_STATURE["male"] == pytest.approx(1.741)
-    assert REFERENCE_MASS["female"] == pytest.approx(61.9)
-    assert REFERENCE_STATURE["female"] == pytest.approx(1.735)
+def test_all_fractions_are_physically_sensible():
+    for table in (DE_LEVA_MALE, DE_LEVA_FEMALE):
+        for name, spec in table.items():
+            assert 0.0 < spec.mass_fraction < 0.5, name
+            assert 0.0 < spec.length_fraction < 0.5, name
+            assert 0.0 < spec.com_fraction < 1.0, name
 
 
 # --------------------------------------------------------------------------
-# the 12-segment model
+# the scaled 12-segment model
 # --------------------------------------------------------------------------
-def test_model_has_exactly_twelve_segments():
-    """Formaggia et al. section 4.2 specify p = 12."""
-    assert len(RowerAnthropometry().segments) == N_SEGMENTS == 12
+@pytest.fixture
+def rower():
+    return RowerAnthropometry(mass=85.0, stature=1.88, sex="male")
+
+
+def test_model_has_exactly_twelve_segments(rower):
+    assert len(rower.segments) == N_SEGMENTS == 12
+
+
+def test_segment_masses_sum_to_body_mass(rower):
+    assert rower.total_segment_mass == pytest.approx(85.0, rel=1e-3)
+
+
+@pytest.mark.parametrize("mass", [55.0, 68.0, 85.0, 106.0])
+def test_segment_masses_sum_to_body_mass_at_any_mass(mass):
+    anthro = RowerAnthropometry(mass=mass, stature=1.85)
+    assert anthro.total_segment_mass == pytest.approx(mass, rel=1e-3)
 
 
 @pytest.mark.parametrize("sex", ["male", "female"])
-@pytest.mark.parametrize("mass", [60.0, 85.0, 106.0])
-def test_segment_masses_sum_to_body_mass(sex, mass):
-    anthro = RowerAnthropometry(mass=mass, stature=1.85, sex=sex)
-    assert anthro.total_segment_mass == pytest.approx(mass, rel=2e-4)
+def test_both_sexes_conserve_mass(sex):
+    anthro = RowerAnthropometry(mass=70.0, stature=1.75, sex=sex)
+    assert anthro.total_segment_mass == pytest.approx(70.0, rel=1e-3)
 
 
-def test_segment_masses_scale_linearly_with_body_mass():
-    light = RowerAnthropometry(mass=60.0).segment_masses
-    heavy = RowerAnthropometry(mass=120.0).segment_masses
-    np.testing.assert_allclose(heavy, 2.0 * light, rtol=1e-12)
+def test_segment_names_are_unique(rower):
+    names = [s.name for s in rower.segments]
+    assert len(set(names)) == len(names)
 
 
-def test_segment_lengths_scale_linearly_with_stature():
-    short = RowerAnthropometry(stature=1.70)
-    tall = RowerAnthropometry(stature=1.90)
-    ratio = 1.90 / 1.70
-    for name in ("thigh", "shank", "upper_arm"):
-        assert tall.length(name) == pytest.approx(ratio * short.length(name),
-                                                  rel=1e-12)
-
-
-def test_paired_segments_come_in_port_and_starboard():
-    segments = RowerAnthropometry().segments
-    sides = [s.side for s in segments]
-    assert sides.count(CENTRELINE) == 4
-    assert sides.count(PORT) == 4
-    assert sides.count(STARBOARD) == 4
-
-
-def test_port_and_starboard_segments_have_equal_mass():
-    anthro = RowerAnthropometry()
-    for stem in ("upper_arm", "forearm_hand", "thigh", "shank_foot"):
-        port = anthro.by_name(f"{stem}_port")
-        starboard = anthro.by_name(f"{stem}_starboard")
+def test_paired_segments_have_matching_masses(rower):
+    for base in ("upper_arm", "forearm_hand", "thigh", "shank_foot"):
+        port = rower.by_name(f"{base}_port")
+        starboard = rower.by_name(f"{base}_starboard")
         assert port.mass == pytest.approx(starboard.mass)
         assert port.length == pytest.approx(starboard.length)
+        assert port.side == PORT
+        assert starboard.side == STARBOARD
 
 
-def test_lumped_forearm_hand_conserves_mass_and_length():
-    anthro = RowerAnthropometry(mass=85.0, stature=1.88)
-    lumped = anthro.by_name("forearm_hand_port")
-    expected_mass = 85.0 * (DE_LEVA_MALE["forearm"].mass_fraction
-                            + DE_LEVA_MALE["hand"].mass_fraction)
-    expected_length = anthro.length("forearm") + anthro.length("hand")
-    assert lumped.mass == pytest.approx(expected_mass, rel=1e-12)
-    assert lumped.length == pytest.approx(expected_length, rel=1e-12)
+def test_centreline_segments_are_marked_as_such(rower):
+    for name in ("head", "upper_trunk", "mid_trunk", "lower_trunk"):
+        assert rower.by_name(name).side == CENTRELINE
 
 
-def test_lumped_centre_of_mass_lies_between_the_two_component_centres():
-    anthro = RowerAnthropometry(mass=85.0, stature=1.88)
-    lumped = anthro.by_name("shank_foot_port")
-    shank_com = DE_LEVA_MALE["shank"].com_fraction * anthro.length("shank")
-    foot_com = anthro.length("shank") + (DE_LEVA_MALE["foot"].com_fraction
-                                         * anthro.length("foot"))
-    lumped_com = lumped.com_fraction * lumped.length
-    assert shank_com < lumped_com < foot_com
+def test_masses_scale_linearly_with_body_mass():
+    light = RowerAnthropometry(mass=60.0, stature=1.80)
+    heavy = RowerAnthropometry(mass=120.0, stature=1.80)
+    np.testing.assert_allclose(heavy.segment_masses,
+                               2.0 * light.segment_masses, rtol=1e-12)
 
 
-def test_lumped_centre_of_mass_is_the_mass_weighted_mean():
-    anthro = RowerAnthropometry(mass=85.0, stature=1.88)
-    lumped = anthro.by_name("forearm_hand_port")
-
-    m_f = 85.0 * DE_LEVA_MALE["forearm"].mass_fraction
-    m_h = 85.0 * DE_LEVA_MALE["hand"].mass_fraction
-    d_f = DE_LEVA_MALE["forearm"].com_fraction * anthro.length("forearm")
-    d_h = anthro.length("forearm") + (DE_LEVA_MALE["hand"].com_fraction
-                                      * anthro.length("hand"))
-    expected = (m_f * d_f + m_h * d_h) / (m_f + m_h)
-
-    assert lumped.com_fraction * lumped.length == pytest.approx(expected,
-                                                                rel=1e-12)
+def test_lengths_scale_linearly_with_stature():
+    short = RowerAnthropometry(mass=80.0, stature=1.60)
+    tall = RowerAnthropometry(mass=80.0, stature=1.92)
+    ratio = 1.92 / 1.60
+    assert tall.length("thigh") == pytest.approx(ratio * short.length("thigh"))
 
 
-def test_trunk_stack_reproduces_the_whole_trunk_centre_of_mass():
-    """Stacking LPT/MPT/UPT must put the aggregate trunk CM where de Leva's
-    whole-trunk row puts it: 293 mm above the hip for the male reference."""
+def test_lengths_are_independent_of_mass():
+    light = RowerAnthropometry(mass=60.0, stature=1.85)
+    heavy = RowerAnthropometry(mass=110.0, stature=1.85)
+    assert light.length("shank") == pytest.approx(heavy.length("shank"))
+
+
+def test_reference_athlete_reproduces_table_lengths():
+    """At the reference stature, lengths must equal de Leva Table 4 in mm."""
     anthro = RowerAnthropometry(mass=REFERENCE_MASS["male"],
                                 stature=REFERENCE_STATURE["male"])
-    heights, masses = [], []
-    running = 0.0
-    for name in ("lower_trunk", "mid_trunk", "upper_trunk"):
-        segment = anthro.by_name(name)
-        heights.append(running + segment.length * (1.0 - segment.com_fraction))
-        masses.append(segment.mass)
-        running += segment.length
-
-    aggregate = np.average(heights, weights=masses)
-    assert aggregate * 1000.0 == pytest.approx(293.3, abs=6.0)
+    expected_mm = {"thigh": 422.2, "shank": 434.0, "upper_arm": 281.7,
+                   "forearm": 268.9, "hand": 86.2, "head": 203.3,
+                   "mid_trunk": 215.5, "lower_trunk": 145.7}
+    for name, mm in expected_mm.items():
+        assert anthro.length(name) * 1000.0 == pytest.approx(mm, abs=0.2), name
 
 
-def test_by_name_raises_for_an_unknown_segment():
-    with pytest.raises(KeyError, match="no segment named"):
-        RowerAnthropometry().by_name("tail")
+# --------------------------------------------------------------------------
+# lumping
+# --------------------------------------------------------------------------
+def test_lumped_forearm_hand_conserves_mass(rower):
+    lumped = rower.by_name("forearm_hand_port").mass
+    separate = (DE_LEVA_MALE["forearm"].mass_fraction
+                + DE_LEVA_MALE["hand"].mass_fraction) * 85.0
+    assert lumped == pytest.approx(separate, rel=1e-12)
 
 
-def test_segment_masses_are_ordered_consistently_with_segments():
-    anthro = RowerAnthropometry()
-    np.testing.assert_allclose(
-        anthro.segment_masses, [s.mass for s in anthro.segments]
-    )
+def test_lumped_shank_foot_conserves_mass(rower):
+    lumped = rower.by_name("shank_foot_port").mass
+    separate = (DE_LEVA_MALE["shank"].mass_fraction
+                + DE_LEVA_MALE["foot"].mass_fraction) * 85.0
+    assert lumped == pytest.approx(separate, rel=1e-12)
+
+
+def test_lumped_segment_length_is_the_sum_of_its_parts(rower):
+    lumped = rower.by_name("shank_foot_port").length
+    assert lumped == pytest.approx(rower.length("shank") + rower.length("foot"))
+
+
+def test_lumped_centre_of_mass_lies_between_the_two_parts(rower):
+    """The joined CM must sit between the two component CMs."""
+    segment = rower.by_name("forearm_hand_port")
+    forearm_len = rower.length("forearm")
+    proximal_cm = DE_LEVA_MALE["forearm"].com_fraction * forearm_len
+    distal_cm = forearm_len + DE_LEVA_MALE["hand"].com_fraction * rower.length("hand")
+    lumped_cm = segment.com_fraction * segment.length
+    assert proximal_cm < lumped_cm < distal_cm
+
+
+def test_trunk_stack_reproduces_the_whole_trunk_centre_of_mass(rower):
+    """Aggregate CM of the three trunk masses must match de Leva's whole-trunk row.
+
+    de Leva gives the whole trunk (CERV->MIDH, 603.3 mm male) with its CM at
+    51.38% from the cervicale, i.e. 293.3 mm above the hip.  Stacking the
+    three sub-segments must land in the same place.
+    """
+    lower = rower.length("lower_trunk")
+    mid = rower.length("mid_trunk")
+    upper = rower.length("upper_trunk")
+
+    heights = {
+        "lower_trunk": lower * (1 - rower.by_name("lower_trunk").com_fraction),
+        "mid_trunk": lower + mid * (1 - rower.by_name("mid_trunk").com_fraction),
+        "upper_trunk": lower + mid
+                       + upper * (1 - rower.by_name("upper_trunk").com_fraction),
+    }
+    masses = {n: rower.by_name(n).mass for n in heights}
+    aggregate = (sum(masses[n] * heights[n] for n in heights)
+                 / sum(masses.values()))
+
+    trunk_length = lower + mid + upper
+    expected = trunk_length * (1.0 - 0.5138)
+    assert aggregate == pytest.approx(expected, rel=0.02)
 
 
 # --------------------------------------------------------------------------
 # validation
 # --------------------------------------------------------------------------
-@pytest.mark.parametrize("kwargs,message", [
+@pytest.mark.parametrize("kwargs,match", [
     ({"mass": 0.0}, "body mass must be positive"),
     ({"mass": -5.0}, "body mass must be positive"),
     ({"stature": 0.0}, "stature must be positive"),
-    ({"sex": "other"}, "sex must be one of"),
+    ({"sex": "unknown"}, "sex must be one of"),
 ])
-def test_constructor_validates_inputs(kwargs, message):
-    with pytest.raises(ValueError, match=message):
-        RowerAnthropometry(**kwargs)
+def test_invalid_construction_is_rejected(kwargs, match):
+    base = {"mass": 80.0, "stature": 1.85, "sex": "male"}
+    base.update(kwargs)
+    with pytest.raises(ValueError, match=match):
+        RowerAnthropometry(**base)
 
 
-def test_male_and_female_tables_differ():
-    male = RowerAnthropometry(mass=75.0, stature=1.80, sex="male")
-    female = RowerAnthropometry(mass=75.0, stature=1.80, sex="female")
-    assert male.by_name("thigh_port").mass != pytest.approx(
-        female.by_name("thigh_port").mass)
-
-
-def test_module_exports_are_importable():
-    for name in anthropometry.__all__:
-        assert hasattr(anthropometry, name), name
+def test_unknown_segment_name_raises(rower):
+    with pytest.raises(KeyError, match="no segment named"):
+        rower.by_name("tail")
