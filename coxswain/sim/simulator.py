@@ -57,6 +57,7 @@ from ..core.state import STATE_SIZE, State
 from ..crew.oarlock import hull_load, oar_force
 from ..hydro.appendages import surface_load
 from ..hydro.resistance import hull_resistance
+from .control import Coxswain
 from .results import SimulationResult
 
 __all__ = ["RowingSimulator", "ForceBreakdown", "GRAVITY"]
@@ -113,13 +114,32 @@ class RowingSimulator:
         Still-water surface height in the absolute frame.
     """
 
-    def __init__(self, boat: Boat,
+    def __init__(self, boat: Boat, coxswain: Optional[Coxswain] = None,
                  rudder: Optional[Callable[[float, State], float]] = None,
                  water_level: float = 0.0, gravity: float = GRAVITY):
         self.boat = boat
-        self.rudder = rudder
+        self.coxswain = Coxswain() if coxswain is None else coxswain
+        if rudder is not None:
+            self.coxswain.rudder_override = rudder
         self.water_level = float(water_level)
         self.gravity = float(gravity)
+        self._crew_cache = (None, None)
+
+    def crew_field(self, t: float):
+        """Cached crew evaluation.
+
+        The derivative needs the crew field twice -- once to build the
+        mass matrix and once for the reaction forces -- and evaluating 97
+        segment jets is the second most expensive thing per step after the
+        hull integral.  Both calls are at the same ``t``, so a
+        single-entry cache halves the cost.
+        """
+        key, value = self._crew_cache
+        if key is not None and key == t:
+            return value
+        value = self.boat.crew_field(t)
+        self._crew_cache = (t, value)
+        return value
 
     # -- force assembly ---------------------------------------------------
     def breakdown(self, t: float, state: State) -> ForceBreakdown:
@@ -130,7 +150,7 @@ class RowingSimulator:
 
         # -- crew: prescribed motion in the hull frame -------------------
         mass, position_hull, velocity_hull, acceleration_hull = \
-            boat.crew_field(t)
+            self.crew_field(t)
         field_abs = MovingMassField(
             mass=mass, position=position_hull, velocity=velocity_hull,
             acceleration=acceleration_hull,
@@ -151,7 +171,7 @@ class RowingSimulator:
                 applied = oar_force(t, boat.timing, lock.side,
                                     boat.force_profile, boat.oar_sweep)
                 force, moment = hull_load(applied, lock.position, hand_hull,
-                                          lock.oar.gearing)
+                                          lock.oar.effective_gearing)
                 oar_force_hull += force
                 oar_moment_hull += moment
 
@@ -170,8 +190,7 @@ class RowingSimulator:
         # from G_h is small and its moment is dominated by the appendages
         resistance_moment_hull = np.zeros(3)
 
-        deflection = 0.0 if self.rudder is None else float(
-            self.rudder(t, state))
+        deflection = float(self.coxswain.rudder(t, state))
         appendage_force_hull = np.zeros(3)
         appendage_moment_hull = np.zeros(3)
         yaw_rate_hull = float(state.omega_hull[2])
@@ -182,6 +201,12 @@ class RowingSimulator:
             )
             appendage_force_hull += force
             appendage_moment_hull += moment
+
+        # -- crew balance couple (see sim.control) ------------------------
+        # a pure couple about the hull x axis: handle-height trim is equal
+        # and opposite across the boat, so it adds no net force
+        appendage_moment_hull = appendage_moment_hull + np.array(
+            [self.coxswain.roll_moment(state), 0.0, 0.0])
 
         # -- gyroscopic ---------------------------------------------------
         inertia_abs = rotate_inertia_to_abs(boat.hull_inertia, state.attitude)
@@ -207,7 +232,7 @@ class RowingSimulator:
     def mass_matrix(self, t: float, state: State) -> np.ndarray:
         boat = self.boat
         rot = hull_to_abs(state.attitude)
-        mass, position_hull, _, _ = boat.crew_field(t)
+        mass, position_hull, _, _ = self.crew_field(t)
         return assemble_mass_matrix(
             total_mass=boat.total_mass,
             inertia_abs=rotate_inertia_to_abs(boat.hull_inertia,

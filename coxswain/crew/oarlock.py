@@ -108,17 +108,32 @@ def oar_force(t, timing: StrokeTiming, side: int,
               sweep: OarAngleSweep = None) -> np.ndarray:
     """Force applied by one rower at one oarlock, in the hull frame.
 
-    Returns a ``(3,)`` array ``[f_x, f_y, f_z]``.
+    The half-sine of eq. (15) sets the *magnitude* of the horizontal load;
+    the oar angle sets its direction, the load acting perpendicular to the
+    shaft::
+
+        f_x = |F| cos(phi)          f_y = side |F| sin(phi)
+
+    so the propulsive component tapers away near the catch and finish,
+    where the oar is at a large angle and most of the load goes sideways.
+    Resolving the magnitude onto ``x`` only, and deriving ``f_y`` from
+    ``f_x tan(phi)``, gets this backwards: it makes the total load
+    *largest* at the catch.
+
+    Returns a ``(3,)`` array ``[f_x, f_y, f_z]`` in the hull frame.
     """
     profile = profile or OarForceProfile()
     sweep = sweep or OarAngleSweep()
 
     shape = float(profile.magnitude(t, timing))
-    f_x = profile.max_x * shape
-    f_z = profile.max_z * shape
-    f_y = side * f_x * np.tan(float(sweep(t, timing)))
+    angle = float(sweep(t, timing))
 
-    return np.array([f_x, f_y, f_z])
+    horizontal = profile.max_x * shape
+    return np.array([
+        horizontal * np.cos(angle),
+        side * horizontal * np.sin(angle),
+        profile.max_z * shape,
+    ])
 
 
 def hull_load(force: np.ndarray, oarlock_position: np.ndarray,

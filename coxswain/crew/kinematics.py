@@ -54,6 +54,7 @@ __all__ = [
     "RowerStation",
     "JointAngles",
     "DEFAULT_JOINT_ANGLES",
+    "DEFAULT_JOINT_PHASES",
     "JointDrivenRower",
     "SEGMENT_ORDER",
 ]
@@ -87,6 +88,23 @@ DEFAULT_JOINT_ANGLES: Dict[str, Tuple[float, float]] = {
     "trunk":          (118.0, 62.0),
     "upper_arm":      (191.0, 236.0),
     "forearm":        (186.0, 132.0),
+}
+
+#: Per-joint phase lag, as a fraction of the stroke period.
+#:
+#: Rowers do not move every joint at once: the drive sequences legs, then
+#: back, then arms, and the recovery reverses it.  Driving all joints with
+#: a common phase concentrates the whole crew's momentum change into one
+#: burst and roughly doubles the hull's speed fluctuation -- an eight
+#: comes out swinging 2.9 m/s peak to peak instead of the measured
+#: 1.2-1.5 m/s.  Staggering the joints spreads the same total momentum
+#: transfer over more of the cycle, which is a large part of what good
+#: sequencing buys a crew.
+DEFAULT_JOINT_PHASES: Dict[str, float] = {
+    "shank": 0.00,       # legs lead
+    "trunk": 0.10,       # the back opens after the legs
+    "upper_arm": 0.18,   # arms break last
+    "forearm": 0.20,
 }
 
 
@@ -125,21 +143,29 @@ class JointAngles:
     def from_catch_finish(cls, timing: StrokeTiming,
                           angles: Dict[str, Tuple[float, float]] = None,
                           n_harmonics: int = DEFAULT_HARMONICS,
-                          phase_offset: float = 0.0) -> "JointAngles":
+                          phase_offset: float = 0.0,
+                          joint_phases: Dict[str, float] = None
+                          ) -> "JointAngles":
         """Build drivers from catch/finish angle pairs given in degrees.
 
-        ``phase_offset`` shifts this rower's stroke in normalised phase.
-        It is zero for a synchronised crew; a small non-zero value models
-        imperfect timing, which is one of the things a coxswain-facing
-        simulator eventually wants to quantify.
+        ``phase_offset`` shifts this rower's whole stroke in normalised
+        phase.  It is zero for a synchronised crew; a small non-zero value
+        models imperfect timing, which is one of the things a
+        coxswain-facing simulator eventually wants to quantify.
+
+        ``joint_phases`` staggers the joints *within* the stroke -- the
+        legs-back-arms sequence.  See :data:`DEFAULT_JOINT_PHASES`.
         """
         angles = dict(DEFAULT_JOINT_ANGLES if angles is None else angles)
+        phases = dict(DEFAULT_JOINT_PHASES if joint_phases is None
+                      else joint_phases)
         built = {}
         for name, (catch, finish) in angles.items():
             profile = FourierProfile.from_catch_finish(
                 np.radians(catch), np.radians(finish), timing, n_harmonics
             )
-            built[name] = _shift_phase(profile, phase_offset)
+            built[name] = _shift_phase(
+                profile, phase_offset + phases.get(name, 0.0))
         return cls(**built)
 
 

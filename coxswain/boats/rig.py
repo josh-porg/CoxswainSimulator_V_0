@@ -44,13 +44,24 @@ class Oar:
     blade_area:
         Reference area of the blade, in m^2.  Not used by the ideal-lever
         model; carried for a future blade-hydrodynamics model.
+    blade_efficiency:
+        Fraction of the ideal-lever thrust actually delivered.  Formaggia
+        et al. assume "perfect blades", i.e. the lever fulcrum sits at the
+        blade and does not move.  Real blades slip through the water, and
+        the paper notes the assumption "can be weakened by using a more
+        detailed model of the blade action".  Published blade efficiencies
+        for rowing are 0.75-0.85; without that detailed model, this single
+        factor stands in for the loss.
     """
 
     length: float
     inboard: float
     blade_area: float = 0.11
+    blade_efficiency: float = 0.78
 
     def __post_init__(self) -> None:
+        if not 0.0 < self.blade_efficiency <= 1.0:
+            raise ValueError("blade_efficiency must lie in (0, 1]")
         if not 0.0 < self.inboard < self.length:
             raise ValueError(
                 f"inboard ({self.inboard}) must lie strictly between 0 and "
@@ -64,6 +75,11 @@ class Oar:
         This is the coefficient on ``sum F_o`` in Formaggia eq. (14a).
         """
         return self.inboard / self.length
+
+    @property
+    def effective_gearing(self) -> float:
+        """``blade_efficiency * r_h / L`` -- what actually drives the hull."""
+        return self.blade_efficiency * self.gearing
 
     @property
     def outboard(self) -> float:

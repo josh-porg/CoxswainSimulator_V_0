@@ -117,7 +117,9 @@ def surface_load(surface: LiftingSurface, velocity_hull: np.ndarray,
         Hull-frame yaw rate ``r``, rad/s.
     deflection:
         Rudder angle in radians; ignored unless the surface is
-        ``controllable``.  Positive deflection turns the bow to port.
+        ``controllable``.  Positive deflection yaws the bow to
+        **starboard** (negative yaw), which is the convention
+        :class:`~coxswain.sim.control.HeadingController` assumes.
 
     Returns
     -------
@@ -134,9 +136,12 @@ def surface_load(surface: LiftingSurface, velocity_hull: np.ndarray,
 
     x_ac = float(surface.position[0])
     sideslip = np.arctan2(v, u)
-    # a surface aft of the centre of mass (x_ac < 0) sees the yaw rate as
-    # an increase in local sideslip, which is what damps yaw
-    local_angle = sideslip - yaw_rate * x_ac / speed
+    # Rotation carries the surface sideways at omega x r = (0, r x_ac, 0),
+    # so the flow it sees is deflected by an extra r x_ac / V.  For a
+    # surface aft of the centre of mass (x_ac < 0) that opposes the yaw
+    # rate, which is where yaw damping comes from -- getting this sign
+    # backwards turns the skeg into a yaw *amplifier*.
+    local_angle = sideslip + yaw_rate * x_ac / speed
 
     if surface.controllable:
         limited = np.clip(deflection, -surface.max_deflection,
