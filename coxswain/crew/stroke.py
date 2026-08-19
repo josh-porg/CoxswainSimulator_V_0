@@ -36,8 +36,8 @@ import numpy as np
 
 from ..core.taylor import Jet2
 
-__all__ = ["StrokeTiming", "FourierProfile", "DEFAULT_HARMONICS",
-           "DEFAULT_FLATNESS"]
+__all__ = ["StrokeTiming", "FourierProfile", "FourierTrack",
+           "DEFAULT_HARMONICS", "DEFAULT_FLATNESS"]
 
 #: Harmonics retained when converting an idealised piecewise profile into a
 #: smooth one.  Higher = sharper catch, more high-frequency content in the
@@ -100,6 +100,49 @@ class StrokeTiming:
     def is_drive(self, t):
         """Boolean mask: is the blade in the water at time ``t``?"""
         return self.phase(t) < self.drive_fraction
+
+
+class FourierTrack:
+    """A periodic 3-D position track, one :class:`FourierProfile` per axis.
+
+    Used for body points whose motion is set by an external constraint
+    rather than by a joint angle -- above all the hands, which must lie on
+    the oar handle.  Fitting the *position* directly, instead of fitting
+    joint angles and hoping the resulting hand lands on the handle, makes
+    the constraint hold by construction, and the Fourier representation
+    still gives exact velocities and accelerations.
+    """
+
+    def __init__(self, x, y, z):
+        self.components = (x, y, z)
+
+    @classmethod
+    def fit_samples(cls, samples, period: float,
+                    n_harmonics: int = DEFAULT_HARMONICS) -> "FourierTrack":
+        """Fit to ``(n_samples, 3)`` positions uniformly spaced over a period."""
+        samples = np.asarray(samples, dtype=float)
+        if samples.ndim != 2 or samples.shape[1] != 3:
+            raise ValueError(
+                f"samples must have shape (n, 3), got {samples.shape}")
+        return cls(*[FourierProfile.fit_samples(samples[:, axis], period,
+                                                n_harmonics)
+                     for axis in range(3)])
+
+    def __call__(self, t):
+        """Return ``(x, y, z)`` as a tuple of :class:`Jet2`."""
+        return tuple(component(t) for component in self.components)
+
+    def position(self, t) -> np.ndarray:
+        """Just the values, shaped ``(..., 3)``."""
+        return np.stack([component(t).value for component in self.components],
+                        axis=-1)
+
+    @property
+    def period(self) -> float:
+        return self.components[0].period
+
+    def __repr__(self) -> str:  # pragma: no cover - debugging aid
+        return f"FourierTrack(n_harmonics={self.components[0].n_harmonics})"
 
 
 class FourierProfile:

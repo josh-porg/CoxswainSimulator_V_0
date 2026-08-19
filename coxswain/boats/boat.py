@@ -32,7 +32,7 @@ from typing import List, Sequence, Tuple
 
 import numpy as np
 
-from ..crew.anthropometry import RowerAnthropometry
+from ..crew.anthropometry import PORT, STARBOARD, RowerAnthropometry
 from ..crew.kinematics import JointDrivenRower, RowerStation
 from ..crew.oarlock import OarAngleSweep, OarForceProfile
 from ..crew.stroke import StrokeTiming
@@ -121,10 +121,39 @@ class Boat:
                 rower=JointDrivenRower(
                     athlete, station, self.timing,
                     dataset=self.stroke_dataset, phase_offset=offset,
+                    hand_targets=self._hand_targets(seat),
                 ),
                 seat_index=index,
             ))
         return tuple(crew)
+
+    def _hand_targets(self, seat):
+        """Where this rower's hands must be, as ``{side: callable(t)}``.
+
+        A rower holds the oar, so the hands are not free -- they sit on the
+        handle, whose position follows from the rig geometry and the oar's
+        sweep angle.  This is what closes the loop between the crew
+        kinematics and the rig.
+
+        A **sculler** has an oarlock each side and each hand takes its own
+        handle.  A **sweep** rower has one oar held in both hands, so both
+        arms are given the same target, off the centreline -- which is what
+        makes a sweep crew's arm motion genuinely asymmetric, and the
+        source of the crew's own contribution to the roll and yaw couple.
+        """
+        from ..crew.oarlock import handle_position
+
+        def target_for(lock):
+            def target(t):
+                return handle_position(t, self.timing, lock, self.oar_sweep)
+            return target
+
+        if seat.is_sculling:
+            return {lock.side: target_for(lock) for lock in seat.oarlocks}
+
+        lock = seat.oarlocks[0]
+        shared = target_for(lock)
+        return {PORT: shared, STARBOARD: shared}
 
     def _validate(self) -> None:
         capacity = self.offsets.design_displacement(self.water.density)

@@ -54,7 +54,7 @@ import numpy as np
 
 from ..core.taylor import Jet2, constant
 from .anthropometry import CENTRELINE, PORT, STARBOARD, RowerAnthropometry
-from .stroke import FourierProfile, StrokeTiming
+from .stroke import FourierProfile, FourierTrack, StrokeTiming
 from .stroke_data import StrokeKinematicsDataset, default_dataset
 
 __all__ = [
@@ -65,6 +65,7 @@ __all__ = [
     "THIGH_MODES",
     "DEFAULT_ARM_POSTURE",
     "KEYFRAME_HARMONICS",
+    "ARM_TRACK_HARMONICS",
 ]
 
 #: Order in which segment quantities are returned.  Matches
@@ -82,6 +83,32 @@ SEGMENT_ORDER = (
 #: spline artefacts rather than rower motion, and segment accelerations
 #: feed straight into the hull forces.
 KEYFRAME_HARMONICS = 3
+
+#: Harmonics kept when fitting the hand and elbow position tracks.  Higher
+#: than the joint-angle drivers because the handle path is a hard
+#: constraint rather than an interpolation of four keyframes, and losing
+#: its shape would let the hands drift off the oar.
+ARM_TRACK_HARMONICS = 10
+
+#: Largest shoulder-to-handle distance, as a fraction of arm length, before
+#: the geometry is declared unreachable.  Kept below 1 so the elbow solve
+#: never sits exactly at the straight-arm singularity.
+MAX_ARM_EXTENSION = 0.995
+
+#: Largest trunk rotation about the vertical, in radians.
+#:
+#: A sweep rower turns their shoulders towards the rigger so the hands can
+#: follow the handle as it sweeps across the body; a sculler barely rotates
+#: at all.  Reported ranges for sweep trunk rotation are 25-40 deg, so 40
+#: is taken as the anatomical limit.  Purely planar shoulders leave a sweep
+#: rower's outside shoulder 0.82 m from a 0.70 m arm, i.e. unable to hold
+#: their own oar.
+MAX_TRUNK_ROTATION = np.radians(40.0)
+
+#: Arm extension, as a fraction of arm length, that the trunk rotation
+#: solve aims to stay under.  Below the hard :data:`MAX_ARM_EXTENSION` so
+#: the elbow solve keeps a usable margin from the straight-arm singularity.
+COMFORTABLE_ARM_EXTENSION = 0.95
 
 #: How the thigh link angle is obtained.
 #:
@@ -224,7 +251,8 @@ class JointDrivenRower:
                  station: RowerStation, timing: StrokeTiming,
                  dataset: StrokeKinematicsDataset = None,
                  thigh_mode: str = "level_seat",
-                 arm_posture: Dict[str, Tuple[float, float]] = None,
+                 arm_posture=None,
+                 hand_targets: Dict[int, object] = None,
                  phase_offset: float = 0.0,
                  n_harmonics: int = KEYFRAME_HARMONICS):
         if thigh_mode not in THIGH_MODES:
@@ -270,8 +298,18 @@ class JointDrivenRower:
             include_thigh=(thigh_mode == "measured"),
         )
 
-        arm_posture = DEFAULT_ARM_POSTURE if arm_posture is None else arm_posture
-        self._attach_arm_drivers(arm_posture, n_harmonics, phase_offset)
+        self.hand_targets = hand_targets
+        self._reference_side = (None if hand_targets is None
+                                else sorted(hand_targets)[0])
+        self._hand_tracks = {}
+        self._elbow_tracks = {}
+        self._arm_reach_margin = {}
+        if hand_targets is None:
+            arm_posture = (DEFAULT_ARM_POSTURE if arm_posture is None
+                           else arm_posture)
+            self._attach_arm_drivers(arm_posture, n_harmonics, phase_offset)
+        else:
+            self._attach_constrained_arms(hand_targets, phase_offset)
         self._validate_leg_reach()
 
     # -- calibration ------------------------------------------------------
@@ -367,6 +405,206 @@ class JointDrivenRower:
         fore_angle = np.arctan2(dz - elbow_z, dx - elbow_x)
         return np.degrees(upper_angle), np.degrees(fore_angle)
 
+    # -- arms constrained to the oar handle -------------------------------
+    def shoulder_position(self, t, side: int = CENTRELINE,
+                          rotation=0.0) -> np.ndarray:
+        """Shoulder joint in the hull frame, from the legs and trunk only.
+
+        Independent of the arms, so it can drive the arm inverse kinematics
+        without circularity.
+        """
+        axis_x, axis_z = self.trunk_axis_point(t)
+        shoulder_x, shoulder_z = axis_x, axis_z
+        return self._shoulder_from_axis(shoulder_x.value, shoulder_z.value,
+                                        side, rotation)
+
+    def _shoulder_from_axis(self, axis_x, axis_z, side, rotation):
+        """Place one shoulder given the trunk axis point and a trunk rotation.
+
+        ``rotation`` turns the shoulder line about the vertical through the
+        trunk axis; positive carries the port shoulder towards the bow.  At
+        zero rotation this reduces to the planar model, a shoulder squarely
+        abeam of the trunk axis.
+        """
+        offset = side * self.station.shoulder_half_span
+        axis_x, axis_z, rotation = np.broadcast_arrays(
+            np.asarray(axis_x, dtype=float),
+            np.asarray(axis_z, dtype=float),
+            np.asarray(rotation, dtype=float),
+        )
+        return np.stack([
+            axis_x + offset * np.sin(rotation),
+            offset * np.cos(rotation) * np.ones_like(axis_x),
+            axis_z,
+        ], axis=-1)
+
+    def trunk_axis_point(self, t):
+        """The shoulder-height point on the trunk centreline, as ``(x, z)``.
+
+        Independent of both the arms and the trunk rotation.
+        """
+        t = np.asarray(t, dtype=float)
+        zero = np.zeros_like(t)
+        angles = self.joint_angles
+
+        ankle_x = constant(self.station.x_ankle + zero)
+        ankle_z = constant(self.station.z_ankle + zero)
+        shank = angles.shank(t)
+        knee_x = ankle_x + self.shank_length * shank.cos()
+        knee_z = ankle_z + self.shank_length * shank.sin()
+        thigh_sin, thigh_cos = self.thigh_sincos(t)
+        hip_x = knee_x + self.thigh_length * thigh_cos
+        hip_z = knee_z + self.thigh_length * thigh_sin
+        trunk = angles.trunk(t)
+        return (hip_x + self.trunk_length * trunk.cos(),
+                hip_z + self.trunk_length * trunk.sin())
+
+    def _attach_constrained_arms(self, hand_targets, phase_offset,
+                                 n_samples: int = 256):
+        """Put the hands ON the oar handle, and solve the body to suit.
+
+        A rower holds the oar; the handle position is fixed by the rig and
+        the oar's sweep angle, so the hands are not free to be prescribed.
+        Driving them from an invented posture instead left them up to
+        0.46 m off the handle for a sweep eight -- the crew were rowing
+        thin air.
+
+        Two things are solved for, once, at construction:
+
+        1. the **trunk rotation** about the vertical at each instant, the
+           smallest that brings both shoulders within arm's reach of the
+           handle.  A sweep rower must turn towards the rigger to follow
+           the handle across the body; without this degree of freedom the
+           outside shoulder ends up 0.82 m from a 0.70 m arm.
+        2. the **elbow** position, by a two-link solve from the rotated
+           shoulder to the handle.
+
+        Hands and elbows are then Fourier-fitted as *position* tracks, so
+        the hands-on-handle constraint holds by construction and the
+        velocities and accelerations stay exact.
+        """
+        period = self.timing.period
+        times = np.arange(n_samples) / n_samples * period
+        axis_x, axis_z = self.trunk_axis_point(times)
+        axis_x, axis_z = axis_x.value, axis_z.value
+
+        sides = sorted(hand_targets)
+        handles = {side: np.asarray([np.asarray(hand_targets[side](t),
+                                                dtype=float)
+                                     for t in times])
+                   for side in sides}
+
+        self.trunk_rotation = self._solve_trunk_rotation(
+            axis_x, axis_z, handles, sides)
+
+        shift = int(round(phase_offset * n_samples)) if phase_offset else 0
+        self._hand_tracks = {}
+        self._elbow_tracks = {}
+        self._arm_reach_margin = {}
+
+        for side in sides:
+            shoulders = self._shoulder_from_axis(axis_x, axis_z, side,
+                                                 self.trunk_rotation)
+            elbows, margin = self._solve_elbows(shoulders, handles[side], side)
+            order = np.roll(np.arange(n_samples), shift)
+            self._hand_tracks[side] = FourierTrack.fit_samples(
+                handles[side][order], period, ARM_TRACK_HARMONICS)
+            self._elbow_tracks[side] = FourierTrack.fit_samples(
+                elbows[order], period, ARM_TRACK_HARMONICS)
+            self._arm_reach_margin[side] = margin
+
+        self._shoulder_tracks = {
+            side: FourierTrack.fit_samples(
+                self._shoulder_from_axis(axis_x, axis_z, side,
+                                         self.trunk_rotation)[
+                    np.roll(np.arange(n_samples), shift)],
+                period, ARM_TRACK_HARMONICS)
+            for side in (PORT, STARBOARD)
+        }
+
+    def _solve_trunk_rotation(self, axis_x, axis_z, handles, sides,
+                              n_trial: int = 81):
+        """Smallest trunk rotation bringing every hand within reach.
+
+        Swept rather than iterated: the objective is cheap, the domain is
+        one bounded angle, and a sweep cannot land on a local minimum.  The
+        result is the rotation of least magnitude whose worst-case arm
+        extension is acceptable; if none qualifies, the one that minimises
+        that extension, leaving :meth:`_solve_elbows` to raise with a
+        message naming the geometry at fault.
+        """
+        arm_length = self.upper_arm_length + self.forearm_length
+        trials = np.linspace(-MAX_TRUNK_ROTATION, MAX_TRUNK_ROTATION, n_trial)
+
+        n_samples = len(axis_x)
+        best = np.zeros(n_samples)
+        for index in range(n_samples):
+            worst = np.zeros(n_trial)
+            for side in sides:
+                # the arms that must reach: for sweep both, sharing a handle
+                for arm_side in (PORT, STARBOARD):
+                    shoulder = self._shoulder_from_axis(
+                        axis_x[index], axis_z[index], arm_side, trials)
+                    reach = np.linalg.norm(
+                        handles[side][index] - shoulder, axis=-1)
+                    worst = np.maximum(worst, reach / arm_length)
+
+            acceptable = np.flatnonzero(worst <= COMFORTABLE_ARM_EXTENSION)
+            if acceptable.size:
+                best[index] = trials[acceptable[
+                    np.argmin(np.abs(trials[acceptable]))]]
+            else:
+                best[index] = trials[int(np.argmin(worst))]
+        return best
+
+    def _solve_elbows(self, shoulders, hands, side):
+        """Two-link elbow solve for a whole stroke at once.
+
+        Returns ``(elbow_positions, worst_reach_fraction)``.  The elbow is
+        placed below and outboard of the shoulder-to-handle line, which is
+        where a rower's elbow goes.
+        """
+        upper, fore = self.upper_arm_length, self.forearm_length
+        reach_vector = hands - shoulders
+        reach = np.linalg.norm(reach_vector, axis=1)
+        arm_length = upper + fore
+
+        worst = float(reach.max() / arm_length)
+        if worst > MAX_ARM_EXTENSION:
+            index = int(np.argmax(reach))
+            raise ValueError(
+                f"the rower cannot reach the oar handle: at stroke phase "
+                f"{index / len(reach):.2f} the shoulder is {reach[index]:.3f} m "
+                f"from the handle but the arm is only {arm_length:.3f} m "
+                f"long. Check the rig span, the oar inboard, or the seat "
+                f"station against the athlete's stature."
+            )
+
+        safe_reach = np.minimum(reach, MAX_ARM_EXTENSION * arm_length)
+        unit = reach_vector / reach[:, None]
+
+        # Angle between the reach line and the upper arm (law of cosines).
+        cos_offset = np.clip(
+            (safe_reach ** 2 + upper ** 2 - fore ** 2)
+            / (2.0 * safe_reach * upper), -1.0, 1.0)
+        offset = np.arccos(cos_offset)
+
+        # Swing the elbow out of the reach line, downwards and outboard.
+        # Build an in-plane perpendicular: the component of -z orthogonal to
+        # the reach direction, nudged outboard so a straight arm still has a
+        # well-defined elbow plane.
+        outboard = np.zeros_like(unit)
+        outboard[:, 1] = side if side != CENTRELINE else 1.0
+        drop = np.array([0.0, 0.0, -1.0]) + 0.35 * outboard
+        perpendicular = drop - (drop * unit).sum(axis=1)[:, None] * unit
+        norm = np.linalg.norm(perpendicular, axis=1)
+        perpendicular = perpendicular / np.maximum(norm, 1e-9)[:, None]
+
+        elbows = shoulders + upper * (
+            np.cos(offset)[:, None] * unit
+            + np.sin(offset)[:, None] * perpendicular)
+        return elbows, worst
+
     def _validate_leg_reach(self, n_samples: int = 256) -> None:
         """Check the level-track constraint stays solvable over a stroke."""
         if self.thigh_mode != "level_seat":
@@ -441,19 +679,34 @@ class JointDrivenRower:
         hip_z = knee_z + self.thigh_length * thigh_sin
         shoulder_x, shoulder_z = link(hip_x, hip_z, self.trunk_length,
                                       angles.trunk(t))
-        elbow_x, elbow_z = link(shoulder_x, shoulder_z, self.upper_arm_length,
-                                angles.upper_arm(t))
-        hand_x, hand_z = link(elbow_x, elbow_z, self.forearm_length,
-                              angles.forearm(t))
 
-        return {
+        chain = {
             "ankle": (ankle_x, ankle_z),
             "knee": (knee_x, knee_z),
             "hip": (hip_x, hip_z),
             "shoulder": (shoulder_x, shoulder_z),
-            "elbow": (elbow_x, elbow_z),
-            "hand": (hand_x, hand_z),
         }
+
+        if self.hand_targets is None:
+            elbow_x, elbow_z = link(shoulder_x, shoulder_z,
+                                    self.upper_arm_length,
+                                    angles.upper_arm(t))
+            hand_x, hand_z = link(elbow_x, elbow_z, self.forearm_length,
+                                  angles.forearm(t))
+            chain["elbow"] = (elbow_x, elbow_z)
+            chain["hand"] = (hand_x, hand_z)
+        else:
+            # Arms constrained to the oar: the hand track IS the handle.
+            # Represented in the chain by the reference side so the
+            # single-plane accessors keep working; per-side tracks are
+            # used directly by segment_state.
+            side = self._reference_side
+            hand = self._hand_tracks[side](t)
+            elbow = self._elbow_tracks[side](t)
+            chain["elbow"] = (elbow[0], elbow[2])
+            chain["hand"] = (hand[0], hand[2])
+
+        return chain
 
     def joint_positions(self, t) -> Dict[str, np.ndarray]:
         """Joint-centre positions in the hull frame, for inspection/plots."""
@@ -535,6 +788,7 @@ class JointDrivenRower:
         trunk_len = self.trunk_length
         head_offset = trunk_len + seg["head"].length * seg["head"].com_fraction
 
+        arm_places = {}
         places = {
             "head": (along(hip, shoulder, head_offset / trunk_len), CENTRELINE),
             "upper_trunk": (along(hip, shoulder, upper_com / trunk_len),
@@ -544,6 +798,15 @@ class JointDrivenRower:
                             CENTRELINE),
         }
         for side, suffix in ((PORT, "port"), (STARBOARD, "starboard")):
+            if self.hand_targets is not None:
+                # Each arm reaches its own target: for sculling that is its
+                # own handle, for sweep both arms reach the single handle.
+                track_side = (side if side in self._hand_tracks
+                              else self._reference_side)
+                side_hand = self._hand_tracks[track_side](t)
+                side_elbow = self._elbow_tracks[track_side](t)
+                side_shoulder = (shoulder[0], shoulder[1])
+                arm_places[suffix] = (side_shoulder, side_elbow, side_hand)
             places[f"upper_arm_{suffix}"] = (
                 along(shoulder, elbow, seg[f"upper_arm_{suffix}"].com_fraction),
                 side)
@@ -568,7 +831,39 @@ class JointDrivenRower:
             velocity[index] = (x_jet.first, 0.0, z_jet.first)
             acceleration[index] = (x_jet.second, 0.0, z_jet.second)
 
+        if arm_places:
+            self._place_arm_segments(position, velocity, acceleration,
+                                     arm_places, seg)
+
         return position, velocity, acceleration
+
+    def _place_arm_segments(self, position, velocity, acceleration,
+                            arm_places, seg):
+        """Overwrite the arm rows with the true 3-D constrained tracks.
+
+        The planar chain cannot represent an arm reaching a handle that is
+        off the centreline, which is every sweep stroke.  These four
+        segments therefore carry genuine lateral motion, and with it a real
+        crew contribution to the roll and yaw moments.
+        """
+        index_of = {name: i for i, name in enumerate(SEGMENT_ORDER)}
+        for suffix, (shoulder_xz, elbow, hand) in arm_places.items():
+            side = PORT if suffix == "port" else STARBOARD
+            shoulder = (shoulder_xz[0],
+                        constant(np.zeros_like(shoulder_xz[0].value)
+                                 + side * self.station.shoulder_half_span),
+                        shoulder_xz[1])
+
+            for name, start, end in (
+                    (f"upper_arm_{suffix}", shoulder, elbow),
+                    (f"forearm_hand_{suffix}", elbow, hand)):
+                fraction = seg[name].com_fraction
+                row = index_of[name]
+                for axis in range(3):
+                    blended = start[axis] + (end[axis] - start[axis]) * fraction
+                    position[row, axis] = blended.value
+                    velocity[row, axis] = blended.first
+                    acceleration[row, axis] = blended.second
 
     def _segment_state_batched(self, t, x_offsets):
         """Share one chain evaluation across seats that move identically.
