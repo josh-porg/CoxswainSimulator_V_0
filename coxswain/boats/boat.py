@@ -158,6 +158,33 @@ class Boat:
         return self.rig.n_seats
 
     # -- crew state ------------------------------------------------------
+    def _crew_groups(self):
+        """Group seats whose rowers move identically, for batch evaluation.
+
+        Built once and reused: a homogeneous crew collapses to a single
+        group, so a derivative evaluation costs one kinematic chain rather
+        than one per seat.  Each entry is
+        ``(representative_rower, seat_indices, x_offsets)``.
+        """
+        if getattr(self, "_crew_group_cache", None) is not None:
+            return self._crew_group_cache
+
+        groups = {}
+        for member in self.crew:
+            groups.setdefault(member.rower.kinematics_signature(),
+                              []).append(member)
+
+        built = []
+        for members in groups.values():
+            leader = members[0].rower
+            offsets = np.array([m.rower.station.x_ankle
+                                - leader.station.x_ankle for m in members])
+            indices = np.array([m.seat_index for m in members])
+            built.append((leader, indices, offsets))
+
+        self._crew_group_cache = built
+        return built
+
     def crew_field(self, t: float):
         """Stacked segment masses, positions, velocities, accelerations.
 
@@ -165,14 +192,20 @@ class Boat:
         ``(n, )`` and ``(n, 3)``, all in the hull frame, where ``n`` is 12
         per rower plus one for a coxswain if fitted.  The coxswain is a
         fixed mass, as the paper suggests.
+
+        Rows are ordered seat-major within each kinematics group, then the
+        coxswain.  Nothing downstream depends on the row order -- the mass
+        matrix and the reaction sums are both permutation invariant -- but
+        ``crew_field_by_seat`` is available when the caller does care.
         """
         masses, positions, velocities, accelerations = [], [], [], []
-        for member in self.crew:
-            position, velocity, acceleration = member.rower.segment_state(t)
-            masses.append(member.rower.segment_masses)
+        for leader, indices, offsets in self._crew_groups():
+            position, velocity, acceleration = leader.segment_state(
+                t, x_offsets=offsets)
             positions.append(position)
             velocities.append(velocity)
             accelerations.append(acceleration)
+            masses.append(np.tile(leader.segment_masses, len(indices)))
 
         if self.rig.has_coxswain and self.rig.coxswain_mass > 0:
             masses.append(np.array([self.rig.coxswain_mass]))
@@ -183,6 +216,29 @@ class Boat:
 
         return (np.concatenate(masses), np.vstack(positions),
                 np.vstack(velocities), np.vstack(accelerations))
+
+    def hand_positions(self, t: float) -> np.ndarray:
+        """Hand (oar handle) position for every seat, shape ``(n_seats, 3)``.
+
+        Batched over kinematics groups for the same reason as
+        :meth:`crew_field`: the oar moment needs a hand position per seat,
+        and evaluating the chain once per seat made this the single most
+        expensive part of a derivative call.
+        """
+        positions = np.zeros((self.n_seats, 3))
+        for leader, indices, offsets in self._crew_groups():
+            hand = leader.joint_positions(t)["hand"]
+            positions[indices] = hand
+            positions[indices, 0] += offsets
+        return positions
+
+    def crew_field_by_seat(self, t: float):
+        """Per-seat segment states, as a list indexed by seat.
+
+        Slower than :meth:`crew_field`; for plotting and inspection, where
+        knowing which rower a segment belongs to matters.
+        """
+        return [member.rower.segment_state(t) for member in self.crew]
 
     def crew_centre_of_mass(self, t: float) -> np.ndarray:
         mass, position, _, _ = self.crew_field(t)

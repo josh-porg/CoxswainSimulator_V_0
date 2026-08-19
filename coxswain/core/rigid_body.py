@@ -47,7 +47,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .frames import skew
+from .frames import cross3, skew
 
 __all__ = [
     "MovingMassField",
@@ -197,19 +197,19 @@ def moving_mass_reaction(field_abs: MovingMassField, omega: np.ndarray):
     a = field_abs.acceleration
     omega = np.asarray(omega, dtype=float)
 
-    coriolis = 2.0 * np.cross(omega, v)
-    centrifugal = np.cross(omega, np.cross(omega, r))
+    coriolis = 2.0 * cross3(omega, v)
+    centrifugal = cross3(omega, cross3(omega, r))
     transport = a + coriolis + centrifugal
 
     force = -(mass[:, None] * transport).sum(axis=0)
-    moment = -(mass[:, None] * np.cross(r, transport)).sum(axis=0)
+    moment = -(mass[:, None] * cross3(r, transport)).sum(axis=0)
     return force, moment
 
 
 def gyroscopic_moment(inertia_abs: np.ndarray, omega: np.ndarray) -> np.ndarray:
     """``-omega x (I omega)`` -- the right-hand-side gyroscopic term."""
     omega = np.asarray(omega, dtype=float)
-    return -np.cross(omega, inertia_abs @ omega)
+    return -cross3(omega, inertia_abs @ omega)
 
 
 def solve_accelerations(mass_matrix: np.ndarray,

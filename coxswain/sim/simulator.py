@@ -45,7 +45,8 @@ import numpy as np
 
 from ..boats.boat import Boat
 from ..core import integrators
-from ..core.frames import euler_rates, hull_to_abs, rotate_inertia_to_abs
+from ..core.frames import (cross3, euler_rates, hull_to_abs,
+                           rotate_inertia_to_abs)
 from ..core.rigid_body import (
     MovingMassField,
     assemble_mass_matrix,
@@ -124,6 +125,7 @@ class RowingSimulator:
         self.water_level = float(water_level)
         self.gravity = float(gravity)
         self._crew_cache = (None, None)
+        self._hand_cache = (None, None)
 
     def crew_field(self, t: float):
         """Cached crew evaluation.
@@ -139,6 +141,15 @@ class RowingSimulator:
             return value
         value = self.boat.crew_field(t)
         self._crew_cache = (t, value)
+        return value
+
+    def hand_positions(self, t: float) -> np.ndarray:
+        """Cached per-seat hand positions, for the oar moment arms."""
+        key, value = self._hand_cache
+        if key is not None and key == t:
+            return value
+        value = self.boat.hand_positions(t)
+        self._hand_cache = (t, value)
         return value
 
     # -- force assembly ---------------------------------------------------
@@ -159,14 +170,15 @@ class RowingSimulator:
 
         # -- gravity: on the whole system, moment from the crew offsets --
         gravity_force = boat.total_mass * gravity_abs
-        gravity_moment = np.cross(field_abs.position,
-                                  mass[:, None] * gravity_abs).sum(axis=0)
+        gravity_moment = cross3(field_abs.position,
+                                mass[:, None] * gravity_abs).sum(axis=0)
 
         # -- oars ---------------------------------------------------------
         oar_force_hull = np.zeros(3)
         oar_moment_hull = np.zeros(3)
-        for member, seat in zip(boat.crew, boat.rig.seats):
-            hand_hull = member.rower.joint_positions(t)["hand"]
+        hands = self.hand_positions(t)
+        for seat_index, seat in enumerate(boat.rig.seats):
+            hand_hull = hands[seat_index]
             for lock in seat.oarlocks:
                 applied = oar_force(t, boat.timing, lock.side,
                                     boat.force_profile, boat.oar_sweep)

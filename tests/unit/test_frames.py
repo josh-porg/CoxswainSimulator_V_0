@@ -246,3 +246,45 @@ def test_wrap_to_pi_at_the_branch_cut_returns_magnitude_pi(angle):
 def test_wrap_to_pi_is_vectorised():
     wrapped = frames.wrap_to_pi(np.array([0.0, 2 * np.pi + 0.3, -2 * np.pi - 0.3]))
     np.testing.assert_allclose(wrapped, [0.0, 0.3, -0.3], atol=1e-12)
+
+
+# --------------------------------------------------------------------------
+# cross3 -- the hot-path replacement for numpy.cross
+# --------------------------------------------------------------------------
+@pytest.mark.parametrize("seed", range(6))
+def test_cross3_matches_numpy_cross_for_vectors(seed):
+    rng = np.random.default_rng(seed)
+    a, b = rng.normal(size=3), rng.normal(size=3)
+    np.testing.assert_allclose(frames.cross3(a, b), np.cross(a, b), atol=1e-14)
+
+
+@pytest.mark.parametrize("seed", range(4))
+def test_cross3_matches_numpy_cross_for_stacks(seed):
+    rng = np.random.default_rng(seed)
+    a, b = rng.normal(size=(7, 3)), rng.normal(size=(7, 3))
+    np.testing.assert_allclose(frames.cross3(a, b), np.cross(a, b), atol=1e-14)
+
+
+def test_cross3_broadcasts_a_vector_against_a_stack():
+    rng = np.random.default_rng(0)
+    omega, r = rng.normal(size=3), rng.normal(size=(5, 3))
+    np.testing.assert_allclose(frames.cross3(omega, r), np.cross(omega, r),
+                               atol=1e-14)
+
+
+def test_cross3_is_antisymmetric():
+    a, b = np.array([1.0, -2.0, 0.5]), np.array([0.3, 0.7, -1.1])
+    np.testing.assert_allclose(frames.cross3(a, b), -frames.cross3(b, a),
+                               atol=1e-15)
+
+
+def test_cross3_of_parallel_vectors_is_zero():
+    a = np.array([1.0, -2.0, 0.5])
+    np.testing.assert_allclose(frames.cross3(a, 3.0 * a), np.zeros(3),
+                               atol=1e-15)
+
+
+def test_cross3_agrees_with_skew():
+    a, b = np.array([0.4, -1.7, 2.2]), np.array([1.0, 0.2, -0.3])
+    np.testing.assert_allclose(frames.cross3(a, b), frames.skew(a) @ b,
+                               atol=1e-14)

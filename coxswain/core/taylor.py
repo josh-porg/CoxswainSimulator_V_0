@@ -45,10 +45,21 @@ class Jet2:
         if isinstance(other, Jet2):
             return other
         arr = np.asarray(other, dtype=float)
-        return Jet2(arr, np.zeros_like(arr), np.zeros_like(arr))
+        zero = np.zeros_like(arr)
+        return Jet2(arr, zero, zero)
 
     # -- arithmetic ------------------------------------------------------
+    # Scalar operands take a fast path.  A constant has zero derivatives, so
+    # promoting it to a full Jet2 only to add and multiply by arrays of
+    # zeros is pure waste -- and it dominated the kinematics profile, which
+    # is evaluated a few hundred thousand times per simulated run.
+    @staticmethod
+    def _is_scalar(other) -> bool:
+        return isinstance(other, (int, float, np.floating, np.integer))
+
     def __add__(self, other) -> "Jet2":
+        if self._is_scalar(other):
+            return Jet2(self.value + other, self.first, self.second)
         o = self._coerce(other)
         return Jet2(self.value + o.value, self.first + o.first,
                     self.second + o.second)
@@ -59,12 +70,21 @@ class Jet2:
         return Jet2(-self.value, -self.first, -self.second)
 
     def __sub__(self, other) -> "Jet2":
-        return self + (-self._coerce(other))
+        if self._is_scalar(other):
+            return Jet2(self.value - other, self.first, self.second)
+        o = self._coerce(other)
+        return Jet2(self.value - o.value, self.first - o.first,
+                    self.second - o.second)
 
     def __rsub__(self, other) -> "Jet2":
+        if self._is_scalar(other):
+            return Jet2(other - self.value, -self.first, -self.second)
         return self._coerce(other) + (-self)
 
     def __mul__(self, other) -> "Jet2":
+        if self._is_scalar(other):
+            return Jet2(self.value * other, self.first * other,
+                        self.second * other)
         o = self._coerce(other)
         return Jet2(
             self.value * o.value,

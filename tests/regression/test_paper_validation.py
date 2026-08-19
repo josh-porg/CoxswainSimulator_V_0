@@ -146,14 +146,14 @@ def test_f09_literal_wave_model_is_reproducible_but_not_physical():
 # ==========================================================================
 @pytest.mark.parametrize("name,rate", [("8+", 32.0), ("4+", 32.0),
                                        ("1x", 30.0)])
-def test_f09_fig13_pitch_amplitude(name, rate):
+def test_f09_fig13_pitch_amplitude(name, rate, simulate):
     """[F09] Fig. 13: pitch stays inside +-0.02 rad (1.15 deg).
 
     The figure is for a single scull; the bound is checked for every class
     because a shell that pitches more than a degree or two is wrong.
     """
-    result = RowingSimulator(catalog.build(name, rate=rate)).run(
-        duration=16.0, surge_speed=4.5, dt=0.006)
+    result = simulate(name, rate=rate, duration=16.0, surge_speed=4.5,
+                      dt=0.006)
     assert result.pitch_amplitude() < 0.045, (
         f"{name} pitch amplitude {np.degrees(result.pitch_amplitude()):.2f} deg"
     )
@@ -161,10 +161,10 @@ def test_f09_fig13_pitch_amplitude(name, rate):
 
 @pytest.mark.parametrize("name,rate", [("8+", 32.0), ("4+", 32.0),
                                        ("1x", 30.0)])
-def test_f09_fig13_heave_amplitude(name, rate):
+def test_f09_fig13_heave_amplitude(name, rate, simulate):
     """[F09] Fig. 13: heave stays inside about 0.08 m peak to peak."""
-    result = RowingSimulator(catalog.build(name, rate=rate)).run(
-        duration=16.0, surge_speed=4.5, dt=0.006)
+    result = simulate(name, rate=rate, duration=16.0, surge_speed=4.5,
+                      dt=0.006)
     assert result.heave_amplitude() < 0.15, (
         f"{name} heave amplitude {result.heave_amplitude():.3f} m"
     )
@@ -189,9 +189,10 @@ def test_f09_single_scull_hull_properties():
     ("1x", 20.0, 3.3, 4.0),
     ("1x", 30.0, 4.1, 4.7),
 ])
-def test_steady_speed_matches_published_race_pace(name, rate, low, high):
-    result = RowingSimulator(catalog.build(name, rate=rate)).run(
-        duration=22.0, surge_speed=4.2, dt=0.006)
+def test_steady_speed_matches_published_race_pace(name, rate, low, high,
+                                                  simulate):
+    result = simulate(name, rate=rate, duration=22.0, surge_speed=4.2,
+                      dt=0.006)
     speed = result.mean_speed()
     assert low <= speed <= high, (
         f"{name} at rate {rate} settled at {speed:.3f} m/s, outside the "
@@ -199,21 +200,21 @@ def test_steady_speed_matches_published_race_pace(name, rate, low, high):
     )
 
 
-def test_higher_rate_gives_higher_speed():
+def test_higher_rate_gives_higher_speed(simulate):
     speeds = [
-        RowingSimulator(catalog.eight(rate=r)).run(
-            duration=20.0, surge_speed=4.5, dt=0.006).mean_speed()
+        simulate("8+", rate=r, duration=20.0, surge_speed=4.5,
+                 dt=0.006).mean_speed()
         for r in (24.0, 32.0, 38.0)
     ]
     assert speeds[0] < speeds[1] < speeds[2]
 
 
-def test_an_eight_is_faster_than_a_four_at_the_same_rate():
+def test_an_eight_is_faster_than_a_four_at_the_same_rate(simulate):
     """More crew per unit drag: the classic ordering of the boat classes."""
-    eight = RowingSimulator(catalog.eight(rate=32.0)).run(
-        duration=20.0, surge_speed=4.5, dt=0.006).mean_speed()
-    four = RowingSimulator(catalog.coxed_four(rate=32.0)).run(
-        duration=20.0, surge_speed=4.5, dt=0.006).mean_speed()
+    eight = simulate("8+", rate=32.0, duration=20.0, surge_speed=4.5,
+                     dt=0.006).mean_speed()
+    four = simulate("4+", rate=32.0, duration=20.0, surge_speed=4.5,
+                    dt=0.006).mean_speed()
     assert eight > four
 
 
@@ -229,12 +230,12 @@ def test_hull_resistance_of_an_eight_matches_towing_data():
     assert 350.0 < detail["total_longitudinal"] < 620.0
 
 
-def test_the_boat_runs_fastest_on_the_recovery():
+def test_the_boat_runs_fastest_on_the_recovery(simulate):
     """The signature of rowing: the crew moves bow-ward on the drive, so the
     hull is checked then and surges while they come back."""
     boat = catalog.eight(rate=32.0)
-    result = RowingSimulator(boat).run(duration=20.0, surge_speed=5.0,
-                                       dt=0.005)
+    result = simulate("8+", rate=32.0, duration=20.0, surge_speed=5.0,
+                      dt=0.005)
 
     window = result.last_cycles(2)
     phase = boat.timing.phase(result.time[window])
@@ -247,7 +248,7 @@ def test_the_boat_runs_fastest_on_the_recovery():
 # ==========================================================================
 # Known departures from the paper, pinned so they cannot drift silently
 # ==========================================================================
-def test_speed_fluctuation_is_larger_than_measured():
+def test_speed_fluctuation_is_larger_than_measured(simulate):
     """A known, documented gap.
 
     The model's crew kinematics are synthesised from joint-angle profiles
@@ -258,8 +259,8 @@ def test_speed_fluctuation_is_larger_than_measured():
     claim it is right.  Fitting real mocap through
     ``FourierProfile.fit_samples`` is the fix.  See docs/validation.md.
     """
-    result = RowingSimulator(catalog.eight(rate=32.0)).run(
-        duration=20.0, surge_speed=5.0, dt=0.005)
+    result = simulate("8+", rate=32.0, duration=20.0, surge_speed=5.0,
+                      dt=0.005)
     ratio = result.speed_fluctuation_ratio()
     assert 0.25 < ratio < 0.55, (
         f"speed fluctuation ratio {ratio:.3f}; if this has improved towards "

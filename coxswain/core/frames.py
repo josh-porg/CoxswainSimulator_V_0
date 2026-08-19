@@ -52,6 +52,7 @@ __all__ = [
     "GIMBAL_LOCK_TOL",
     "hull_to_abs",
     "abs_to_hull",
+    "cross3",
     "skew",
     "unskew",
     "euler_rates",
@@ -99,6 +100,25 @@ def hull_to_abs(attitude: np.ndarray) -> np.ndarray:
 def abs_to_hull(attitude: np.ndarray) -> np.ndarray:
     """Rotation matrix mapping absolute-frame vectors to the hull frame."""
     return hull_to_abs(attitude).T
+
+
+def cross3(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """Cross product of vectors whose last axis has length 3.
+
+    ``numpy.cross`` spends most of its time in axis-normalisation
+    machinery that is pure overhead for a fixed 3-vector, and the
+    derivative evaluation calls it ~17 times per step.  Replacing it is
+    worth about a quarter of the simulation runtime.
+
+    Broadcasts like any ufunc expression, so ``(3,) x (n, 3)`` works.
+    """
+    a = np.asarray(a, dtype=float)
+    b = np.asarray(b, dtype=float)
+    a0, a1, a2 = a[..., 0], a[..., 1], a[..., 2]
+    b0, b1, b2 = b[..., 0], b[..., 1], b[..., 2]
+    return np.stack([a1 * b2 - a2 * b1,
+                     a2 * b0 - a0 * b2,
+                     a0 * b1 - a1 * b0], axis=-1)
 
 
 def skew(v: np.ndarray) -> np.ndarray:

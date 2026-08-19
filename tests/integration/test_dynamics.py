@@ -296,10 +296,51 @@ def test_oar_force_drives_the_boat_forward_during_the_drive(sim, trimmed):
     assert forces.oar_force[0] > 0.0
 
 
-def test_crew_reaction_opposes_the_oar_thrust_during_the_drive(sim, trimmed):
-    """The crew accelerates towards the bow, pushing the hull the other way."""
-    forces = sim.breakdown(0.4 * sim.boat.timing.drive_duration, trimmed)
+def test_crew_reaction_opposes_the_hull_early_in_the_drive(sim, trimmed):
+    """Off the catch the crew accelerates bow-ward, shoving the hull astern.
+
+    Only *early* in the drive: with the measured Caplan & Gardner
+    kinematics the crew centre of mass reaches peak speed about a third of
+    the way through the drive and decelerates from there, so the reaction
+    reverses sign well before the finish.  That reversal is the physical
+    origin of the boat "running" on the recovery.
+    """
+    forces = sim.breakdown(0.1 * sim.boat.timing.drive_duration, trimmed)
     assert forces.crew_force[0] < 0.0
+
+
+def test_crew_reaction_reverses_within_the_drive(sim, trimmed):
+    """The sign change happens inside the drive, not at the finish."""
+    drive = sim.boat.timing.drive_duration
+    early = sim.breakdown(0.1 * drive, trimmed).crew_force[0]
+    late = sim.breakdown(0.9 * drive, trimmed).crew_force[0]
+    assert early < 0.0 < late
+
+
+def test_crew_centre_of_mass_moves_bow_ward_over_the_drive(sim):
+    """Legs extend, so the seat and the body travel towards the bow."""
+    boat = sim.boat
+    at_catch = boat.crew_centre_of_mass(0.0)[0]
+    at_finish = boat.crew_centre_of_mass(boat.timing.drive_duration)[0]
+    assert at_finish > at_catch
+
+
+def test_crew_reaction_integrates_to_zero_over_a_stroke(sim, trimmed):
+    """Periodic crew motion transfers no net momentum to the hull.
+
+    Whatever the crew do inside a stroke, they end where they started, so
+    the cycle-average of the reaction must vanish.  Only the oars can
+    change the system's momentum.  A non-zero mean here would mean the
+    kinematics are not closing, or that a transport term has the wrong
+    sign.
+    """
+    period = sim.boat.timing.period
+    times = np.linspace(0.0, period, 400, endpoint=False)
+    reaction = np.array(
+        [sim.breakdown(t, trimmed).crew_force[0] for t in times]
+    )
+    scale = np.abs(reaction).max()
+    assert abs(reaction.mean()) < 0.02 * scale
 
 
 def test_resistance_opposes_forward_motion(sim, trimmed):

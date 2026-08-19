@@ -236,6 +236,8 @@ class JointDrivenRower:
         self.timing = timing
         self.dataset = default_dataset() if dataset is None else dataset
         self.thigh_mode = thigh_mode
+        self.phase_offset = float(phase_offset)
+        self.n_harmonics = int(n_harmonics)
 
         self._segments = {s.name: s for s in anthropometry.segments}
         self._masses = np.array(
@@ -466,14 +468,49 @@ class JointDrivenRower:
         return np.column_stack([chain["hand"][0].value,
                                 chain["hand"][1].value])
 
-    def segment_state(self, t):
+    def kinematics_signature(self):
+        """Key identifying rowers whose segment motion is identical.
+
+        Two rowers sharing this signature move the same way relative to
+        their own footboard, so the whole chain need only be evaluated
+        once and the result shifted by each seat's ``x_ankle``.  A
+        standard crew is homogeneous, which turns nine chain evaluations
+        per derivative call into one -- the single largest cost in the
+        simulation loop.
+
+        Deliberately excludes ``station.x_ankle``: that is precisely the
+        difference the sharing is designed to factor out.
+
+        Keyed on *values* rather than object identity, so two separately
+        constructed but identical athletes still share.  Any field that
+        could change the motion must appear here; when in doubt, adding a
+        field costs a little speed, omitting one costs correctness.
+        """
+        station = self.station
+        anthro = self.anthropometry
+        return (
+            anthro.mass, anthro.stature, anthro.sex,
+            self.dataset.name, self.timing.rate, self.thigh_mode,
+            self.phase_offset, self.n_harmonics,
+            station.z_ankle, station.seat_height, station.foot_half_span,
+            station.hip_half_span, station.shoulder_half_span,
+        )
+
+    def segment_state(self, t, x_offsets=None):
         """Position, velocity and acceleration of all 12 segment masses.
 
         Returns three ``(12, 3)`` arrays in the hull frame, ordered by
         :data:`SEGMENT_ORDER`.  Velocity and acceleration are relative to
         the hull -- the transport terms are added by
         :func:`coxswain.core.rigid_body.moving_mass_reaction`.
+
+        If ``x_offsets`` is given, the chain is evaluated once and returned
+        for every offset at once, with shapes ``(len(x_offsets) * 12, 3)``
+        ordered seat-major.  The offsets are longitudinal shifts *relative
+        to this rower's own* ``x_ankle``.
         """
+        if x_offsets is not None:
+            return self._segment_state_batched(t, x_offsets)
         chain = self._chain(t)
         seg = self._segments
         anthro = self.anthropometry
@@ -532,6 +569,23 @@ class JointDrivenRower:
             acceleration[index] = (x_jet.second, 0.0, z_jet.second)
 
         return position, velocity, acceleration
+
+    def _segment_state_batched(self, t, x_offsets):
+        """Share one chain evaluation across seats that move identically.
+
+        Velocities and accelerations are identical for every seat -- only
+        the constant longitudinal offset differs -- so they are broadcast
+        rather than recomputed.
+        """
+        position, velocity, acceleration = self.segment_state(t)
+        offsets = np.asarray(x_offsets, dtype=float)
+        n_seats = len(offsets)
+
+        tiled = np.tile(position, (n_seats, 1))
+        tiled[:, 0] += np.repeat(offsets, position.shape[0])
+        return (tiled,
+                np.tile(velocity, (n_seats, 1)),
+                np.tile(acceleration, (n_seats, 1)))
 
     def _lateral(self, name: str, side: int) -> float:
         """Fixed ``y`` offset of a segment.
