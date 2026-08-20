@@ -352,3 +352,79 @@ def test_depth_scales_propulsive_force_too(blade):
     deep = blade.propulsive_force(0.2, -3.0, 5.0, water_depth=np.inf)
     shallow = blade.propulsive_force(0.2, -3.0, 5.0, water_depth=2.0)
     assert abs(shallow) > abs(deep)
+
+
+# --------------------------------------------------------------------------
+# oar sweep rate, and what the blade model says about the sweep shape
+# --------------------------------------------------------------------------
+def test_sweep_rate_matches_finite_differences(timing):
+    """The blade model needs an exact rate, not a differenced one."""
+    sweep = OarAngleSweep()
+    worst = 0.0
+    for t in np.linspace(1e-3, timing.period - 1e-3, 300):
+        step = 1e-6
+        numerical = (float(sweep(t + step, timing))
+                     - float(sweep(t - step, timing))) / (2 * step)
+        worst = max(worst, abs(numerical - float(sweep.rate(t, timing))))
+    assert worst < 1e-6
+
+
+def test_sweep_rate_vanishes_at_the_catch_and_finish():
+    """A pure raised cosine turns around at both ends."""
+    timing_ = StrokeTiming(rate=32.0)
+    sweep = OarAngleSweep(flatness=0.0)
+    assert float(sweep.rate(1e-9, timing_)) == pytest.approx(0.0, abs=1e-3)
+    assert float(sweep.rate(timing_.drive_duration - 1e-9,
+                            timing_)) == pytest.approx(0.0, abs=1e-3)
+
+
+def test_sweep_rate_is_negative_through_the_drive(timing):
+    """Catch is bow-ward, finish stern-ward, so the angle decreases."""
+    sweep = OarAngleSweep()
+    for fraction in (0.25, 0.5, 0.75):
+        assert float(sweep.rate(fraction * timing.drive_duration,
+                                timing)) < 0.0
+
+
+def _weighted_efficiency(blade, sweep, timing, profile, speed=5.5):
+    times = np.linspace(1e-4, timing.drive_duration - 1e-4, 300)
+    angle = np.array([float(sweep(t, timing)) for t in times])
+    rate = np.array([float(sweep.rate(t, timing)) for t in times])
+    eff = np.array([float(blade.efficiency(a, r, speed))
+                    for a, r in zip(angle, rate)])
+    weight = np.array([float(profile.magnitude(t, timing)) for t in times])
+    return float(np.sum(eff * weight) / np.sum(weight))
+
+
+def test_raised_cosine_sweep_slips_more_than_measurements_allow(blade, timing):
+    """The finding the blade model exposes about the oar sweep.
+
+    A raised cosine peaks at 1.57x the mean angular rate, sweeping the
+    blade through the water faster than the boat runs.  The resulting
+    force-weighted blade efficiency falls below the 0.80-0.85 Kleshnev
+    reports for good crews.
+    """
+    from coxswain.crew.oarlock import OarForceProfile
+
+    value = _weighted_efficiency(blade, OarAngleSweep(flatness=0.0), timing,
+                                 OarForceProfile())
+    assert value < 0.78
+
+
+def test_a_flatter_sweep_reproduces_measured_blade_efficiency(blade, timing):
+    """Flatness near 0.30 lands inside Kleshnev's reported band."""
+    from coxswain.crew.oarlock import OarForceProfile
+
+    value = _weighted_efficiency(blade, OarAngleSweep(flatness=0.30), timing,
+                                 OarForceProfile())
+    assert 0.80 <= value <= 0.85
+
+
+def test_blade_efficiency_rises_monotonically_with_sweep_flatness(blade,
+                                                                  timing):
+    from coxswain.crew.oarlock import OarForceProfile
+
+    values = [_weighted_efficiency(blade, OarAngleSweep(flatness=f), timing,
+                                   OarForceProfile())
+              for f in (0.0, 0.2, 0.4, 0.6)]
+    assert np.all(np.diff(values) > 0.0)

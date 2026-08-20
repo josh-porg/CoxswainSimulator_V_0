@@ -79,13 +79,22 @@ class OarAngleSweep:
 
     catch_angle: float = np.radians(55.0)
     finish_angle: float = np.radians(-35.0)
-    #: Blend towards a linear ramp.  The default of 0 is a pure raised
-    #: cosine, which is the physically correct choice: the oar angle has a
-    #: genuine turning point at the catch and at the finish, so its rate is
-    #: zero there.  A raised cosine peaks at 1.57 times the mean angular
-    #: rate mid-drive, which matches measured oar-angle traces.  Values
+    #: Blend towards a linear ramp.  0 is a pure raised cosine, which has
+    #: the right *end* behaviour: the oar angle has a genuine turning point
+    #: at the catch and at the finish, so its rate is zero there.  Values
     #: above 0 flatten the mid-drive rate at the cost of reintroducing a
     #: corner at the ends.
+    #:
+    #: **The default of 0 is probably too peaked.**  A raised cosine peaks
+    #: at 1.57 times the mean angular rate, which drives the blade through
+    #: the water faster than the boat runs and so makes it slip hard.  Fed
+    #: through :class:`BladeModel`, that gives a force-weighted blade
+    #: efficiency of 0.73 over the drive, against the 0.80-0.85 Kleshnev
+    #: reports for good crews.  A flatness near **0.30** reproduces the
+    #: measured figure (0.82).  This is an independent constraint on the
+    #: sweep shape that the blade model supplies and nothing else here
+    #: does; the default is left at 0 only because the regression suite is
+    #: pinned to it.  See ``docs/SOURCES.md`` section 7.
     flatness: float = 0.0
 
     def __call__(self, t, timing: StrokeTiming):

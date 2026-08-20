@@ -542,6 +542,42 @@ than tuned away.
 [ST09] models the blade flush with the surface but does not vary immersion
 parametrically, so it does not settle either question.
 
+### Wiring the blade model in — and what it revealed
+
+`Boat.blade_model` is optional and **off by default**. When set, the
+simulator replaces the oar's fixed `blade_efficiency = 0.78` with the
+instantaneous value from slip and water depth. The rower still pulls the
+measured handle force; what changes is the fraction of it that becomes
+thrust.
+
+Turning it on exposed an inconsistency that nothing else in the model
+could see. Force-weighted blade efficiency over the drive, at 5.5 m/s:
+
+| sweep flatness | peak oar rate (rad/s) | blade efficiency |
+|---|---|---|
+| 0.00 (raised cosine) | 3.31 | 0.73 |
+| **0.30** | 2.95 | **0.82** |
+| 0.50 | 2.71 | 0.88 |
+| 1.00 (linear) | 2.11 | 0.90 |
+
+Kleshnev reports 0.80–0.85 for good crews. **The default raised-cosine
+sweep is too peaked**: at 1.57× the mean angular rate it drives the blade
+through the water faster than the boat runs, so it slips hard through
+mid-drive. Flatness near 0.30 reproduces the measured figure.
+
+That is an independent constraint on the oar kinematics which the blade
+model supplies and no other part of this model does. The default is left
+at 0.0 only because the regression suite is pinned to it.
+
+**The absolute level is not calibrated, and the model stays opt-in.** With
+the blade model on, an eight at rate 32 drops from 5.22 to 4.49 m/s even at
+flatness 0.30 — slower, despite a *higher* blade efficiency than 0.78. The
+reason is double counting: the lumped 0.78 already absorbed ventilation
+losses, so multiplying a slip efficiency by `immersion_factor` charges for
+them twice. Splitting them correctly needs a measurement that separates
+slip from ventilation, which was not found. Tuning `flatness` until the
+speed came out right would be fitting the answer, so it has not been done.
+
 ### [B09] Brearley (2009)
 *A method of improving oar efficiency.* **ANZIAM J. 50** 534–540.
 [PDF](http://bionics.seas.ucla.edu/education/Rowing/Math_Model_2009_05.pdf)
@@ -659,6 +695,40 @@ Result, along the traced deep channel:
 route calculation in a wet year, and then it concentrates where the section
 is smallest, which is exactly where a line choice exists to be made.
 
+### Lateral flow distribution
+
+Section-mean `Q/A` is not what a boat feels: water runs fastest in the deep
+channel and slowest over the shoals. That spread is the entire reason a
+line choice exists — upstream a crew wants the slack near the bank, coming
+down they want the thread of the current.
+
+The distribution follows the standard conveyance argument. Locally Manning
+gives `u = h^(2/3) S^(1/2) / n`, so across a wide section
+
+```
+u(y) = Q · h(y)^(2/3) / ∫ h(y)^(5/3) dy
+```
+
+and the slope `S` and roughness `n` **cancel**. That is what makes it
+usable here: the *shape* needs only the surveyed bathymetry, the
+*magnitude* is still pinned by measured discharge, and `∫ u h dy = Q`
+holds exactly at every section. Manning is used for the lateral shape,
+where its unknowns drop out, and still not for the magnitude, where they
+would not.
+
+Measured spread at a shoaled section, October maximum of record:
+
+| position | flow speed |
+|---|---|
+| deep channel | 19.1 cm/s |
+| centreline | 13.3 cm/s |
+| far bank | 6.6 cm/s |
+| *section mean (what the uniform model gives everywhere)* | *16.4 cm/s* |
+
+A factor of ~3 across the section. The uniform model overstates the adverse
+current at the bank by 2.5×, which is exactly the error that would hide a
+line choice from a route optimiser.
+
 ### Known limits
 - The centreline is the **thalweg** — the deepest water, traced through the
   survey — not a surveyed navigation channel and not a race line. Callers
@@ -683,10 +753,11 @@ Ordered by how much they would change a result.
 3. **Near-critical shallow-water amplification is capped by choice, not
    measurement** (§6). Affects any Charles route optimisation that runs
    near `Fr_h = 1` — which 2–4 m water and a racing eight do.
-4. **The blade model is implemented but not wired in.** `BladeModel`
-   ([CR06] eq. 11) is tested and ready; the force path still uses the
-   prescribed half-sine and the fixed 0.78 efficiency. Switching over
-   re-baselines every regression number, so it is its own change.
+4. **The blade model is wired in but not calibrated, and stays opt-in**
+   (§7). It exposed that the raised-cosine oar sweep is too peaked — a
+   real finding — but its absolute level double-counts ventilation against
+   the lumped 0.78 it replaces. Needs a measurement separating slip from
+   ventilation.
 5. **Resistance is quasi-steady.** [D11] measured substantial
    under-prediction at realistic oscillation frequencies from unsteady
    viscous effects.
