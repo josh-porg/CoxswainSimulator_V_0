@@ -193,6 +193,10 @@ class ContinuityFlow:
     course: "Course"
     discharge: float = 2.84          # m3/s, October median at Waltham
     n_transect: int = 41             # samples across the channel
+    #: Exponent relating local depth-averaged velocity to depth in the
+    #: lateral distribution.  2/3 is Manning; 1/2 would be Chezy.  Only the
+    #: *shape* depends on it -- the magnitude is fixed by continuity.
+    velocity_exponent: float = 2.0 / 3.0
     _area_cache: Optional[Tuple[np.ndarray, np.ndarray]] = None
 
     def cross_section_area(self, station) -> np.ndarray:
@@ -222,20 +226,92 @@ class ContinuityFlow:
         area = self.cross_section_area(station)
         return station, area, self.discharge / np.maximum(area, 1e-6)
 
-    def as_current_field(self, n: int = 80) -> CurrentField:
+    def lateral_profile(self, station: float):
+        """Flow speed across one cross-section: ``(offsets, depth, speed)``.
+
+        The section-mean speed ``Q/A`` is not what a boat feels.  Water
+        moves fastest in the deep channel and slowest over the shoals, and
+        that lateral spread is the entire reason a line choice exists:
+        going upstream a crew wants the slack water near the bank, coming
+        down they want the thread of the current.
+
+        The distribution follows the standard conveyance argument.  Locally,
+        Manning gives ``u = h^(2/3) S^(1/2) / n``, so across a wide section
+
+            u(y) = Q h(y)^(2/3) / integral h(y)^(5/3) dy
+
+        The slope ``S`` and roughness ``n`` **cancel**.  That is what makes
+        this usable here: the *shape* of the distribution needs only the
+        surveyed bathymetry, and the *magnitude* is still pinned by the
+        measured discharge.  Manning is used for the lateral shape, where
+        its unknowns drop out, and still not for the magnitude, where they
+        would not.
+
+        By construction ``integral u h dy == Q`` exactly, so this refines
+        :meth:`speed` without contradicting it.
+        """
+        half = float(self.course.half_width_at(station))
+        offsets = np.linspace(-half, half, self.n_transect)
+        points = self.course.offset_position(
+            np.full(self.n_transect, float(station)), offsets)
+        depth = np.asarray(self.course.depth(points[:, 0], points[:, 1]),
+                           dtype=float)
+
+        conveyance = np.trapezoid(depth ** (1.0 + self.velocity_exponent),
+                                  offsets)
+        if conveyance <= 0.0:
+            return offsets, depth, np.zeros_like(depth)
+        speed = self.discharge * depth ** self.velocity_exponent / conveyance
+        return offsets, depth, speed
+
+    def _speed_grid(self, n_station: int):
+        """Precompute speed on a (station, offset-fraction) grid.
+
+        The field is evaluated every derivative call, so rebuilding a
+        cross-section each time would dominate the run.  Offsets are stored
+        as a fraction of the local half-width so the grid stays rectangular
+        even where the channel narrows.
+        """
+        stations = np.linspace(0.0, self.course.length, n_station)
+        fractions = np.linspace(-1.0, 1.0, self.n_transect)
+        grid = np.empty((n_station, self.n_transect))
+        for i, s in enumerate(stations):
+            _, _, speed = self.lateral_profile(s)
+            grid[i] = speed
+        return stations, fractions, grid
+
+    def as_current_field(self, n: int = 80,
+                         lateral: bool = True) -> CurrentField:
         """A :class:`CurrentField` pointing downstream at the local speed.
 
         Downstream is towards decreasing station, since the course is laid
         out bow-first up the river the way a crew rows it.
+
+        With ``lateral=True`` (the default) the speed varies **across** the
+        channel as well as along it, from :meth:`lateral_profile`.  Setting
+        it ``False`` falls back to the section mean ``Q/A`` everywhere,
+        which is what a route optimiser would see as a river with no line
+        in it.
         """
-        station = np.linspace(0.0, self.course.length, n)
-        speed = self.speed(station)
         course = self.course
+        stations, fractions, grid = self._speed_grid(n)
+        mean_speed = self.speed(stations)
 
         def flow(x, y):
             s = course.nearest_station(float(x), float(y))
-            magnitude = float(np.interp(s, station, speed))
             heading = float(course.heading_at(np.array(s)))
+            if lateral:
+                centre = course.position_at(np.array(s))
+                # signed offset: positive to port of the centreline
+                normal = np.array([-np.sin(heading), np.cos(heading)])
+                offset = float(np.dot([x - centre[0], y - centre[1]], normal))
+                half = max(float(course.half_width_at(s)), 1e-6)
+                row = np.array([np.interp(s, stations, grid[:, j])
+                                for j in range(grid.shape[1])])
+                magnitude = float(np.interp(np.clip(offset / half, -1.0, 1.0),
+                                            fractions, row))
+            else:
+                magnitude = float(np.interp(s, stations, mean_speed))
             # water flows towards the start of the course (downstream)
             return (-magnitude * np.cos(heading),
                     -magnitude * np.sin(heading))

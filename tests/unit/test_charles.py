@@ -205,3 +205,103 @@ def test_current_field_magnitude_matches_the_profile(course):
 
 def test_course_carries_a_current_field(course):
     assert not course.current.is_still
+
+
+# --------------------------------------------------------------------------
+# lateral variation -- the part that creates a line choice
+# --------------------------------------------------------------------------
+def test_lateral_profile_conserves_discharge(course):
+    """The distribution refines Q/A, it must not contradict it.
+
+    By construction integral(u h dy) == Q at every section.
+    """
+    flow = charles.ContinuityFlow(course, discharge=12.0)
+    for fraction in (0.2, 0.4, 0.6, 0.8):
+        offsets, depth, speed = flow.lateral_profile(fraction * course.length)
+        assert np.trapezoid(speed * depth, offsets) == pytest.approx(
+            12.0, rel=1e-9)
+
+
+def test_water_runs_faster_in_the_deep_channel(course):
+    """Fast water in the channel, slack over the shoals.
+
+    This is the whole reason a crew has a line to choose: upstream you
+    want the slack near the bank, downstream you want the thread.
+    """
+    flow = charles.ContinuityFlow(course, discharge=20.0)
+    offsets, depth, speed = flow.lateral_profile(0.45 * course.length)
+    assert np.argmax(speed) == np.argmax(depth)
+    assert np.argmin(speed) == np.argmin(depth)
+
+
+def test_lateral_speed_follows_the_depth_exponent(course):
+    """u proportional to h^(2/3): Manning's slope and roughness cancel."""
+    flow = charles.ContinuityFlow(course, discharge=20.0)
+    _, depth, speed = flow.lateral_profile(0.45 * course.length)
+    ratio = speed / depth ** flow.velocity_exponent
+    assert np.std(ratio) / np.mean(ratio) < 1e-9
+
+
+def test_lateral_spread_is_large_enough_to_matter(course):
+    """A factor of ~3 across the section at a shoaled cross-section."""
+    flow = charles.ContinuityFlow(course, discharge=20.0)
+    _, _, speed = flow.lateral_profile(0.45 * course.length)
+    assert speed.max() / speed.min() > 1.5
+
+
+def test_section_mean_lies_between_bank_and_channel_speeds(course):
+    flow = charles.ContinuityFlow(course, discharge=20.0)
+    station = 0.45 * course.length
+    _, _, speed = flow.lateral_profile(station)
+    mean = float(flow.speed(np.array(station))[0])
+    assert speed.min() <= mean <= speed.max()
+
+
+def test_current_field_varies_across_the_channel(course):
+    """Regression guard: the field used to be laterally uniform.
+
+    Along-river variation alone is the wrong half -- it tells a route
+    optimiser the river has no line in it.
+    """
+    flow = charles.ContinuityFlow(course, discharge=20.0)
+    field = flow.as_current_field()
+    station = 0.45 * course.length
+    half = float(course.half_width_at(station))
+
+    speeds = []
+    for fraction in (-0.9, -0.3, 0.3, 0.9):
+        point = course.offset_position(np.array(station),
+                                       np.array(fraction * half))
+        speeds.append(float(np.hypot(*field(point[0], point[1]))))
+    assert max(speeds) / min(speeds) > 1.3
+
+
+def test_uniform_mode_really_is_uniform_across_the_channel(course):
+    flow = charles.ContinuityFlow(course, discharge=20.0)
+    field = flow.as_current_field(lateral=False)
+    station = 0.45 * course.length
+    half = float(course.half_width_at(station))
+
+    speeds = []
+    for fraction in (-0.9, 0.0, 0.9):
+        point = course.offset_position(np.array(station),
+                                       np.array(fraction * half))
+        speeds.append(float(np.hypot(*field(point[0], point[1]))))
+    assert max(speeds) - min(speeds) < 1e-9
+
+
+def test_lateral_model_disagrees_with_the_uniform_one_at_the_bank(course):
+    """Quantifies what the uniform model hides.
+
+    At the bank the uniform model overstates the adverse current a crew
+    rowing upstream would meet.
+    """
+    flow = charles.ContinuityFlow(course, discharge=20.0)
+    lateral = flow.as_current_field()
+    uniform = flow.as_current_field(lateral=False)
+    station = 0.45 * course.length
+    point = course.offset_position(np.array(station),
+                                   np.array(0.9 * course.half_width_at(station)))
+    near_bank = float(np.hypot(*lateral(point[0], point[1])))
+    section_mean = float(np.hypot(*uniform(point[0], point[1])))
+    assert near_bank < 0.75 * section_mean

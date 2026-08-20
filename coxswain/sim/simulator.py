@@ -134,6 +134,38 @@ class RowingSimulator:
         self._crew_cache = (None, None)
         self._hand_cache = (None, None)
 
+    def _blade_efficiency(self, t: float, state: State, blade) -> float:
+        """Instantaneous blade efficiency, from slip and water depth.
+
+        Replaces the fixed ``blade_efficiency`` factor with the value
+        implied by [CR06]'s slip model at this oar angle, oar rate and boat
+        speed, scaled by the depth of water around the blade.
+
+        Off the drive the blade is out of the water and the oarlock force
+        is zero anyway, so the value there is immaterial; it is clamped to
+        keep the product well behaved.
+        """
+        boat = self.boat
+        angle = float(boat.oar_sweep(t, boat.timing))
+        rate = float(boat.oar_sweep.rate(t, boat.timing))
+        speed = float(state.velocity_hull[0])
+
+        efficiency = float(blade.efficiency(angle, rate, speed))
+
+        depth = None
+        if self.course is not None:
+            depth = float(self.course.depth_at(state.position[0],
+                                               state.position[1]))
+        elif np.isfinite(boat.shallow.depth):
+            depth = float(boat.shallow.depth)
+
+        if depth is not None and depth > blade.blade_width:
+            efficiency *= blade.depth_factor(depth)
+        else:
+            efficiency *= blade.immersion_factor()
+
+        return float(np.clip(efficiency, 0.0, 1.0))
+
     def _shallow_at(self, position: np.ndarray):
         """Shallow-water model for the depth under the boat right now.
 
@@ -211,13 +243,26 @@ class RowingSimulator:
         oar_force_hull = np.zeros(3)
         oar_moment_hull = np.zeros(3)
         hands = self.hand_positions(t)
+        blade = getattr(boat, "blade_model", None)
+        gearing_scale = 1.0
+        if blade is not None:
+            # The rower pulls what they pull; how much of it moves the boat
+            # depends on how much the blade slips.  Replacing the fixed
+            # blade_efficiency with the instantaneous value makes that
+            # depend on boat speed and on the depth of water around the
+            # blade, which is the whole point of carrying a depth field.
+            gearing_scale = self._blade_efficiency(t, state, blade)
+
         for seat_index, seat in enumerate(boat.rig.seats):
             hand_hull = hands[seat_index]
             for lock in seat.oarlocks:
                 applied = oar_force(t, boat.timing, lock.side,
                                     boat.force_profile, boat.oar_sweep)
+                gearing = (lock.oar.gearing * gearing_scale
+                           if blade is not None
+                           else lock.oar.effective_gearing)
                 force, moment = hull_load(applied, lock.position, hand_hull,
-                                          lock.oar.effective_gearing)
+                                          gearing)
                 oar_force_hull += force
                 oar_moment_hull += moment
 

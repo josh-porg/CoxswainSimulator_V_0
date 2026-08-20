@@ -130,6 +130,37 @@ class OarAngleSweep:
         flatness = float(np.clip(self.flatness, 0.0, 1.0))
         return (1.0 - flatness) * cosine + flatness * progress
 
+    def rate(self, t, timing: StrokeTiming):
+        """Analytic angular rate ``d(angle)/dt`` in rad/s.
+
+        The blade model needs this, and finite-differencing the angle would
+        be both slower and noisier inside a derivative evaluation.  Signed
+        the same way as the angle: negative through the drive, since the
+        oar sweeps from a bow-ward catch to a stern-ward finish.
+        """
+        t = np.asarray(t, dtype=float)
+        phase = timing.phase(t)
+        drive = timing.drive_fraction
+        span = self.finish_angle - self.catch_angle
+
+        on_drive = phase < drive
+        drive_progress = np.clip(phase / drive, 0.0, 1.0)
+        recovery_progress = np.clip((phase - drive) / (1.0 - drive), 0.0, 1.0)
+
+        # d(phase)/dt is 1/period; each phase then rescales by its own span
+        during_drive = (span * self._ramp_slope(drive_progress)
+                        / (drive * timing.period))
+        during_recovery = (-span * self._ramp_slope(recovery_progress)
+                           / ((1.0 - drive) * timing.period))
+        return np.where(on_drive, during_drive, during_recovery)
+
+    def _ramp_slope(self, progress):
+        """Derivative of :meth:`_ramp` with respect to its argument."""
+        progress = np.clip(np.asarray(progress, dtype=float), 0.0, 1.0)
+        cosine = 0.5 * np.pi * np.sin(np.pi * progress)
+        flatness = float(np.clip(self.flatness, 0.0, 1.0))
+        return (1.0 - flatness) * cosine + flatness
+
     @property
     def total_sweep(self) -> float:
         return abs(self.catch_angle - self.finish_angle)
