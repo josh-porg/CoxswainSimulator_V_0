@@ -128,6 +128,17 @@ COMFORTABLE_ARM_EXTENSION = 0.95
 #: declares a perfectly ordinary rig unreachable.
 MAX_SHOULDER_PROTRACTION = 0.06
 
+#: Height of the shoulder joint centre below the cervicale, as a fraction
+#: of the hip-to-cervicale trunk length.
+#:
+#: de Leva's trunk segment ends at the cervicale; the shoulder joint centre
+#: is the landmark his *upper arm* segment starts from, and it lies below
+#: and lateral to it.  For a 1.88 m athlete the drop is 5-6 cm on a 0.65 m
+#: trunk.  It matters because the trunk rotates about the hip, so the
+#: shoulder's fore-aft excursion scales with this length -- and the trunk
+#: carries 43% of body mass.
+SHOULDER_DROP_FRACTION = 0.085
+
 #: How the thigh link angle is obtained.
 #:
 #: ``"level_seat"``
@@ -293,9 +304,18 @@ class JointDrivenRower:
         # Link lengths straight from the anthropometry table.
         self.shank_length = anthropometry.length("shank")
         self.thigh_length = anthropometry.length("thigh")
-        self.trunk_length = (anthropometry.length("lower_trunk")
-                             + anthropometry.length("mid_trunk")
-                             + anthropometry.length("upper_trunk"))
+        # de Leva's trunk runs hip (MIDH) to *cervicale*, but the link the
+        # arms hang from ends at the shoulder joint centre, which sits
+        # below and lateral to the cervicale.  Using the full trunk length
+        # as the hip-to-shoulder arm overstates the shoulder's excursion by
+        # about 8%, and the trunk is 43% of body mass, so it feeds straight
+        # into the crew centre-of-mass travel that sets the hull's speed
+        # fluctuation.
+        self.trunk_stack_length = (anthropometry.length("lower_trunk")
+                                   + anthropometry.length("mid_trunk")
+                                   + anthropometry.length("upper_trunk"))
+        self.trunk_length = (self.trunk_stack_length
+                             * (1.0 - SHOULDER_DROP_FRACTION))
         self.upper_arm_length = anthropometry.length("upper_arm")
         self.forearm_length = (anthropometry.length("forearm")
                                + anthropometry.length("hand"))
@@ -816,8 +836,14 @@ class JointDrivenRower:
         upper_com = (lower_len + mid_len
                      + upper_len * (1.0 - seg["upper_trunk"].com_fraction))
 
+        # The three trunk masses are distributed along the full anatomical
+        # trunk; the kinematic link is shorter (it ends at the shoulder
+        # joint), so fractions are taken against the anatomical length and
+        # rescaled onto the link.
         trunk_len = self.trunk_length
-        head_offset = trunk_len + seg["head"].length * seg["head"].com_fraction
+        stack_len = self.trunk_stack_length
+        head_offset = (stack_len
+                       + seg["head"].length * seg["head"].com_fraction)
 
         arm_places = {}
         places = {
@@ -828,6 +854,7 @@ class JointDrivenRower:
             "lower_trunk": (along(hip, shoulder, lower_com / trunk_len),
                             CENTRELINE),
         }
+        del stack_len
         for side, suffix in ((PORT, "port"), (STARBOARD, "starboard")):
             if self.hand_targets is not None:
                 # Each arm reaches its own target: for sculling that is its

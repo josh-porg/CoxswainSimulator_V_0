@@ -226,25 +226,79 @@ At 33.65 spm, peak-to-peak surge as a fraction of mean:
 
 | | model | measured |
 |---|---|---|
-| 1x | 62.9 % | 37.5 % [IVV25] |
-| 4+ | 54.3 % | — |
-| 8+ | 52.4 % | — |
+| 1x | 65.1 % | 37.5 % [IVV25] |
+| 4+ | 56.6 % | — |
+| 8+ | 54.7 % | — |
 | pair | — | ~50 % [D11] |
 
-The model is high — by about 1.7× against the single-scull race data, and
-by less against the pair figure. Note that the two measurements disagree
-with each other in the direction that boat-class theory does *not* predict
-(a pair should fluctuate less than a single, not more), which is why the
-regression bound in `tests/regression/test_paper_validation.py` is set as
-a wide band rather than a target.
+### What has been ruled out
 
-Cause, as far as it has been traced: the fluctuation is set almost entirely
-by the crew centre-of-mass *velocity* amplitude, since over one stroke drag
-barely damps the surge and the oar impulse is smaller than the crew
-reaction. The model's crew CoM travels 0.76 m relative to the hull; the
-[IVV25] numbers imply roughly 0.4–0.5 m. Constraining the hands to the oar
-handle (see [CR06]) reduced the model figure from 65.4% to 62.9%; the
-remainder is not yet explained. **Not fixed.**
+**The dynamics are not at fault.** The hull's surge swing should equal
+`(m_crew / m_total)` times the crew centre-of-mass velocity swing, by
+momentum exchange alone. Measured in the model:
+
+| | crew/total | crew CoM rel. velocity p2p | predicted hull swing | actual |
+|---|---|---|---|---|
+| 1x | 0.850 | 3.18 m/s | 2.70 m/s | 2.90 m/s |
+| 8+ | 0.823 | 3.07 m/s | 2.52 m/s | 2.85 m/s |
+
+The balance closes to 7–13%, the excess being the oar impulse and drag.
+So the fluctuation is inherited wholesale from the prescribed crew motion.
+
+**The crew motion follows necessarily from the measured joint angles.**
+Per-segment fore-aft travel for the single sculler, and the mass-weighted
+total:
+
+| segment | % of body mass | x travel | contribution |
+|---|---|---|---|
+| upper trunk | 16.0 | 1.09 m | 0.174 |
+| mid trunk | 16.3 | 0.88 m | 0.143 |
+| head | 6.9 | 1.34 m | 0.093 |
+| lower trunk | 11.2 | 0.67 m | 0.075 |
+| thighs | 28.4 | 0.52 m | 0.146 |
+| arms | 9.8 | 1.17 m | 0.116 |
+| shanks + feet | 11.4 | 0.18 m | 0.020 |
+| **total** | 100 | | **0.767 m** |
+
+The hip travels 0.615 m and the shoulder 1.214 m. Both are forced: with
+[CG10]'s trunk angles (128.1° at the catch, 73.4° at the finish as link
+angles) and a 0.65 m trunk, the shoulder *must* travel
+`0.615 + 0.65·(cos 73.4° − cos 128.1°) = 1.22 m`. Each trunk mass sits at
+its de Leva height above the hip and sweeps the corresponding arc; all
+three reproduce to 1%.
+
+To match [IVV25] the crew centre of mass would have to travel about
+**0.46 m**, not 0.77 m — which, with a seat travelling 0.615 m, requires
+the upper body to move *less* than the seat. Substituting [K19]'s
+on-water elite trunk angles changes the excursion by only 5%, so it is not
+an ergometer-versus-water artefact of the trunk angles either.
+
+### What is left
+
+The tension is genuine and unresolved. Either
+
+1. the published IVV understates the true peak-to-peak — plausible if the
+   instrument smooths, and note the reported extremes are oddly skewed
+   (max − mean = 1.66 m/s against mean − min = 1.18 m/s, the opposite
+   asymmetry to a real boat-speed curve, which has a sharp catch dip and a
+   broad recovery plateau); or
+2. rowers on the water swing their upper body substantially less than
+   [CG10] measured on a stationary ergometer, in a way the trunk *angle*
+   does not capture.
+
+**The decisive missing datum is a published rower centre-of-mass
+excursion relative to the boat, measured on the water.** Until then the
+regression bound is a wide band, not a target.
+
+Things checked and found not to be the cause: added mass in surge
+([F09] §6.4 gives 0.201 kg for a 4x — negligible, as expected for a
+slender hull); the hands-on-handle constraint (worth 2.5 percentage
+points); the oar sweep discontinuity (worth −2 points, i.e. it made the
+fluctuation slightly *worse* while being more correct); and the
+hip-to-shoulder link length, which was genuinely wrong — de Leva's trunk
+ends at the cervicale, not the shoulder joint — but which turns out not to
+move the centre of mass at all, because the trunk masses sit at their own
+anatomical heights regardless of where the link ends.
 
 ---
 
