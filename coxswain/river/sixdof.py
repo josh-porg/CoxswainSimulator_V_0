@@ -194,7 +194,14 @@ class OarFit:
     moment: tuple         # (Mx, My, Mz) neutral
     force_split: tuple    # per unit split
     moment_split: tuple
+    #: Oar angle and its rate over the stroke.  Carried so the blade
+    #: efficiency can be evaluated symbolically: it depends on the slip,
+    #: which needs the oar's own motion *and* the boat's speed, so it is
+    #: not a function of time alone and cannot be folded into the fits.
+    angle: StrokePeriodicFit
+    angle_rate: StrokePeriodicFit
     period: float
+    blade_efficiency: float = 0.78
 
     @classmethod
     def from_boat(cls, boat, n_samples: int = 512,
@@ -233,6 +240,10 @@ class OarFit:
                 target[0:3, index] = force
                 target[3:6, index] = moment
         split -= neutral                      # per unit split
+        angle = np.array([float(boat.oar_sweep(t, boat.timing))
+                          for t in times])
+        rate = np.array([float(boat.oar_sweep.rate(t, boat.timing))
+                         for t in times])
 
         def fit(samples):
             spread = float(np.ptp(samples))
@@ -246,7 +257,10 @@ class OarFit:
             moment=tuple(fit(neutral[i + 3]) for i in range(3)),
             force_split=tuple(fit(split[i]) for i in range(3)),
             moment_split=tuple(fit(split[i + 3]) for i in range(3)),
+            angle=fit(angle), angle_rate=fit(rate),
             period=period,
+            blade_efficiency=float(
+                boat.rig.seats[0].oarlocks[0].oar.blade_efficiency),
         )
 
 
@@ -258,7 +272,7 @@ class SixDofModel:
 
     def __init__(self, boat, surrogate=None, crew=None, oars=None,
                  relative_tolerance: float = 0.01, gravity: float = 9.80665,
-                 water_level: float = 0.0):
+                 water_level: float = 0.0, blade=None):
         from .hullsurrogate import HullSurrogate
 
         self.boat = boat
@@ -271,6 +285,7 @@ class SixDofModel:
         self.oars = (OarFit.from_boat(boat, relative_tolerance=relative_tolerance)
                      if oars is None else oars)
 
+        self.blade = blade
         self.hull_mass = float(boat.hull_mass) + float(boat.coxswain_mass)
         self.total_mass = float(boat.total_mass)
         self.hull_inertia = np.asarray(boat.hull_inertia, dtype=float)
@@ -374,8 +389,20 @@ class SixDofModel:
         oar_moment_hull = ca.vertcat(*[
             m.casadi(time) + s.casadi(time) * split
             for m, s in zip(self.oars.moment, self.oars.moment_split)])
-        oar_force_hull = oar_force_hull * power
-        oar_moment_hull = oar_moment_hull * power
+        # The blade efficiency is not a constant.  The oar loads above
+        # carry the rig's fixed `blade_efficiency`, so rescale to the
+        # instantaneous value from the slip model: the blade only pushes
+        # what it does not let past, and that depends on the oar's own
+        # sweep rate, the boat's speed, and the water around the blade.
+        # Measured over a drive it runs 0.40 to 0.89 against the fixed
+        # 0.78, so treating it as constant is not a small approximation.
+        blade_scale = 1.0
+        if self.blade is not None:
+            blade_scale = _blade_efficiency(
+                self.blade, self.oars, time, u, depth, ca)
+            blade_scale = blade_scale / self.oars.blade_efficiency
+        oar_force_hull = oar_force_hull * power * blade_scale
+        oar_moment_hull = oar_moment_hull * power * blade_scale
 
         # -- the crew's balance reflex, a saturated couple -------------
         balance = -(self.balance_stiffness * roll
@@ -419,6 +446,30 @@ class SixDofModel:
 # --------------------------------------------------------------------------
 # small symbolic helpers
 # --------------------------------------------------------------------------
+def _blade_efficiency(blade, oars, time, surge, depth, ca):
+    """Instantaneous blade efficiency, symbolically.
+
+    ``1 - |slip| / |blade speed|`` from Cabrera, Ruina & Kleshnev, scaled
+    by the depth of water around the blade.  The blade speed passes through
+    zero at the catch and the finish, so it is floored -- the oar force is
+    zero there anyway, and an unfloored division would put a pole in the
+    dynamics exactly where the optimiser wants to place a node.
+    """
+    angle = oars.angle.casadi(time)
+    rate = oars.angle_rate.casadi(time)
+    blade_speed = blade.outboard * rate
+    slip = blade_speed + surge * ca.cos(angle)
+    magnitude = ca.fmax(ca.fabs(blade_speed), 0.25)
+    efficiency = 1.0 - ca.fabs(slip) / magnitude
+    efficiency = ca.fmax(efficiency, 0.05)
+
+    factor = blade.immersion_factor()
+    if depth is not None:
+        sigma = blade.blade_width / ca.fmax(depth, blade.blade_width * 1.5)
+        factor = factor * (1.0 + blade.blockage_m * sigma * blade.blade_cd)
+    return efficiency * factor
+
+
 def _skew(vector, ca):
     return ca.blockcat([
         [0.0, -vector[2], vector[1]],

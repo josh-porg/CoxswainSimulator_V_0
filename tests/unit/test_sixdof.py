@@ -214,3 +214,88 @@ def test_model_is_differentiable_in_state_and_control(model):
     value = np.array(jacobian(point, [0.05, 0.1, 1.0]))
     assert np.all(np.isfinite(value))
     assert np.abs(value).max() > 0.0
+
+
+# --------------------------------------------------------------------------
+# the blade model in the 6-DOF path
+# --------------------------------------------------------------------------
+def test_blade_efficiency_is_not_constant(boat):
+    """Why a fixed factor will not do.
+
+    Over one drive the slip-based efficiency runs about 0.40 to 0.89
+    against the rig's fixed 0.78.  Treating it as constant is not a small
+    approximation, and it cannot be folded into a function of time because
+    it depends on the boat's speed.
+    """
+    from coxswain.crew.oarlock import BladeModel
+
+    blade = BladeModel.sweep()
+    period = boat.timing.period
+    values = [
+        float(blade.efficiency(float(boat.oar_sweep(f * period, boat.timing)),
+                               float(boat.oar_sweep.rate(f * period,
+                                                         boat.timing)), 5.2))
+        for f in (0.05, 0.15, 0.25, 0.35)
+    ]
+    assert max(values) - min(values) > 0.3
+
+
+def test_blade_efficiency_depends_on_boat_speed(boat):
+    """Which is what stops it being a function of time alone."""
+    from coxswain.crew.oarlock import BladeModel
+
+    blade = BladeModel.sweep()
+    t = 0.15 * boat.timing.period
+    angle = float(boat.oar_sweep(t, boat.timing))
+    rate = float(boat.oar_sweep.rate(t, boat.timing))
+    slow = float(blade.efficiency(angle, rate, 3.0))
+    fast = float(blade.efficiency(angle, rate, 6.0))
+    assert abs(fast - slow) > 0.05
+
+
+def test_blade_model_changes_the_six_dof_dynamics(boat, surrogate):
+    from coxswain.crew.oarlock import BladeModel
+
+    plain = SixDofModel(boat, surrogate=surrogate)
+    bladed = SixDofModel(boat, surrogate=surrogate, crew=plain.crew,
+                         oars=plain.oars, blade=BladeModel.sweep())
+    state = np.zeros(13)
+    state[6] = 5.2
+    state[12] = plain.anaerobic_capacity
+
+    without = np.array(plain.function()(state, [0., 0., 1.], 0.2)).ravel()
+    with_blade = np.array(
+        bladed.function()(state, [0., 0., 1.], 0.2)).ravel()
+    assert np.all(np.isfinite(with_blade))
+    assert abs(with_blade[6] - without[6]) > 0.05
+
+
+def test_blade_efficiency_stays_finite_through_the_catch(boat, surrogate):
+    """The blade speed passes through zero at the catch and the finish.
+
+    An unfloored ``1 - |slip| / |blade speed|`` puts a pole there, which is
+    exactly where a phase-locked mesh wants to place a node.
+    """
+    from coxswain.crew.oarlock import BladeModel
+
+    model = SixDofModel(boat, surrogate=surrogate, blade=BladeModel.sweep())
+    function = model.function()
+    state = np.zeros(13)
+    state[6] = 5.2
+    state[12] = model.anaerobic_capacity
+
+    period = boat.timing.period
+    for fraction in (0.0, 1e-4, boat.timing.drive_fraction, 0.5, 0.999):
+        value = np.array(
+            function(state, [0., 0., 1.], fraction * period)).ravel()
+        assert np.all(np.isfinite(value)), fraction
+
+
+def test_shallow_water_raises_blade_authority(boat, surrogate):
+    """Blockage: the blade has to push water around itself, and a shallow
+    column makes that harder, so it grips better."""
+    from coxswain.crew.oarlock import BladeModel
+
+    blade = BladeModel.sweep()
+    assert blade.blockage_factor(2.0) > blade.blockage_factor(8.0)
+    assert blade.blockage_factor(float("inf")) == pytest.approx(1.0)
