@@ -158,7 +158,32 @@ def test_basin_is_nearly_slack_at_typical_october_discharge(course):
     flow = charles.ContinuityFlow(course,
                                   discharge=charles.monthly_discharge(10))
     _, _, speed = flow.profile(30)
-    assert speed.max() < 0.10
+    # The median is the headline: over most of the reach the water barely
+    # moves.  The maximum is checked separately and is deliberately looser,
+    # because the channel genuinely pinches to ~6 m of navigable half-width
+    # at the tightest bridge and continuity says the water must speed up
+    # there.  A single-threshold test on the maximum was only passing
+    # before because the channel was a flat 55 m ribbon that had no
+    # narrows in it.
+    assert np.median(speed) < 0.05
+    assert speed.max() < 0.30
+
+
+def test_october_flow_concentrates_at_the_narrows(course):
+    """Slack over the reach, faster where the channel pinches.
+
+    Continuity with a real cross-section says the two go together; a
+    constant-width channel cannot show it at all.
+    """
+    flow = charles.ContinuityFlow(course,
+                                  discharge=charles.monthly_discharge(10))
+    station, _, speed = flow.profile(60)
+    half_width = np.array([course.half_width_at(s) for s in station])
+    # rank rather than threshold: many stations sit exactly at the width
+    # cap, so a quartile threshold can select an empty set
+    order = np.argsort(half_width)
+    narrowest, widest = order[:10], order[-10:]
+    assert speed[narrowest].mean() > speed[widest].mean()
 
 
 def test_flood_flow_becomes_significant(course):
@@ -287,7 +312,11 @@ def test_uniform_mode_really_is_uniform_across_the_channel(course):
         point = course.offset_position(np.array(station),
                                        np.array(fraction * half))
         speeds.append(float(np.hypot(*field(point[0], point[1]))))
-    assert max(speeds) - min(speeds) < 1e-9
+    # Not bit-identical: the three sample points sit at slightly different
+    # nearest-stations on a dense centreline, and the section mean varies
+    # along the reach.  What matters is that none of the variation comes
+    # from the lateral position.
+    assert (max(speeds) - min(speeds)) / max(speeds) < 1e-3
 
 
 def test_lateral_model_disagrees_with_the_uniform_one_at_the_bank(course):

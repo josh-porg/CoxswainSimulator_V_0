@@ -442,6 +442,30 @@ def refine_thalweg(spine: np.ndarray, depth: DepthField,
     return spine
 
 
+_CHANNEL_CACHE = {}
+
+
+def charles_channel(origin: Tuple[float, float] = CHARLES_ORIGIN,
+                    resolution: float = 6.0, **kwargs):
+    """The navigable channel raster, extracted from the depth contours.
+
+    Cached: the extraction triangulates 12k vertices and runs a distance
+    transform over a 1.7 M cell grid, which is a second or two, and every
+    caller wants the same answer.
+
+    See :mod:`coxswain.river.channel` for what it does and why the survey
+    has to be treated as contours rather than soundings.
+    """
+    from .channel import build_channel
+
+    key = (origin, resolution, tuple(sorted(kwargs.items())))
+    if key not in _CHANNEL_CACHE:
+        points, depths = load_isobaths(origin)
+        _CHANNEL_CACHE[key] = build_channel(points, depths,
+                                            resolution=resolution, **kwargs)
+    return _CHANNEL_CACHE[key]
+
+
 def charles_course(centreline: np.ndarray = None,
                    half_width: float = None,
                    month: int = 10, statistic: str = "median",
@@ -460,11 +484,17 @@ def charles_course(centreline: np.ndarray = None,
     """
     depth = charles_depth_field(origin)
 
-    if centreline is None:
-        centreline = thalweg(origin, depth=depth)
-
-    if half_width is None:
-        half_width = 55.0
+    if centreline is None or half_width is None:
+        # Derive both from the survey rather than assuming either.  The
+        # contours are the only statement in the data about where the water
+        # is; a centreline and a width invented independently of them is how
+        # a "channel" ends up 26% aground.
+        raster = charles_channel(origin)
+        line = raster.centreline()
+        if centreline is None:
+            centreline = line
+        if half_width is None:
+            half_width = raster.half_width_along(centreline)
 
     course = Course(
         centreline=centreline,
