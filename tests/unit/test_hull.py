@@ -318,3 +318,60 @@ def test_results_converge_with_panel_count(eight_offsets):
                                rho=RHO)
         volumes.append(props.volume)
     assert max(volumes) - min(volumes) < 0.005 * np.mean(volumes)
+
+
+# --------------------------------------------------------------------------
+# the centre of buoyancy must be the point the resultant acts through
+# --------------------------------------------------------------------------
+@pytest.mark.parametrize("pitch_deg", [0.5, 1.0, 2.0])
+def test_centre_of_buoyancy_reproduces_the_moment(pitch_deg):
+    """Regression guard on a real bug in this module.
+
+    The centre of buoyancy is *defined* by the resultant: the point at
+    which the total force produces the total moment.  An earlier version
+    averaged panel centroids weighted by the magnitude of each panel
+    force, which is not that -- side panels carry large horizontal
+    magnitudes whose moments largely cancel, so the weighting over-counted
+    them.  It was 13-15% out in the longitudinal centre at one degree of
+    pitch, and therefore 15% out in the pitch restoring stiffness of
+    anything that consumed it.
+    """
+    from coxswain.boats import catalog
+
+    boat = catalog.eight(rate=32.0)
+    properties = boat.mesh.submerged(
+        np.array([0.0, 0.0, 0.0141]),
+        np.array([0.0, np.radians(pitch_deg), 0.0]),
+        rho=boat.water.density, gravity=9.80665, water_level=0.0)
+
+    centre = np.asarray(properties.centre_of_buoyancy)
+    force = np.asarray(properties.buoyancy_force)
+    stored = np.asarray(properties.buoyancy_moment)
+    assert np.cross(centre, force)[1] == pytest.approx(stored[1], rel=1e-3)
+
+
+def test_centre_of_buoyancy_is_zero_when_level():
+    from coxswain.boats import catalog
+
+    boat = catalog.eight(rate=32.0)
+    properties = boat.mesh.submerged(
+        np.array([0.0, 0.0, 0.0141]), np.zeros(3),
+        rho=boat.water.density, gravity=9.80665, water_level=0.0)
+    centre = np.asarray(properties.centre_of_buoyancy)
+    assert centre[0] == pytest.approx(0.0, abs=1e-4)
+    assert centre[1] == pytest.approx(0.0, abs=1e-4)
+
+
+def test_heel_moves_the_centre_of_buoyancy_to_the_low_side():
+    """The righting lever, and the sign that makes roll restoring work."""
+    from coxswain.boats import catalog
+
+    boat = catalog.eight(rate=32.0)
+    port = boat.mesh.submerged(
+        np.array([0.0, 0.0, 0.0141]), np.array([np.radians(4.0), 0.0, 0.0]),
+        rho=boat.water.density, gravity=9.80665, water_level=0.0)
+    starboard = boat.mesh.submerged(
+        np.array([0.0, 0.0, 0.0141]), np.array([-np.radians(4.0), 0.0, 0.0]),
+        rho=boat.water.density, gravity=9.80665, water_level=0.0)
+    assert (np.asarray(port.centre_of_buoyancy)[1]
+            * np.asarray(starboard.centre_of_buoyancy)[1]) < 0.0

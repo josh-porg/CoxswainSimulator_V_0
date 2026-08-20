@@ -292,12 +292,31 @@ class HullMesh:
         # use the vertical flux form, which is robust for an open mesh
         volume = float(-(mean_depth * self.area * normal_abs[:, 2]).sum())
 
-        total_force = float(np.linalg.norm(force))
-        if total_force > 1e-9:
-            centre_of_buoyancy = (
-                (np.linalg.norm(panel_force, axis=1)[:, None] * centroid_abs
-                 ).sum(axis=0) / np.linalg.norm(panel_force, axis=1).sum()
-            )
+        # The centre of buoyancy is *defined* by the resultant: it is the
+        # point at which the total force produces the total moment.  An
+        # earlier version averaged panel centroids weighted by the
+        # magnitude of each panel force, which is not that -- side panels
+        # carry large horizontal magnitudes whose moments largely cancel,
+        # so the weighting over-counts them.  The error was 13-15% in the
+        # longitudinal centre at one degree of pitch, which is 15% of the
+        # pitch restoring stiffness for anything that consumed it.
+        #
+        # For a vertical resultant ``(0, 0, B)`` the moment ``M = c x F``
+        # gives ``c_x = -M_y / B`` and ``c_y = M_x / B``.  The vertical
+        # component does not affect the moment of a vertical force, so it
+        # is taken from the wetted panel centroids, where it is only used
+        # for reporting.
+        vertical = float(force[2])
+        if abs(vertical) > 1e-9:
+            weights = wet_area
+            total_weight = float(weights.sum())
+            centre_z = (float((weights[:, None] * centroid_abs)[:, 2].sum())
+                        / total_weight) if total_weight > 1e-12 else 0.0
+            centre_of_buoyancy = np.array([
+                -float(moment[1]) / vertical,
+                float(moment[0]) / vertical,
+                centre_z,
+            ])
         else:
             centre_of_buoyancy = np.zeros(3)
 
