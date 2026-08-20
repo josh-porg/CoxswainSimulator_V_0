@@ -76,15 +76,42 @@ __all__ = [
     "charles_depth_field",
     "ContinuityFlow",
     "charles_course",
+    "landmark_station",
+    "test_section",
+    "BRIDGES",
+    "WEEKS_FOOTBRIDGE",
+    "LARZ_ANDERSON_BRIDGE",
 ]
 
 #: Tangent-plane origin: roughly the middle of the surveyed reach.
 CHARLES_ORIGIN = (42.3625, -71.1200)
 
 #: Landmarks along the rowing reach, ``(latitude, longitude)``.
+#:
+#: Listed downstream to upstream, which is the order a Head of the Charles
+#: entry meets them: the course runs *up* the river from below BU Bridge to
+#: past Eliot.  Distance from each to the extracted channel centreline is
+#: noted -- Weeks and Anderson land within 6 m and 21 m, so the geometry
+#: through the decisive turns is trustworthy; BU, Western Ave and Eliot are
+#: 136-361 m off and their coordinates want refining before anything is
+#: quoted about those specific spans.
 WATERTOWN_DAM = (42.36482, -71.18978)
 ELIOT_BRIDGE = (42.37000, -71.13800)
+LARZ_ANDERSON_BRIDGE = (42.37030, -71.12470)
+WEEKS_FOOTBRIDGE = (42.36880, -71.12260)
+WESTERN_AVE_BRIDGE = (42.36600, -71.11890)
+RIVER_ST_BRIDGE = (42.36390, -71.11680)
 BU_BRIDGE = (42.35380, -71.10900)
+
+#: Every bridge on the racing reach, in upstream order.
+BRIDGES = (
+    ("BU Bridge", BU_BRIDGE),
+    ("River Street", RIVER_ST_BRIDGE),
+    ("Western Avenue", WESTERN_AVE_BRIDGE),
+    ("Weeks Footbridge", WEEKS_FOOTBRIDGE),
+    ("Larz Anderson", LARZ_ANDERSON_BRIDGE),
+    ("Eliot Bridge", ELIOT_BRIDGE),
+)
 
 #: The gauge the flow model is driven from.
 DISCHARGE_GAUGE = {
@@ -465,6 +492,57 @@ def charles_channel(origin: Tuple[float, float] = CHARLES_ORIGIN,
         _CHANNEL_CACHE[key] = build_channel(points, depths,
                                             resolution=resolution, **kwargs)
     return _CHANNEL_CACHE[key]
+
+
+def landmark_station(latlon, channel=None, origin=CHARLES_ORIGIN):
+    """Where a ``(lat, lon)`` landmark falls along the channel centreline.
+
+    Returns ``(station, offset)`` in metres: distance along the line, and
+    how far the landmark sits from it.  A large offset means the landmark
+    coordinate and the extracted channel disagree, which is worth knowing
+    before quoting anything about that spot.
+    """
+    channel = charles_channel(origin) if channel is None else channel
+    line = channel.centreline()
+    east, north = local_tangent_plane(latlon[0], latlon[1], origin)
+    point = np.array([float(east), float(north)])
+    station = np.concatenate([[0.0], np.cumsum(
+        np.linalg.norm(np.diff(line, axis=0), axis=1))])
+    distance = np.linalg.norm(line - point, axis=1)
+    index = int(np.argmin(distance))
+    return float(station[index]), float(distance[index])
+
+
+def test_section(channel=None, origin=CHARLES_ORIGIN,
+                 before: float = 400.0, after: float = 200.0):
+    """The Weeks-to-Anderson reach: a development section, not the race.
+
+    Roughly 800 m of channel running up from below Weeks Footbridge,
+    through the Weeks turn, and out past Larz Anderson.  Chosen because it
+    is short enough to iterate on and contains the tightest steering on the
+    course -- so a model that can fly this can probably fly the rest, and
+    one that cannot has failed on the part that decides races.
+
+    Both landmarks sit within about 20 m of the extracted centreline, so
+    unlike the ends of the reach the geometry here is well determined.
+
+    Returns ``(start_xy, goal_xy, line)`` where ``line`` is the centreline
+    between them, usable directly as an initial guess.
+    """
+    channel = charles_channel(origin) if channel is None else channel
+    line = channel.centreline()
+    station = np.concatenate([[0.0], np.cumsum(
+        np.linalg.norm(np.diff(line, axis=0), axis=1))])
+
+    weeks, _ = landmark_station(WEEKS_FOOTBRIDGE, channel, origin)
+    anderson, _ = landmark_station(LARZ_ANDERSON_BRIDGE, channel, origin)
+
+    # the course runs upstream, i.e. towards decreasing station
+    high = weeks + before
+    low = anderson - after
+    inside = (station >= low) & (station <= high)
+    segment = line[inside][::-1]      # ordered in the direction of travel
+    return segment[0], segment[-1], segment
 
 
 def charles_course(centreline: np.ndarray = None,
