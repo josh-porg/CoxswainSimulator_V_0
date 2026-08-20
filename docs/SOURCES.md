@@ -10,7 +10,6 @@ copyrighted); the URLs below were live as of August 2026. The
 [UCLA Bionics rowing archive](http://bionics.seas.ucla.edu/education/Rowing/)
 mirrors many of them and is the single most useful starting point.
 
-Contents:
 [1. Boat dynamics](#1-boat-dynamics) ·
 [2. Rower kinematics](#2-rower-kinematics) ·
 [3. Anthropometry](#3-anthropometry) ·
@@ -18,7 +17,10 @@ Contents:
 [5. Hull hydrodynamics](#5-hull-hydrodynamics) ·
 [6. Shallow water](#6-shallow-water) ·
 [7. Oar and blade](#7-oar-and-blade) ·
-[8. Open questions](#8-open-questions)
+[8. River fields (depth, current, channel)](#8-river-fields-depth-current-channel) ·
+[9. Charles River data](#9-charles-river-data) ·
+[10. Steering authority](#10-steering-authority) ·
+[11. Open questions](#11-open-questions)
 
 ---
 
@@ -601,7 +603,7 @@ matters more than the fluctuation this document opens with.
 
 ---
 
-## 7b. River fields (depth, current, channel)
+## 8. River fields (depth, current, channel)
 
 `coxswain/river/` holds the spatial description a route optimisation needs:
 `DepthField` (feeds the shallow-water correction), `CurrentField`
@@ -740,7 +742,7 @@ line choice from a route optimiser.
 
 ---
 
-## 7c. Steering authority
+## 10. Steering authority
 
 The trajectory optimiser could not fly the Charles on rudder alone, which
 turned out to be physics rather than a solver problem.
@@ -815,16 +817,27 @@ being derived from oarlock forces the model already reproduces.
 
 ---
 
-## 8. Open questions
+## 11. Open questions
 
 Ordered by how much they would change a result.
+
+Closed since the last revision: the navigable channel is now **derived from
+the survey** rather than assumed (§8, §9) — an alpha-shape water mask and a
+distance transform give the centreline and half-width, and the centreline is
+100% navigable against 73.7% for the old thalweg. And steering authority is
+resolved (§10): the rudder alone cannot fly the river, and the crew pressure
+split that closes the gap is now a modelled control.
 
 1. **Boat velocity fluctuation is ~1.7× measured** (§4). Traced to crew
    CoM velocity amplitude; cause not yet identified. The decisive missing
    datum is a published rower centre-of-mass excursion relative to the
    boat.
-2. **Charles bathymetry is loaded** (§9); what is missing is a surveyed
-   navigable width and a race line. The thalweg stands in for both.
+2. **The rudder coefficient itself is unverified** (§10). The modelled
+   rudder gives 230 N·m at 12° and 5.2 m/s; no published rudder-force or
+   turning-circle measurement for a racing eight was found to check it
+   against. The crew-split coefficient is on firmer ground, deriving from
+   oarlock forces the model already reproduces. Now that steering is known
+   to be marginal against the tightest bends, an error here matters.
 3. **Near-critical shallow-water amplification is capped by choice, not
    measurement** (§6). Affects any Charles route optimisation that runs
    near `Fr_h = 1` — which 2–4 m water and a racing eight do.
@@ -841,10 +854,10 @@ Ordered by how much they would change a result.
    hands are constrained to the handle, that discontinuity propagates into
    crew accelerations; it is currently smoothed only by the Fourier
    truncation of the hand track.
-7. **Added mass and wave damping are absent.** [F09] §6.4 computes them
+8. **Added mass and wave damping are absent.** [F09] §6.4 computes them
    from a radiation problem and reports ~10% of total energy dissipation
    from secondary motions; their published matrices for a 4x are in the
    paper if a first approximation is wanted.
-7. **The 1x catalog rig runs the arms to full extension** mid-drive,
+9. **The 1x catalog rig runs the arms to full extension** mid-drive,
    needing ~6 cm of modelled shoulder protraction. Either the rig geometry
    or the reference athlete's proportions want revisiting.

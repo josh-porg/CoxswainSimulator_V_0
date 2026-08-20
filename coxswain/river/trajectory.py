@@ -22,11 +22,19 @@ A reduced five-state model, not the full 6-DOF one::
 and **two** controls: the rudder angle ``delta`` and the port/starboard
 pressure split ``s``.  Dynamics:
 
-    x_dot   = u cos(psi) + c_x(x, y)
-    y_dot   = u sin(psi) + c_y(x, y)
+    x_dot   = u cos(psi)
+    y_dot   = u sin(psi)
     psi_dot = r
     u_dot   = (T - D(u, h) - D_turn(r) - D_split(s)) / m
     r_dot   = (N_delta u^2 delta + N_s s - N_r u r) / I_z
+
+**The current is not in these equations.**  :mod:`coxswain.river.route`
+carries it and this module does not, so the two disagree about the same
+river: on the Charles at flood the lateral spread of the flow is a factor
+of three across a section, which is the whole reason a line choice exists.
+Adding it means two more interpolants and a term in each position
+equation; until then, treat a trajectory from here as the answer for
+still water.
 
 Why two controls.  The rudder on its own cannot get an eight round this
 river.  Measured against the channel extracted in
@@ -245,7 +253,11 @@ class TrajectorySolution:
 
 
 def _casadi_fields(channel, flow, reference_speed):
-    """Build differentiable lookups for depth and current on the raster."""
+    """Build differentiable lookups for depth and clearance on the raster.
+
+    ``flow`` is accepted and ignored: the current is not yet part of the
+    trajectory dynamics.  See the module docstring.
+    """
     import casadi as ca
 
     east = np.asarray(channel.east, dtype=float)
