@@ -495,6 +495,53 @@ The whole regression suite is pinned to the prescribed-profile numbers, and
 switching the force model changes every one of them; that swap wants to be
 its own change with its own re-validation.
 
+### Depth of water around the blade
+
+Two effects, acting in opposite directions, both implemented on
+`BladeModel`.
+
+**Ventilation (blade cover).** A blade whose top edge sits at the surface
+draws air down its low-pressure face, collapsing the pressure difference it
+works by. Kleshnev puts the optimum at about **half a blade width of water
+over the blade** and reports that modelling favours deeper immersion over
+holding the blade at the surface. W. C. Atkins,
+[*Blade Immersion Depth vs. Puddles*](http://www.atkinsopht.com/row/bladepth.htm),
+argues the same from the other side: at constant propulsive force, deeper
+immersion needs *less* slip, which is the definition of a more efficient
+blade.
+
+`immersion_factor(cover) = 1 − exp(−k·cover/W)`, with `k = 4.605` set so
+that half a blade width returns 0.90. **This is a shape, not a fit** — it
+respects monotonicity and saturation near the reported optimum, and nothing
+more. No published force-versus-immersion curve for a rowing blade was
+found. Over-immersion is not penalised here: Kleshnev's 3.5% speed loss for
+six degrees of extra blade depth is borne by the shaft and the vertical
+handle force, not the blade face.
+
+**Blockage (water depth).** The blade must push water around itself, and
+with the free surface above and the bed below that flow is confined to the
+water column. Maskell's bluff-body correction,
+`C_D(confined) = C_D(1 + m·σ·C_D)` with vertical blockage `σ = W/h` and
+`m = 2.5`:
+
+| water depth | blockage factor |
+|---|---|
+| deep | 1.000 |
+| 4 m | 1.172 |
+| 3 m | 1.229 |
+| 2 m | 1.344 |
+
+**Read as an upper bound.** At `σ = 0.05` this gives 1.14 against the
+"under 10%" reported for bluff bodies in ducts. Two reasons it should be
+conservative: that figure is for all-round confinement, whereas a blade is
+confined only vertically; and `m = 2.5` is the generic bluff-body constant,
+not one measured for a blade. Matching the cited datum exactly would need
+`m ≈ 1.8`. The standard constant is kept and the discrepancy stated rather
+than tuned away.
+
+[ST09] models the blade flush with the surface but does not vary immersion
+parametrically, so it does not settle either question.
+
 ### [B09] Brearley (2009)
 *A method of improving oar efficiency.* **ANZIAM J. 50** 534–540.
 [PDF](http://bionics.seas.ucla.edu/education/Rowing/Math_Model_2009_05.pdf)
@@ -544,6 +591,85 @@ through `local_tangent_plane`.
 
 ---
 
+## 9. Charles River data
+
+### Bathymetry — [CRAB18]
+C. Zimba, M. J. Sacarny, M. Yoder, B. Bray and C. Chryssostomidis,
+*Changes in the Depth of the Lower Charles River Basin*, Charles River
+Alliance of Boaters / MIT Sea Grant (2018).
+[Report](http://www.charlesriverallianceofboaters.org/docs/ChangesintheDepthoftheLowerCharlesRiverBasin.pdf)
+· [Chart KMZ](http://www.charlesriverallianceofboaters.org/chart/charles.kmz)
+· [Method](https://repository.library.noaa.gov/view/noaa/46058/noaa_46058_DS1.pdf)
+
+The **first detailed bathymetric chart of the river since 1902**. Sonar
+survey of the Lower Charles, New Charles River Dam to Watertown Dam
+(~14.5 km), 2016–17: Lowrance HDS-7 broadband sonar with Point-1 GPS on
+track lines 9–18 m apart, processed in ReefMaster, corrected for transducer
+depth.
+
+Extracted to `data/charles_isobaths.csv`: 12,164 contour vertices at
+1-foot intervals, **0.30 m to 10.36 m**, median 3.66 m. Depths are below
+the basin's normal pool, which the New Charles River Dam holds nearly
+constant — so they are already depth below the surface the boat floats on,
+with no tidal reduction. A tidal estuary would not be this kind.
+
+CRAB also document four shoaling areas of concern — Muddy River / Stony
+Brook outlet, Magazine Beach, Faneuil Brook outlet, Sunset Bay — and note
+the up-river Community Rowing docks that "were in 18–24 inches of water
+when the boathouse opened in 2008 are now resting on mud". The model
+reproduces that: median depth along the traced deep channel is 3.32 m
+overall but only 1–2 m at the Watertown end.
+
+### Discharge — USGS 01104500
+[CHARLES RIVER AT WALTHAM, MA](https://waterdata.usgs.gov/monitoring-location/USGS-01104500/),
+daily statistics over the **1931–2026** period of record, condensed to
+`data/charles_discharge_waltham.csv`. Waltham is immediately above the
+reach; it misses a small ungauged inflow below, a few percent for this
+catchment, and is the best available proxy.
+
+| month | median (m³/s) | p10 | p90 | max |
+|---|---|---|---|---|
+| March | 15.27 | 7.51 | 30.52 | 58.4 |
+| **October** (HOCR) | **2.84** | 0.81 | 11.44 | 33.2 |
+| August | 1.92 | 0.50 | 8.25 | 39.5 |
+
+### Flow model — continuity
+The lower Charles is an **impoundment**, not a free-flowing river: the dam
+sets the level and the water is near slack. Flow speed therefore comes from
+continuity, `U(s) = Q / A(s)`, with `A` integrated across the channel from
+the surveyed bathymetry. Two measured inputs, no fitted parameters. It is
+the mechanism CRAB themselves invoke: "As water over a given cross section
+becomes shallower, water flow velocity must increase."
+
+**Manning's equation is deliberately not used.** It needs an energy slope,
+and the slope across an impounded basin is neither measured here nor
+meaningfully constant.
+
+Result, along the traced deep channel:
+
+| condition | Q (m³/s) | flow speed |
+|---|---|---|
+| October median | 2.84 | 0.4–5.2 cm/s |
+| October p90 | 11.44 | 1.6–20.8 cm/s |
+| March median | 15.27 | 2.1–27.8 cm/s |
+| October max of record | 33.2 | 4.6–60.4 cm/s |
+
+**At race conditions the Charles is effectively slack** — 5 cm/s against a
+5 m/s shell is one part in a hundred. The current only earns its place in a
+route calculation in a wet year, and then it concentrates where the section
+is smallest, which is exactly where a line choice exists to be made.
+
+### Known limits
+- The centreline is the **thalweg** — the deepest water, traced through the
+  survey — not a surveyed navigation channel and not a race line. Callers
+  wanting a specific line should pass their own centreline.
+- Channel half-width is a uniform 55 m placeholder; the true navigable
+  width varies and pinches hard at the bridges.
+- Discharge is monthly climatology, not a live feed. The USGS instantaneous
+  service is one call away when a specific day matters.
+
+---
+
 ## 8. Open questions
 
 Ordered by how much they would change a result.
@@ -552,9 +678,8 @@ Ordered by how much they would change a result.
    CoM velocity amplitude; cause not yet identified. The decisive missing
    datum is a published rower centre-of-mass excursion relative to the
    boat.
-2. **No real Charles bathymetry.** The field machinery is in place and
-   tested (§7b), but the built-in course is a sketch. This is now the
-   binding constraint on route optimisation, ahead of any physics gap.
+2. **Charles bathymetry is loaded** (§9); what is missing is a surveyed
+   navigable width and a race line. The thalweg stands in for both.
 3. **Near-critical shallow-water amplification is capped by choice, not
    measurement** (§6). Affects any Charles route optimisation that runs
    near `Fr_h = 1` — which 2–4 m water and a racing eight do.

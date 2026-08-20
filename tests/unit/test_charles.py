@@ -29,7 +29,7 @@ def test_isobaths_cover_the_lower_charles():
     points, depths = charles.load_isobaths()
     assert len(points) > 5000
     # the surveyed reach is ~10 km east-west
-    assert points[:, 0].ptp() > 8000.0
+    assert np.ptp(points[:, 0]) > 8000.0
 
 
 def test_isobath_depths_span_the_surveyed_range():

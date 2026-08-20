@@ -255,3 +255,100 @@ def test_model_is_vectorised(blade):
     for i in range(3):
         assert forces[i] == pytest.approx(
             blade.normal_force(angles[i], rates[i], 5.0))
+
+
+# --------------------------------------------------------------------------
+# depth of water around the blade
+# --------------------------------------------------------------------------
+def test_a_blade_at_the_surface_makes_no_force(blade):
+    """Zero cover means the blade is fully ventilated."""
+    assert blade.immersion_factor(0.0) == pytest.approx(0.0)
+
+
+def test_immersion_factor_increases_monotonically_with_cover(blade):
+    covers = np.linspace(0.0, 0.6, 25)
+    values = [blade.immersion_factor(c) for c in covers]
+    assert np.all(np.diff(values) >= -1e-12)
+
+
+def test_half_a_blade_width_of_cover_is_near_optimal(blade):
+    """Kleshnev's reported optimum; the roll-off constant is set by it."""
+    assert blade.immersion_factor(blade.blade_width / 2) == pytest.approx(
+        0.90, abs=0.01)
+
+
+def test_immersion_factor_saturates_when_well_buried(blade):
+    assert blade.immersion_factor(2.0 * blade.blade_width) > 0.98
+    assert blade.immersion_factor(10.0) <= 1.0
+
+
+def test_washed_out_blade_loses_most_of_its_force(blade):
+    """A blade barely covered slips badly, which is the visible failure."""
+    shallow = blade.normal_force(0.0, -3.0, 5.0, cover=0.02)
+    buried = blade.normal_force(0.0, -3.0, 5.0, cover=0.25)
+    assert abs(shallow) < 0.4 * abs(buried)
+
+
+def test_deep_water_has_no_blockage(blade):
+    assert blade.blockage_factor(np.inf) == pytest.approx(1.0)
+    assert blade.blockage_factor(None) == pytest.approx(1.0)
+
+
+def test_blockage_grows_as_the_water_shallows(blade):
+    depths = [12.0, 8.0, 5.0, 4.0, 3.0, 2.0]
+    values = [blade.blockage_factor(h) for h in depths]
+    assert np.all(np.diff(values) > 0.0)
+
+
+def test_blockage_matches_maskell(blade):
+    depth = 3.0
+    sigma = blade.blade_width / depth
+    expected = 1.0 + blade.blockage_m * sigma * blade.blade_cd
+    assert blade.blockage_factor(depth) == pytest.approx(expected)
+
+
+def test_blockage_is_conservative_against_the_published_check_point(blade):
+    """sigma = 0.05 is reported as under 10% for ducted bluff bodies.
+
+    Maskell with the generic m = 2.5 gives 14% -- an upper bound, as the
+    docstring says, because a blade is confined only vertically.  This
+    pins the model at that value rather than silently retuning it.
+    """
+    depth = blade.blade_width / 0.05
+    assert blade.blockage_factor(depth) == pytest.approx(1.14, abs=0.01)
+
+
+def test_blockage_refuses_water_shallower_than_the_blade(blade):
+    with pytest.raises(ValueError, match="not deeper than the blade"):
+        blade.blockage_factor(0.2)
+
+
+def test_charles_depths_raise_blade_force_by_a_measurable_amount(blade):
+    """2-4 m is the band the Charles actually sits in."""
+    for depth, low, high in ((4.0, 1.15, 1.20), (3.0, 1.20, 1.25),
+                             (2.0, 1.30, 1.40)):
+        assert low < blade.blockage_factor(depth) < high
+
+
+def test_depth_factor_combines_both_effects(blade):
+    assert blade.depth_factor(3.0, 0.125) == pytest.approx(
+        blade.immersion_factor(0.125) * blade.blockage_factor(3.0))
+
+
+def test_the_two_depth_effects_oppose_each_other(blade):
+    """Shallow burial loses force; shallow water gains it."""
+    assert blade.immersion_factor(0.05) < blade.immersion_factor(0.25)
+    assert blade.blockage_factor(2.0) > blade.blockage_factor(8.0)
+
+
+def test_force_is_unscaled_when_no_depth_is_given(blade):
+    """The default path must reproduce [CR06] exactly."""
+    plain = blade.normal_force(0.2, -3.0, 5.0)
+    slip = blade.slip_velocity(0.2, -3.0, 5.0)
+    assert abs(plain) == pytest.approx(blade.c2 * slip ** 2)
+
+
+def test_depth_scales_propulsive_force_too(blade):
+    deep = blade.propulsive_force(0.2, -3.0, 5.0, water_depth=np.inf)
+    shallow = blade.propulsive_force(0.2, -3.0, 5.0, water_depth=2.0)
+    assert abs(shallow) > abs(deep)

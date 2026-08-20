@@ -275,10 +275,22 @@ def thalweg(origin: Tuple[float, float] = CHARLES_ORIGIN,
         spine.append([centre_east, float(north[int(np.argmax(probe))])])
 
     spine = np.array(spine)
-    if smooth > 1 and len(spine) > smooth:
+    if smooth > 1 and len(spine) > 2 * smooth:
+        # Smoothing the north positions alone walks the line *out* of the
+        # channel wherever the river bends -- averaging across a bend cuts
+        # the corner onto the bank.  Measured: it halved the median depth
+        # along the spine, from 3.49 m to 1.77 m.  So smooth for continuity,
+        # then re-snap each point to the deepest water near it.
         kernel = np.ones(smooth) / smooth
-        spine[:, 1] = np.convolve(spine[:, 1], kernel, mode="same")
-        spine = spine[smooth // 2: len(spine) - smooth // 2]
+        smoothed = np.convolve(spine[:, 1], kernel, mode="same")
+        smoothed[:smooth] = spine[:smooth, 1]
+        smoothed[-smooth:] = spine[-smooth:, 1]
+
+        snap = 0.6 * np.abs(np.diff(spine[:, 1])).max() + 25.0
+        for i, (x, y) in enumerate(zip(spine[:, 0], smoothed)):
+            north = np.linspace(y - snap, y + snap, 41)
+            probe = depth(np.full(north.shape, x), north)
+            spine[i, 1] = north[int(np.argmax(probe))]
     return spine
 
 
