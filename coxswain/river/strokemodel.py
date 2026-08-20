@@ -19,10 +19,36 @@ than full rudder alone can deliver.
 What is modelled, and what is not
 ---------------------------------
 Planar: ``x, y, psi, u, v, r`` plus the crew's anaerobic reserve.  Heave,
-pitch and roll are dropped.  They do not materially change the horizontal
-path, and they are the expensive part -- the wetted-surface integral over a
-hull mesh is the one piece of the 6-DOF model that genuinely resists
-symbolic differentiation.  Everything that sets the *line* is kept.
+pitch and roll are dropped.
+
+**Dropping roll is a known defect, not a simplification.**  It was
+justified here as "roll does not set the line", and that is false.
+Measured against the 6-DOF for a 30% pressure split:
+
+    ==============  ===========  ===========  ==========
+    case            roll mean    roll swing   sideslip
+    ==============  ===========  ===========  ==========
+    no split        -0.127 deg   1.066 deg    0.064 m/s
+    split 30%       +0.235 deg   1.918 deg    0.243 m/s
+    ==============  ===========  ===========  ==========
+
+A split heels the boat, the heel makes the wetted surface asymmetric, and
+*that* is where most of the sideslip comes from -- 3.8 times as much.  The
+sideslip then drives the weathervane, which is the largest term in the yaw
+balance.  So roll is not a detail orthogonal to steering; it is in the
+middle of the steering loop.
+
+The consequence is visible and is left visible: this model reproduces the
+6-DOF surge oscillation to 0.1% and the rudder turn to about 26%, but gets
+a split-driven turn wrong in *sign*, because it develops 0.04 m/s of
+sideslip where the full model develops 0.24.  That is a missing degree of
+freedom, not a coefficient to tune, and the fix is to carry roll rather
+than to fit around it.
+
+Heave and pitch are a better-founded omission: they matter for resistance
+through the wetted surface, and the wetted-surface integral over a hull
+mesh is the one piece of the 6-DOF model that genuinely resists symbolic
+differentiation.
 
 How the stroke gets in
 ----------------------
@@ -454,6 +480,16 @@ class StrokeResolvedModel:
         self.drag_coefficient = (self.aggregates.thrust.mean
                                  / reference_speed ** 2)
         self._yaw_inertia_rate = self.aggregates.yaw_inertia.derivative()
+
+        # Submerged geometry at the design waterline.  The planar model
+        # does not track heave or pitch, so these are constant -- which is
+        # the price of dropping those degrees of freedom, and is why the
+        # wetted areas here do not breathe with the stroke as they do in
+        # the 6-DOF model.
+        self._submerged = boat.mesh.submerged(
+            np.zeros(3), np.zeros(3), rho=boat.water.density,
+            gravity=9.80665, water_level=0.0)
+        self._wave_area = boat.resistance.wave_area(self._submerged)
         self.turn_drag = 8000.0
         self.critical_power = 3040.0
         self.anaerobic_capacity = 176000.0
@@ -488,25 +524,41 @@ class StrokeResolvedModel:
             moment_x, moment_y, symbolic=ca)
 
         # -- external forces, hull frame then rotated -----------------
-        speed_sq = u * u + v * v
-        shallow = 1.0
-        if depth_lookup is not None:
-            h = depth_lookup(ca.vertcat(x, y))
-            shallow = 1.0 + 1.6 * ca.exp(-(h - 0.8) / 1.6)
+        # The real nonlinear hydrodynamics, not a linearisation.  An
+        # earlier version reduced all of this to four coefficients fitted
+        # at one operating point in straight running, then applied them in
+        # a split-driven turn -- where the sideslip and the flow over the
+        # skeg are not the same thing.
+        from . import hydro_casadi
 
-        hydro = self.hydro
-        surge_force = thrust - self.drag_coefficient * shallow * u * ca.fabs(u)
-        sway_force = (hydro.sway_from_sway_linear * u * v
-                      + hydro.sway_from_sway_quadratic * v * ca.fabs(v)
-                      + hydro.sway_from_yaw * u * r
-                      + hydro.sway_from_rudder * u * u * rudder
-                      + sway_from_split)
-        # yaw_from_sway is the weathervane and is what keeps the boat
-        # directionally stable; without it this model spins up
-        yaw_moment = (hydro.yaw_from_sway * u * v
-                      + hydro.yaw_from_yaw * u * r
-                      + hydro.yaw_from_rudder * u * u * rudder
-                      + yaw_from_split)
+        water = self.boat.water
+        coefficients = self.boat.resistance
+        depth = None
+        if depth_lookup is not None:
+            depth = depth_lookup(ca.vertcat(x, y))
+
+        resistance = hydro_casadi.hull_resistance(
+            u, v, 0.0,
+            wetted_area=self._submerged.wetted_area,
+            transverse_area=self._submerged.transverse_area,
+            plan_area=self._wave_area,
+            lateral_area=self._submerged.lateral_area,
+            mean_wetted_length=self.boat.length,
+            depth=depth,
+            density=water.density,
+            kinematic_viscosity=water.kinematic_viscosity,
+            shape=coefficients.shape, wave=coefficients.wave,
+            friction_zero=coefficients.friction_zero,
+            form_factor=coefficients.form_factor,
+            cross_flow_lateral=coefficients.cross_flow_lateral,
+            cross_flow_vertical=coefficients.cross_flow_vertical,
+        )
+        appendage_force, appendage_moment = hydro_casadi.appendage_loads(
+            self.boat.appendages, u, v, r, rudder, water.density)
+
+        surge_force = thrust + resistance[0] + appendage_force[0]
+        sway_force = resistance[1] + appendage_force[1] + sway_from_split
+        yaw_moment = appendage_moment[2] + yaw_from_split
 
         force_abs = ca.vertcat(
             surge_force * cos_psi - sway_force * sin_psi,
