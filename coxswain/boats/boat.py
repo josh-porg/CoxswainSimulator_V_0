@@ -74,7 +74,8 @@ class Boat:
                  crew_phase_offsets: Sequence[float] = None,
                  default_anthropometry: RowerAnthropometry = None,
                  stroke_dataset: StrokeKinematicsDataset = None,
-                 shallow: ShallowWaterModel = None):
+                 shallow: ShallowWaterModel = None,
+                 blade_model=None):
         self.name = name
         self.offsets = offsets
         self.mesh = HullMesh(offsets, n_girth=n_girth)
@@ -90,6 +91,11 @@ class Boat:
         self.stroke_dataset = stroke_dataset or default_dataset()
         #: Finite-depth correction; deep water unless a depth is given.
         self.shallow = shallow or ShallowWaterModel()
+        #: Optional :class:`~coxswain.crew.oarlock.BladeModel`.
+        #: When set, the simulator computes blade efficiency
+        #: from slip and water depth each step instead of
+        #: using the oar's fixed ``blade_efficiency``.
+        self.blade_model = blade_model
 
         if self.hull_inertia.shape != (3, 3):
             raise ValueError("hull_inertia must be a 3x3 tensor")
