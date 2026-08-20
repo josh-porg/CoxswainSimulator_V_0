@@ -182,6 +182,22 @@ class BladeModel:
     c2: float = 84.5
     #: Outboard length, oarlock to blade centre of pressure, in metres.
     outboard: float = 2.28
+    #: Vertical extent of the blade face, in metres.  A World Rowing "big
+    #: blade" (hatchet) is roughly 0.25 m across the widest part.
+    blade_width: float = 0.25
+    #: Depth of water covering the top edge of the blade, in metres.  The
+    #: default is half a blade width, which is where Kleshnev puts the
+    #: optimum -- see :meth:`immersion_factor`.
+    cover: float = 0.125
+    #: Steepness of the ventilation roll-off, dimensionless.  Set so that a
+    #: cover of half a blade width recovers 90% of the deep-blade force.
+    ventilation_k: float = 4.605
+    #: Maskell bluff-body blockage constant.  2.5 is the standard value for
+    #: bluff bodies; see :meth:`blockage_factor`.
+    blockage_m: float = 2.5
+    #: Free-stream drag coefficient of the blade face, used only by the
+    #: blockage correction.  About 1.1 for a flat plate normal to the flow.
+    blade_cd: float = 1.1
 
     @classmethod
     def sculling(cls, outboard: float = 2.28) -> "BladeModel":
@@ -192,6 +208,95 @@ class BladeModel:
     def sweep(cls, outboard: float = 2.28) -> "BladeModel":
         """[CR06]'s sweep fit."""
         return cls(c2=84.5, outboard=outboard)
+
+    # -- depth of water around the blade ---------------------------------
+    def immersion_factor(self, cover: float = None) -> float:
+        """Force retained as a function of how deeply the blade is buried.
+
+        A blade whose top edge sits at the surface **ventilates**: air is
+        drawn down the low-pressure face, which collapses the pressure
+        difference the blade works by.  This is the loss visible as surface
+        tearing and vortices behind a washed-out blade.  Burying the blade
+        suppresses it.
+
+        Kleshnev puts the optimum at about **half a blade width of water
+        over the blade**, and reports that modelling shows deeper immersion
+        beats holding the blade at the surface.  Atkins argues the same
+        qualitatively: at constant propulsive force, deeper immersion needs
+        *less* slip, which is the definition of a more efficient blade.
+
+        Modelled as ``1 - exp(-k c / W)`` in the cover ``c``, with ``k`` set
+        so that ``c = W/2`` returns 0.90.  This is a *shape* chosen to
+        respect the two things the sources agree on -- monotonic in cover,
+        saturating near the reported optimum -- and not a fitted law.  No
+        published force-versus-immersion curve for a rowing blade was
+        found; see ``docs/SOURCES.md`` section 7.
+
+        Over-immersion is deliberately **not** penalised here.  Kleshnev's
+        3.5% speed loss for six degrees of extra blade depth is borne by
+        the shaft and the vertical handle force, not by the blade face, so
+        it does not belong in this factor.
+        """
+        cover = self.cover if cover is None else cover
+        if cover <= 0.0:
+            return 0.0
+        return float(1.0 - np.exp(-self.ventilation_k * cover
+                                  / self.blade_width))
+
+    def blockage_factor(self, water_depth: float = None) -> float:
+        """Force amplification from finite depth of water around the blade.
+
+        The blade has to push water *around* itself.  With the free surface
+        above and the bed below, that flow is confined to the water column,
+        and the shallower the column the harder it is to get out of the way
+        -- so the effective drag coefficient rises.  This is why the same
+        crew at the same rate is not doing the same thing on the Charles as
+        on a deep lake, quite apart from what the hull is doing.
+
+        Maskell's bluff-body blockage correction::
+
+            C_D(confined) = C_D(free) (1 + m sigma C_D(free))
+
+        with vertical blockage ratio ``sigma = W / h`` for blade width ``W``
+        and water depth ``h``, and ``m = 2.5`` the standard bluff-body
+        constant.
+
+        **This is an upper bound, not a calibrated fit.**  At
+        ``sigma = 0.05`` it returns 1.14, against the "under 10% change in
+        drag coefficient" reported for confined bluff bodies at that
+        blockage.  Two reasons to read the model as conservative: that
+        figure comes from ducts confined on all sides, whereas a blade is
+        confined only vertically, which is weaker; and ``m = 2.5`` is the
+        generic bluff-body value, not one measured for a blade.  Matching
+        the cited datum exactly would need ``m`` near 1.8.  No
+        blade-specific blockage measurement was found, so the standard
+        constant is kept and the discrepancy stated rather than tuned away.
+
+        Only vertical confinement is counted.  A river is laterally open at
+        the scale of a blade, so there is no side-wall term.
+
+        Returns 1.0 for infinite depth.
+        """
+        if water_depth is None or not np.isfinite(water_depth):
+            return 1.0
+        if water_depth <= self.blade_width:
+            raise ValueError(
+                f"water depth {water_depth:.3f} m is not deeper than the "
+                f"blade width {self.blade_width:.3f} m; the blade would not "
+                "fit in the water column"
+            )
+        sigma = self.blade_width / water_depth
+        return float(1.0 + self.blockage_m * sigma * self.blade_cd)
+
+    def depth_factor(self, water_depth: float = None,
+                     cover: float = None) -> float:
+        """Combined effect of blade cover and water depth on blade force.
+
+        The two act in opposite directions: shallow burial *loses* force to
+        ventilation, shallow water *gains* it to confinement.  On the
+        Charles at 2-3 m both are active at once.
+        """
+        return self.immersion_factor(cover) * self.blockage_factor(water_depth)
 
     def slip_velocity(self, angle, angular_rate, boat_speed):
         """Normal component of blade velocity relative to the water.
@@ -205,17 +310,25 @@ class BladeModel:
                 + np.asarray(boat_speed, dtype=float)
                 * np.cos(np.asarray(angle, dtype=float)))
 
-    def normal_force(self, angle, angular_rate, boat_speed):
+    def normal_force(self, angle, angular_rate, boat_speed,
+                     water_depth: float = None, cover: float = None):
         """Blade force magnitude, signed to oppose the slip.
 
         ``C2 * slip^2`` with the sign of ``-slip``, so the water always
         resists the blade rather than driving it.  Squaring alone would
         lose that and make the blade produce thrust on the recovery.
+
+        ``water_depth`` and ``cover`` scale the result by
+        :meth:`depth_factor`; leaving both ``None`` gives the deep-water,
+        nominally-buried blade of [CR06].
         """
         slip = self.slip_velocity(angle, angular_rate, boat_speed)
-        return -np.sign(slip) * self.c2 * slip ** 2
+        scale = (1.0 if (water_depth is None and cover is None)
+                 else self.depth_factor(water_depth, cover))
+        return -np.sign(slip) * self.c2 * scale * slip ** 2
 
-    def propulsive_force(self, angle, angular_rate, boat_speed):
+    def propulsive_force(self, angle, angular_rate, boat_speed,
+                         water_depth: float = None, cover: float = None):
         """Component of the blade force along the boat's ``x`` axis.
 
         The blade force is normal to the shaft, so only ``cos(theta)`` of
@@ -223,7 +336,8 @@ class BladeModel:
         most of the blade load is lateral -- which is exactly the effect
         [B09] exploits in arguing for a less catch-heavy stroke.
         """
-        normal = self.normal_force(angle, angular_rate, boat_speed)
+        normal = self.normal_force(angle, angular_rate, boat_speed,
+                                   water_depth, cover)
         return normal * np.cos(np.asarray(angle, dtype=float))
 
     def efficiency(self, angle, angular_rate, boat_speed):

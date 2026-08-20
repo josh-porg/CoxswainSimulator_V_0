@@ -1,0 +1,321 @@
+"""The Charles River: surveyed bathymetry and a calibrated flow model.
+
+This replaces the placeholder sketch in :mod:`coxswain.river.course` with
+real data.
+
+Bathymetry
+----------
+Charles River Alliance of Boaters and MIT Sea Grant, 2016-17 sonar survey
+of the Lower Charles from the New Charles River Dam to the Watertown Dam
+(~14.5 km), the first detailed chart of the river since 1902.  Surveyed
+with a Lowrance HDS-7 broadband sonar and Point-1 GPS on track lines 9-18 m
+apart, processed in ReefMaster and corrected for transducer depth.
+
+    C. Zimba, M. J. Sacarny, M. Yoder, B. Bray and C. Chryssostomidis,
+    *Changes in the Depth of the Lower Charles River Basin*, CRAB / MIT Sea
+    Grant (2018).
+    Chart: http://www.charlesriverallianceofboaters.org/chart/charles.kmz
+
+``data/charles_isobaths.csv`` holds the 1-foot contour vertices extracted
+from that KMZ, 0.30 m to 10.36 m, converted to metres.  Depths are below
+the basin's normal pool, which the New Charles River Dam holds nearly
+constant -- so they are already depth below the surface the boat sits on,
+with no tidal reduction needed.  That is a genuine simplification the
+Charles allows and a tidal estuary would not.
+
+Flow
+----
+The lower Charles is an **impoundment**, not a free-flowing river: the New
+Charles River Dam sets the level and the water is close to slack.  Flow
+speed therefore comes from continuity rather than from a slope-driven
+resistance law --
+
+    U(s) = Q / A(s)
+
+for discharge ``Q`` and wetted cross-sectional area ``A(s)`` at station
+``s``, with ``A`` integrated from the surveyed bathymetry.  This is the
+mechanism CRAB themselves invoke for the shoaling areas: "As water over a
+given cross section becomes shallower, water flow velocity must increase."
+
+``Q`` comes from USGS 01104500 CHARLES RIVER AT WALTHAM, the long-record
+gauge immediately above the reach, condensed to monthly statistics over
+1931-2026 in ``data/charles_discharge_waltham.csv``.  Waltham is above the
+Watertown Dam, so it misses the small ungauged inflow between there and
+the basin; for the Charles that is a few percent, and it is the best
+available proxy.
+
+Manning's equation is deliberately **not** used.  It needs an energy slope,
+and the slope across an impounded basin is neither measured here nor
+meaningfully constant.  Continuity needs only discharge and geometry, both
+of which are measured.
+"""
+
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass
+from functools import lru_cache
+from typing import Optional, Tuple
+
+import numpy as np
+
+from .course import Course, CurrentField, DepthField, local_tangent_plane
+
+__all__ = [
+    "thalweg",
+    "CHARLES_ORIGIN",
+    "WATERTOWN_DAM",
+    "ELIOT_BRIDGE",
+    "BU_BRIDGE",
+    "DISCHARGE_GAUGE",
+    "isobath_path",
+    "discharge_path",
+    "load_isobaths",
+    "load_discharge",
+    "monthly_discharge",
+    "charles_depth_field",
+    "ContinuityFlow",
+    "charles_course",
+]
+
+#: Tangent-plane origin: roughly the middle of the surveyed reach.
+CHARLES_ORIGIN = (42.3625, -71.1200)
+
+#: Landmarks along the rowing reach, ``(latitude, longitude)``.
+WATERTOWN_DAM = (42.36482, -71.18978)
+ELIOT_BRIDGE = (42.37000, -71.13800)
+BU_BRIDGE = (42.35380, -71.10900)
+
+#: The gauge the flow model is driven from.
+DISCHARGE_GAUGE = {
+    "site": "01104500",
+    "name": "CHARLES RIVER AT WALTHAM, MA",
+    "latitude": 42.37231857,
+    "longitude": -71.2336668,
+    "period_of_record": "1931-2026",
+    "url": "https://waterdata.usgs.gov/monitoring-location/USGS-01104500/",
+}
+
+
+def _data_dir() -> str:
+    here = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(here, os.pardir, os.pardir, "data")
+
+
+def isobath_path() -> str:
+    return os.path.normpath(os.path.join(_data_dir(),
+                                         "charles_isobaths.csv"))
+
+
+def discharge_path() -> str:
+    return os.path.normpath(os.path.join(_data_dir(),
+                                         "charles_discharge_waltham.csv"))
+
+
+@lru_cache(maxsize=2)
+def load_isobaths(origin: Tuple[float, float] = CHARLES_ORIGIN):
+    """Surveyed depth soundings, projected to the local tangent plane.
+
+    Returns ``(points, depths)`` with ``points`` of shape ``(n, 2)`` in
+    metres east/north of ``origin`` and ``depths`` in metres.
+    """
+    path = isobath_path()
+    if not os.path.exists(path):
+        raise FileNotFoundError(
+            f"{path} not found. Regenerate it from the CRAB chart with "
+            "_extract_bathy.py, or see this module's docstring for the "
+            "source URL."
+        )
+    raw = np.loadtxt(path, delimiter=",", skiprows=1)
+    east, north = local_tangent_plane(raw[:, 1], raw[:, 0], origin)
+    return np.column_stack([east, north]), raw[:, 2]
+
+
+@lru_cache(maxsize=1)
+def load_discharge() -> np.ndarray:
+    """Monthly discharge statistics, shape ``(12, 6)`` in m3/s.
+
+    Columns are mean, p10, median, p90, min, max; rows are months 1-12.
+    """
+    path = discharge_path()
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"{path} not found")
+    rows = []
+    for line in open(path, encoding="utf-8"):
+        line = line.strip()
+        if not line or line.startswith("#") or line.startswith("month"):
+            continue
+        rows.append([float(v) for v in line.split(",")])
+    return np.array(rows)[:, 1:]
+
+
+def monthly_discharge(month: int, statistic: str = "median") -> float:
+    """Discharge at Waltham for a calendar month, in m3/s.
+
+    ``statistic`` is one of ``mean``, ``p10``, ``median``, ``p90``, ``min``,
+    ``max``.  The Head of the Charles is rowed in October, whose median is
+    2.8 m3/s against a March median of 15.3 -- a factor of five, which is
+    why quoting a single "the current on the Charles" figure is useless.
+    """
+    order = ("mean", "p10", "median", "p90", "min", "max")
+    if statistic not in order:
+        raise ValueError(f"statistic must be one of {order}")
+    if not 1 <= month <= 12:
+        raise ValueError("month must be 1-12")
+    return float(load_discharge()[month - 1, order.index(statistic)])
+
+
+def charles_depth_field(origin: Tuple[float, float] = CHARLES_ORIGIN,
+                        minimum: float = 0.5) -> DepthField:
+    """A :class:`DepthField` built from the surveyed isobaths."""
+    points, depths = load_isobaths(origin)
+    return DepthField(points=points, depths=depths, minimum=minimum,
+                      is_survey=True)
+
+
+@dataclass
+class ContinuityFlow:
+    """Depth-averaged flow speed from continuity, ``U = Q / A``.
+
+    The cross-sectional area at each station is integrated from the
+    surveyed depth field across the channel, so the model has exactly two
+    inputs -- measured bathymetry and a measured discharge -- and no fitted
+    parameters.
+
+    The result for the Charles is worth stating plainly: at typical
+    discharge the basin is **nearly slack**.  October's median 2.8 m3/s
+    over a cross-section of several hundred square metres gives millimetres
+    per second.  The current only becomes worth modelling in flood, and
+    then it concentrates wherever the channel is narrow or shoaled --
+    which is precisely where CRAB report the sedimentation problems.
+    """
+
+    course: "Course"
+    discharge: float = 2.84          # m3/s, October median at Waltham
+    n_transect: int = 41             # samples across the channel
+    _area_cache: Optional[Tuple[np.ndarray, np.ndarray]] = None
+
+    def cross_section_area(self, station) -> np.ndarray:
+        """Wetted area at one or more stations, in m^2.
+
+        Integrates depth across the navigable width by the trapezium rule.
+        """
+        station = np.atleast_1d(np.asarray(station, dtype=float))
+        areas = np.empty(station.shape)
+        for i, s in enumerate(station):
+            half = float(self.course.half_width_at(s))
+            offsets = np.linspace(-half, half, self.n_transect)
+            points = self.course.offset_position(
+                np.full(self.n_transect, s), offsets)
+            depths = self.course.depth(points[:, 0], points[:, 1])
+            areas[i] = np.trapezoid(depths, offsets)
+        return areas
+
+    def speed(self, station) -> np.ndarray:
+        """Depth-averaged flow speed at a station, in m/s."""
+        area = self.cross_section_area(station)
+        return self.discharge / np.maximum(area, 1e-6)
+
+    def profile(self, n: int = 60):
+        """``(station, area, speed)`` along the course."""
+        station = np.linspace(0.0, self.course.length, n)
+        area = self.cross_section_area(station)
+        return station, area, self.discharge / np.maximum(area, 1e-6)
+
+    def as_current_field(self, n: int = 80) -> CurrentField:
+        """A :class:`CurrentField` pointing downstream at the local speed.
+
+        Downstream is towards decreasing station, since the course is laid
+        out bow-first up the river the way a crew rows it.
+        """
+        station = np.linspace(0.0, self.course.length, n)
+        speed = self.speed(station)
+        course = self.course
+
+        def flow(x, y):
+            s = course.nearest_station(float(x), float(y))
+            magnitude = float(np.interp(s, station, speed))
+            heading = float(course.heading_at(np.array(s)))
+            # water flows towards the start of the course (downstream)
+            return (-magnitude * np.cos(heading),
+                    -magnitude * np.sin(heading))
+
+        return CurrentField(function=flow)
+
+
+def thalweg(origin: Tuple[float, float] = CHARLES_ORIGIN,
+            depth: DepthField = None, n_bins: int = 46,
+            n_probe: int = 90, smooth: int = 3) -> np.ndarray:
+    """The deep channel, traced through the surveyed bathymetry.
+
+    Successive east-west bins are probed across their north extent and the
+    deepest position in each is kept, then the result is smoothed.  This
+    follows the navigable channel rather than the geometric middle of the
+    water, which matters here: the Charles has shoals well inside its
+    banks, and a centreline drawn down the middle runs over the Magazine
+    Beach and Sunset Bay deposits CRAB document.
+
+    It is still **not** a surveyed navigation channel or a race line -- it
+    is the deepest water, which is a defensible default and nothing more.
+    """
+    depth = charles_depth_field(origin) if depth is None else depth
+    points, _ = load_isobaths(origin)
+    east = points[:, 0]
+    edges = np.linspace(east.min(), east.max(), n_bins + 1)
+
+    spine = []
+    for lo, hi in zip(edges[:-1], edges[1:]):
+        band = points[(east >= lo) & (east < hi)]
+        if len(band) < 30:
+            continue
+        centre_east = 0.5 * (lo + hi)
+        north = np.linspace(np.percentile(band[:, 1], 2),
+                            np.percentile(band[:, 1], 98), n_probe)
+        probe = depth(np.full(n_probe, centre_east), north)
+        spine.append([centre_east, float(north[int(np.argmax(probe))])])
+
+    spine = np.array(spine)
+    if smooth > 1 and len(spine) > smooth:
+        kernel = np.ones(smooth) / smooth
+        spine[:, 1] = np.convolve(spine[:, 1], kernel, mode="same")
+        spine = spine[smooth // 2: len(spine) - smooth // 2]
+    return spine
+
+
+def charles_course(centreline: np.ndarray = None,
+                   half_width: float = None,
+                   month: int = 10, statistic: str = "median",
+                   origin: Tuple[float, float] = CHARLES_ORIGIN) -> Course:
+    """The surveyed Charles reach, with a continuity-derived current.
+
+    Unlike :func:`~coxswain.river.course.charles_river_sketch` this is
+    marked ``is_survey=True`` and passes :meth:`Course.require_survey`,
+    because the depths are measured.
+
+    The centreline is still supplied by the caller or defaulted to a coarse
+    polyline through the surveyed extent -- extracting a true navigation
+    channel from the isobaths is a separate job.  ``Course.is_survey``
+    refers to the **bathymetry**; a caller wanting a specific race line
+    should pass its own centreline.
+    """
+    depth = charles_depth_field(origin)
+
+    if centreline is None:
+        centreline = thalweg(origin, depth=depth)
+
+    if half_width is None:
+        half_width = 55.0
+
+    course = Course(
+        centreline=centreline,
+        half_width=half_width,
+        depth=depth,
+        name="Charles River (CRAB/MIT Sea Grant 2016-17 survey)",
+        is_survey=True,
+        notes=("bathymetry surveyed; centreline is a coarse spine, not a "
+               "surveyed navigation channel"),
+    )
+    flow = ContinuityFlow(course,
+                          discharge=monthly_discharge(month, statistic))
+    course.current = flow.as_current_field()
+    return course
