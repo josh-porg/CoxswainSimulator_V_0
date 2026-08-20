@@ -277,3 +277,84 @@ def test_surge_oscillation_matches_the_full_model(model, boat):
     window = reference.last_cycles(2)
     expected = float(np.ptp(reference.surge_speed[window]))
     assert float(np.ptp(tail)) == pytest.approx(expected, rel=0.05)
+
+
+# --------------------------------------------------------------------------
+# the split is not a pure couple
+# --------------------------------------------------------------------------
+def test_split_moment_matches_the_full_oar_path(boat, model):
+    """Regression guard on a hand-derived simplification that was wrong.
+
+    The split moment was first written as ``-y * Fx``, which looks right.
+    It is not: ``hull_load`` also carries the sweep-rotated components and
+    the hand-position term.  Dropping them inverted the sign over the first
+    third of the drive and got the stroke mean wrong by 1.6x.  It is now
+    obtained by differencing the real oar load.
+    """
+    from coxswain.river.strokemodel import _oar_load
+
+    fit = model.aggregates.yaw_per_split
+    for fraction in (0.05, 0.15, 0.30, 0.55):
+        t = fraction * boat.timing.period
+        expected = _oar_load(boat, t, 1.0)[3] - _oar_load(boat, t, 0.0)[3]
+        # to the fit's own reported truncation error, not an invented number
+        assert float(fit(t)) == pytest.approx(expected,
+                                              abs=fit.max_error * 1.5)
+
+
+def test_fits_report_their_truncation_error(model):
+    """A truncated series is an approximation; the error is part of it."""
+    for name in ("first_moment", "yaw_inertia", "thrust", "yaw_per_split"):
+        fit = getattr(model.aggregates, name)
+        assert fit.relative_error <= 0.01, name
+        assert fit.max_error > 0.0, name
+
+
+def test_discontinuous_quantities_need_more_harmonics(model):
+    """Gibbs, measured.
+
+    The crew aggregates are smooth and 8 harmonics clear 0.05%.  The oar
+    loads jump at the catch, so their coefficients decay as 1/k and the
+    same tolerance costs 32-64 harmonics.  Fitting a fixed count and not
+    checking is how a 4% error goes unnoticed.
+    """
+    smooth = model.aggregates.yaw_inertia.n_harmonics
+    discontinuous = model.aggregates.yaw_per_split.n_harmonics
+    assert discontinuous >= 4 * smooth
+
+
+def test_fit_to_tolerance_raises_rather_than_under_delivering():
+    """Silently returning a worse fit than asked for is the failure mode."""
+    period = 1.0
+    phase = np.arange(256) / 256
+    square = np.where(phase < 0.4, 1.0, -1.0)   # a hard jump
+    with pytest.raises(ValueError, match="could not reach"):
+        StrokePeriodicFit.fit_to_tolerance(square, period,
+                                           relative_tolerance=1e-6,
+                                           max_harmonics=32)
+
+
+def test_a_split_produces_a_side_force(boat, model):
+    """A split is a pure couple in surge but NOT in sway.
+
+    The x components cancel, so a split adds no net thrust -- that is by
+    design and keeps it steering rather than acceleration.  The y
+    components do not: the oar force is rotated by the sweep angle, so
+    scaling port up while scaling starboard down leaves ``s * Fy`` behind.
+    Measured at up to 383 N, against exactly zero with no split.
+    """
+    from coxswain.river.strokemodel import _oar_load
+
+    peak = boat.timing.period * 0.15
+    neutral = _oar_load(boat, peak, 0.0)
+    split = _oar_load(boat, peak, 1.0)
+
+    assert neutral[1] == pytest.approx(0.0, abs=1e-9), "symmetric crew"
+    assert abs(split[1] - neutral[1]) > 100.0
+    # and surge is unchanged, so the split cannot be used to accelerate
+    assert split[0] == pytest.approx(neutral[0], rel=1e-9)
+
+
+def test_sway_per_split_is_carried(model):
+    assert model.aggregates.sway_per_split is not None
+    assert abs(model.aggregates.sway_per_split.mean) > 1.0

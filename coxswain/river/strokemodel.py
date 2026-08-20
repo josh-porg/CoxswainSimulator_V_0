@@ -86,6 +86,13 @@ class StrokePeriodicFit:
     cos: np.ndarray
     sin: np.ndarray
     period: float
+    #: Largest absolute deviation from the samples this was fitted to, in
+    #: the quantity's own units.  Recorded rather than assumed: a
+    #: truncated series is an approximation and its error belongs in the
+    #: object, not in a comment.
+    max_error: float = 0.0
+    #: That error as a fraction of the sample range.
+    relative_error: float = 0.0
 
     @classmethod
     def fit(cls, samples, period: float, n_harmonics: int = 10):
@@ -104,7 +111,56 @@ class StrokePeriodicFit:
         for k in range(1, keep):
             cos[k] = 2.0 * spectrum[k].real
             sin[k] = -2.0 * spectrum[k].imag
-        return cls(cos=cos, sin=sin, period=float(period))
+        fit = cls(cos=cos, sin=sin, period=float(period))
+        grid = np.arange(n) / n * period
+        deviation = np.abs(np.asarray(fit(grid)) - samples)
+        spread = float(np.ptp(samples))
+        return cls(cos=cos, sin=sin, period=float(period),
+                   max_error=float(deviation.max()),
+                   relative_error=float(deviation.max() / spread)
+                   if spread > 0 else 0.0)
+
+    @classmethod
+    def fit_to_tolerance(cls, samples, period: float,
+                         relative_tolerance: float = 0.01,
+                         max_harmonics: int = 128,
+                         start: int = 8):
+        """Refine the series until the truncation error meets a bound.
+
+        A truncated Fourier series is an approximation, and for anything
+        with a jump -- the oar force at the catch, and so the split moment
+        with it -- the coefficients decay only as ``1/k`` and the error is
+        much larger than intuition suggests.  Measured on the split moment:
+        10 harmonics leaves 4.1% of the range, 32 leaves 0.96%.  Fitting a
+        fixed number of harmonics and not looking is how that goes unnoticed.
+
+        Doubles the harmonic count until the bound is met or
+        ``max_harmonics`` is reached, and raises rather than silently
+        returning something worse than asked for.
+        """
+        samples = np.asarray(samples, dtype=float)
+        n_harmonics = int(start)
+        best = None
+        while n_harmonics <= max_harmonics:
+            if len(samples) < 2 * n_harmonics + 1:
+                break
+            best = cls.fit(samples, period, n_harmonics)
+            if best.relative_error <= relative_tolerance:
+                return best
+            n_harmonics *= 2
+        if best is None:
+            raise ValueError("not enough samples to fit any harmonics")
+        raise ValueError(
+            f"could not reach {relative_tolerance:.3%} with "
+            f"{best.n_harmonics} harmonics: best was "
+            f"{best.relative_error:.3%} ({best.max_error:.4g} absolute). "
+            "Either loosen the tolerance, supply more samples, or model "
+            "this quantity with an explicit gate instead of a series -- a "
+            "jump discontinuity converges too slowly for a spectral fit.")
+
+    @property
+    def n_harmonics(self) -> int:
+        return len(self.cos) - 1
 
     # -- evaluation ------------------------------------------------------
     def _terms(self, t, cos_fn, sin_fn):
@@ -141,11 +197,38 @@ class StrokePeriodicFit:
         for k in range(1, len(self.cos)):
             cos[k] = k * omega * self.sin[k]
             sin[k] = -k * omega * self.cos[k]
-        return StrokePeriodicFit(cos=cos, sin=sin, period=self.period)
+        return StrokePeriodicFit(cos=cos, sin=sin, period=self.period,
+                                 max_error=0.0, relative_error=0.0)
 
     @property
     def mean(self) -> float:
         return float(self.cos[0])
+
+
+def _oar_load(boat, t: float, split: float = 0.0):
+    """Total hull-frame oar load at one instant: ``(Fx, Fy, Fz, Mz)``.
+
+    Calls exactly the functions the 6-DOF simulator calls, including the
+    coxswain's side gain, so a split moment obtained by differencing this
+    cannot disagree with what the full model applies.
+    """
+    from ..crew.oarlock import hull_load, oar_force
+    from ..sim.control import Coxswain
+
+    force = np.zeros(3)
+    yaw = 0.0
+    for seat in boat.rig.seats:
+        for lock in seat.oarlocks:
+            applied = oar_force(t, boat.timing, lock.side,
+                                boat.force_profile, boat.oar_sweep)
+            if split != 0.0:
+                applied = applied * Coxswain.side_gain(split, lock.side)
+            hand = lock.position + np.array([-0.5, 0.0, 0.2])
+            load, torque = hull_load(applied, lock.position, hand,
+                                     lock.oar.effective_gearing)
+            force += load
+            yaw += float(torque[2])
+    return float(force[0]), float(force[1]), float(force[2]), yaw
 
 
 @dataclass
@@ -164,12 +247,21 @@ class StrokeAggregates:
     yaw_inertia: StrokePeriodicFit        # sum m (x^2 + y^2)  [kg m2]
     thrust: StrokePeriodicFit             # hull-frame surge force  [N]
     yaw_per_split: StrokePeriodicFit      # yaw moment per unit split [N m]
+    #: Side force per unit split, N.  A split is a pure couple in *surge*
+    #: -- the x components cancel -- but not in sway: the oar force has a
+    #: y component from the sweep angle, and scaling port up while scaling
+    #: starboard down leaves ``s * Fy`` behind.  Dropping it made the model
+    #: develop 0.04 m/s of sideslip where the 6-DOF develops 0.24, and
+    #: since the weathervane acts on sideslip that cost 93% of the split's
+    #: turning authority.
+    sway_per_split: StrokePeriodicFit
     period: float
     crew_mass: float
     lateral_moment: float = 0.0           # sum m y, ~0 for a symmetric crew
 
     @classmethod
-    def from_boat(cls, boat, n_harmonics: int = 10, n_samples: int = 256):
+    def from_boat(cls, boat, n_harmonics: int = None, n_samples: int = 512,
+                  relative_tolerance: float = 0.01):
         """Sample the validated numpy model over one stroke and fit."""
         from ..crew.oarlock import hull_load, oar_force
 
@@ -182,6 +274,7 @@ class StrokeAggregates:
         inertia = np.empty(n_samples)
         surge = np.empty(n_samples)
         yaw_split = np.empty(n_samples)
+        sway_split = np.empty(n_samples)
 
         for index, t in enumerate(times):
             mass, position, velocity, acceleration = boat.crew_field(t)
@@ -191,32 +284,30 @@ class StrokeAggregates:
             inertia[index] = float(np.sum(
                 mass * (position[:, 0] ** 2 + position[:, 1] ** 2)))
 
-            force = np.zeros(3)
-            yaw = 0.0
-            hands = None
-            for seat in boat.rig.seats:
-                for lock in seat.oarlocks:
-                    applied = oar_force(t, boat.timing, lock.side,
-                                        boat.force_profile, boat.oar_sweep)
-                    hand = lock.position + np.array([-0.5, 0.0, 0.2])
-                    load, torque = hull_load(applied, lock.position, hand,
-                                             lock.oar.effective_gearing)
-                    force += load
-                    # A unit split scales this side's thrust by +-0.5, and
-                    # a surge force at lateral offset y makes a yaw moment
-                    # of -y*Fx.  Summed over both sides that is a pure
-                    # couple, which is what makes the split steering rather
-                    # than acceleration.
-                    yaw += 0.5 * float(lock.side) * (
-                        -float(lock.position[1]) * float(load[0]))
-            surge[index] = force[0]
-            yaw_split[index] = yaw
+            # Difference the real oar load between split = 1 and split = 0,
+            # rather than deriving the couple by hand.  A first attempt
+            # used -y*Fx, which looks right and is not: `hull_load` also
+            # carries the sweep-rotated force components and the
+            # hand-position term, and dropping them got the sign wrong
+            # over the first third of the drive and the stroke mean wrong
+            # by 1.6x.  The same rule as everywhere else in this module --
+            # fit from the tested function, never re-derive it.
+            neutral = _oar_load(boat, t, split=0.0)
+            split_one = _oar_load(boat, t, split=1.0)
+            surge[index] = neutral[0]
+            yaw_split[index] = split_one[3] - neutral[3]
+            sway_split[index] = split_one[1] - neutral[1]
 
-        fit = lambda a: StrokePeriodicFit.fit(a, period, n_harmonics)
+        def fit(samples):
+            if n_harmonics is not None:
+                return StrokePeriodicFit.fit(samples, period, n_harmonics)
+            return StrokePeriodicFit.fit_to_tolerance(
+                samples, period, relative_tolerance)
         return cls(
             first_moment=fit(moment), first_moment_rate=fit(rate),
             first_moment_accel=fit(accel), yaw_inertia=fit(inertia),
             thrust=fit(surge), yaw_per_split=fit(yaw_split),
+            sway_per_split=fit(sway_split),
             period=period, crew_mass=boat.crew_mass,
         )
 
@@ -343,11 +434,14 @@ class StrokeResolvedModel:
     n_controls = 3
 
     def __init__(self, boat, aggregates: StrokeAggregates = None,
-                 n_harmonics: int = 10, reference_speed: float = 5.2,
-                 hydro: "HydroCoefficients" = None):
+                 n_harmonics: int = None, reference_speed: float = 5.2,
+                 hydro: "HydroCoefficients" = None,
+                 relative_tolerance: float = 0.01):
         self.boat = boat
-        self.aggregates = (StrokeAggregates.from_boat(boat, n_harmonics)
-                           if aggregates is None else aggregates)
+        self.aggregates = (
+            StrokeAggregates.from_boat(
+                boat, n_harmonics, relative_tolerance=relative_tolerance)
+            if aggregates is None else aggregates)
         self.hydro = (HydroCoefficients.from_boat(boat, reference_speed)
                       if hydro is None else hydro)
         self.reference_speed = float(reference_speed)
@@ -380,6 +474,8 @@ class StrokeResolvedModel:
         crew_inertia = agg.yaw_inertia.casadi(time)
         thrust = agg.thrust.casadi(time) * power
         yaw_from_split = agg.yaw_per_split.casadi(time) * split
+        sway_from_split = (0.0 if agg.sway_per_split is None
+                           else agg.sway_per_split.casadi(time) * split)
 
         # first moment in the absolute frame: the crew sits on the hull x
         # axis, so rotating it is a single heading rotation
@@ -403,7 +499,8 @@ class StrokeResolvedModel:
         sway_force = (hydro.sway_from_sway_linear * u * v
                       + hydro.sway_from_sway_quadratic * v * ca.fabs(v)
                       + hydro.sway_from_yaw * u * r
-                      + hydro.sway_from_rudder * u * u * rudder)
+                      + hydro.sway_from_rudder * u * u * rudder
+                      + sway_from_split)
         # yaw_from_sway is the weathervane and is what keeps the boat
         # directionally stable; without it this model spins up
         yaw_moment = (hydro.yaw_from_sway * u * v
