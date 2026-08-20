@@ -231,26 +231,33 @@ class StrokePeriodicFit:
         return float(self.cos[0])
 
 
-def _oar_load(boat, t: float, split: float = 0.0):
+def _oar_load(boat, t: float, split: float = 0.0, simulator=None):
     """Total hull-frame oar load: ``(Fx, Fy, Fz, Mz, Mx)``.
 
-    Calls exactly the functions the 6-DOF simulator calls, including the
-    coxswain's side gain, so a split moment obtained by differencing this
-    cannot disagree with what the full model applies.
+    Uses the simulator's own hand positions, which come from the crew
+    kinematics and move through the stroke.  An earlier version invented
+    them as a fixed offset from the oarlock; since the oar moment is
+    ``(x_o - x_h + (r_h/L) x_h) x F``, that arm is not a detail.  It made
+    the split couple wrong by a factor of 29 and in the wrong direction.
     """
     from ..crew.oarlock import hull_load, oar_force
     from ..sim.control import Coxswain
+    from ..sim.simulator import RowingSimulator
+
+    if simulator is None:
+        simulator = RowingSimulator(boat)
+    hands = simulator.hand_positions(t)
 
     force = np.zeros(3)
     yaw = 0.0
     roll = 0.0
-    for seat in boat.rig.seats:
+    for seat_index, seat in enumerate(boat.rig.seats):
+        hand = hands[seat_index]
         for lock in seat.oarlocks:
             applied = oar_force(t, boat.timing, lock.side,
                                 boat.force_profile, boat.oar_sweep)
             if split != 0.0:
                 applied = applied * Coxswain.side_gain(split, lock.side)
-            hand = lock.position + np.array([-0.5, 0.0, 0.2])
             load, torque = hull_load(applied, lock.position, hand,
                                      lock.oar.effective_gearing)
             force += load
@@ -292,6 +299,15 @@ class StrokeAggregates:
     roll_per_split: StrokePeriodicFit
     #: Crew contribution to roll inertia, ``sum m (y^2 + z^2)``, kg m2.
     roll_inertia: StrokePeriodicFit
+    #: Yaw moment from the oars with NO split, N m.  Not zero: a sweep rig
+    #: is asymmetric, because port and starboard oarlocks sit at different
+    #: stations along the hull, so their moments do not cancel.  Measured
+    #: at -467 N m mid-drive for an eight.  This is the reason a sweep boat
+    #: wanders and needs continuous correction, and leaving it out was why
+    #: the stroke model had no baseline yaw at all.
+    yaw_neutral: StrokePeriodicFit
+    #: Roll moment from the oars with no split, N m.
+    roll_neutral: StrokePeriodicFit
     period: float
     crew_mass: float
     lateral_moment: float = 0.0           # sum m y, ~0 for a symmetric crew
@@ -302,6 +318,9 @@ class StrokeAggregates:
         """Sample the validated numpy model over one stroke and fit."""
         from ..crew.oarlock import hull_load, oar_force
 
+        from ..sim.simulator import RowingSimulator
+
+        simulator = RowingSimulator(boat)
         period = boat.timing.period
         times = np.linspace(0.0, period, n_samples, endpoint=False)
 
@@ -314,6 +333,8 @@ class StrokeAggregates:
         sway_split = np.empty(n_samples)
         roll_split = np.empty(n_samples)
         roll_inertia = np.empty(n_samples)
+        yaw_neutral = np.empty(n_samples)
+        roll_neutral = np.empty(n_samples)
 
         for index, t in enumerate(times):
             mass, position, velocity, acceleration = boat.crew_field(t)
@@ -333,8 +354,10 @@ class StrokeAggregates:
             # over the first third of the drive and the stroke mean wrong
             # by 1.6x.  The same rule as everywhere else in this module --
             # fit from the tested function, never re-derive it.
-            neutral = _oar_load(boat, t, split=0.0)
-            split_one = _oar_load(boat, t, split=1.0)
+            neutral = _oar_load(boat, t, split=0.0, simulator=simulator)
+            split_one = _oar_load(boat, t, split=1.0, simulator=simulator)
+            yaw_neutral[index] = neutral[3]
+            roll_neutral[index] = neutral[4]
             surge[index] = neutral[0]
             yaw_split[index] = split_one[3] - neutral[3]
             sway_split[index] = split_one[1] - neutral[1]
@@ -352,6 +375,8 @@ class StrokeAggregates:
             sway_per_split=fit(sway_split),
             roll_per_split=fit(roll_split),
             roll_inertia=fit(roll_inertia),
+            yaw_neutral=fit(yaw_neutral),
+            roll_neutral=fit(roll_neutral),
             period=period, crew_mass=boat.crew_mass,
         )
 
@@ -598,7 +623,8 @@ class StrokeResolvedModel:
         yaw_from_split = agg.yaw_per_split.casadi(time) * split
         sway_from_split = (0.0 if agg.sway_per_split is None
                            else agg.sway_per_split.casadi(time) * split)
-        roll_from_split = agg.roll_per_split.casadi(time) * split
+        roll_from_split = (agg.roll_per_split.casadi(time) * split
+                           + agg.roll_neutral.casadi(time))
 
         # first moment in the absolute frame: the crew sits on the hull x
         # axis, so rotating it is a single heading rotation
@@ -648,6 +674,7 @@ class StrokeResolvedModel:
         sway_force = (resistance[1] + appendage_force[1] + sway_from_split
                       + hydro.sway_from_roll * phi)
         yaw_moment = (appendage_moment[2] + yaw_from_split
+                      + agg.yaw_neutral.casadi(time)
                       + hydro.yaw_from_roll * phi)
 
         # Roll.  The bare hull is unstable (roll_from_roll is positive), so
