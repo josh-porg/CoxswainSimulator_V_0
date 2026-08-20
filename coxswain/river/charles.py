@@ -367,6 +367,78 @@ def thalweg(origin: Tuple[float, float] = CHARLES_ORIGIN,
             north = np.linspace(y - snap, y + snap, 41)
             probe = depth(np.full(north.shape, x), north)
             spine[i, 1] = north[int(np.argmax(probe))]
+
+    return spine
+
+
+def refine_thalweg(spine: np.ndarray, depth: DepthField,
+                   passes: int = 4, reach: float = 70.0,
+                   n_probe: int = 61, smooth: int = 3) -> np.ndarray:
+    """Re-snap a channel spine to the deepest water on the local normal.
+
+    **Not used by default: measured worse than the plain trace.**
+
+    The reasoning for trying it was sound.  :func:`thalweg` bins east-west
+    and probes north, which only searches *across* the channel where the
+    river runs east-west; through the north-south meanders the probe runs
+    along the channel instead and can return a point that is not in deep
+    water at all.  Probing the local perpendicular should fix that.
+
+    It does not.  Fraction of the spine in water shallower than the given
+    depth, on the CRAB survey:
+
+    ==========  ==============  ==================
+    threshold   plain trace     perpendicular pass
+    ==========  ==============  ==================
+    0.6 m       13.0%           7.0%
+    1.0 m       24.0%           28.3%
+    1.2 m       26.3%           35.3%
+    2.0 m       34.7%           43.7%
+    ==========  ==============  ==================
+
+    It clears the worst pinning at the 0.5 m floor and loses everywhere
+    else, and the mean depth along the line drops from 3.39 m to 3.09 m.
+    The likely reason is that the perpendicular estimated from a coarse,
+    smoothed spine is itself unreliable through the bends, so the probe
+    still often runs partly along the channel -- and now it also drags the
+    line laterally where the plain trace at least stayed put.
+
+    Kept because the approach is right in principle and would work given a
+    better initial spine or a finer survey; the ordering matters too, and
+    is recorded here: smoothing *after* snapping ends a pass with the line
+    walked out of the channel, which measured 44% under 1.2 m.
+    """
+    spine = np.asarray(spine, dtype=float).copy()
+    if len(spine) < 3:
+        return spine
+
+    step = np.linspace(-reach, reach, n_probe)
+
+    for _ in range(passes):
+        # Smooth FIRST, snap SECOND.  Smoothing averages across bends and
+        # so cuts corners onto the bank; ending a pass on a smoothing step
+        # leaves the line there.  Doing it the other way round -- snapping
+        # last -- measured 44% of the spine in water under 1.2 m against
+        # 15% for this order, on the same survey.
+        if smooth > 1 and len(spine) > 2 * smooth:
+            kernel = np.ones(smooth) / smooth
+            for axis in (0, 1):
+                blurred = np.convolve(spine[:, axis], kernel, mode="same")
+                blurred[:smooth] = spine[:smooth, axis]
+                blurred[-smooth:] = spine[-smooth:, axis]
+                spine[:, axis] = blurred
+
+        tangent = np.gradient(spine, axis=0)
+        length = np.hypot(tangent[:, 0], tangent[:, 1])
+        length[length == 0.0] = 1.0
+        normal = np.stack([-tangent[:, 1] / length,
+                           tangent[:, 0] / length], axis=-1)
+
+        for i, (point, unit) in enumerate(zip(spine, normal)):
+            candidates = point + step[:, None] * unit
+            probe = depth(candidates[:, 0], candidates[:, 1])
+            spine[i] = candidates[int(np.argmax(probe))]
+
     return spine
 
 
