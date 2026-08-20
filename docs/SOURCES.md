@@ -390,6 +390,28 @@ on `0.9 < Fr_h < 1.1` should be treated as indicative. Pinning it down
 needs the tank programme [D11] describes, or a finite-depth Michell
 calculation (Scragg & Nelson).
 
+### Verification of the drag increment
+
+Checks the implementation passes, against numbers not used to build it:
+
+| check | source | model |
+|---|---|---|
+| critical speed at 3.0 m depth | 5.4 m/s [D11] | 5.42 m/s |
+| `Fr_h` range, pair at rate 35, 3.0 m | 0.65–1.09 [D11] | reproduced |
+| `Fr_h ≤ 0.5` indistinguishable from deep | [D11] | <1% change |
+| eight at 3.0 m, speed loss | — | 12.6% |
+
+The first three are genuine validations. **The fourth is not** — no
+measured speed loss for a rowing shell at a stated depth was found in the
+literature searched, so the 12.6% is the model's output, corroborated only
+circumstantially by World Rowing setting 3 m as the minimum legal depth.
+
+An accurate increment near `Fr_h = 1` remains out of reach without either
+the tank programme [D11] describes or a finite-depth Michell calculation;
+the cap at `DEFAULT_MAX_AMPLIFICATION = 3.0` is where that uncertainty is
+parked. Since a racing eight sweeps through critical twice per stroke in
+3 m water, this is the single largest uncertainty in any Charles result.
+
 ### Regulatory corroboration
 World Rowing (FISA) Bye-Law rule 2.4 requires **3 m minimum** depth across
 all lanes, with 3.5 m recommended for international courses. The model
@@ -434,6 +456,45 @@ Three-dimensional CFD of a blade interacting with the free surface,
 validated against quarter-scale flume experiments. The reference for
 replacing the efficiency factor with a real blade model.
 
+### The [CR06] blade model, as implemented
+
+`coxswain/crew/oarlock.py::BladeModel` implements their **Model 1** (due to
+Pope, and to Alexander 1925). Blade velocity resolved on the oar's polar
+basis, force normal to the blade and quadratic in the normal slip:
+
+```
+v_O   = v_b sin(theta) e_r + (l theta_dot + v_b cos theta) e_theta
+F_oar = C2 (l theta_dot + v_b cos theta)^2          [CR06] eq. (11)
+C2    = ½ rho C0 A0
+```
+
+`theta` is the oar angle from the boat's transverse axis, `l` the outboard
+length, `A0` the blade face area, `C0` a shape constant. Fitted values
+**C2 = 58.7** (single scull) and **84.5** (sweep).
+
+Two of their findings are load-bearing for this choice: the fit quality is
+more sensitive to the blade and hull drag coefficients than to any other
+parameter, and allowing slip at all is *necessary* — a non-slipping blade
+(their `C_D = 1`) cannot reproduce the data.
+
+What this buys over the prescribed half-sine: the force now depends on boat
+speed, so the loop is closed. The model reproduces, without being told to,
+the retarding force at the catch and the wash-out at the finish — at both
+ends the oar's angular rate passes through zero, the boat's own speed
+dominates the slip, and the blade is dragged rather than driving. Through
+mid-drive it gives 66–81% blade efficiency, bracketing the fixed `0.78`
+factor it is designed to replace.
+
+Their **Model 2** resolves lift and drag against angle of attack, after
+Wang, Birch & Dickinson's hovering-insect-wing treatment. Not implemented.
+[H10] separately bounds the error the pure normal-force assumption carries
+at about 18% of blade losses.
+
+**Status: implemented and unit-tested, not yet wired into the force path.**
+The whole regression suite is pinned to the prescribed-profile numbers, and
+switching the force model changes every one of them; that swap wants to be
+its own change with its own re-validation.
+
 ### [B09] Brearley (2009)
 *A method of improving oar efficiency.* **ANZIAM J. 50** 534–540.
 [PDF](http://bionics.seas.ucla.edu/education/Rowing/Math_Model_2009_05.pdf)
@@ -457,6 +518,32 @@ matters more than the fluctuation this document opens with.
 
 ---
 
+## 7b. River fields (depth, current, channel)
+
+`coxswain/river/` holds the spatial description a route optimisation needs:
+`DepthField` (feeds the shallow-water correction), `CurrentField`
+(depth-averaged water velocity), and `Course` (centreline, navigable
+half-width, station/offset parameterisation).
+
+`RowingSimulator(boat, course=...)` looks depth up at the boat's position
+each step and takes hydrodynamic forces on the **water-relative** velocity
+while keeping the trajectory and crew reactions in the ground frame.
+Measured effect for an eight at rate 32, from 5.355 m/s deep and still:
+
+| condition | mean ground speed | vs deep, still |
+|---|---|---|
+| 3 m depth, still | 4.683 m/s | −12.6 % |
+| 3 m depth, 0.5 m/s head | 4.257 m/s | −20.5 % |
+| 3 m depth, 0.5 m/s tail | 5.118 m/s | −4.4 % |
+
+**No Charles bathymetry is loaded.** `charles_river_sketch()` is a
+caricature with invented depths and geometry; `Course.is_survey` is
+`False` for it and `Course.require_survey()` raises, so it cannot quietly
+become a routing number. Replacing it needs real soundings projected
+through `local_tangent_plane`.
+
+---
+
 ## 8. Open questions
 
 Ordered by how much they would change a result.
@@ -465,21 +552,25 @@ Ordered by how much they would change a result.
    CoM velocity amplitude; cause not yet identified. The decisive missing
    datum is a published rower centre-of-mass excursion relative to the
    boat.
-2. **Near-critical shallow-water amplification is capped by choice, not
+2. **No real Charles bathymetry.** The field machinery is in place and
+   tested (§7b), but the built-in course is a sketch. This is now the
+   binding constraint on route optimisation, ahead of any physics gap.
+3. **Near-critical shallow-water amplification is capped by choice, not
    measurement** (§6). Affects any Charles route optimisation that runs
-   near `Fr_h = 1`.
-3. **Blade forces are an efficiency factor, not a model.** [H10] shows the
-   normal-force assumption understates losses by 18%; [ST09] and [CR06]
-   both offer implementable alternatives.
-4. **Resistance is quasi-steady.** [D11] measured substantial
+   near `Fr_h = 1` — which 2–4 m water and a racing eight do.
+4. **The blade model is implemented but not wired in.** `BladeModel`
+   ([CR06] eq. 11) is tested and ready; the force path still uses the
+   prescribed half-sine and the fixed 0.78 efficiency. Switching over
+   re-baselines every regression number, so it is its own change.
+5. **Resistance is quasi-steady.** [D11] measured substantial
    under-prediction at realistic oscillation frequencies from unsteady
    viscous effects.
-5. **The oar sweep is piecewise-linear in stroke phase**, so the handle
+6. **The oar sweep is piecewise-linear in stroke phase**, so the handle
    path has a velocity discontinuity at catch and finish. Now that the
    hands are constrained to the handle, that discontinuity propagates into
    crew accelerations; it is currently smoothed only by the Fourier
    truncation of the hand track.
-6. **Added mass and wave damping are absent.** [F09] §6.4 computes them
+7. **Added mass and wave damping are absent.** [F09] §6.4 computes them
    from a radiation problem and reports ~10% of total energy dissipation
    from secondary motions; their published matrices for a 4x are in the
    paper if a first approximation is wanted.

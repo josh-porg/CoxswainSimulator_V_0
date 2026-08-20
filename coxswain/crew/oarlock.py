@@ -48,7 +48,8 @@ import numpy as np
 
 from .stroke import StrokeTiming
 
-__all__ = ["OarForceProfile", "OarAngleSweep", "oar_force", "hull_load",
+__all__ = [
+    "BladeModel","OarForceProfile", "OarAngleSweep", "oar_force", "hull_load",
            "oar_axis", "blade_position", "handle_position"]
 
 
@@ -132,6 +133,113 @@ class OarAngleSweep:
     @property
     def total_sweep(self) -> float:
         return abs(self.catch_angle - self.finish_angle)
+
+
+@dataclass(frozen=True)
+class BladeModel:
+    """Slip-dependent blade force, after Cabrera, Ruina & Kleshnev (2006).
+
+    The prescribed half-sine of :class:`OarForceProfile` is an *open loop*:
+    the crew pushes the same force whatever the boat is doing.  A real
+    blade does not.  Its force comes from pushing water, so it depends on
+    how fast the blade is actually moving through that water -- the slip
+    velocity -- which depends on boat speed.  That feedback is what makes
+    a blade lose grip as the boat runs away from it near the finish, and
+    it is absent from a prescribed profile.
+
+    [CR06] eq. (11), their "Model 1", due to Pope and to Alexander (1925):
+    the resultant blade force is normal to the blade and proportional to
+    the square of the normal component of blade slip velocity,
+
+        v_O    = v_b sin(theta) e_r + (l theta_dot + v_b cos(theta)) e_theta
+        F_oar  = C2 (l theta_dot + v_b cos(theta))^2
+
+    with ``theta`` the oar angle from the boat's transverse axis, ``l``
+    the outboard length, ``v_b`` the boat speed, and
+
+        C2 = 0.5 rho C0 A0
+
+    for blade face area ``A0`` and a shape constant ``C0``.  [CR06] fit
+    ``C2`` to on-water force and kinematic data: **58.7** for a single
+    scull and **84.5** for sweep.  Their sensitivity analysis found the fit
+    quality more sensitive to the blade and hull drag coefficients than to
+    any other parameter, and that allowing slip at all was a *necessary*
+    ingredient -- a non-slipping blade (their C_D = 1) does not reproduce
+    the data.
+
+    Their Model 2 resolves lift and drag against angle of attack, after
+    Wang, Birch & Dickinson's hovering-insect-wing treatment.  It is not
+    implemented here; [H10] separately shows the pure normal-force
+    assumption used here understates blade losses by about 18%, which
+    bounds the error this carries.
+
+    This is offered alongside the prescribed profile rather than replacing
+    it: the prescribed path is what the whole regression suite is pinned
+    to, and swapping the force model changes every number in it.
+    """
+
+    #: Equivalent blade force coefficient, N s^2/m^2.  [CR06] Table 3.
+    c2: float = 84.5
+    #: Outboard length, oarlock to blade centre of pressure, in metres.
+    outboard: float = 2.28
+
+    @classmethod
+    def sculling(cls, outboard: float = 2.28) -> "BladeModel":
+        """[CR06]'s single-scull fit."""
+        return cls(c2=58.7, outboard=outboard)
+
+    @classmethod
+    def sweep(cls, outboard: float = 2.28) -> "BladeModel":
+        """[CR06]'s sweep fit."""
+        return cls(c2=84.5, outboard=outboard)
+
+    def slip_velocity(self, angle, angular_rate, boat_speed):
+        """Normal component of blade velocity relative to the water.
+
+        ``l theta_dot + v_b cos(theta)``.  Negative during the drive with
+        the sign convention of :class:`OarAngleSweep`, where the angle
+        *decreases* from catch to finish; the blade is then sweeping
+        sternward through the water and pushing the boat forward.
+        """
+        return (self.outboard * np.asarray(angular_rate, dtype=float)
+                + np.asarray(boat_speed, dtype=float)
+                * np.cos(np.asarray(angle, dtype=float)))
+
+    def normal_force(self, angle, angular_rate, boat_speed):
+        """Blade force magnitude, signed to oppose the slip.
+
+        ``C2 * slip^2`` with the sign of ``-slip``, so the water always
+        resists the blade rather than driving it.  Squaring alone would
+        lose that and make the blade produce thrust on the recovery.
+        """
+        slip = self.slip_velocity(angle, angular_rate, boat_speed)
+        return -np.sign(slip) * self.c2 * slip ** 2
+
+    def propulsive_force(self, angle, angular_rate, boat_speed):
+        """Component of the blade force along the boat's ``x`` axis.
+
+        The blade force is normal to the shaft, so only ``cos(theta)`` of
+        it drives the boat.  Near the catch the oar is at a large angle and
+        most of the blade load is lateral -- which is exactly the effect
+        [B09] exploits in arguing for a less catch-heavy stroke.
+        """
+        normal = self.normal_force(angle, angular_rate, boat_speed)
+        return normal * np.cos(np.asarray(angle, dtype=float))
+
+    def efficiency(self, angle, angular_rate, boat_speed):
+        """Fraction of blade power that goes into moving the boat.
+
+        ``1 - |slip| / |blade speed|``: the classic definition of blade
+        efficiency, and the quantity the fixed ``blade_efficiency = 0.78``
+        elsewhere in this module stands in for.  Returns 0 when the blade
+        is not moving relative to the boat.
+        """
+        slip = np.abs(self.slip_velocity(angle, angular_rate, boat_speed))
+        blade_speed = np.abs(self.outboard
+                             * np.asarray(angular_rate, dtype=float))
+        with np.errstate(divide="ignore", invalid="ignore"):
+            value = 1.0 - slip / blade_speed
+        return np.where(blade_speed > 1e-9, np.clip(value, 0.0, 1.0), 0.0)
 
 
 def oar_force(t, timing: StrokeTiming, side: int,
