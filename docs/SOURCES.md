@@ -740,6 +740,81 @@ line choice from a route optimiser.
 
 ---
 
+## 7c. Steering authority
+
+The trajectory optimiser could not fly the Charles on rudder alone, which
+turned out to be physics rather than a solver problem.
+
+### What the river demands
+
+Curvature of the extracted channel centreline (§9), which is derived from
+the survey rather than assumed:
+
+| | required turn radius |
+|---|---|
+| tightest 1% of the reach | ≤ 133 m |
+| tightest 5% | ≤ 177 m |
+| tightest 10% | ≤ 222 m |
+| median | 646 m |
+
+The six tightest bends need **103–146 m**, i.e. 2.0–2.9 °/s at 5.2 m/s.
+
+### What the boat can do
+
+Steady turn radius, measured from the full 6-DOF model:
+
+| control | yaw rate | radius |
+|---|---|---|
+| rudder 4° | 0.35 °/s | 853 m |
+| rudder 8° | 0.71 °/s | 421 m |
+| rudder 12° (full) | 1.15 °/s | **259 m** |
+| split 10% | 0.28 °/s | 1063 m |
+| split 20% | 0.50 °/s | 592 m |
+| split 30% | 0.77 °/s | 385 m |
+| **rudder 12° + split 30%** | **2.28 °/s** | **130 m** |
+
+**19% of the reach is tighter than full rudder alone can hold.**
+
+### The conclusion
+
+A rudder-only model of an eight silently cannot fly the Charles. Solving a
+1.6 km leg containing one of the tight bends:
+
+| | result |
+|---|---|
+| rudder only | **fails** — IPOPT error, min clearance 0.0 m (leaves the water) |
+| rudder + split | optimal, min clearance 8.5 m, max split 0.15, 15 s quicker |
+
+So the port/starboard pressure split is not a refinement on top of
+steering. On a river it *is* the steering, and the rudder trims it.
+
+Implemented as `Coxswain.pressure_split` in the 6-DOF model and as the
+second control of the reduced model. Applied symmetrically — half added on
+one side, half removed on the other — so it is a pure yaw couple and
+cannot be used to accelerate.
+
+### A caveat on the reduced model
+
+The two controls combine **super-additively** in the full model: 2.28 °/s
+against the 1.92 a linear sum predicts, because the sideslip each induces
+raises the other's effectiveness. The reduced model is linear in both, so
+it predicts 164 m where the full model gives 130 m. That is conservative,
+which is the right direction for a trajectory that has to be flyable — but
+a solution sitting near the steering limit should be checked back in the
+full model.
+
+### Not resolved
+
+Whether the *rudder* coefficient itself is right. The modelled rudder is
+108 cm² at a 6.6 m arm, giving 230 N·m at 12° and 5.2 m/s. No published
+rudder-force or turning-circle measurement for a racing eight was found to
+check it against; the qualitative descriptions that do exist ("it takes a
+stroke or two before it starts to turn") are consistent with a slow-turning
+boat but do not pin a number. The split coefficient is on firmer ground,
+being derived from oarlock forces the model already reproduces.
+
+---
+
 ## 8. Open questions
 
 Ordered by how much they would change a result.

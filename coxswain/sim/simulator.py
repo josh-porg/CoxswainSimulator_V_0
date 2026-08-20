@@ -253,11 +253,18 @@ class RowingSimulator:
             # blade, which is the whole point of carrying a depth field.
             gearing_scale = self._blade_efficiency(t, state, blade)
 
+        # The coxswain's second control: pressure on one side.  Applied
+        # symmetrically so it is a pure yaw couple and adds no net thrust.
+        split = self.coxswain.split(t, state)
+
         for seat_index, seat in enumerate(boat.rig.seats):
             hand_hull = hands[seat_index]
             for lock in seat.oarlocks:
                 applied = oar_force(t, boat.timing, lock.side,
                                     boat.force_profile, boat.oar_sweep)
+                if split != 0.0:
+                    applied = applied * self.coxswain.side_gain(split,
+                                                                lock.side)
                 gearing = (lock.oar.gearing * gearing_scale
                            if blade is not None
                            else lock.oar.effective_gearing)

@@ -22,6 +22,17 @@ Sweep the effect of water depth (the Charles is 2-4 m in places)::
 
     python run.py --depth-sweep
 
+Report the navigable channel extracted from the Charles depth contours,
+and the turn radius the river demands::
+
+    python run.py --charles
+
+Compare the steering authority of the rudder against a crew pressure
+split.  On the Charles this is not academic: full rudder alone holds a
+259 m turn radius and 19% of the reach is tighter than that::
+
+    python run.py --steer
+
 Open the interactive 3-D viewer with a time slider::
 
     python run.py --view
@@ -71,6 +82,12 @@ def build_parser() -> argparse.ArgumentParser:
                         help="write a four-panel still of one stroke")
     parser.add_argument("--depth-sweep", action="store_true",
                         help="report mean speed against water depth")
+    parser.add_argument("--charles", action="store_true",
+                        help="report the extracted Charles channel and what "
+                             "turn radius it demands")
+    parser.add_argument("--steer", action="store_true",
+                        help="turn radius available from rudder and from "
+                             "crew pressure split, in the full model")
     parser.add_argument("--quiet", action="store_true",
                         help="suppress the summary table")
     return parser
@@ -122,10 +139,82 @@ def depth_sweep(boat, args) -> None:
               f"{2000.0 / speed:>12.1f}{froude:>14}")
 
 
+def charles_report() -> None:
+    """The extracted channel, and the turn radius the river demands."""
+    from coxswain.river import charles
+
+    channel = charles.charles_channel()
+    line = channel.centreline()
+    print(f"\nCharles channel, from the CRAB one-foot depth contours")
+    print(f"  water area        {channel.water_area / 1e6:6.2f} km2")
+    print(f"  navigable area    {channel.navigable_area / 1e6:6.2f} km2")
+    length = np.linalg.norm(np.diff(line, axis=0), axis=1).sum()
+    print(f"  centreline        {length / 1000:6.2f} km")
+
+    depth = np.array([channel.depth[channel.index_of(x, y)] for x, y in line])
+    half = channel.half_width_along(line)
+    print(f"  depth on the line {np.nanmin(depth):5.2f} - "
+          f"{np.nanmax(depth):.2f} m, median {np.nanmedian(depth):.2f}")
+    print(f"  half-width        {half.min():5.1f} - {half.max():.1f} m, "
+          f"median {np.median(half):.1f}")
+
+    kernel = np.ones(25) / 25
+    smooth = np.column_stack([np.convolve(line[:, i], kernel, mode="valid")
+                              for i in (0, 1)])
+    d1 = np.gradient(smooth, axis=0)
+    d2 = np.gradient(d1, axis=0)
+    speed = np.hypot(d1[:, 0], d1[:, 1])
+    cross = d1[:, 0] * d2[:, 1] - d1[:, 1] * d2[:, 0]
+    radius = 1.0 / np.maximum(np.abs(cross) / np.maximum(speed ** 3, 1e-12),
+                              1e-9)
+    print("\n  turn radius demanded:")
+    for pct in (1, 5, 10, 25, 50):
+        print(f"    tightest {pct:2d}% of the reach needs "
+              f"R <= {np.percentile(radius, pct):6.0f} m")
+
+
+def steering_report(args) -> None:
+    """Turn radius available from each control, in the full 6-DOF model."""
+    from coxswain.sim.control import Coxswain
+
+    boat = catalog.build(args.boat, rate=args.rate)
+    speed = args.speed or 5.2
+    print(f"\n{boat.name}: steady turn radius at {speed:.1f} m/s")
+    print(f"{'control':>26}{'yaw rate':>11}{'radius':>10}")
+
+    def steady(rudder=0.0, split=0.0):
+        cox = Coxswain(rudder_override=lambda t, s: rudder,
+                       pressure_split=split)
+        result = RowingSimulator(boat, coxswain=cox).run(
+            duration=12.0, dt=0.008, surge_speed=speed)
+        rate = float(np.mean(result.omega[2][result.last_cycles(2)]))
+        return rate, (speed / abs(rate) if abs(rate) > 1e-6 else float("inf"))
+
+    for label, kwargs in (
+        ("rudder 4 deg", dict(rudder=np.radians(4.0))),
+        ("rudder 8 deg", dict(rudder=np.radians(8.0))),
+        ("rudder 12 deg", dict(rudder=np.radians(12.0))),
+        ("split 15%", dict(split=0.15)),
+        ("split 30%", dict(split=0.30)),
+        ("rudder 12 + split 30%", dict(rudder=np.radians(12.0), split=0.30)),
+    ):
+        rate, radius = steady(**kwargs)
+        print(f"{label:>26}{np.degrees(rate):10.2f}d{radius:9.0f}m")
+    print("\n  the Charles demands 103-146 m at its tightest bends")
+
+
 def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
 
     boat = catalog.build(args.boat, rate=args.rate)
+
+    if args.charles:
+        charles_report()
+        return 0
+
+    if args.steer:
+        steering_report(args)
+        return 0
 
     if args.depth_sweep:
         depth_sweep(boat, args)

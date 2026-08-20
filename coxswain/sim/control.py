@@ -109,6 +109,10 @@ class Coxswain:
     balance: BalanceController = None
     heading: HeadingController = None
     rudder_override: Optional[Callable[[float, State], float]] = None
+    #: Port/starboard pressure split, in ``[-1, 1]``.  Positive means the
+    #: port side pulls harder, which yaws the bow to starboard.  Either a
+    #: constant or a callable ``(t, state) -> float``.
+    pressure_split: object = 0.0
 
     def __post_init__(self) -> None:
         if self.balance is None:
@@ -123,3 +127,32 @@ class Coxswain:
         if self.rudder_override is not None:
             return float(self.rudder_override(t, state))
         return self.heading.deflection(t, state)
+
+    def split(self, t: float, state: State) -> float:
+        """Port/starboard pressure split at this instant.
+
+        The second steering control, and on a river the more important one.
+        Measured against the extracted Charles channel: the tightest bends
+        demand a 103-146 m turn radius, while full rudder alone holds only
+        283 m -- 19% of the reach is tighter than the rudder can manage.
+        A coxswain calling for pressure is not a refinement on top of the
+        rudder; without it an eight cannot get round the river at all.
+
+        Clamped to ``[-1, 1]``: a split of 1 would mean one side stopped
+        dead and the other at full pressure.
+        """
+        value = self.pressure_split
+        if callable(value):
+            value = value(t, state)
+        return float(np.clip(value, -1.0, 1.0))
+
+    @staticmethod
+    def side_gain(split: float, side: int) -> float:
+        """Thrust multiplier for one side, given a split.
+
+        Split is applied symmetrically -- half added on one side, half
+        removed on the other -- so the *net* thrust is unchanged and the
+        split produces a pure yaw couple.  Modelling it any other way would
+        let the optimiser accelerate by steering.
+        """
+        return 1.0 + 0.5 * split * float(side)

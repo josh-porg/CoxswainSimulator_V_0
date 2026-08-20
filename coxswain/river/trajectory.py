@@ -19,13 +19,27 @@ A reduced five-state model, not the full 6-DOF one::
     u       surge speed            [m/s]
     r       yaw rate               [rad/s]
 
-with the rudder angle ``delta`` as the single control.  Dynamics:
+and **two** controls: the rudder angle ``delta`` and the port/starboard
+pressure split ``s``.  Dynamics:
 
     x_dot   = u cos(psi) + c_x(x, y)
     y_dot   = u sin(psi) + c_y(x, y)
     psi_dot = r
-    u_dot   = (T(u, h) - D(u, h) - D_turn(r)) / m
-    r_dot   = (N_delta u^2 delta - N_r u r) / I_z
+    u_dot   = (T - D(u, h) - D_turn(r) - D_split(s)) / m
+    r_dot   = (N_delta u^2 delta + N_s s - N_r u r) / I_z
+
+Why two controls.  The rudder on its own cannot get an eight round this
+river.  Measured against the channel extracted in
+:mod:`coxswain.river.channel`, the Charles demands a turn radius of
+103-146 m at its tightest bends, and **19% of the reach is tighter than
+full rudder alone can hold** (259 m).  Adding a 30% pressure split brings
+it to 130 m.  A coxswain calling for pressure is not a refinement on top
+of steering -- on a river it *is* the steering, and a model with only a
+rudder silently cannot fly the course.
+
+Both controls cost speed: turning bleeds energy into the appendages, and
+splitting the crew spends work on a couple rather than on thrust.  Without
+those penalties the optimiser would steer for free.
 
 Why reduced.  Hermite-Simpson needs the dynamics evaluated symbolically at
 every collocation point and midpoint, and differentiated exactly.  The
@@ -81,7 +95,8 @@ class ReducedModel:
     reference_speed: float = 5.2     # m/s, deep water, straight
     drag_coefficient: float = 0.0    # N s2/m2, set by fitting
     #: Yaw moment per unit rudder angle per unit speed squared, N m/rad.
-    yaw_control: float = 900.0
+    #: Fitted from step-rudder responses of the 6-DOF model for an eight.
+    yaw_control: float = 539.0
     #: Yaw damping per unit speed, N m s/rad.
     yaw_damping: float = 32000.0
     #: Extra drag per unit yaw rate squared, N s2/rad2.  Turning costs
@@ -89,6 +104,19 @@ class ReducedModel:
     turn_drag: float = 8000.0
     #: Maximum usable rudder angle, radians.
     rudder_limit: float = np.radians(12.0)
+    #: Yaw moment per unit port/starboard pressure split, N m.  The
+    #: coxswain's second control, and on a river the decisive one.
+    #: Measured against the extracted Charles channel: full rudder alone
+    #: holds a 259 m turn radius while the tightest bends demand 103-146 m.
+    #: Rudder plus a 30% split reaches 130 m.
+    split_control: float = 7455.0
+    #: Largest pressure split worth asking a crew for.  Past about a third
+    #: the light side is barely rowing and the lost thrust costs more than
+    #: the turn gains.
+    split_limit: float = 0.30
+    #: Extra drag per unit split squared, N.  Splitting the crew spends
+    #: work on a couple instead of on thrust.
+    split_drag: float = 250.0
 
     def __post_init__(self) -> None:
         if self.drag_coefficient == 0.0:
@@ -104,6 +132,7 @@ class ReducedModel:
 
 
 def fit_reduced_model(boat=None, reference_speed: float = 5.2,
+                      duration: float = 10.0, dt: float = 0.01,
                       **overrides) -> ReducedModel:
     """Fit the reduced model to the full 6-DOF simulator.
 
@@ -115,6 +144,11 @@ def fit_reduced_model(boat=None, reference_speed: float = 5.2,
 
     Falls back to the documented defaults when no boat is supplied, so the
     module is usable without paying for a 6-DOF run.
+
+    ``duration`` need not be long.  The yaw time constant is
+    ``I_z / (N_r u)``, about 0.06 s for an eight, so the steady turn is
+    reached within a stroke; the default of 10 s is set by wanting whole
+    stroke cycles to average over, not by the settling time.
     """
     if boat is None:
         return ReducedModel(reference_speed=reference_speed, **overrides)
@@ -137,24 +171,35 @@ def fit_reduced_model(boat=None, reference_speed: float = 5.2,
         **overrides,
     )
 
-    steady = {}
-    for deflection in (np.radians(4.0), np.radians(8.0)):
-        simulator = RowingSimulator(
-            boat, rudder=lambda t, state, d=deflection: d)
-        result = simulator.run(duration=24.0, dt=0.006,
-                               surge_speed=reference_speed)
-        window = result.last_cycles(3)
+    from ..sim.control import Coxswain
+
+    def steady_rate(rudder=0.0, split=0.0):
+        cox = Coxswain(rudder_override=lambda t, s: rudder,
+                       pressure_split=split)
+        result = RowingSimulator(boat, coxswain=cox).run(
+            duration=duration, dt=dt, surge_speed=reference_speed)
         # omega is the absolute-frame angular velocity; its vertical
         # component is the yaw rate for the small roll and pitch a shell
         # actually sees
-        steady[deflection] = float(np.mean(result.omega[2][window]))
+        return float(np.mean(result.omega[2][result.last_cycles(3)]))
 
-    # steady turn: N_delta u^2 delta == N_r u r  =>  r = (N_delta/N_r) u delta
-    ratios = [abs(rate) / (reference_speed * deflection)
-              for deflection, rate in steady.items() if deflection > 0]
-    if ratios and np.isfinite(ratios).all() and max(ratios) > 0:
-        gain = float(np.mean(ratios))
-        model.yaw_control = gain * model.yaw_damping
+    # Steady rudder turn: N_delta u^2 delta == N_r u r.
+    ratios = []
+    for deflection in (np.radians(4.0), np.radians(8.0)):
+        rate = steady_rate(rudder=deflection)
+        if np.isfinite(rate) and abs(rate) > 0:
+            ratios.append(abs(rate) / (reference_speed * deflection))
+    if ratios:
+        model.yaw_control = float(np.mean(ratios)) * model.yaw_damping
+
+    # Steady split turn: N_split s == N_r u r.
+    split_ratios = []
+    for split in (0.15, 0.30):
+        rate = steady_rate(split=split)
+        if np.isfinite(rate) and abs(rate) > 0:
+            split_ratios.append(abs(rate) * reference_speed / split)
+    if split_ratios:
+        model.split_control = float(np.mean(split_ratios)) * model.yaw_damping
     return model
 
 
@@ -165,6 +210,7 @@ class TrajectorySolution:
     time: np.ndarray
     state: np.ndarray            # (5, n)
     rudder: np.ndarray           # (n,)
+    split: np.ndarray            # (n,) port/starboard pressure split
     duration: float
     success: bool
     message: str = ""
@@ -193,6 +239,7 @@ class TrajectorySolution:
             "mean_speed": float(self.speed.mean()),
             "max_rudder_deg": float(np.degrees(np.abs(self.rudder).max())),
             "max_yaw_rate_deg": float(np.degrees(np.abs(self.yaw_rate).max())),
+            "max_split": float(np.abs(self.split).max()),
             "success": self.success,
         }
 
@@ -297,9 +344,11 @@ def solve_trajectory(channel, start: np.ndarray, goal: np.ndarray,
     state = opti.variable(5, n_nodes)
     rudder = opti.variable(1, n_nodes)
     rudder_mid = opti.variable(1, n_nodes - 1)
+    split = opti.variable(1, n_nodes)
+    split_mid = opti.variable(1, n_nodes - 1)
     duration = opti.variable()
 
-    def dynamics(s, delta):
+    def dynamics(s, delta, pressure):
         x, y, psi, u, r = s[0], s[1], s[2], s[3], s[4]
         # shallow water raises drag; a smooth, monotone surrogate for the
         # wave-resistance rise, calibrated to the same 3 m / -13% point the
@@ -308,12 +357,14 @@ def solve_trajectory(channel, start: np.ndarray, goal: np.ndarray,
         shallow = 1.0 + 1.6 * ca.exp(-(h - 0.8) / 1.6)
         drag = model.drag_coefficient * shallow * u ** 2
         turn_loss = model.turn_drag * r ** 2
+        split_loss = model.split_drag * pressure ** 2
         return ca.vertcat(
             u * ca.cos(psi),
             u * ca.sin(psi),
             r,
-            (model.thrust - drag - turn_loss) / model.mass,
+            (model.thrust - drag - turn_loss - split_loss) / model.mass,
             (model.yaw_control * u ** 2 * delta
+             + model.split_control * pressure
              - model.yaw_damping * u * r) / model.yaw_inertia,
         )
 
@@ -322,11 +373,11 @@ def solve_trajectory(channel, start: np.ndarray, goal: np.ndarray,
     # Hermite-Simpson defect constraints
     for k in range(n_nodes - 1):
         left, right = state[:, k], state[:, k + 1]
-        f_left = dynamics(left, rudder[0, k])
-        f_right = dynamics(right, rudder[0, k + 1])
+        f_left = dynamics(left, rudder[0, k], split[0, k])
+        f_right = dynamics(right, rudder[0, k + 1], split[0, k + 1])
         # cubic Hermite midpoint
         middle = 0.5 * (left + right) + step / 8.0 * (f_left - f_right)
-        f_middle = dynamics(middle, rudder_mid[0, k])
+        f_middle = dynamics(middle, rudder_mid[0, k], split_mid[0, k])
         # Simpson quadrature defect
         opti.subject_to(
             right - left == step / 6.0 * (f_left + 4.0 * f_middle + f_right))
@@ -341,6 +392,9 @@ def solve_trajectory(channel, start: np.ndarray, goal: np.ndarray,
                                  model.rudder_limit))
     opti.subject_to(opti.bounded(-model.rudder_limit, rudder_mid,
                                  model.rudder_limit))
+    opti.subject_to(opti.bounded(-model.split_limit, split, model.split_limit))
+    opti.subject_to(opti.bounded(-model.split_limit, split_mid,
+                                 model.split_limit))
     opti.subject_to(opti.bounded(0.5, state[3, :], 3.0 * model.reference_speed))
     opti.subject_to(opti.bounded(10.0, duration, max_duration))
 
@@ -361,6 +415,8 @@ def solve_trajectory(channel, start: np.ndarray, goal: np.ndarray,
     opti.set_initial(state, guess)
     opti.set_initial(rudder, np.zeros((1, n_nodes)))
     opti.set_initial(rudder_mid, np.zeros((1, n_nodes - 1)))
+    opti.set_initial(split, np.zeros((1, n_nodes)))
+    opti.set_initial(split_mid, np.zeros((1, n_nodes - 1)))
     span = float(np.hypot(*(np.asarray(goal) - np.asarray(start))))
     opti.set_initial(duration, max(span / model.reference_speed, 20.0))
 
@@ -373,16 +429,19 @@ def solve_trajectory(channel, start: np.ndarray, goal: np.ndarray,
         success, message = True, "optimal"
         state_value = solution.value(state)
         rudder_value = solution.value(rudder)
+        split_value = solution.value(split)
         duration_value = float(solution.value(duration))
     except RuntimeError as error:
         # IPOPT can stop at an acceptable point; keep it and say so
         success, message = False, str(error).splitlines()[0]
         state_value = opti.debug.value(state)
         rudder_value = opti.debug.value(rudder)
+        split_value = opti.debug.value(split)
         duration_value = float(opti.debug.value(duration))
 
     time = np.linspace(0.0, duration_value, n_nodes)
     return TrajectorySolution(time=time, state=np.atleast_2d(state_value),
                               rudder=np.atleast_1d(rudder_value),
+                              split=np.atleast_1d(split_value),
                               duration=duration_value, success=success,
                               message=message)

@@ -143,3 +143,58 @@ def test_summary_reports_the_expected_keys(straight_channel):
     for key in ("duration", "path_length", "mean_speed", "max_rudder_deg",
                 "max_yaw_rate_deg", "success"):
         assert key in summary
+
+
+# --------------------------------------------------------------------------
+# pressure split -- the coxswain's second control
+# --------------------------------------------------------------------------
+def test_split_adds_yaw_authority():
+    """Rudder alone cannot hold the tightest Charles bends; a split helps.
+
+    The full 6-DOF model measures 259 m on rudder alone and 130 m with a
+    30% split.  The reduced model is linear in both controls, so it
+    predicts 164 m for the pair -- the two combine *super-additively* in
+    the full model (2.28 deg/s against the 1.92 a linear sum gives),
+    because the sideslip each induces raises the other's effectiveness.
+
+    The reduced model is therefore conservative about combined steering,
+    which is the right direction for a trajectory it has to be able to
+    fly, but it does mean a solution near the limit should be checked back
+    in the full model.
+    """
+    model = ReducedModel()
+
+    def steady_radius(delta, split):
+        rate = (model.yaw_control * model.reference_speed ** 2 * delta
+                + model.split_control * split) / (
+                    model.yaw_damping * model.reference_speed)
+        return model.reference_speed / abs(rate)
+
+    rudder_only = steady_radius(model.rudder_limit, 0.0)
+    with_split = steady_radius(model.rudder_limit, model.split_limit)
+    assert rudder_only == pytest.approx(283.0, rel=0.05)
+    assert with_split < 0.6 * rudder_only
+    assert with_split < 200.0
+
+
+def test_split_is_bounded_in_the_solution(straight_channel):
+    model = ReducedModel(split_limit=0.2)
+    line = straight_channel.centreline()
+    start, goal = line[len(line) // 6], line[-len(line) // 6]
+    solution = solve_trajectory(straight_channel, start, goal, model=model,
+                                n_nodes=25)
+    assert np.all(np.abs(solution.split) <= 0.2 + 1e-6)
+
+
+def test_split_costs_speed():
+    """Without a penalty the optimiser would split the crew for free."""
+    model = ReducedModel()
+    assert model.split_drag > 0.0
+
+
+def test_summary_reports_the_split(straight_channel):
+    line = straight_channel.centreline()
+    start, goal = line[len(line) // 6], line[-len(line) // 6]
+    summary = solve_trajectory(straight_channel, start, goal,
+                               n_nodes=20).summary()
+    assert "max_split" in summary
