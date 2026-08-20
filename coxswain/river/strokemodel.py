@@ -232,7 +232,7 @@ class StrokePeriodicFit:
 
 
 def _oar_load(boat, t: float, split: float = 0.0):
-    """Total hull-frame oar load at one instant: ``(Fx, Fy, Fz, Mz)``.
+    """Total hull-frame oar load: ``(Fx, Fy, Fz, Mz, Mx)``.
 
     Calls exactly the functions the 6-DOF simulator calls, including the
     coxswain's side gain, so a split moment obtained by differencing this
@@ -243,6 +243,7 @@ def _oar_load(boat, t: float, split: float = 0.0):
 
     force = np.zeros(3)
     yaw = 0.0
+    roll = 0.0
     for seat in boat.rig.seats:
         for lock in seat.oarlocks:
             applied = oar_force(t, boat.timing, lock.side,
@@ -254,7 +255,8 @@ def _oar_load(boat, t: float, split: float = 0.0):
                                      lock.oar.effective_gearing)
             force += load
             yaw += float(torque[2])
-    return float(force[0]), float(force[1]), float(force[2]), yaw
+            roll += float(torque[0])
+    return (float(force[0]), float(force[1]), float(force[2]), yaw, roll)
 
 
 @dataclass
@@ -281,6 +283,15 @@ class StrokeAggregates:
     #: since the weathervane acts on sideslip that cost 93% of the split's
     #: turning authority.
     sway_per_split: StrokePeriodicFit
+    #: Roll moment per unit split, N m.  Exactly zero without a split and
+    #: up to 250 N m with one: the oar's vertical force is mirrored across
+    #: the boat, so scaling port up and starboard down leaves a couple
+    #: about the hull x axis.  This is the first link in the chain that
+    #: makes a split steer -- roll, then asymmetric wetted surface, then
+    #: sideslip, then the weathervane.
+    roll_per_split: StrokePeriodicFit
+    #: Crew contribution to roll inertia, ``sum m (y^2 + z^2)``, kg m2.
+    roll_inertia: StrokePeriodicFit
     period: float
     crew_mass: float
     lateral_moment: float = 0.0           # sum m y, ~0 for a symmetric crew
@@ -301,6 +312,8 @@ class StrokeAggregates:
         surge = np.empty(n_samples)
         yaw_split = np.empty(n_samples)
         sway_split = np.empty(n_samples)
+        roll_split = np.empty(n_samples)
+        roll_inertia = np.empty(n_samples)
 
         for index, t in enumerate(times):
             mass, position, velocity, acceleration = boat.crew_field(t)
@@ -309,6 +322,8 @@ class StrokeAggregates:
             accel[index] = float(np.sum(mass * acceleration[:, 0]))
             inertia[index] = float(np.sum(
                 mass * (position[:, 0] ** 2 + position[:, 1] ** 2)))
+            roll_inertia[index] = float(np.sum(
+                mass * (position[:, 1] ** 2 + position[:, 2] ** 2)))
 
             # Difference the real oar load between split = 1 and split = 0,
             # rather than deriving the couple by hand.  A first attempt
@@ -323,6 +338,7 @@ class StrokeAggregates:
             surge[index] = neutral[0]
             yaw_split[index] = split_one[3] - neutral[3]
             sway_split[index] = split_one[1] - neutral[1]
+            roll_split[index] = split_one[4] - neutral[4]
 
         def fit(samples):
             if n_harmonics is not None:
@@ -334,6 +350,8 @@ class StrokeAggregates:
             first_moment_accel=fit(accel), yaw_inertia=fit(inertia),
             thrust=fit(surge), yaw_per_split=fit(yaw_split),
             sway_per_split=fit(sway_split),
+            roll_per_split=fit(roll_split),
+            roll_inertia=fit(roll_inertia),
             period=period, crew_mass=boat.crew_mass,
         )
 
@@ -368,6 +386,25 @@ class HydroCoefficients:
     yaw_from_sway: float              # N per (u v)      -- weathervane
     yaw_from_yaw: float               # N per (u r)      -- damping
     yaw_from_rudder: float            # N per (u^2 delta)
+    #: Side force per radian of heel, N/rad.  A heeled hull has an
+    #: asymmetric wetted surface and pushes sideways; measured at about
+    #: 2200 N/rad.  This is the coupling a planar model cannot have, and
+    #: its absence is why a planar model gets a split-driven turn wrong in
+    #: sign.
+    sway_from_roll: float = 0.0
+    #: Yaw moment per radian of heel, N m/rad.
+    yaw_from_roll: float = 0.0
+    #: Hydrostatic roll stiffness, N m/rad.  **Positive**, i.e. the bare
+    #: hull is roll-UNSTABLE -- which is correct for a racing shell and is
+    #: why the crew has to balance it actively.  The balance loop supplies
+    #: about -6000 N m/rad against this +1215.
+    roll_from_roll: float = 0.0
+    #: Roll damping, N m s/rad.  Measured at zero: the model has no hull
+    #: roll damping at all, so all of it comes from the crew.  Worth
+    #: knowing rather than assuming.
+    roll_from_roll_rate: float = 0.0
+    #: Roll moment per unit (u v), from sideslip.
+    roll_from_sway: float = 0.0
 
     @classmethod
     def from_boat(cls, boat, speed: float = 5.2, sample_time: float = 0.35):
@@ -378,16 +415,34 @@ class HydroCoefficients:
 
         simulator = RowingSimulator(boat)
 
-        def loads(sway=0.0, yaw_rate=0.0, rudder=0.0):
+        from ..core.frames import attitude_from_components
+        from .. sim.control import BalanceController
+
+        # the crew's balance reflex is a control, not hydrodynamics, so it
+        # must be switched off while measuring the hull's own response
+        simulator.coxswain.balance = BalanceController(enabled=False)
+
+        def full_loads(sway=0.0, yaw_rate=0.0, rudder=0.0, roll=0.0,
+                       roll_rate=0.0):
             simulator.coxswain.rudder_override = lambda _t, _s: rudder
-            state = State.create(velocity=(speed, sway, 0.0),
-                                 omega=(0.0, 0.0, yaw_rate))
+            state = State.create(
+                attitude=attitude_from_components(roll=roll),
+                velocity=(speed, sway, 0.0),
+                omega=(roll_rate, 0.0, yaw_rate))
             breakdown = simulator.breakdown(sample_time, state)
             rotation = abs_to_hull(state.attitude)
             force = rotation @ (breakdown.resistance_force
-                                + breakdown.appendage_force)
+                                + breakdown.appendage_force
+                                + breakdown.buoyancy_force
+                                + breakdown.gravity_force)
             moment = rotation @ (breakdown.resistance_moment
-                                 + breakdown.appendage_moment)
+                                 + breakdown.appendage_moment
+                                 + breakdown.buoyancy_moment
+                                 + breakdown.gravity_moment)
+            return force, moment
+
+        def loads(sway=0.0, yaw_rate=0.0, rudder=0.0):
+            force, moment = full_loads(sway, yaw_rate, rudder)
             return float(force[1]), float(moment[2])
 
         base_y, base_n = loads()
@@ -406,7 +461,19 @@ class HydroCoefficients:
         y_rudder, n_rudder = loads(rudder=np.radians(8.0))
         rudder_scale = speed ** 2 * np.radians(8.0)
 
+        base_force, base_moment = full_loads()
+        roll_angle = np.radians(1.0)
+        roll_force, roll_moment = full_loads(roll=roll_angle)
+        rate_force, rate_moment = full_loads(roll_rate=0.1)
+        sway_force, sway_moment = full_loads(sway=0.30)
+
         return cls(
+            sway_from_roll=float(roll_force[1] - base_force[1]) / roll_angle,
+            yaw_from_roll=float(roll_moment[2] - base_moment[2]) / roll_angle,
+            roll_from_roll=float(roll_moment[0] - base_moment[0]) / roll_angle,
+            roll_from_roll_rate=float(rate_moment[0] - base_moment[0]) / 0.1,
+            roll_from_sway=(float(sway_moment[0] - base_moment[0])
+                            / (speed * 0.30)),
             sway_from_sway_linear=linear,
             sway_from_sway_quadratic=quadratic,
             sway_from_yaw=(y_rate - base_y) / (speed * 0.05),
@@ -451,12 +518,25 @@ def planar_mass_matrix(total_mass, yaw_inertia, moment_x, moment_y,
 class StrokeResolvedModel:
     """CasADi planar dynamics with the stroke resolved in time.
 
-    State ``[x, y, psi, u, v, r, w]``: position and heading in the absolute
-    frame, surge/sway in the hull frame, yaw rate, and remaining anaerobic
-    capacity.  Controls ``[rudder, split, power]``.
+    State ``[x, y, psi, phi, u, v, r, p, w]``: position and heading in the
+    absolute frame, heel angle, surge/sway in the hull frame, yaw and roll
+    rates, and remaining anaerobic capacity.  Controls
+    ``[rudder, split, power]``.
+
+    Roll is carried because it is *inside* the steering loop, not beside
+    it: a pressure split makes a roll moment, the heel makes the wetted
+    surface asymmetric, that pushes the boat sideways, and the sideslip
+    drives the weathervane -- which is the largest term in the yaw
+    balance.  A planar version of this model got a split-driven turn wrong
+    in sign for exactly that reason.
+
+    The crew's balance reflex is modelled as an automatic saturated PD
+    couple rather than a control variable.  Crews balance without being
+    told to, and the bare hull is roll-unstable (+1215 N m/rad), so
+    without it nothing here would stay upright.
     """
 
-    n_states = 7
+    n_states = 9
     n_controls = 3
 
     def __init__(self, boat, aggregates: StrokeAggregates = None,
@@ -490,6 +570,11 @@ class StrokeResolvedModel:
             np.zeros(3), np.zeros(3), rho=boat.water.density,
             gravity=9.80665, water_level=0.0)
         self._wave_area = boat.resistance.wave_area(self._submerged)
+        self.hull_roll_inertia = float(boat.hull_inertia[0, 0])
+        # the crew's balance reflex, matching sim.control.BalanceController
+        self.balance_stiffness = 6000.0
+        self.balance_damping = 2000.0
+        self.balance_limit = 4000.0
         self.turn_drag = 8000.0
         self.critical_power = 3040.0
         self.anaerobic_capacity = 176000.0
@@ -499,7 +584,8 @@ class StrokeResolvedModel:
         """CasADi expression for the state derivative."""
         import casadi as ca
 
-        x, y, psi, u, v, r, _ = (state[i] for i in range(7))
+        x, y, psi, phi = state[0], state[1], state[2], state[3]
+        u, v, r, p = state[4], state[5], state[6], state[7]
         rudder, split, power = control[0], control[1], control[2]
         agg = self.aggregates
 
@@ -512,6 +598,7 @@ class StrokeResolvedModel:
         yaw_from_split = agg.yaw_per_split.casadi(time) * split
         sway_from_split = (0.0 if agg.sway_per_split is None
                            else agg.sway_per_split.casadi(time) * split)
+        roll_from_split = agg.roll_per_split.casadi(time) * split
 
         # first moment in the absolute frame: the crew sits on the hull x
         # axis, so rotating it is a single heading rotation
@@ -556,9 +643,24 @@ class StrokeResolvedModel:
         appendage_force, appendage_moment = hydro_casadi.appendage_loads(
             self.boat.appendages, u, v, r, rudder, water.density)
 
+        hydro = self.hydro
         surge_force = thrust + resistance[0] + appendage_force[0]
-        sway_force = resistance[1] + appendage_force[1] + sway_from_split
-        yaw_moment = appendage_moment[2] + yaw_from_split
+        sway_force = (resistance[1] + appendage_force[1] + sway_from_split
+                      + hydro.sway_from_roll * phi)
+        yaw_moment = (appendage_moment[2] + yaw_from_split
+                      + hydro.yaw_from_roll * phi)
+
+        # Roll.  The bare hull is unstable (roll_from_roll is positive), so
+        # the crew's balance loop is what holds it up; saturating it is
+        # what stops the model pretending a crew can counter any heel.
+        balance = -(self.balance_stiffness * phi + self.balance_damping * p)
+        balance = self.balance_limit * ca.tanh(balance / self.balance_limit)
+        roll_moment = (hydro.roll_from_roll * phi
+                       + hydro.roll_from_roll_rate * p
+                       + hydro.roll_from_sway * u * v
+                       + roll_from_split + balance)
+        roll_inertia = (self.hull_roll_inertia
+                        + agg.roll_inertia.casadi(time))
 
         force_abs = ca.vertcat(
             surge_force * cos_psi - sway_force * sin_psi,
@@ -615,9 +717,11 @@ class StrokeResolvedModel:
             u * cos_psi - v * sin_psi,
             u * sin_psi + v * cos_psi,
             r,
+            p,
             u_dot,
             v_dot,
             yaw_accel,
+            roll_moment / roll_inertia,
             -(drawn - self.critical_power),
         )
 

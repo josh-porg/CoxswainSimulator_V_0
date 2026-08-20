@@ -203,25 +203,25 @@ def test_weathervane_dominates_the_rudder(boat):
 # --------------------------------------------------------------------------
 def test_dynamics_builds_a_callable_function(model):
     function = model.function()
-    state = np.array([0.0, 0.0, 0.0, 5.2, 0.0, 0.0, 176000.0])
+    state = np.array([0.0, 0.0, 0.0, 0.0, 5.2, 0.0, 0.0, 0.0, 176000.0])
     value = np.array(function(state, [0.0, 0.0, 1.0], 0.2)).ravel()
-    assert value.shape == (7,)
+    assert value.shape == (9,)
     assert np.all(np.isfinite(value))
 
 
 def test_straight_and_level_produces_no_turn(model):
     function = model.function()
-    state = np.array([0.0, 0.0, 0.0, 5.2, 0.0, 0.0, 176000.0])
+    state = np.array([0.0, 0.0, 0.0, 0.0, 5.2, 0.0, 0.0, 0.0, 176000.0])
     value = np.array(function(state, [0.0, 0.0, 1.0], 0.2)).ravel()
     assert value[2] == pytest.approx(0.0, abs=1e-12)   # psi_dot
-    assert value[4] == pytest.approx(0.0, abs=1e-9)    # v_dot
-    assert value[5] == pytest.approx(0.0, abs=1e-9)    # r_dot
+    assert value[5] == pytest.approx(0.0, abs=1e-9)    # v_dot
+    assert value[6] == pytest.approx(0.0, abs=1e-9)    # r_dot
 
 
 def test_position_derivative_is_the_rotated_velocity(model):
     function = model.function()
     psi = 0.6
-    state = np.array([0.0, 0.0, psi, 5.0, 0.3, 0.0, 176000.0])
+    state = np.array([0.0, 0.0, psi, 0.0, 5.0, 0.3, 0.0, 0.0, 176000.0])
     value = np.array(function(state, [0.0, 0.0, 1.0], 0.2)).ravel()
     assert value[0] == pytest.approx(5.0 * np.cos(psi) - 0.3 * np.sin(psi))
     assert value[1] == pytest.approx(5.0 * np.sin(psi) + 0.3 * np.cos(psi))
@@ -229,11 +229,11 @@ def test_position_derivative_is_the_rotated_velocity(model):
 
 def test_rudder_turns_the_boat(model):
     function = model.function()
-    state = np.array([0.0, 0.0, 0.0, 5.2, 0.0, 0.0, 176000.0])
+    state = np.array([0.0, 0.0, 0.0, 0.0, 5.2, 0.0, 0.0, 0.0, 176000.0])
     straight = np.array(function(state, [0.0, 0.0, 1.0], 0.2)).ravel()
     turning = np.array(
         function(state, [np.radians(12.0), 0.0, 1.0], 0.2)).ravel()
-    assert abs(turning[5]) > abs(straight[5])
+    assert abs(turning[6]) > abs(straight[6])
 
 
 def test_split_turns_the_boat_only_on_the_drive(model, boat):
@@ -243,13 +243,13 @@ def test_split_turns_the_boat_only_on_the_drive(model, boat):
     recovery, because the blades are out of the water.
     """
     function = model.function()
-    state = np.array([0.0, 0.0, 0.0, 5.2, 0.0, 0.0, 176000.0])
+    state = np.array([0.0, 0.0, 0.0, 0.0, 5.2, 0.0, 0.0, 0.0, 176000.0])
     drive = boat.timing.period * boat.timing.drive_fraction * 0.5
     recovery = boat.timing.period * (boat.timing.drive_fraction + 1.0) / 2.0
 
     on_drive = np.array(function(state, [0.0, 0.30, 1.0], drive)).ravel()
     on_recovery = np.array(function(state, [0.0, 0.30, 1.0], recovery)).ravel()
-    assert abs(on_drive[5]) > 3.0 * abs(on_recovery[5])
+    assert abs(on_drive[6]) > 3.0 * abs(on_recovery[6])
 
 
 def test_surge_oscillation_matches_the_full_model(model, boat):
@@ -261,12 +261,12 @@ def test_surge_oscillation_matches_the_full_model(model, boat):
     from coxswain.sim.simulator import RowingSimulator
 
     function = model.function()
-    state = np.array([0.0, 0.0, 0.0, 5.2, 0.0, 0.0, 176000.0])
+    state = np.array([0.0, 0.0, 0.0, 0.0, 5.2, 0.0, 0.0, 0.0, 176000.0])
     dt, steps = 0.004, 2000
     surge = np.empty(steps)
     t = 0.0
     for i in range(steps):
-        surge[i] = state[3]
+        surge[i] = state[4]
         step = np.array(function(state, [0.0, 0.0, 1.0], t)).ravel()
         state = state + dt * step
         t += dt
@@ -358,3 +358,83 @@ def test_a_split_produces_a_side_force(boat, model):
 def test_sway_per_split_is_carried(model):
     assert model.aggregates.sway_per_split is not None
     assert abs(model.aggregates.sway_per_split.mean) > 1.0
+
+
+# --------------------------------------------------------------------------
+# roll -- inside the steering loop, not beside it
+# --------------------------------------------------------------------------
+def test_a_split_makes_a_roll_moment(boat, model):
+    """The first link in the chain that makes a split steer.
+
+    The oar's vertical force is mirrored across the boat, so scaling port
+    up and starboard down leaves a couple about the hull x axis: exactly
+    zero unsplit, up to 250 N m with a split.
+    """
+    from coxswain.river.strokemodel import _oar_load
+
+    peak = boat.timing.period * 0.15
+    assert _oar_load(boat, peak, 0.0)[4] == pytest.approx(0.0, abs=1e-9)
+    assert abs(_oar_load(boat, peak, 1.0)[4]) > 100.0
+    assert abs(model.aggregates.roll_per_split.mean) > 10.0
+
+
+def test_bare_hull_is_roll_unstable(boat):
+    """Correct for a racing shell, and why the crew must balance actively.
+
+    Positive stiffness means a heel produces a moment that increases it.
+    The crew's balance loop supplies about -6000 N m/rad against this.
+    """
+    hydro = HydroCoefficients.from_boat(boat)
+    assert hydro.roll_from_roll > 0.0
+
+
+def test_heel_pushes_the_boat_sideways(boat):
+    """The coupling a planar model cannot have.
+
+    A heeled hull has an asymmetric wetted surface and generates side
+    force; measured at about 2200 N/rad.
+    """
+    hydro = HydroCoefficients.from_boat(boat)
+    assert abs(hydro.sway_from_roll) > 500.0
+
+
+def test_hull_roll_damping_is_absent(boat):
+    """Recorded because it is a gap, not because it is right.
+
+    The 6-DOF model has no hull roll damping at all, so every bit of it
+    comes from the crew.  A real hull damps roll through the wetted
+    surface and the blades.
+    """
+    hydro = HydroCoefficients.from_boat(boat)
+    assert hydro.roll_from_roll_rate == pytest.approx(0.0, abs=1e-9)
+
+
+def test_roll_state_responds_to_a_split(model, boat):
+    """End to end: a split must heel the boat in the model, not just in
+    the 6-DOF it was fitted from."""
+    function = model.function()
+    state = np.array([0.0, 0.0, 0.0, 0.0, 5.2, 0.0, 0.0, 0.0, 176000.0])
+    drive = boat.timing.period * 0.15
+
+    level = np.array(function(state, [0.0, 0.0, 1.0], drive)).ravel()
+    split = np.array(function(state, [0.0, 0.30, 1.0], drive)).ravel()
+    assert abs(split[7]) > abs(level[7]), "roll acceleration must respond"
+
+
+def test_crew_balance_saturates(model):
+    """A crew cannot counter arbitrary heel.
+
+    Without saturation the model would hold any angle, which is not what
+    happens when a boat goes over.
+    """
+    function = model.function()
+    small = np.array([0.0, 0.0, 0.0, np.radians(1.0), 5.2, 0.0, 0.0, 0.0,
+                      176000.0])
+    large = np.array([0.0, 0.0, 0.0, np.radians(25.0), 5.2, 0.0, 0.0, 0.0,
+                      176000.0])
+    small_accel = abs(float(np.array(
+        function(small, [0.0, 0.0, 1.0], 0.2)).ravel()[7]))
+    large_accel = abs(float(np.array(
+        function(large, [0.0, 0.0, 1.0], 0.2)).ravel()[7]))
+    # 25x the heel must not give 25x the restoring acceleration
+    assert large_accel < 25.0 * small_accel
