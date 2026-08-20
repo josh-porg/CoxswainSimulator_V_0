@@ -45,7 +45,7 @@ import numpy as np
 
 from ..boats.boat import Boat
 from ..core import integrators
-from ..core.frames import (cross3, euler_rates, hull_to_abs,
+from ..core.frames import (abs_to_hull, cross3, euler_rates, hull_to_abs,
                            rotate_inertia_to_abs)
 from ..core.rigid_body import (
     MovingMassField,
@@ -117,15 +117,49 @@ class RowingSimulator:
 
     def __init__(self, boat: Boat, coxswain: Optional[Coxswain] = None,
                  rudder: Optional[Callable[[float, State], float]] = None,
-                 water_level: float = 0.0, gravity: float = GRAVITY):
+                 water_level: float = 0.0, gravity: float = GRAVITY,
+                 course=None):
         self.boat = boat
         self.coxswain = Coxswain() if coxswain is None else coxswain
         if rudder is not None:
             self.coxswain.rudder_override = rudder
         self.water_level = float(water_level)
         self.gravity = float(gravity)
+        #: Optional :class:`~coxswain.river.course.Course`.  When set, the
+        #: water depth and current are looked up at the boat's position
+        #: every step instead of being uniform, which is what makes a river
+        #: different from a buoyed course.
+        self.course = course
+        self._shallow_cache = (None, None)
         self._crew_cache = (None, None)
         self._hand_cache = (None, None)
+
+    def _shallow_at(self, position: np.ndarray):
+        """Shallow-water model for the depth under the boat right now.
+
+        Cached on depth quantised to 1 cm: the correction varies smoothly
+        with depth, a shell moves a few metres per step, and rebuilding the
+        model every evaluation would dominate the derivative cost for no
+        change in the answer.
+        """
+        from ..hydro.shallow import ShallowWaterModel
+
+        depth = float(self.course.depth_at(position[0], position[1]))
+        key = round(depth, 2)
+        cached_key, cached_model = self._shallow_cache
+        if cached_key == key:
+            return cached_model
+
+        template = self.boat.shallow
+        model = ShallowWaterModel(
+            depth=key,
+            max_amplification=template.max_amplification,
+            subcritical_limit=template.subcritical_limit,
+            supercritical_relax=template.supercritical_relax,
+            gravity=template.gravity,
+        )
+        self._shallow_cache = (key, model)
+        return model
 
     def crew_field(self, t: float):
         """Cached crew evaluation.
@@ -193,10 +227,26 @@ class RowingSimulator:
             gravity=self.gravity, water_level=self.water_level,
         )
 
+        # -- water-relative motion ----------------------------------------
+        # Hydrodynamic forces depend on motion through the *water*; the
+        # crew's inertial reactions and the trajectory are in the ground
+        # frame.  With a current those are different vectors, and mixing
+        # them is the same class of error as mixing hull and absolute
+        # frames.
+        shallow = boat.shallow
+        velocity_hull = state.velocity_hull
+        if self.course is not None:
+            current_abs = self.course.current_at(state.position[0],
+                                                 state.position[1])
+            if np.any(current_abs):
+                velocity_hull = abs_to_hull(state.attitude) @ (
+                    state.velocity - current_abs)
+            shallow = self._shallow_at(state.position)
+
         # -- resistance and appendages (hull frame) -----------------------
         resistance_hull, detail = hull_resistance(
-            state.velocity_hull, submerged, boat.length, boat.water,
-            boat.resistance, boat.shallow,
+            velocity_hull, submerged, boat.length, boat.water,
+            boat.resistance, shallow,
         )
         # resistance acts at the centre of the wetted volume; the offset
         # from G_h is small and its moment is dominated by the appendages
@@ -208,7 +258,7 @@ class RowingSimulator:
         yaw_rate_hull = float(state.omega_hull[2])
         for surface in boat.appendages:
             force, moment = surface_load(
-                surface, state.velocity_hull, yaw_rate_hull, deflection,
+                surface, velocity_hull, yaw_rate_hull, deflection,
                 boat.water,
             )
             appendage_force_hull += force

@@ -80,6 +80,31 @@ class SceneStyle:
     water_extent: float = 14.0
 
 
+#: Bones of the seated coxswain figure, as index pairs into
+#: :func:`_coxswain_figure`.
+_COXSWAIN_BONES = ((0, 1), (1, 2), (2, 3), (1, 4), (1, 5))
+
+
+def _coxswain_figure(seat: np.ndarray):
+    """A minimal seated figure at the coxswain's seat, in hull coordinates.
+
+    The coxswain is a real 55 kg of a ~855 kg eight sitting 6 m off the
+    centre of mass, and the dynamics has always carried that mass.  Drawing
+    them keeps the picture honest about where it sits -- and makes it
+    obvious at a glance whether a stern-loaded boat is trimmed down by the
+    bow or the stern.
+    """
+    x, y, z = seat
+    return [
+        np.array([x, y, z - 0.15]),          # 0 seat
+        np.array([x - 0.05, y, z + 0.30]),   # 1 shoulders
+        np.array([x - 0.07, y, z + 0.45]),   # 2 neck
+        np.array([x - 0.08, y, z + 0.58]),   # 3 head
+        np.array([x + 0.45, y + 0.12, z]),   # 4 legs, port
+        np.array([x + 0.45, y - 0.12, z]),   # 5 legs, starboard
+    ]
+
+
 class BoatScene:
     """A 3-D scene of one boat over one simulation run.
 
@@ -174,16 +199,28 @@ class BoatScene:
         rot = hull_to_abs(state.attitude)
         shift = state.position - self._origin(state)
 
-        chain_order = ("ankle", "knee", "hip", "shoulder", "elbow", "hand")
         lines, points = [], []
 
         for member in self.boat.crew:
-            joints = member.rower.joint_positions(t)
+            rower = member.rower
+            joints = rower.skeleton(t)
+            index = {}
+            for name, local in joints.items():
+                index[name] = len(points)
+                points.append(local @ rot.T + shift)
+            # Two legs, two arms, and a shoulder line: a sweep rower has
+            # both hands on one handle, so the arms are neither symmetric
+            # nor on the centreline and cannot be drawn as one chain.
+            for start, end in rower.BONES:
+                lines.append([2, index[start], index[end]])
+
+        if self.boat.rig.has_coxswain:
+            seat = np.asarray(self.boat.rig.coxswain_position, dtype=float)
             base = len(points)
-            for name in chain_order:
-                points.append(joints[name] @ rot.T + shift)
-            lines.append([len(chain_order)]
-                         + list(range(base, base + len(chain_order))))
+            for local in _coxswain_figure(seat):
+                points.append(local @ rot.T + shift)
+            for start, end in _COXSWAIN_BONES:
+                lines.append([2, base + start, base + end])
 
         skeleton = pv.PolyData()
         if points:

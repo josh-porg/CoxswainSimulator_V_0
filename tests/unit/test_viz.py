@@ -212,10 +212,58 @@ def test_more_submerged_when_the_boat_sits_lower(eight):
     assert wet_count(-0.05) > wet_count(0.05)
 
 
-def test_crew_polydata_has_one_polyline_per_seat(eight, scene):
-    skeleton, centres, masses = scene.crew_polydata(0.4)
-    assert skeleton.n_lines == eight.n_seats
-    assert skeleton.n_points == eight.n_seats * 6
+def test_crew_skeleton_draws_every_bone_of_every_seat(eight, scene):
+    """One line per bone, not one chain per rower.
+
+    A sweep rower has both hands on a single handle off to one side, so
+    the two arms are neither symmetric nor on the centreline and cannot be
+    drawn as a single chain through the body.  The coxswain adds a further
+    five bones.
+    """
+    from coxswain.crew.kinematics import JointDrivenRower
+    from coxswain.viz.scene3d import _COXSWAIN_BONES
+
+    skeleton, _, _ = scene.crew_polydata(0.4)
+    per_rower = len(JointDrivenRower.BONES)
+    expected = eight.n_seats * per_rower + len(_COXSWAIN_BONES)
+    assert skeleton.n_lines == expected
+
+
+def test_crew_skeleton_gives_each_rower_two_distinct_hands(eight):
+    """Regression: the planar chain collapsed both arms onto the centreline."""
+    rower = eight.crew[0].rower
+    joints = rower.skeleton(0.4)
+    for name in ("hand_port", "hand_starboard", "elbow_port",
+                 "elbow_starboard", "shoulder_port", "shoulder_starboard"):
+        assert name in joints
+    assert not np.allclose(joints["hand_port"], joints["hand_starboard"])
+    assert not np.allclose(joints["elbow_port"], joints["elbow_starboard"])
+
+
+def test_crew_skeleton_bones_reference_real_joints(eight):
+    """Every bone endpoint must exist, or the renderer would KeyError."""
+    from coxswain.crew.kinematics import JointDrivenRower
+
+    joints = eight.crew[0].rower.skeleton(0.4)
+    for start, end in JointDrivenRower.BONES:
+        assert start in joints, start
+        assert end in joints, end
+
+
+def test_coxswain_figure_is_drawn_when_the_rig_has_one(eight, scene):
+    """The cox is 55 kg six metres off the CoM; drawing them keeps the
+    picture honest about what the dynamics is already carrying."""
+    from coxswain.viz.scene3d import _COXSWAIN_BONES, _coxswain_figure
+
+    assert eight.rig.has_coxswain
+    figure = _coxswain_figure(np.asarray(eight.rig.coxswain_position))
+    assert len(figure) == 6
+    for start, end in _COXSWAIN_BONES:
+        assert 0 <= start < len(figure) and 0 <= end < len(figure)
+
+    with_cox = scene.crew_polydata(0.4)[0].n_lines
+    per_rower = len(eight.crew[0].rower.BONES)
+    assert with_cox - eight.n_seats * per_rower == len(_COXSWAIN_BONES)
 
 
 def test_crew_segment_blobs_cover_every_segment(eight, scene):
