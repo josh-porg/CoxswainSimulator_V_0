@@ -90,6 +90,15 @@ class CrewTensorFit:
     inertia_xy: StrokePeriodicFit
     inertia_xz: StrokePeriodicFit
     inertia_yz: StrokePeriodicFit
+    #: ``sum_k m_k (r_k x a_rel_k)`` in the hull frame, N m.  This does NOT
+    #: vanish and is not ``(sum m r) x (sum m a)``.  For yaw it cancels for
+    #: a symmetric crew, which is what made it easy to miss -- but the crew
+    #: sits *above* the centre of mass, so a fore-and-aft acceleration at
+    #: height z makes a real PITCH moment.  Leaving it out overstated the
+    #: pitch swing by 54%.
+    cross_accel_x: StrokePeriodicFit
+    cross_accel_y: StrokePeriodicFit
+    cross_accel_z: StrokePeriodicFit
     period: float
     total_mass: float
 
@@ -103,6 +112,7 @@ class CrewTensorFit:
         rate = np.zeros((3, n_samples))
         accel = np.zeros((3, n_samples))
         inertia = np.zeros((6, n_samples))   # xx yy zz xy xz yz
+        cross_accel = np.zeros((3, n_samples))
 
         for index, t in enumerate(times):
             mass, position, velocity, acceleration = boat.crew_field(t)
@@ -115,6 +125,8 @@ class CrewTensorFit:
             tensor = squared * np.eye(3) - outer
             inertia[:, index] = (tensor[0, 0], tensor[1, 1], tensor[2, 2],
                                  tensor[0, 1], tensor[0, 2], tensor[1, 2])
+            cross_accel[:, index] = (
+                mass[:, None] * np.cross(position, acceleration)).sum(axis=0)
 
         def fit(samples):
             spread = float(np.ptp(samples))
@@ -132,6 +144,9 @@ class CrewTensorFit:
             inertia_xx=fit(inertia[0]), inertia_yy=fit(inertia[1]),
             inertia_zz=fit(inertia[2]), inertia_xy=fit(inertia[3]),
             inertia_xz=fit(inertia[4]), inertia_yz=fit(inertia[5]),
+            cross_accel_x=fit(cross_accel[0]),
+            cross_accel_y=fit(cross_accel[1]),
+            cross_accel_z=fit(cross_accel[2]),
             period=period, total_mass=float(boat.crew_mass),
         )
 
@@ -149,6 +164,12 @@ class CrewTensorFit:
         ca = symbolic
         return ca.vertcat(self.accel_x.casadi(t), self.accel_y.casadi(t),
                           self.accel_z.casadi(t))
+
+    def cross_accel_hull(self, t, symbolic):
+        ca = symbolic
+        return ca.vertcat(self.cross_accel_x.casadi(t),
+                          self.cross_accel_y.casadi(t),
+                          self.cross_accel_z.casadi(t))
 
     def inertia_hull(self, t, symbolic):
         ca = symbolic
@@ -434,11 +455,18 @@ def _euler_rates(roll, pitch, yaw, omega_body, ca):
 def _crew_reaction_moment(crew, rotation, omega, time, ca):
     """``sum_k m_k r_k x transport_k`` for the crew, absolute frame.
 
-    Not expressible as ``(sum m r) x (sum m a)`` -- that multiplies by mass
-    twice and is dimensionally wrong.  The terms that survive for a crew
-    whose segments share a common motion are the Coriolis one, which is the
-    rate of change of the inertia tensor acting on the angular velocity,
-    and the relative-acceleration one against the off-axis mass.
+    Two pieces, and the second is easy to lose:
+
+    * the Coriolis part, which is the rate of change of the crew's inertia
+      tensor acting on the angular velocity; and
+    * ``sum m (r x a_rel)``, tabulated directly because it is *not*
+      ``(sum m r) x (sum m a)`` -- that multiplies by mass twice.
+
+    The second vanishes for **yaw** with a port-starboard symmetric crew,
+    which is what made it easy to drop.  It does not vanish for **pitch**:
+    the crew sits above the centre of mass, so their fore-and-aft
+    acceleration at height ``z`` makes a real pitching moment.  Omitting it
+    overstated the pitch swing by 54%.
     """
     inertia_rate = ca.blockcat([
         [crew.inertia_xx.derivative().casadi(time),
@@ -452,4 +480,5 @@ def _crew_reaction_moment(crew, rotation, omega, time, ca):
          crew.inertia_zz.derivative().casadi(time)],
     ])
     inertia_rate_abs = rotation @ inertia_rate @ rotation.T
-    return inertia_rate_abs @ omega
+    cross_abs = rotation @ crew.cross_accel_hull(time, ca)
+    return inertia_rate_abs @ omega + cross_abs
