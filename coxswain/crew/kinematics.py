@@ -765,6 +765,89 @@ class JointDrivenRower:
         return {name: np.array([x.value, 0.0, z.value])
                 for name, (x, z) in chain.items()}
 
+    def skeleton(self, t) -> Dict[str, np.ndarray]:
+        """Full three-dimensional joint positions, both sides resolved.
+
+        :meth:`joint_positions` returns the *planar* chain, which collapses
+        both arms onto the centreline -- fine for the fore-aft dynamics,
+        wrong for anything that looks at the rower.  This returns every
+        joint with its true lateral position, including the trunk rotation
+        and the two separately-solved arms, which is what a sweep rower
+        actually looks like: two hands on one handle, off to one side.
+        """
+        t_array = np.asarray(t, dtype=float)
+        chain = self._chain(t_array)
+        axis_x, axis_z = chain["shoulder"]
+        rotation = self._rotation_at(t_array)
+
+        joints: Dict[str, np.ndarray] = {}
+        hip_x, hip_z = chain["hip"]
+        joints["hip"] = np.array([hip_x.value, 0.0, hip_z.value])
+
+        for side, suffix in ((PORT, "port"), (STARBOARD, "starboard")):
+            joints[f"ankle_{suffix}"] = np.array([
+                self.station.x_ankle, side * self.station.foot_half_span,
+                self.station.z_ankle])
+            knee_x, knee_z = chain["knee"]
+            joints[f"knee_{suffix}"] = np.array([
+                knee_x.value,
+                side * 0.5 * (self.station.foot_half_span
+                              + self.station.hip_half_span),
+                knee_z.value])
+
+            shoulder = self._shoulder_from_axis(axis_x.value, axis_z.value,
+                                                side, rotation)
+            joints[f"shoulder_{suffix}"] = np.asarray(shoulder)
+
+            if self.hand_targets is None:
+                # unconstrained arms are planar; mirror them for drawing
+                elbow_x, elbow_z = chain["elbow"]
+                hand_x, hand_z = chain["hand"]
+                lateral = side * self.station.shoulder_half_span
+                joints[f"elbow_{suffix}"] = np.array(
+                    [elbow_x.value, lateral, elbow_z.value])
+                joints[f"hand_{suffix}"] = np.array(
+                    [hand_x.value, lateral, hand_z.value])
+            else:
+                track_side = (side if side in self._hand_tracks
+                              else self._reference_side)
+                joints[f"elbow_{suffix}"] = np.asarray(
+                    self._elbow_tracks[track_side].position(t_array))
+                joints[f"hand_{suffix}"] = np.asarray(
+                    self._hand_tracks[track_side].position(t_array))
+
+        centre = 0.5 * (joints["shoulder_port"] + joints["shoulder_starboard"])
+        joints["neck"] = centre
+        head_rise = (self.trunk_stack_length - self.trunk_length
+                     + self._segments["head"].length
+                     * self._segments["head"].com_fraction)
+        direction = centre - joints["hip"]
+        norm = np.linalg.norm(direction)
+        joints["head"] = centre + head_rise * direction / max(norm, 1e-9)
+        return joints
+
+    def _rotation_at(self, t):
+        """Trunk rotation at time ``t``, interpolated from the solve grid."""
+        rotation = getattr(self, "trunk_rotation", None)
+        if rotation is None:
+            return np.zeros_like(np.asarray(t, dtype=float))
+        period = self.timing.period
+        grid = np.arange(len(rotation)) / len(rotation) * period
+        phase = np.mod(np.asarray(t, dtype=float), period)
+        return np.interp(phase, grid, rotation, period=period)
+
+    #: Bones to draw, as pairs of :meth:`skeleton` keys.
+    BONES = (
+        ("ankle_port", "knee_port"), ("knee_port", "hip"),
+        ("ankle_starboard", "knee_starboard"), ("knee_starboard", "hip"),
+        ("hip", "shoulder_port"), ("hip", "shoulder_starboard"),
+        ("shoulder_port", "shoulder_starboard"),
+        ("neck", "head"),
+        ("shoulder_port", "elbow_port"), ("elbow_port", "hand_port"),
+        ("shoulder_starboard", "elbow_starboard"),
+        ("elbow_starboard", "hand_starboard"),
+    )
+
     def hand_path(self, n_samples: int = 200) -> np.ndarray:
         """Handle path over one stroke, shape ``(n, 2)`` as ``(x, z)``."""
         times = np.linspace(0.0, self.timing.period, n_samples, endpoint=False)
