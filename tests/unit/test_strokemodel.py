@@ -209,13 +209,32 @@ def test_dynamics_builds_a_callable_function(model):
     assert np.all(np.isfinite(value))
 
 
-def test_straight_and_level_produces_no_turn(model):
+def test_a_sweep_eight_does_not_go_straight(model, boat):
+    """A sweep rig is asymmetric, so it yaws with no rudder and no split.
+
+    This test previously asserted the opposite, which was wrong.  Port and
+    starboard oarlocks sit at different stations along the hull, so their
+    moments do not cancel: -467 N m mid-drive for an eight.  That is why a
+    sweep boat wanders and needs continuous correction, and a model that
+    tracks perfectly straight has left the rig geometry out.
+    """
     function = model.function()
     state = np.array([0.0, 0.0, 0.0, 0.0, 5.2, 0.0, 0.0, 0.0, 176000.0])
-    value = np.array(function(state, [0.0, 0.0, 1.0], 0.2)).ravel()
-    assert value[2] == pytest.approx(0.0, abs=1e-12)   # psi_dot
-    assert value[5] == pytest.approx(0.0, abs=1e-9)    # v_dot
-    assert value[6] == pytest.approx(0.0, abs=1e-9)    # r_dot
+    mid_drive = boat.timing.period * 0.15
+    value = np.array(function(state, [0.0, 0.0, 1.0], mid_drive)).ravel()
+
+    assert value[2] == pytest.approx(0.0, abs=1e-12), "psi_dot is r, still 0"
+    assert abs(value[6]) > 1e-3, "a sweep rig must yaw"
+    assert abs(float(model.aggregates.yaw_neutral(mid_drive))) > 100.0
+
+
+def test_a_sculling_boat_tracks_straight(model):
+    """The control: with a symmetric rig the moments do cancel."""
+    single = catalog.single_scull(rate=32.0)
+    sculling = StrokeResolvedModel(single)
+    mid_drive = single.timing.period * 0.15
+    assert float(sculling.aggregates.yaw_neutral(mid_drive)) == pytest.approx(
+        0.0, abs=1.0)
 
 
 def test_position_derivative_is_the_rotated_velocity(model):
