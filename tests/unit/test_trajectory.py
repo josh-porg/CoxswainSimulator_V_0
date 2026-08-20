@@ -198,3 +198,87 @@ def test_summary_reports_the_split(straight_channel):
     summary = solve_trajectory(straight_channel, start, goal,
                                n_nodes=20).summary()
     assert "max_split" in summary
+
+
+# --------------------------------------------------------------------------
+# pacing -- power as the third control, bounded by a W' budget
+# --------------------------------------------------------------------------
+def test_power_fraction_maps_to_power_superlinearly():
+    """Speed goes as the cube root of power, so thrust fraction pi draws
+    pi**1.5 of critical power."""
+    model = ReducedModel()
+    assert model.power_at(1.0) == pytest.approx(model.critical_power)
+    assert model.power_at(1.2) > 1.2 * model.critical_power
+
+
+def test_more_power_gives_more_speed():
+    model = ReducedModel()
+    assert (model.straight_line_speed(power_fraction=1.2)
+            > model.straight_line_speed(power_fraction=1.0))
+
+
+def test_pacing_pushes_until_something_binds(straight_channel):
+    """At the optimum either the energy budget or the power cap binds.
+
+    Over a long course the crew should finish with nothing left -- energy
+    carried over the line could have been spent going faster.  Over a
+    *short* leg there is not time to burn the budget at the power cap, so
+    the cap binds instead and W' is left over.  Measured: 176 kJ fully
+    spent on a 2.6 km Charles leg, 140 of 176 on a 330 m one.
+
+    Either way the crew must be pushing as hard as something allows.
+    """
+    model = ReducedModel()
+    line = straight_channel.centreline()
+    start, goal = line[len(line) // 6], line[-len(line) // 6]
+    solution = solve_trajectory(straight_channel, start, goal, n_nodes=30)
+    assert solution.success
+    assert solution.anaerobic_remaining[0] == pytest.approx(
+        model.anaerobic_capacity)
+
+    exhausted = (solution.anaerobic_remaining[-1]
+                 < 0.05 * model.anaerobic_capacity)
+    at_the_cap = solution.power.max() > model.power_max - 1e-3
+    assert exhausted or at_the_cap
+
+
+def test_anaerobic_capacity_is_never_negative(straight_channel):
+    """The crew cannot spend energy it does not have."""
+    line = straight_channel.centreline()
+    start, goal = line[len(line) // 6], line[-len(line) // 6]
+    solution = solve_trajectory(straight_channel, start, goal, n_nodes=30)
+    assert np.all(solution.anaerobic_remaining >= -1e-6)
+
+
+def test_power_respects_its_bounds(straight_channel):
+    model = ReducedModel(power_min=0.8, power_max=1.2)
+    line = straight_channel.centreline()
+    start, goal = line[len(line) // 6], line[-len(line) // 6]
+    solution = solve_trajectory(straight_channel, start, goal, model=model,
+                                n_nodes=30)
+    assert np.all(solution.power >= 0.8 - 1e-6)
+    assert np.all(solution.power <= 1.2 + 1e-6)
+
+
+def test_free_pacing_beats_constant_power(straight_channel):
+    """The point of making power a control.
+
+    Measured on a 2.6 km Charles leg: 18.8 s quicker than holding critical
+    power throughout, about 3%.
+    """
+    line = straight_channel.centreline()
+    start, goal = line[len(line) // 6], line[-len(line) // 6]
+    free = solve_trajectory(straight_channel, start, goal, n_nodes=30)
+    fixed = solve_trajectory(straight_channel, start, goal, n_nodes=30,
+                             model=ReducedModel(power_min=1.0, power_max=1.0))
+    assert free.success and fixed.success
+    assert free.duration < fixed.duration
+
+
+def test_summary_reports_power_and_energy(straight_channel):
+    line = straight_channel.centreline()
+    start, goal = line[len(line) // 6], line[-len(line) // 6]
+    summary = solve_trajectory(straight_channel, start, goal,
+                               n_nodes=25).summary()
+    assert "power_range" in summary
+    assert "anaerobic_spent" in summary

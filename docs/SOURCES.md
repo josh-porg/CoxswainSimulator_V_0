@@ -306,6 +306,20 @@ anatomical heights regardless of where the link ends.
 
 ## 5. Hull hydrodynamics
 
+### A better hull source, not yet obtained
+
+**L. Lazauskas**, *Rowing shell drag comparisons* (Dept. Applied
+Mathematics, University of Adelaide) compares the calm-water resistance of
+real racing shells using Michell's integral for wave resistance, the ITTC
+1957 line for skin friction and an empirical form-drag term — the same
+decomposition [F09] uses, applied to actual hull forms rather than a
+parametric approximation. Indexed at
+[IAT Leipzig](https://iat.uni-leipzig.de/datenbanken/iks/sponet/Record/4000726).
+
+The hull offsets behind it would replace this model's parametric hull with
+measured geometry. `cyberiad.net`, which hosted the data, currently returns
+403 to automated requests, so it has **not** been obtained.
+
 ### [F09] §6.1 — the resistance decomposition in use
 
 ```
@@ -814,6 +828,68 @@ check it against; the qualitative descriptions that do exist ("it takes a
 stroke or two before it starts to turn") are consistent with a slow-turning
 boat but do not pin a number. The split coefficient is on firmer ground,
 being derived from oarlock forces the model already reproduces.
+
+---
+
+## 10b. Pacing and power
+
+Holding the crew at constant power removes the decision a crew actually
+makes: how hard to push, and where. On a head course that is not separable
+from steering, because a pressure split spends thrust on a couple — so the
+optimiser must be able to answer *"push through the bend, or ease and
+steer"* rather than having the first half of it fixed.
+
+### The model
+
+The **critical-power model**, the standard two-parameter description of
+endurance performance:
+
+- **Monod, J. & Scherrer, J. (1965)**, *The work capacity of a synergic
+  muscular group.* Ergonomics 8, 329–338.
+- **Morton, R. H. (2006)**, *The critical power and related whole-body
+  bioenergetic models.* Eur. J. Appl. Physiol. 96, 339–354.
+
+Power `CP` is sustainable indefinitely; anything above it draws on a finite
+anaerobic capacity `W'` which depletes at `P − CP`. `W'` is carried as a
+sixth state, constrained non-negative, so the optimiser cannot spend energy
+the crew does not have. Without that budget minimum time is trivially "row
+flat out everywhere".
+
+Values used: `CP = 3040 W` for the crew (≈380 W per rower, a club eight;
+world level is nearer 450) and `W' = 176 kJ` (≈22 kJ per rower). Both are
+order-of-magnitude right from the literature but **not fitted to a specific
+crew** — they set the shape of the pacing answer and should be measured
+before any number is quoted to athletes.
+
+### What it changes
+
+On a 2.6 km Charles leg:
+
+| | |
+|---|---|
+| free pacing | 618.5 s |
+| constant power at CP | 637.3 s (**+18.8 s**) |
+| constant power at 1.1 CP | infeasible — exhausts `W'` before the finish |
+
+Nearly 3%, and previously unmodellable.
+
+`W'` drawdown is front-loaded: 176 kJ → 162 at a quarter distance → 98 at
+half → 5.6 at three-quarters → 0 at the line. The last quarter is rowed at
+CP.
+
+### The counterintuitive bit
+
+The crew pushes **harder** in the bends, not easier:
+
+| | power | rudder | split | yaw rate |
+|---|---|---|---|---|
+| in the bends | 1.057 | 1.00 | 0.20 | 1.07 °/s |
+| on the straights | 1.023 | 0.23 | 0.00 | 0.21 °/s |
+
+Because the split spends thrust on a couple, holding speed through a turn
+costs extra power. The effect is weak — 3%, correlation +0.12 — so it is
+worth stating as a tendency rather than a rule, but it is the opposite of
+what I would have guessed.
 
 ---
 

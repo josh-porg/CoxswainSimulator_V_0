@@ -19,22 +19,44 @@ A reduced five-state model, not the full 6-DOF one::
     u       surge speed            [m/s]
     r       yaw rate               [rad/s]
 
-and **two** controls: the rudder angle ``delta`` and the port/starboard
-pressure split ``s``.  Dynamics:
+plus ``w``, the crew's remaining anaerobic work capacity, and **three**
+controls: the rudder angle ``delta``, the port/starboard pressure split
+``s``, and the power fraction ``pi``.  Dynamics:
 
-    x_dot   = u cos(psi)
-    y_dot   = u sin(psi)
+    x_dot   = u cos(psi) + c_x(x, y)
+    y_dot   = u sin(psi) + c_y(x, y)
     psi_dot = r
-    u_dot   = (T - D(u, h) - D_turn(r) - D_split(s)) / m
+    u_dot   = (pi T - D(u, h) - D_turn(r) - D_split(s)) / m
     r_dot   = (N_delta u^2 delta + N_s s - N_r u r) / I_z
+    w_dot   = -(P(pi) - CP)
 
-**The current is not in these equations.**  :mod:`coxswain.river.route`
-carries it and this module does not, so the two disagree about the same
-river: on the Charles at flood the lateral spread of the flow is a factor
-of three across a section, which is the whole reason a line choice exists.
-Adding it means two more interpolants and a term in each position
-equation; until then, treat a trajectory from here as the answer for
-still water.
+Pacing
+------
+Holding the crew at constant power, as this model previously did, removes
+the decision a crew actually makes: how hard to push, and where.  On a
+head course that is not separable from steering, because a pressure split
+spends thrust on a couple -- so the optimiser must be able to answer
+"push through the bend, or ease and steer" rather than having the first
+half of it fixed.
+
+Effort is bounded by the **critical-power model** (Monod & Scherrer 1965;
+Morton 2006), the standard two-parameter description of endurance
+performance: power ``CP`` is sustainable indefinitely, and any excess
+draws on a finite anaerobic capacity ``W'`` which depletes at ``P - CP``
+and recovers below it.  ``W'`` is carried as a sixth state and constrained
+non-negative, so the optimiser cannot spend energy the crew does not have.
+Without that budget, minimum time is trivially "row flat out everywhere".
+
+with ``c`` the depth-averaged water velocity.  The current enters the
+*position* equations only: hydrodynamic forces depend on motion through
+the water, which is what ``u`` already is, while the trajectory is over
+the ground.  Getting that split wrong is the same class of error as
+mixing hull and absolute frames.
+
+The current is optional.  It is carried on the channel raster (see
+:func:`~coxswain.river.channel.attach_current`) rather than passed
+separately, so cropping cannot silently lose it; a raster without one
+gives the still-water answer.
 
 Why two controls.  The rudder on its own cannot get an eight round this
 river.  Measured against the channel extracted in
@@ -49,13 +71,20 @@ Both controls cost speed: turning bleeds energy into the appendages, and
 splitting the crew spends work on a couple rather than on thrust.  Without
 those penalties the optimiser would steer for free.
 
-Why reduced.  Hermite-Simpson needs the dynamics evaluated symbolically at
-every collocation point and midpoint, and differentiated exactly.  The
-6-DOF model contains a Cholesky solve, a 96-body moving-mass field, scipy
-interpolators and branch logic -- none of it expressible in CasADi without
-rewriting the entire package.  The standard remedy, and the one used here,
-is to fit a reduced model to the high-fidelity one, optimise on the
-reduced model, and verify the answer back in the full model.
+Why reduced.  Not because the 6-DOF model resists CasADi -- an earlier
+version of this docstring claimed that and it was wrong.  ``ca.chol``
+handles the 6x6 solve, the crew kinematics are Fourier series and trig,
+``ca.if_else`` covers the branches, and the field lookups are already
+interpolants; only ``HullMesh.submerged`` is genuinely awkward, and a
+smooth parametric fit would replace it.
+
+The real obstacle is **timescale separation**.  The 6-DOF model carries
+2 Hz stroke dynamics; a Charles course lasts ~40 minutes.  Resolving both
+in one transcription needs of order 10^4 nodes times 12 states, and the
+stroke-scale oscillation is not what the route decision turns on.  The
+standard treatment of a multiscale optimal-control problem is to average
+over the fast scale, which is exactly what this reduced model is.  A
+stroke-averaged 6-DOF in CasADi is a real middle path and remains open.
 
 The surge and yaw coefficients are therefore **fitted from the 6-DOF
 simulator**, not invented: see :func:`fit_reduced_model`.
@@ -125,6 +154,19 @@ class ReducedModel:
     #: Extra drag per unit split squared, N.  Splitting the crew spends
     #: work on a couple instead of on thrust.
     split_drag: float = 250.0
+    #: Critical power for the whole crew, W.  Roughly 380 W per rower for a
+    #: club eight; a world-level crew is nearer 450.  This is the power the
+    #: crew can hold for the duration of a head race without drawing down
+    #: W'.
+    critical_power: float = 3040.0
+    #: Anaerobic work capacity for the whole crew, J.  ~22 kJ per rower.
+    #: Everything above CP comes out of here, and it is finite.
+    anaerobic_capacity: float = 176000.0
+    #: Bounds on the power fraction relative to `critical_power`.  A crew
+    #: cannot row at zero, and cannot hold much more than 1.5x CP for long
+    #: enough to matter.
+    power_min: float = 0.55
+    power_max: float = 1.45
 
     def __post_init__(self) -> None:
         if self.drag_coefficient == 0.0:
@@ -133,10 +175,22 @@ class ReducedModel:
             self.drag_coefficient = 1.0
         self.thrust = self.drag_coefficient * self.reference_speed ** 2
 
-    def straight_line_speed(self, depth_factor: float = 1.0) -> float:
+    def straight_line_speed(self, depth_factor: float = 1.0,
+                            power_fraction: float = 1.0) -> float:
         """Steady speed with no rudder, at a given drag multiplier."""
-        return float(np.sqrt(self.thrust
+        return float(np.sqrt(power_fraction * self.thrust
                              / (self.drag_coefficient * depth_factor)))
+
+    def power_at(self, power_fraction):
+        """Mechanical power drawn at a given thrust fraction, W.
+
+        Thrust times speed is the useful power, and at steady state speed
+        scales as the cube root of power -- so a thrust fraction ``pi``
+        corresponds to a power fraction ``pi**1.5``.  Expressing the
+        control as thrust and deriving power keeps the surge equation
+        linear in the control, which the NLP prefers.
+        """
+        return self.critical_power * power_fraction ** 1.5
 
 
 def fit_reduced_model(boat=None, reference_speed: float = 5.2,
@@ -219,6 +273,7 @@ class TrajectorySolution:
     state: np.ndarray            # (5, n)
     rudder: np.ndarray           # (n,)
     split: np.ndarray            # (n,) port/starboard pressure split
+    power: np.ndarray            # (n,) thrust fraction of critical power
     duration: float
     success: bool
     message: str = ""
@@ -239,6 +294,11 @@ class TrajectorySolution:
     def yaw_rate(self) -> np.ndarray:
         return self.state[4]
 
+    @property
+    def anaerobic_remaining(self) -> np.ndarray:
+        """W' left, in joules, at each node."""
+        return self.state[5]
+
     def summary(self) -> dict:
         step = np.diff(self.position, axis=1)
         return {
@@ -248,15 +308,18 @@ class TrajectorySolution:
             "max_rudder_deg": float(np.degrees(np.abs(self.rudder).max())),
             "max_yaw_rate_deg": float(np.degrees(np.abs(self.yaw_rate).max())),
             "max_split": float(np.abs(self.split).max()),
+            "power_range": (float(self.power.min()), float(self.power.max())),
+            "anaerobic_spent": float(self.anaerobic_remaining[0]
+                                     - self.anaerobic_remaining[-1]),
             "success": self.success,
         }
 
 
 def _casadi_fields(channel, flow, reference_speed):
-    """Build differentiable lookups for depth and clearance on the raster.
+    """Build differentiable lookups for the fields on the raster.
 
-    ``flow`` is accepted and ignored: the current is not yet part of the
-    trajectory dynamics.  See the module docstring.
+    Returns ``(depth, clearance, current_east, current_north)``; the two
+    current lookups are ``None`` when the raster carries no flow.
     """
     import casadi as ca
 
@@ -274,7 +337,16 @@ def _casadi_fields(channel, flow, reference_speed):
         "clearance", "bspline", [east.tolist(), north.tolist()],
         channel.clearance.T.ravel(order="F").tolist())
 
-    return depth_lookup, clearance_lookup
+    current_east = current_north = None
+    if channel.has_current:
+        current_east = ca.interpolant(
+            "current_east", "bspline", [east.tolist(), north.tolist()],
+            channel.current_east.T.ravel(order="F").tolist())
+        current_north = ca.interpolant(
+            "current_north", "bspline", [east.tolist(), north.tolist()],
+            channel.current_north.T.ravel(order="F").tolist())
+
+    return depth_lookup, clearance_lookup, current_east, current_north
 
 
 def _guess_along_channel(channel, start, goal, n_nodes: int) -> np.ndarray:
@@ -346,21 +418,24 @@ def solve_trajectory(channel, start: np.ndarray, goal: np.ndarray,
 
     # Crop the fields to the leg being solved; see ChannelRaster.crop.
     channel = channel.crop(initial_guess.T)
-    depth_lookup, clearance_lookup = _casadi_fields(channel, None,
-                                                    model.reference_speed)
+    (depth_lookup, clearance_lookup, current_east_lookup,
+     current_north_lookup) = _casadi_fields(channel, None,
+                                            model.reference_speed)
 
     opti = ca.Opti()
 
     # decision variables: state at each node, control at each node and
     # midpoint, and the total duration
-    state = opti.variable(5, n_nodes)
+    state = opti.variable(6, n_nodes)
     rudder = opti.variable(1, n_nodes)
     rudder_mid = opti.variable(1, n_nodes - 1)
     split = opti.variable(1, n_nodes)
     split_mid = opti.variable(1, n_nodes - 1)
+    power = opti.variable(1, n_nodes)
+    power_mid = opti.variable(1, n_nodes - 1)
     duration = opti.variable()
 
-    def dynamics(s, delta, pressure):
+    def dynamics(s, delta, pressure, effort):
         x, y, psi, u, r = s[0], s[1], s[2], s[3], s[4]
         # shallow water raises drag; a smooth, monotone surrogate for the
         # wave-resistance rise, calibrated to the same 3 m / -13% point the
@@ -370,14 +445,22 @@ def solve_trajectory(channel, start: np.ndarray, goal: np.ndarray,
         drag = model.drag_coefficient * shallow * u ** 2
         turn_loss = model.turn_drag * r ** 2
         split_loss = model.split_drag * pressure ** 2
+        position = ca.vertcat(x, y)
+        drift_east = (0.0 if current_east_lookup is None
+                      else current_east_lookup(position))
+        drift_north = (0.0 if current_north_lookup is None
+                       else current_north_lookup(position))
+        drawn = model.critical_power * effort ** 1.5
         return ca.vertcat(
-            u * ca.cos(psi),
-            u * ca.sin(psi),
+            u * ca.cos(psi) + drift_east,
+            u * ca.sin(psi) + drift_north,
             r,
-            (model.thrust - drag - turn_loss - split_loss) / model.mass,
+            (effort * model.thrust - drag - turn_loss - split_loss)
+            / model.mass,
             (model.yaw_control * u ** 2 * delta
              + model.split_control * pressure
              - model.yaw_damping * u * r) / model.yaw_inertia,
+            -(drawn - model.critical_power),
         )
 
     step = duration / (n_nodes - 1)
@@ -385,11 +468,13 @@ def solve_trajectory(channel, start: np.ndarray, goal: np.ndarray,
     # Hermite-Simpson defect constraints
     for k in range(n_nodes - 1):
         left, right = state[:, k], state[:, k + 1]
-        f_left = dynamics(left, rudder[0, k], split[0, k])
-        f_right = dynamics(right, rudder[0, k + 1], split[0, k + 1])
+        f_left = dynamics(left, rudder[0, k], split[0, k], power[0, k])
+        f_right = dynamics(right, rudder[0, k + 1], split[0, k + 1],
+                           power[0, k + 1])
         # cubic Hermite midpoint
         middle = 0.5 * (left + right) + step / 8.0 * (f_left - f_right)
-        f_middle = dynamics(middle, rudder_mid[0, k], split_mid[0, k])
+        f_middle = dynamics(middle, rudder_mid[0, k], split_mid[0, k],
+                            power_mid[0, k])
         # Simpson quadrature defect
         opti.subject_to(
             right - left == step / 6.0 * (f_left + 4.0 * f_middle + f_right))
@@ -407,6 +492,11 @@ def solve_trajectory(channel, start: np.ndarray, goal: np.ndarray,
     opti.subject_to(opti.bounded(-model.split_limit, split, model.split_limit))
     opti.subject_to(opti.bounded(-model.split_limit, split_mid,
                                  model.split_limit))
+    opti.subject_to(opti.bounded(model.power_min, power, model.power_max))
+    opti.subject_to(opti.bounded(model.power_min, power_mid, model.power_max))
+    # the crew cannot spend anaerobic capacity it does not have
+    opti.subject_to(opti.bounded(0.0, state[5, :],
+                                 model.anaerobic_capacity))
     opti.subject_to(opti.bounded(0.5, state[3, :], 3.0 * model.reference_speed))
     opti.subject_to(opti.bounded(10.0, duration, max_duration))
 
@@ -414,6 +504,7 @@ def solve_trajectory(channel, start: np.ndarray, goal: np.ndarray,
     opti.subject_to(state[1, 0] == start[1])
     opti.subject_to(state[3, 0] == model.reference_speed)
     opti.subject_to(state[4, 0] == 0.0)
+    opti.subject_to(state[5, 0] == model.anaerobic_capacity)
     opti.subject_to(state[0, -1] == goal[0])
     opti.subject_to(state[1, -1] == goal[1])
 
@@ -423,12 +514,15 @@ def solve_trajectory(channel, start: np.ndarray, goal: np.ndarray,
     heading = np.arctan2(np.gradient(line[1]), np.gradient(line[0]))
     guess = np.vstack([line, heading,
                        np.full(n_nodes, model.reference_speed),
-                       np.zeros(n_nodes)])
+                       np.zeros(n_nodes),
+                       np.full(n_nodes, model.anaerobic_capacity)])
     opti.set_initial(state, guess)
     opti.set_initial(rudder, np.zeros((1, n_nodes)))
     opti.set_initial(rudder_mid, np.zeros((1, n_nodes - 1)))
     opti.set_initial(split, np.zeros((1, n_nodes)))
     opti.set_initial(split_mid, np.zeros((1, n_nodes - 1)))
+    opti.set_initial(power, np.ones((1, n_nodes)))
+    opti.set_initial(power_mid, np.ones((1, n_nodes - 1)))
     span = float(np.hypot(*(np.asarray(goal) - np.asarray(start))))
     opti.set_initial(duration, max(span / model.reference_speed, 20.0))
 
@@ -442,6 +536,7 @@ def solve_trajectory(channel, start: np.ndarray, goal: np.ndarray,
         state_value = solution.value(state)
         rudder_value = solution.value(rudder)
         split_value = solution.value(split)
+        power_value = solution.value(power)
         duration_value = float(solution.value(duration))
     except RuntimeError as error:
         # IPOPT can stop at an acceptable point; keep it and say so
@@ -449,11 +544,13 @@ def solve_trajectory(channel, start: np.ndarray, goal: np.ndarray,
         state_value = opti.debug.value(state)
         rudder_value = opti.debug.value(rudder)
         split_value = opti.debug.value(split)
+        power_value = opti.debug.value(power)
         duration_value = float(opti.debug.value(duration))
 
     time = np.linspace(0.0, duration_value, n_nodes)
     return TrajectorySolution(time=time, state=np.atleast_2d(state_value),
                               rudder=np.atleast_1d(rudder_value),
                               split=np.atleast_1d(split_value),
+                              power=np.atleast_1d(power_value),
                               duration=duration_value, success=success,
                               message=message)

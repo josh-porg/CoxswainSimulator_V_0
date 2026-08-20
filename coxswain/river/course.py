@@ -215,6 +215,11 @@ class Course:
     name: str = "course"
     is_survey: bool = False
     notes: str = ""
+    #: Half-width of *water*, which is wider than the navigable
+    #: :attr:`half_width` wherever shallow margins flank the channel.
+    #: Continuity integrates over this; the boat is bounded by the other.
+    #: ``None`` falls back to the navigable width.
+    water_half_width: np.ndarray = None
 
     def __post_init__(self) -> None:
         self.centreline = np.asarray(self.centreline, dtype=float)
@@ -258,6 +263,12 @@ class Course:
 
     def half_width_at(self, station) -> np.ndarray:
         return np.interp(station, self.station, self.half_width)
+
+    def water_half_width_at(self, station) -> np.ndarray:
+        """Half-width of water, for cross-sectional area integration."""
+        if self.water_half_width is None:
+            return self.half_width_at(station)
+        return np.interp(station, self.station, self.water_half_width)
 
     def offset_position(self, station, offset) -> np.ndarray:
         """Position at ``station`` displaced ``offset`` metres to port.

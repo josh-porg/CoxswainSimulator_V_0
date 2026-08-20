@@ -207,7 +207,7 @@ class ContinuityFlow:
         station = np.atleast_1d(np.asarray(station, dtype=float))
         areas = np.empty(station.shape)
         for i, s in enumerate(station):
-            half = float(self.course.half_width_at(s))
+            half = float(self.course.water_half_width_at(s))
             offsets = np.linspace(-half, half, self.n_transect)
             points = self.course.offset_position(
                 np.full(self.n_transect, s), offsets)
@@ -250,7 +250,8 @@ class ContinuityFlow:
         By construction ``integral u h dy == Q`` exactly, so this refines
         :meth:`speed` without contradicting it.
         """
-        half = float(self.course.half_width_at(station))
+        # integrate over the WATER width, not the navigable one
+        half = float(self.course.water_half_width_at(station))
         offsets = np.linspace(-half, half, self.n_transect)
         points = self.course.offset_position(
             np.full(self.n_transect, float(station)), offsets)
@@ -495,10 +496,12 @@ def charles_course(centreline: np.ndarray = None,
             centreline = line
         if half_width is None:
             half_width = raster.half_width_along(centreline)
+        water_half_width = raster.water_half_width_along(centreline)
 
     course = Course(
         centreline=centreline,
         half_width=half_width,
+        water_half_width=water_half_width,
         depth=depth,
         name="Charles River (CRAB/MIT Sea Grant 2016-17 survey)",
         is_survey=True,

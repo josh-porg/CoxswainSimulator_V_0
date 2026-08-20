@@ -46,6 +46,7 @@ import numpy as np
 
 __all__ = [
     "DEFAULT_ALPHA",
+    "attach_current",
     "NAVIGABLE_DEPTH",
     "alpha_shape_mask",
     "ChannelRaster",
@@ -115,6 +116,17 @@ class ChannelRaster:
     navigable: np.ndarray
     depth: np.ndarray
     clearance: np.ndarray
+    #: Depth-averaged water velocity on the same grid, in m/s, or ``None``
+    #: for still water.  Populated by :func:`attach_current`; kept on the
+    #: raster rather than passed separately so that :meth:`crop` carries it
+    #: along and the trajectory solver cannot silently lose it.
+    current_east: np.ndarray = None
+    current_north: np.ndarray = None
+    #: Distance to the nearest dry cell, in metres.  Distinct from
+    #: :attr:`clearance`, which measures to the nearest *non-navigable*
+    #: cell.  The boat is bounded by the navigable width; the water is not,
+    #: and continuity has to integrate over the whole wetted section.
+    water_clearance: np.ndarray = None
 
     @property
     def resolution(self) -> float:
@@ -285,13 +297,111 @@ class ChannelRaster:
             east=self.east[columns], north=self.north[rows],
             water=self.water[window], navigable=self.navigable[window],
             depth=self.depth[window], clearance=self.clearance[window],
+            current_east=(None if self.current_east is None
+                          else self.current_east[window]),
+            current_north=(None if self.current_north is None
+                           else self.current_north[window]),
+            water_clearance=(None if self.water_clearance is None
+                             else self.water_clearance[window]),
         )
+
+    @property
+    def has_current(self) -> bool:
+        return self.current_east is not None
+
+    def current_at(self, x, y):
+        """Water velocity ``(east, north)`` at a position, in m/s."""
+        if not self.has_current:
+            return np.zeros(2)
+        row, column = self.index_of(x, y)
+        return np.array([self.current_east[row, column],
+                         self.current_north[row, column]])
 
     def half_width_along(self, line: np.ndarray,
                          cap: float = 60.0) -> np.ndarray:
         """Navigable half-width at each point of a centreline."""
         widths = np.array([self.clearance_at(x, y) for x, y in line])
         return np.clip(widths, 1.0, cap)
+
+    def water_half_width_along(self, line: np.ndarray,
+                               cap: float = 150.0) -> np.ndarray:
+        """Half-width of *water* at each point of a centreline.
+
+        Wider than :meth:`half_width_along` wherever shallow margins
+        flank the channel.  Continuity needs this one: integrating the
+        cross-sectional area over the navigable width alone understates
+        ``A`` and so overstates ``Q/A``.  At the tightest pinch on the
+        Charles that was the difference between 2.25 m/s and 0.75 m/s.
+        """
+        if self.water_clearance is None:
+            return self.half_width_along(line, cap=cap)
+        widths = np.array([
+            float(self.water_clearance[self.index_of(x, y)])
+            for x, y in line])
+        return np.clip(widths, 1.0, cap)
+
+
+def attach_current(raster: "ChannelRaster", flow, course,
+                   n_centreline: int = 4000) -> "ChannelRaster":
+    """Sample a flow field onto the raster grid.
+
+    The trajectory solver needs the current as a gridded, differentiable
+    lookup, but a :class:`~coxswain.river.course.CurrentField` is a
+    callable that does a nearest-point search against the centreline for
+    every query.  Calling it per cell would take minutes.
+
+    Instead: build a KD-tree over a densely resampled centreline, query
+    every water cell at once to get station and signed offset, then read
+    the flow off its own ``(station, offset-fraction)`` grid.  Vectorised,
+    so the whole raster costs about a second.
+
+    Land cells get zero, which is harmless -- the trajectory is
+    constrained to navigable water anyway.
+    """
+    from scipy.spatial import cKDTree
+
+    station = np.linspace(0.0, course.length, n_centreline)
+    centre = course.position_at(station)
+    heading = course.heading_at(station)
+    tree = cKDTree(centre)
+
+    grid_east, grid_north = np.meshgrid(raster.east, raster.north)
+    inside = raster.water
+    query = np.column_stack([grid_east[inside], grid_north[inside]])
+    _, nearest = tree.query(query)
+
+    local_heading = heading[nearest]
+    normal = np.column_stack([-np.sin(local_heading), np.cos(local_heading)])
+    offset = np.einsum("ij,ij->i", query - centre[nearest], normal)
+
+    half = np.array([max(course.half_width_at(s), 1e-6)
+                     for s in station])[nearest]
+    fraction = np.clip(offset / half, -1.0, 1.0)
+
+    stations, fractions, speed_grid = flow._speed_grid(120)
+    columns = np.clip(np.searchsorted(fractions, fraction) - 1,
+                      0, len(fractions) - 2)
+    weight = ((fraction - fractions[columns])
+              / (fractions[columns + 1] - fractions[columns]))
+    query_station = station[nearest]
+    low = np.array([np.interp(s, stations, speed_grid[:, c])
+                    for s, c in zip(query_station, columns)])
+    high = np.array([np.interp(s, stations, speed_grid[:, c + 1])
+                     for s, c in zip(query_station, columns)])
+    magnitude = low + weight * (high - low)
+
+    # water runs downstream, i.e. towards decreasing station
+    east = np.zeros(raster.water.shape)
+    north = np.zeros(raster.water.shape)
+    east[inside] = -magnitude * np.cos(local_heading)
+    north[inside] = -magnitude * np.sin(local_heading)
+
+    return ChannelRaster(
+        east=raster.east, north=raster.north, water=raster.water,
+        navigable=raster.navigable, depth=raster.depth,
+        clearance=raster.clearance, current_east=east, current_north=north,
+        water_clearance=raster.water_clearance,
+    )
 
 
 def build_channel(points: np.ndarray, depths: np.ndarray,
@@ -336,7 +446,9 @@ def build_channel(points: np.ndarray, depths: np.ndarray,
         navigable = labels == int(np.argmax(sizes))
 
     clearance = distance_transform_edt(navigable) * resolution
+    water_clearance = distance_transform_edt(water) * resolution
 
     return ChannelRaster(east=east, north=north, water=water,
                          navigable=navigable, depth=depth_raster,
-                         clearance=clearance)
+                         clearance=clearance,
+                         water_clearance=water_clearance)
