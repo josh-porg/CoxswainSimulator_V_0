@@ -119,7 +119,7 @@ class RowingSimulator:
     def __init__(self, boat: Boat, coxswain: Optional[Coxswain] = None,
                  rudder: Optional[Callable[[float, State], float]] = None,
                  water_level: float = 0.0, gravity: float = GRAVITY,
-                 course=None):
+                 course=None, wind=None, aero=None):
         self.boat = boat
         #: Geometry linking the crew's balance effort to the hull load.
         #: Sweep rigs make this more than a roll couple; see
@@ -135,6 +135,15 @@ class RowingSimulator:
         #: every step instead of being uniform, which is what makes a river
         #: different from a buoyed course.
         self.course = course
+        #: True wind field, absolute frame, or ``None`` for still air.
+        self.wind = wind
+        #: Aerodynamic force model.  Calibrated from the boat when a wind
+        #: field is supplied, so that aero drag is the published fraction
+        #: of total resistance in still air (see coxswain.hydro.wind).
+        if aero is None and wind is not None:
+            from ..hydro.wind import AeroModel
+            aero = AeroModel.calibrate(boat)
+        self.aero = aero
         self._shallow_cache = (None, None)
         self._crew_cache = (None, None)
         self._hand_cache = (None, None)
@@ -329,6 +338,18 @@ class RowingSimulator:
             )
             appendage_force_hull += force
             appendage_moment_hull += moment
+
+        # -- wind ----------------------------------------------------------
+        # Five-sixths of aerodynamic drag is crew and oars, not hull, so it
+        # acts above the waterline and outboard: a crosswind is a roll and
+        # yaw moment as well as a drag.  See coxswain.hydro.wind.
+        if self.aero is not None and self.wind is not None:
+            true_wind = self.wind.at(float(state.position[0]),
+                                     float(state.position[1]), t)
+            wind_force, wind_moment = self.aero.loads(
+                true_wind, state.velocity, rot)
+            appendage_force_hull = appendage_force_hull + wind_force
+            appendage_moment_hull = appendage_moment_hull + wind_moment
 
         # -- crew balance, applied through the riggers --------------------
         # Not a pure couple.  The crew balance by changing handle height,

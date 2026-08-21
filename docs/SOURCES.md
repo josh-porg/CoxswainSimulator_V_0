@@ -1562,3 +1562,200 @@ phase, so the first step is a per-rower phase offset in the crew field —
 after which a Kuramoto-type coupling can be driven by the hull motion the
 simulator already computes, which closes the loop between Leonard's
 formalism and this model rather than bolting one onto the other.
+
+
+## 19. How hand heights are actually used: learned trim
+
+### The paradox
+
+§15 quotes [D96] showing that adjusting hand height to hold blade
+clearance is **positive feedback** — if the boat is down on your side and
+you lift to keep your blade off the water, you unweight your rigger and it
+goes down further. Yet crews plainly do use hand heights to set a boat,
+and it plainly works. Taken together with §15's timing argument — the roll
+mode e-folds in 0.218 s against a human reaction of 150–250 ms — hand
+heights ought to be useless *and* harmful.
+
+They are neither, because the control law rowers actually use is not the
+one [D96] analyses.
+
+### What rowers actually do
+
+From the coxswain this work is for:
+
+> "if you notice the boat dips down to your side at the catch, on the next
+> stroke you will carry your hands slightly higher near the catch, and
+> vice versa. Similarly if the boat is down to starboard at the finish,
+> the next stroke starboards will raise their hands more at the finish and
+> ports will lower theirs."
+
+Every clause is a specification:
+
+| clause | property |
+|---|---|
+| "on the next stroke" | error on cycle *k*, correction on cycle *k+1* |
+| "near the catch" / "at the finish" | correction applied at the **same phase** as the error |
+| "starboards raise, ports lower" | **antisymmetric by side** — a roll moment through the riggers |
+| "you will carry" | **anticipatory**: applied before the error recurs |
+
+That is iterative learning control [BTA06]. The stroke is a repetitive
+process; the error at phase θ on cycle *k* updates the input at phase θ on
+cycle *k+1*. The one-stroke delay that would be fatal in a feedback loop
+is not a delay at all here — for a disturbance that repeats every stroke,
+it is memory.
+
+`coxswain.crew.trim.StrokeTrim` implements the standard update
+`u ← Q u − L K e`, with `Q` the robustness filter of [BTA06].
+
+### Why this resolves it
+
+The learned trim never tries to arrest a roll excursion in progress. It
+reduces the **initial condition** — the heel at the finish, from which the
+recovery's ×180 amplification runs. §15 puts the tolerance there at about
+0.013°, which nothing reactive could hold. Learning can, because it has as
+many strokes as it needs and the disturbance it cancels is the repeating
+part.
+
+The two mechanisms are therefore complementary rather than contradictory:
+
+| | [D96]'s reflex | learned trim |
+|---|---|---|
+| timescale | within stroke | across strokes |
+| information | blade clearance now | heel at this phase last stroke |
+| sign | positive feedback | negative, converging |
+| what it fixes | nothing | the recurring finish-line error |
+
+### It works, and it converges
+
+Eight at rate 32, phase-dependent authority throughout:
+
+| crew | roll swing | learned trim |
+|---|---|---|
+| no learned trim | 1.205° | — |
+| novice (L=0.15, Q=0.75) | 1.054° | 13.9 N·m rms |
+| club (L=0.40, Q=0.90) | 0.741° | 51.1 N·m rms |
+| elite (L=0.60, Q=0.97) | **0.467°** | 87.9 N·m rms |
+
+Monotone in skill, and the elite crew is 61% better than one with no
+learned trim at all — using the *same* physical authority, the same boat
+and the same disturbance. The difference is entirely what they have
+learned about this boat.
+
+Roll swing falls from 1.22° to 0.63° over fourteen strokes with a
+practised crew and is still falling. **Skill is three physical parameters**
+— learning gain, memory length, and the resulting trim effort — not a
+fudge factor, and "hours of drilling together" becomes convergence of an
+ILC memory. It also explains why the skill does not transfer: the memory
+is specific to that crew, that rigging and that boat.
+
+### Where the authority comes from
+
+The corrections described are made **at the catch and at the finish** —
+both points where the blade is in or entering the water, so the crew have
+the drive's authority rather than the recovery's. Nothing special-cases
+this: the command is saturated by the same `PhaseAuthority` window as the
+reactive loop, and a test asserts that even an absurd learned command
+cannot exceed the recovery limit mid-recovery. The learning naturally puts
+its corrections where the authority to execute them exists.
+
+### A diagnostic that falls out
+
+`StrokeTrim.effort` — the RMS of the learned command — is a measure of how
+much trim the crew is carrying. A well-matched crew in a well-rigged boat
+converges to a small number. A large converged effort means they are
+holding against something structural: a rigging error, or a rower who is
+genuinely heavier on one side. That is a measurable quantity distinguishing
+"this crew cannot sit the boat" from "this boat is not set up right",
+which coaches currently separate by intuition.
+
+### References
+
+[BTA06] Bristow, D. A., Tharayil, M., & Alleyne, A. G. (2006). A survey of
+iterative learning control. *IEEE Control Systems Magazine* **26**(3),
+96–114.
+
+
+## 20. Wind
+
+The largest force the model was missing, and the one a Head race on a
+river with a prevailing wind most needs.
+
+### Where the drag is
+
+Not on the hull. [K13] puts aerodynamic drag at about **13% of total
+resistance** in still air, and splits it:
+
+| component | share |
+|---|---|
+| oars | 50% |
+| rowers' bodies | 35% |
+| boat and riggers | 15% |
+
+Five-sixths is crew and oars. That is not bookkeeping: it puts the force
+**above the waterline**, and the oar share **outboard at the riggers**, so
+a crosswind is a **roll and yaw moment**, not merely a drag. Given §15 —
+roll is a marginal mode held by a few percent of the drive's authority
+through the recovery — a lumped hull windage term would have put the
+single largest environmental disturbance in the wrong place entirely.
+
+`coxswain.hydro.wind.AeroModel` carries the three components separately,
+each with its own drag area, height and lateral offset.
+
+### The boundary layer, which is not optional
+
+Wind speeds are quoted at the WMO standard **10 m** anemometer height. A
+rower's shoulders are at about 0.6 m and an oar shaft lower still, deep
+inside the surface layer. The neutral logarithmic profile
+`u(z)/u(z_ref) = ln(z/z₀)/ln(z_ref/z₀)` with `z₀ = 2×10⁻⁴ m` over calm
+water gives:
+
+| height | fraction of the quoted wind |
+|---|---|
+| 0.15 m (hull) | 0.61 |
+| 0.40 m (oars) | 0.70 |
+| 0.60 m (bodies) | 0.74 |
+
+Driving the drag model with the quoted speed over-predicts headwind force
+by about `1/0.74² = 1.8`. **This was the single largest error in the first
+version**: it made a 5 m/s headwind cost an eight 17.9% of its speed
+against the 12.2% [K13] measures. It is a correction that has to be there,
+not a refinement.
+
+### Validation
+
+The **only** calibrated number is the still-air 13%. Everything else is a
+prediction from `v_rel²` drag and the boundary layer:
+
+| | model | [K13] measured |
+|---|---|---|
+| 5 m/s headwind | **−11.3%** | −12.2% |
+| 5 m/s tailwind | **+5.8%** | +5.1% |
+
+Both within 15%, and the **asymmetry** — a headwind hurting roughly twice
+as much as the same tailwind helps — is reproduced rather than imposed. It
+follows from the square law: a headwind adds to the apparent wind the boat
+already makes for itself, a tailwind subtracts from it, and the boat is
+already moving at about the wind speed.
+
+[K13] also notes the aerodynamic share can rise up to fourfold in a
+headwind and fall to zero in a sufficient tailwind. Both come out of the
+same square law without being put in; the model gives a *thrust* once the
+tailwind overtakes the boat, which is tested.
+
+### What is deliberately left open
+
+`WindField` is an interface, and only `UniformWind` is implemented. A
+river is not uniform: a bend turns a tailwind into a crosswind, and the
+Charles has bridges, banks and buildings that shelter parts of the reach.
+Spatial and temporal variation is the next step and needs no change to the
+force model — which is why the interface exists now rather than later. It
+is also a prerequisite for the stochastic formulation, where varying wind
+is one of the named uncertainties.
+
+### References
+
+[K13] Kleshnev, V. *Rowing Biomechanics Newsletter* — wind effects and the
+composition of aerodynamic drag.
+[H21] "Rowing Against the Wind: An Analysis of the Impact of Variable Wind
+Conditions", Harvard.
+<https://dash.harvard.edu/server/api/core/bitstreams/4f46c026-cb8b-4f50-aa82-1a63b2baa8a5/content>
