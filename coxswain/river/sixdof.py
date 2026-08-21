@@ -273,6 +273,7 @@ class SixDofModel:
     def __init__(self, boat, surrogate=None, crew=None, oars=None,
                  relative_tolerance: float = 0.01, gravity: float = 9.80665,
                  water_level: float = 0.0, blade=None):
+        from ..crew.balance import BalanceRig
         from .hullsurrogate import HullSurrogate
 
         self.boat = boat
@@ -291,6 +292,7 @@ class SixDofModel:
         self.hull_inertia = np.asarray(boat.hull_inertia, dtype=float)
 
         # the crew's balance reflex, matching sim.control.BalanceController
+        self.balance_rig = BalanceRig.from_boat(boat)
         self.balance_stiffness = 6000.0
         self.balance_damping = 2000.0
         self.balance_limit = 4000.0
@@ -404,13 +406,23 @@ class SixDofModel:
         oar_force_hull = oar_force_hull * power * blade_scale
         oar_moment_hull = oar_moment_hull * power * blade_scale
 
-        # -- the crew's balance reflex, a saturated couple -------------
+        # -- the crew's balance reflex, applied through the riggers ----
+        # The demand is a saturated PD loop on roll, but the crew cannot
+        # apply a pure roll couple: they change handle height, which loads
+        # the oar as a lever and puts a vertical force at the rigger.  In a
+        # conventionally rigged sweep boat the port and starboard riggers
+        # sit a seat apart longitudinally, so that set of forces carries a
+        # pitch couple of about 0.72 of the roll couple.  Balancing a sweep
+        # eight pitches it; a pure x couple cannot represent that.
         balance = -(self.balance_stiffness * roll
                     + self.balance_damping * omega_hull[0])
         balance = self.balance_limit * ca.tanh(balance / self.balance_limit)
-        balance_moment = ca.vertcat(balance, 0.0, 0.0)
+        balance_force_t, balance_moment_t = self.balance_rig.loads(balance)
+        balance_force = ca.vertcat(*balance_force_t)
+        balance_moment = ca.vertcat(*balance_moment_t)
 
-        force_hull = resistance + appendage_force + oar_force_hull
+        force_hull = (resistance + appendage_force + oar_force_hull
+                      + balance_force)
         moment_hull_total = (appendage_moment + oar_moment_hull
                              + balance_moment)
 

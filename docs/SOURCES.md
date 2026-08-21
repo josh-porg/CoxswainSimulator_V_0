@@ -585,14 +585,102 @@ That is an independent constraint on the oar kinematics which the blade
 model supplies and no other part of this model does. The default is left
 at 0.0 only because the regression suite is pinned to it.
 
-**The absolute level is not calibrated, and the model stays opt-in.** With
-the blade model on, an eight at rate 32 drops from 5.22 to 4.49 m/s even at
-flatness 0.30 — slower, despite a *higher* blade efficiency than 0.78. The
-reason is double counting: the lumped 0.78 already absorbed ventilation
-losses, so multiplying a slip efficiency by `immersion_factor` charges for
-them twice. Splitting them correctly needs a measurement that separates
-slip from ventilation, which was not found. Tuning `flatness` until the
-speed came out right would be fitting the answer, so it has not been done.
+#### The double count, found and fixed
+
+The 14% speed loss recorded here originally was a bookkeeping error, not
+physics. The lumped `blade_efficiency = 0.78` is a measured *total* blade
+efficiency at nominal cover, so it already carries the immersion and
+ventilation loss. Multiplying the slip efficiency by `depth_factor` —
+which is `immersion_factor` × `blockage_factor` — charged for that loss a
+second time, costing a flat 10% (`immersion_factor()` returns 0.90) on top
+of whatever the slip model said.
+
+Both paths now apply **`blockage_factor` only**. Immersion is applied only
+when a caller sets `Boat.blade_cover` explicitly and thereby takes over the
+bookkeeping. `RowingSimulator._blade_efficiency` and
+`coxswain.river.sixdof._blade_efficiency` agree term for term.
+
+#### What the blade model is for
+
+Not a correction to the mean — for that, a constant would do. It is the
+*variation* the constant cannot carry:
+
+| speed | flatness 0.00 | flatness 0.30 |
+|---|---|---|
+| 4.6 m/s | 0.651 | 0.728 |
+| 5.2 m/s | 0.707 | 0.793 |
+| 5.8 m/s | 0.754 | 0.842 |
+
+Force-weighted over the drive; instantaneously it ranges 0.40 to 0.89
+within a single drive at fixed speed. Two things follow that a fixed
+factor cannot represent:
+
+- **Blade efficiency rises with boat speed.** A slower crew slips more for
+  the same handle force. So it is not a boat-independent constant, and a
+  masters eight at 4.6 m/s genuinely has a worse blade than an open eight
+  at 5.8 — which is a real term in the power budget, not a modelling
+  artefact.
+- **It is lowest near the catch**, where the handle force is highest and
+  where `cos(theta)` already wastes most of the blade load laterally. The
+  two losses coincide, which is exactly [B09]'s argument.
+
+Because efficiency depends on the boat's *speed*, it is not a function of
+time and cannot be folded into the periodic fits. In the CasADi path it is
+therefore evaluated symbolically from the state at every collocation point,
+with the oar angle and rate carried as their own Fourier fits.
+
+#### Why the efficiency is low: the sweep over-drives the blade
+
+Decomposing the slip by sign, force-weighted over the drive at 5.06 m/s,
+separates the two ways a blade can waste energy — moving through the water
+*faster* than it needs to (`slip < 0`) and failing to anchor (`slip > 0`):
+
+| flatness | blade efficiency | over-drive (m/s) | under-drive (m/s) |
+|---|---|---|---|
+| 0.00 | 0.695 | **1.614** | 0.169 |
+| 0.30 | 0.779 | 1.136 | 0.099 |
+| 0.45 | 0.837 | 0.827 | 0.058 |
+| 0.60 | 0.864 | 0.678 | 0.043 |
+
+**Over-driving is ~90% of the loss.** Over one drive the blade sweeps a
+3.58 m arc while the boat travels 3.77 m, so on average the blade nearly
+anchors — the loss is not a shortage of arc, it is the *rate* being wrong
+moment to moment. A raised cosine peaks at 1.57x the mean angular rate, so
+mid-drive the blade is driven through the water 2.6 m/s faster than it has
+to be, and near the ends it stalls to a tenth of mean rate and slips at
+almost full boat speed.
+
+At flatness 0.30 the slip model returns **0.779** at the model's own
+operating speed, against the **0.78** constant it replaces — and the
+thrust impulse ratio is **1.005**. The two independent calibrations agree
+to within half a percent. That is meaningful: the lumped constant was
+right, and the sweep should be flat at about 0.30.
+
+#### What is still unexplained
+
+Switching the blade model on at flatness 0.30 nonetheless costs speed —
+5.10 to 4.28 m/s — despite that thrust-neutral steady-state balance. The
+gap is the *within-stroke* speed variation. Efficiency is evaluated at the
+instantaneous hull surge, which swings 54% peak-to-peak; the boat is
+slowest at the catch, which makes the mid-drive slip more negative and so
+costs more than the constant-speed estimate predicts. The effect is real
+and correctly modelled, but its size rides on the model's speed
+fluctuation, which is itself the known open discrepancy of section 4
+(model 55-65%, measured 37.5-50%). **Until that is closed, the blade
+model's absolute level cannot be calibrated**, so it stays opt-in.
+
+This is the first place the fluctuation gap has been shown to change a
+physical prediction rather than just a diagnostic number.
+
+#### The flatness question is still open
+
+The table above is also an independent constraint on the oar kinematics
+that nothing else in this model supplies. Kleshnev reports 0.80–0.85 for
+good crews, which flatness 0.30 reproduces at racing speed and the default
+raised cosine (flatness 0) misses low. **The default is still 0.0.**
+Changing it is a substantive change to the crew kinematics that would
+re-pin the regression suite, and it should be made on the strength of a
+measured oar-angle trace rather than on one indirect constraint.
 
 ### [B09] Brearley (2009)
 *A method of improving oar efficiency.* **ANZIAM J. 50** 534–540.
@@ -937,3 +1025,91 @@ split that closes the gap is now a modelled control.
 9. **The 1x catalog rig runs the arms to full extension** mid-drive,
    needing ~6 cm of modelled shoulder protraction. Either the rig geometry
    or the reference athlete's proportions want revisiting.
+
+## 12. Crew balance, and what a sweep rig does to it
+
+### The reduction that was there
+
+Balance was applied as a saturated PD couple about the hull `x` axis,
+added straight to the moment vector. `BalanceController`'s docstring
+justified it: "the underlying handle-height trim is equal and opposite
+across the boat, so it produces no net force."
+
+The force claim is true and is now tested. The couple claim is not.
+
+### A crew cannot apply a pure roll couple
+
+What a crew can do is change handle height. That loads the oar as a lever
+about its oarlock and puts a **vertical force at the rigger**. The riggers
+are at fixed points on the hull, so the moment the crew produces is
+whatever that particular set of point forces makes.
+
+An eight is rigged alternately, so the four port oarlocks and the four
+starboard ones sit at different mean longitudinal stations — by exactly
+one seat spacing:
+
+| | mean oarlock x |
+|---|---|
+| port | −0.34 m |
+| starboard | +0.88 m |
+| offset | **1.22 m** = one seat |
+
+A balance effort pushing one side down and lifting the other therefore
+applies four downward forces sitting 1.22 m from the four upward ones.
+That is a couple in the vertical–longitudinal plane as well as the
+intended one in the transverse plane. Writing the moment of a vertical
+force `F_z` at `(x, y)` as `(y F_z, −x F_z, 0)` and summing over the rig:
+
+| boat | roll per unit | pitch per unit | **pitch coupling** |
+|---|---|---|---|
+| eight | 6.80 | 4.88 | **0.718** |
+| coxed four | 3.32 | 2.44 | **0.735** |
+| single scull | 1.60 | 0.00 | **0.000** |
+
+**Balancing a sweep boat pitches it, by about 0.72 of the roll moment.**
+The sculler's exact zero is the control: two oarlocks at the same station
+and opposite `y` do make a pure roll couple, which is what the old model
+assumed for every boat. The coupling is a property of sweep rigging, not
+a modelling artefact.
+
+`coxswain.crew.balance.BalanceRig` carries the three coefficients. They
+are exact geometry — linear in the demand, no fit and no smoothing — so
+CasADi differentiates them trivially, and both the numpy simulator and the
+symbolic 6-DOF model take their balance loads from the same object. A test
+asserts the two agree.
+
+### What it changes
+
+Over 20 s at rate 32, applying balance through the riggers rather than as
+a pure couple:
+
+| | pitch swing | roll swing | mean speed |
+|---|---|---|---|
+| eight, pure couple | 0.5152° | 1.0569° | 5.162 m/s |
+| eight, through riggers | **0.4991°** | 1.0566° | 5.162 m/s |
+| single scull, either | 0.9533° | 0.0000° | 4.411 m/s |
+
+A 3.1% reduction in pitch swing, no change to roll or speed, and the
+sculler bit-identical. Modest, but it moves the right way against the
+model's known pitch-swing excess, and it was obtained from geometry rather
+than by tuning anything.
+
+The roll response also changes very slightly (about 0.01%), because the
+mass matrix couples roll and pitch and the new pitch moment feeds back.
+That feedback is part of what a pure `x` couple discarded.
+
+### Still open: the authority is not phase-dependent
+
+`max_moment = 4000 N m` applies across the whole stroke. Physically it
+should not. On the drive the blade is buried, so the water reacts the
+handle force and the rower can genuinely push against it; the oarlock then
+carries `(1 + inboard/outboard)` times the handle force. On the recovery
+the oar is a free lever in air, so a sustained vertical handle force is
+impossible — only the oar's own inertia and the rowers' lateral body lean
+are available, which is perhaps a few hundred newton-metres against
+roughly 1500 on the drive.
+
+That is why a boat is hardest to balance on the recovery, and the model
+does not currently know it. Fixing it needs a sourced figure for the
+vertical handle force a rower can apply while also pulling, which has not
+been found; the geometry above is ready for it when it is.

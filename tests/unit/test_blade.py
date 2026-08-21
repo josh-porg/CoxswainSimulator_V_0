@@ -428,3 +428,100 @@ def test_blade_efficiency_rises_monotonically_with_sweep_flatness(blade,
                                    OarForceProfile())
               for f in (0.0, 0.2, 0.4, 0.6)]
     assert np.all(np.diff(values) > 0.0)
+
+
+# --------------------------------------------------------------------------
+# the two paths must agree -- the numpy simulator and the CasADi 6-DOF model
+# --------------------------------------------------------------------------
+def test_numpy_and_casadi_blade_efficiency_agree(blade, timing):
+    """One physical model, two transcriptions.
+
+    If these drift apart, the optimiser is optimising a boat that the
+    simulator will not reproduce -- which is the failure mode that matters
+    most and shows up nowhere else.
+    """
+    pytest.importorskip("casadi")
+    import casadi as ca
+
+    from coxswain.boats import catalog
+    from coxswain.river.hullsurrogate import HullSurrogate
+    from coxswain.river.sixdof import SixDofModel, _blade_efficiency
+
+    boat = catalog.eight(rate=32.0)
+    model = SixDofModel(
+        boat, surrogate=HullSurrogate.from_boat(boat, n_heave=9, n_pitch=5,
+                                                n_roll=5),
+        blade=blade)
+
+    # Only where the blade is actually loaded.  Near the finish the
+    # blade speed passes through zero and the CasADi form floors it, which
+    # is a deliberate difference covered by the next test.
+    for fraction in (0.10, 0.20, 0.30):
+        t = fraction * boat.timing.period
+        for speed in (4.4, 5.2):
+            angle = float(boat.oar_sweep(t, boat.timing))
+            rate = float(boat.oar_sweep.rate(t, boat.timing))
+            expected = float(blade.efficiency(angle, rate, speed))
+            got = float(ca.DM(_blade_efficiency(blade, model.oars, t, speed,
+                                                None, ca)))
+            assert got == pytest.approx(expected, abs=0.02), (fraction, speed)
+
+
+def test_blade_efficiency_does_not_double_count_immersion():
+    """The bug that cost 14% of boat speed.
+
+    ``blade_efficiency = 0.78`` is a measured *total* at nominal cover, so
+    it already carries the immersion loss.  Multiplying the slip efficiency
+    by ``depth_factor`` -- which folds ``immersion_factor`` in -- charges
+    for it a second time.  Only the blockage term belongs here.
+    """
+    from coxswain.boats import catalog
+    from coxswain.crew.oarlock import BladeModel
+    from coxswain.sim.simulator import RowingSimulator
+
+    boat = catalog.eight(rate=32.0)
+    boat.blade_model = BladeModel.sweep()
+    simulator = RowingSimulator(boat)
+    state = simulator.initial_state(surge_speed=5.0)
+    blade = boat.blade_model
+
+    from coxswain.core.state import State
+
+    current = State.from_vector(state)
+    value = simulator._blade_efficiency(0.15 * boat.timing.period,
+                                        current, blade)
+    angle = float(boat.oar_sweep(0.15 * boat.timing.period, boat.timing))
+    rate = float(boat.oar_sweep.rate(0.15 * boat.timing.period, boat.timing))
+    slip_only = float(blade.efficiency(angle, rate,
+                                       float(current.velocity_hull[0])))
+
+    assert value == pytest.approx(slip_only, rel=1e-9), \
+        "immersion must not be applied on top of the lumped constant"
+    assert blade.immersion_factor() < 1.0, "the factor that was double counted"
+
+
+def test_casadi_blade_efficiency_is_floored_where_numpy_clips():
+    """The one deliberate difference between the two paths.
+
+    ``1 - |slip| / |blade speed|`` has a pole where the blade reverses, at
+    the catch and the finish.  numpy clips the result to zero; CasADi
+    cannot branch, so it floors the denominator instead.  The oar force is
+    zero at both points, so nothing physical rides on it -- but a pole
+    there would sit exactly where the phase-locked mesh puts a node.
+    """
+    pytest.importorskip("casadi")
+    import casadi as ca
+
+    from coxswain.boats import catalog
+    from coxswain.crew.oarlock import BladeModel
+    from coxswain.river.sixdof import OarFit, _blade_efficiency
+
+    boat = catalog.eight(rate=32.0)
+    blade = BladeModel.sweep()
+    oars = OarFit.from_boat(boat)
+    values = [float(ca.DM(_blade_efficiency(blade, oars,
+                                            f * boat.timing.period, 5.0,
+                                            None, ca)))
+              for f in (0.0, 0.5, 0.999)]
+    assert all(np.isfinite(v) for v in values)
+    assert all(0.0 < v <= 1.0 for v in values), values

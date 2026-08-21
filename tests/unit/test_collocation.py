@@ -168,3 +168,89 @@ def test_hermite_simpson_defect_is_zero_for_a_constant_solution():
         dynamics, state, ca.DM.zeros(1, n + 1), ca.DM.zeros(1, n),
         np.linspace(0.0, 1.0, n + 1), np.full(n, 0.2))
     assert float(ca.norm_inf(residual)) == pytest.approx(0.0, abs=1e-12)
+
+
+def _radau_solve(scheme, dynamics, x0, n_intervals, horizon=1.0):
+    """Integrate with Radau by solving the defect system as an NLP root.
+
+    Radau is implicit, so the stage values are unknowns; this solves them
+    rather than substituting a known answer, which is what actually
+    exercises :meth:`RadauIIA.defects`.
+    """
+    import casadi as ca
+
+    step = horizon / n_intervals
+    times = np.linspace(0.0, horizon, n_intervals + 1)
+    durations = np.full(n_intervals, step)
+
+    state = ca.MX.sym("x", 1, n_intervals + 1)
+    stages = [ca.MX.sym(f"k{k}", 1, scheme.n_stages)
+              for k in range(n_intervals)]
+    control = ca.DM.zeros(1, n_intervals)
+
+    residual = scheme.defects(dynamics, state, stages, control, times,
+                              durations)
+    unknowns = ca.vertcat(ca.vec(state), *[ca.vec(s) for s in stages])
+    system = ca.vertcat(state[0, 0] - x0, residual)
+
+    solver = ca.rootfinder("r", "newton",
+                           {"x": unknowns, "p": ca.MX.sym("p", 0, 1),
+                            "g": system})
+    guess = ca.DM.ones(unknowns.shape[0], 1) * x0
+    solution = np.array(solver(guess, ca.DM(0, 1))).ravel()
+    return solution[:n_intervals + 1]
+
+
+@pytest.mark.parametrize("stages", [2, 3])
+def test_radau_integrates_an_ode_correctly(stages):
+    """The test the quadrature checks do not give.
+
+    Exact weights and an exact differentiation matrix do not prove the
+    defect assembly is right -- an index slip in the stage loop passes
+    every algebraic check and still integrates the wrong problem.
+    """
+    scheme = RadauIIA(stages)
+
+    def dynamics(state, control, time):
+        return -2.0 * state
+
+    got = _radau_solve(scheme, dynamics, 1.0, n_intervals=20)
+    expected = np.exp(-2.0 * np.linspace(0.0, 1.0, 21))
+    np.testing.assert_allclose(got, expected, atol=2e-4)
+
+
+def test_radau_converges_faster_than_hermite_simpson():
+    """Order 2s-1: three stages give fifth order against Hermite-Simpson's
+    third, which is the entire reason for carrying the scheme."""
+    def dynamics(state, control, time):
+        return -2.0 * state
+
+    errors = []
+    for n in (4, 8):
+        got = _radau_solve(RadauIIA(3), dynamics, 1.0, n_intervals=n)
+        exact = np.exp(-2.0 * np.linspace(0.0, 1.0, n + 1))
+        errors.append(np.abs(got - exact).max())
+
+    # fifth order: halving the step should cut the error by about 32
+    assert errors[1] < errors[0] / 16.0, errors
+
+
+def test_radau_runs_on_a_phase_locked_mesh(timing):
+    """The two pieces have to work together: the mesh is non-uniform, and
+    Radau must not assume equal steps."""
+    scheme = RadauIIA(3)
+    mesh = phase_locked_mesh(timing, n_strokes=1, drive_intervals=3,
+                             recovery_intervals=2)
+    durations = np.array([interval.duration for interval in mesh])
+    assert durations.std() > 1e-3, "mesh must actually be non-uniform"
+
+    import casadi as ca
+
+    times = np.concatenate([[mesh[0].start],
+                            [interval.end for interval in mesh]])
+    n = len(mesh)
+    state = ca.MX.sym("x", 1, n + 1)
+    stages = [ca.MX.sym(f"k{k}", 1, scheme.n_stages) for k in range(n)]
+    residual = scheme.defects(lambda x, u, t: -x, state, stages,
+                              ca.DM.zeros(1, n), times, durations)
+    assert residual.shape[0] == n * (scheme.n_stages + 1)

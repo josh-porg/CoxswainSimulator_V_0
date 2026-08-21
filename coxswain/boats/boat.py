@@ -269,12 +269,36 @@ class Boat:
         :meth:`crew_field`: the oar moment needs a hand position per seat,
         and evaluating the chain once per seat made this the single most
         expensive part of a derivative call.
+
+        The rower's joint chain is **sagittal** -- it has no lateral degree
+        of freedom, so it puts the hand on the centreline -- and the
+        batching shifts group members in ``x`` only.  Taken together those
+        used to pin every rower's hands to ``y = 0``, which is wrong twice
+        over: a sweep handle sweeps a wide lateral arc (``+0.19`` m at the
+        catch to ``-0.28`` m through mid-drive on this rig), and port and
+        starboard rowers mirror each other.
+
+        The hands are on the handle, so the handle is where they are. The
+        joint chain still sets ``x`` and ``z``, which it agrees with the
+        rig geometry on exactly; only the lateral component is taken from
+        the oar. For a sculler the two handles mirror and the mean is on
+        the centreline, which is the right answer there too.
         """
+        from ..crew.oarlock import handle_position
+
         positions = np.zeros((self.n_seats, 3))
         for leader, indices, offsets in self._crew_groups():
             hand = leader.joint_positions(t)["hand"]
             positions[indices] = hand
             positions[indices, 0] += offsets
+        for index, seat in enumerate(self.rig.seats):
+            if not seat.oarlocks:
+                continue
+            lateral = np.mean([
+                float(handle_position(t, self.timing, lock,
+                                      self.oar_sweep)[1])
+                for lock in seat.oarlocks])
+            positions[index, 1] = lateral
         return positions
 
     def crew_field_by_seat(self, t: float):

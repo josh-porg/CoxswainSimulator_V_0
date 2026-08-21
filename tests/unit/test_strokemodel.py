@@ -334,12 +334,19 @@ def test_discontinuous_quantities_need_more_harmonics(model):
 
     The crew aggregates are smooth and 8 harmonics clear 0.05%.  The oar
     loads jump at the catch, so their coefficients decay as 1/k and the
-    same tolerance costs 32-64 harmonics.  Fitting a fixed count and not
-    checking is how a 4% error goes unnoticed.
+    same tolerance costs more.  Fitting a fixed count and not checking
+    is how a 4% error goes unnoticed.
+
+    This cost 32 harmonics until the rowers' hands were put on the handle
+    laterally.  With the hands pinned to ``y = 0`` the oar's lateral
+    moment arm was a constant 0.85 m while the true arm swings from 0.71 m
+    to 1.13 m, so the split yaw moment carried a spurious step at the catch
+    on top of the real one.  Tracking the handle removed it and halved the
+    harmonics needed.  See SOURCES section 13.
     """
     smooth = model.aggregates.yaw_inertia.n_harmonics
     discontinuous = model.aggregates.yaw_per_split.n_harmonics
-    assert discontinuous >= 4 * smooth
+    assert discontinuous >= 2 * smooth
 
 
 def test_fit_to_tolerance_raises_rather_than_under_delivering():

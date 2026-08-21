@@ -55,6 +55,7 @@ from ..core.rigid_body import (
     solve_accelerations,
 )
 from ..core.state import STATE_SIZE, State
+from ..crew.balance import BalanceRig
 from ..crew.oarlock import hull_load, oar_force
 from ..hydro.appendages import surface_load
 from ..hydro.resistance import hull_resistance
@@ -120,6 +121,10 @@ class RowingSimulator:
                  water_level: float = 0.0, gravity: float = GRAVITY,
                  course=None):
         self.boat = boat
+        #: Geometry linking the crew's balance effort to the hull load.
+        #: Sweep rigs make this more than a roll couple; see
+        #: :mod:`coxswain.crew.balance`.
+        self.balance_rig = BalanceRig.from_boat(boat)
         self.coxswain = Coxswain() if coxswain is None else coxswain
         if rudder is not None:
             self.coxswain.rudder_override = rudder
@@ -325,11 +330,19 @@ class RowingSimulator:
             appendage_force_hull += force
             appendage_moment_hull += moment
 
-        # -- crew balance couple (see sim.control) ------------------------
-        # a pure couple about the hull x axis: handle-height trim is equal
-        # and opposite across the boat, so it adds no net force
+        # -- crew balance, applied through the riggers --------------------
+        # Not a pure couple.  The crew balance by changing handle height,
+        # which loads each oar as a lever and puts a vertical force at its
+        # rigger.  Handle-height trim is equal and opposite across the
+        # boat, so the net *force* does cancel -- but in a conventionally
+        # rigged sweep boat the two sides' riggers sit a seat apart
+        # longitudinally, so the same forces carry a pitch couple of about
+        # 0.72 of the roll couple.  See coxswain.crew.balance.
+        balance_force, balance_moment = self.balance_rig.loads(
+            self.coxswain.roll_moment(state))
+        appendage_force_hull = appendage_force_hull + np.array(balance_force)
         appendage_moment_hull = appendage_moment_hull + np.array(
-            [self.coxswain.roll_moment(state), 0.0, 0.0])
+            balance_moment)
 
         # -- gyroscopic ---------------------------------------------------
         inertia_abs = rotate_inertia_to_abs(boat.hull_inertia, state.attitude)
