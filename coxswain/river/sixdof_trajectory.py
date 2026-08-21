@@ -117,7 +117,8 @@ class SixDofTrajectory:
     built once and reused across solves with different horizons."""
 
     def __init__(self, boat, raster, model=None, blade=None,
-                 progress_field=None, margin: float = 2.0):
+                 progress_field=None, margin: float = 2.0,
+                 guess_step: float = 0.004):
         import casadi as ca
 
         from .sixdof import SixDofModel
@@ -127,6 +128,10 @@ class SixDofTrajectory:
         self.model = model if model is not None else SixDofModel(
             boat, blade=blade)
         self.margin = float(margin)
+        #: Explicit step for the initial-guess rollout.  Set by the stiffest
+        #: mode in the model, which is the crew's balance loop, not by the
+        #: accuracy the guess needs.
+        self.guess_step = float(guess_step)
 
         #: How far the blades reach from the centreline.  The hull is
         #: 0.57 m in the beam and irrelevant; what hits the bank is a blade.
@@ -389,18 +394,30 @@ class SixDofTrajectory:
         states[:, 0] = np.asarray(start_state, dtype=float)
         nominal = np.zeros(n_controls)
         nominal[2] = 1.0
+        # Substep.  One RK4 step per mesh interval is not enough: the
+        # crew's balance loop is stiff -- a 6000 N m/rad spring against the
+        # hull's roll inertia -- and at the ~0.27 s of a mesh interval an
+        # explicit step of it diverges, oscillating to +/-70 degrees of roll
+        # within four nodes and overflowing shortly after.  The collocation
+        # itself is implicit and handles this; only the explicit guess
+        # needs the smaller step.
+        substeps = max(1, int(np.ceil(float(np.max(np.diff(times)))
+                                      / self.guess_step)))
         for k in range(n):
-            step = float(times[k + 1] - times[k])
             x = states[:, k]
+            step = float(times[k + 1] - times[k]) / substeps
             t = float(times[k])
-            k1 = np.array(dynamics(x, nominal, t)).ravel()
-            k2 = np.array(dynamics(x + 0.5 * step * k1, nominal,
-                                   t + 0.5 * step)).ravel()
-            k3 = np.array(dynamics(x + 0.5 * step * k2, nominal,
-                                   t + 0.5 * step)).ravel()
-            k4 = np.array(dynamics(x + step * k3, nominal,
-                                   t + step)).ravel()
-            states[:, k + 1] = x + step / 6.0 * (k1 + 2 * k2 + 2 * k3 + k4)
+            for _ in range(substeps):
+                k1 = np.array(dynamics(x, nominal, t)).ravel()
+                k2 = np.array(dynamics(x + 0.5 * step * k1, nominal,
+                                       t + 0.5 * step)).ravel()
+                k3 = np.array(dynamics(x + 0.5 * step * k2, nominal,
+                                       t + 0.5 * step)).ravel()
+                k4 = np.array(dynamics(x + step * k3, nominal,
+                                       t + step)).ravel()
+                x = x + step / 6.0 * (k1 + 2 * k2 + 2 * k3 + k4)
+                t += step
+            states[:, k + 1] = x
 
         controls = np.tile(nominal[:, None], (1, n + 1))
         mid = np.tile(nominal[:, None], (1, n))
