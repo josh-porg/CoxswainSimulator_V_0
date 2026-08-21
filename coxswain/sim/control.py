@@ -60,14 +60,27 @@ class BalanceController:
 
     stiffness: float = 6000.0     # N m / rad
     damping: float = 2000.0       # N m / (rad/s)
-    max_moment: float = 4000.0    # N m, what a crew can actually apply
+    max_moment: float = 4000.0    # N m; used only when no authority is set
     enabled: bool = True
+    #: Phase-dependent authority.  When set, it replaces ``max_moment``
+    #: entirely and the saturation becomes a function of where in the
+    #: stroke the crew is.  See :class:`coxswain.crew.balance.PhaseAuthority`
+    #: -- the short version is that the blades are the only thing a crew
+    #: can push against, so on the recovery there is almost nothing.
+    authority: object = None
+    timing: object = None
 
-    def moment(self, roll: float, roll_rate: float) -> float:
+    def limit(self, t: float = None) -> float:
+        if self.authority is None or self.timing is None or t is None:
+            return self.max_moment
+        return float(self.authority.window(t, self.timing))
+
+    def moment(self, roll: float, roll_rate: float, t: float = None) -> float:
         if not self.enabled:
             return 0.0
         demand = -(self.stiffness * roll + self.damping * roll_rate)
-        return float(np.clip(demand, -self.max_moment, self.max_moment))
+        bound = self.limit(t)
+        return float(np.clip(demand, -bound, bound))
 
 
 @dataclass(frozen=True)
@@ -120,8 +133,8 @@ class Coxswain:
         if self.heading is None:
             self.heading = HeadingController()
 
-    def roll_moment(self, state: State) -> float:
-        return self.balance.moment(state.roll, float(state.omega_hull[0]))
+    def roll_moment(self, state: State, t: float = None) -> float:
+        return self.balance.moment(state.roll, float(state.omega_hull[0]), t)
 
     def rudder(self, t: float, state: State) -> float:
         if self.rudder_override is not None:

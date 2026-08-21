@@ -35,7 +35,8 @@ from dataclasses import dataclass
 import numpy as np
 
 __all__ = ["BalanceRig", "PhaseAuthority", "static_roll_stiffness",
-           "roll_inertia", "roll_divergence_time"]
+           "roll_inertia", "roll_divergence_time",
+           "trunk_lean_authority"]
 
 
 @dataclass(frozen=True)
@@ -145,9 +146,67 @@ class PhaseAuthority:
     def limit(self, phase: str) -> float:
         return self.drive if phase == "drive" else self.recovery
 
+    def window(self, t, timing, ca=None, sharpness: float = 40.0):
+        """Authority limit at time ``t``, smoothed for IPOPT.
+
+        The true limit is a square wave: full authority while the blades
+        are buried, almost none while they are in the air.  A square wave
+        has no derivative at the catch and the finish, and the phase-locked
+        mesh puts nodes exactly there, so it is smoothed with a pair of
+        logistic edges.
+
+        ``sharpness`` is in units of inverse stroke phase.  At the default
+        the transition occupies about ``4/sharpness = 0.10`` of the stroke,
+        roughly 0.19 s at rate 32 -- comparable to the time a blade
+        actually takes to enter and leave the water, so the smoothing is
+        not merely numerical convenience.  :meth:`window_error` reports how
+        far the smoothed limit departs from the square wave, which is the
+        bound this approximation has to be judged against.
+        """
+        if ca is None:
+            import numpy as backend
+
+            phase = backend.mod(t, timing.period) / timing.period
+
+            def logistic(z):
+                return 1.0 / (1.0 + backend.exp(-z))
+        else:
+            phase = ca.fmod(t, timing.period) / timing.period
+
+            def logistic(z):
+                return 1.0 / (1.0 + ca.exp(-z))
+
+        drive = timing.drive_fraction
+        buried = (logistic(sharpness * phase)
+                  * logistic(sharpness * (drive - phase)))
+        return self.recovery + (self.drive - self.recovery) * buried
+
+    def window_error(self, timing, samples: int = 2001,
+                     sharpness: float = 40.0) -> float:
+        """Worst departure of the smoothed limit from the square wave.
+
+        Reported as a fraction of the drive authority, excluding a band of
+        one transition width either side of each edge -- inside that band
+        the two disagree by construction, and the question is whether they
+        agree everywhere else.
+        """
+        import numpy as np
+
+        phase = np.linspace(0.0, 1.0, samples, endpoint=False)
+        smooth = self.window(phase * timing.period, timing,
+                             sharpness=sharpness)
+        exact = np.where(phase < timing.drive_fraction, self.drive,
+                         self.recovery)
+        width = 4.0 / sharpness
+        edges = ((phase < width)
+                 | (np.abs(phase - timing.drive_fraction) < width)
+                 | (phase > 1.0 - width))
+        return float(np.abs(smooth - exact)[~edges].max() / self.drive)
+
     @classmethod
     def from_boat(cls, boat, handle_force: float = 150.0,
-                  hand_travel: float = 0.15, gravity: float = 9.80665):
+                  hand_travel: float = 0.15, gravity: float = 9.80665,
+                  lean_angle: float = np.radians(2.0)):
         """Derive both limits from the rig.
 
         ``handle_force`` is the vertical force a rower can apply at the
@@ -190,6 +249,13 @@ class PhaseAuthority:
                 # reaction of the oar's centre of mass
                 reaction = handle + oar.mass * alpha * oar.centre_of_mass_offset
                 recovery += reaction * arm
+
+        # Trunk lean acts in both phases, but it is only *decisive* on the
+        # recovery, where the oars offer almost nothing.  See
+        # :func:`trunk_lean_authority` for why it is not free.
+        lean = trunk_lean_authority(boat, lean_angle, gravity=gravity)
+        recovery += lean
+        drive += lean
 
         return cls(drive=float(drive), recovery=float(recovery),
                    hand_travel=float(hand_travel),
@@ -249,3 +315,49 @@ def roll_divergence_time(boat, gravity: float = 9.80665) -> float:
     if stiffness <= 0.0:
         return float("inf")
     return float(np.sqrt(roll_inertia(boat) / stiffness))
+
+
+def trunk_lean_authority(boat, lean_angle: float = np.radians(2.0),
+                         seat_height: float = 0.09,
+                         gravity: float = 9.80665) -> float:
+    """Roll moment available from leaning the trunk, in N m.
+
+    The second recovery actuator, and on the evidence the stronger one.
+    A rower who leans their upper body laterally moves a large mass on a
+    long lever: for an eight, 704 kg of crew above seat height with its
+    centroid 0.21 m up, so two degrees of lean is 7.5 mm of lateral shift
+    and about 51 N m -- roughly **1.6 times** what the oars can produce
+    with the blades in the air.
+
+    This is the mechanism [D96] calls body inertia, and describes as how a
+    sculler actually holds a boat that has no static stability:
+
+        "if you set the boat up at the finish and swing straight down the
+        hull, your upper torso is not going anywhere very quickly and its
+        inertia can be used as a reference point to sit the boat flat"
+
+    Two caveats, both from [D96], and both reasons this is *not* simply
+    added to the oar term as though it were free:
+
+    * it is a **transient** actuator.  Shifting mass laterally cannot fix
+      a persistent list -- "You cannot correct a consistently off-flat
+      racing boat by permanently leaning slightly sideways to the uphill
+      side, it will tend to reinforce the tilt, not reduce it."  The boat
+      re-equilibrates about the new mass distribution and, being unstable,
+      diverges from that equilibrium just as readily.
+    * it moves the crew centre of gravity, which is the very quantity that
+      makes the boat unstable in the first place, so using it aggressively
+      raises the stiffness it is fighting.
+
+    ``seat_height`` is the seat above the waterline, 9 cm for an eight
+    from [D96] Table 1; segments above it are taken as the leanable mass.
+    """
+    mass, position, _, _ = boat.crew_field(0.0)
+    datum = float(boat.equilibrium_heave()) + float(seat_height)
+    upper = position[:, 2] > datum
+    if not upper.any():
+        return 0.0
+    upper_mass = float(mass[upper].sum())
+    lever = float((mass[upper] * (position[upper, 2] - datum)).sum()
+                  / upper_mass)
+    return float(upper_mass * gravity * lever * np.sin(lean_angle))

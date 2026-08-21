@@ -1205,3 +1205,157 @@ conditioned.
 Clearance must be compared against the **blade tips**, not the hull. An
 eight is 0.57 m in the beam, but its oarlocks sit at ±0.85 m and the blades
 reach 2.56 m beyond that.
+
+
+## 15. Phase-dependent balance authority
+
+### [D96] The primary source
+
+**"Balance of Racing Rowing Boats"**, Furnivall Sculling Club, 1996;
+lightly revised 2013 PDF, 15 pp. Hosted at
+<https://eodg.atm.ox.ac.uk/user/dudhia/rowing/physics/Balance_of_Racing_Rowing_Boats_v3.pdf>
+
+The article extends classical ship hydrostatic stability theory to racing
+shells. Its conclusions are stated flatly and are the foundation of this
+section:
+
+> "No racing rowing boat is statically stable with the crew rigid in the
+> boat and the oars off the water. Not even close, stationary or moving."
+
+and, on the recovery specifically:
+
+> "Lifting or dropping the hands during the recovery to keep the blades at
+> a constant height off the water with a non-flat boat tends to make it
+> even less flat. The system has positive feedback."
+
+Its Table 1 gives, for an eight with crew aboard, all referred to the
+waterline: metacentre 13 cm, centre of gravity 28 cm. The centre of
+gravity is 15 cm **above** the metacentre, hence unstable.
+
+### Independent reproduction
+
+This model was built from de Leva (1996) segment inertias and a
+triangulated hull mesh, with no reference to [D96]. It agrees:
+
+| quantity | this model | [D96] Table 1 |
+|---|---|---|
+| CoG above waterline, eight | **25.4 cm** | 28 cm |
+
+and computing the net static roll moment from buoyancy against gravity
+with the crew rigid gives, for every boat in the catalogue, a **positive**
+(destabilising) stiffness:
+
+| boat | static roll stiffness | roll inertia | e-folding time |
+|---|---|---|---|
+| eight | **+2122 N·m/rad** | 101 kg·m² | 0.218 s |
+| coxed four | +1166 | 50 | 0.207 s |
+| single scull | +329 | 11 | 0.185 s |
+
+`coxswain.crew.balance.static_roll_stiffness` computes it;
+`roll_divergence_time` turns it into the timescale.
+
+### What the crew can actually do about it
+
+The two stroke phases work by different mechanisms, and only one of them
+is any good.
+
+**Drive — the blade is buried.** A rower who changes handle height loads
+the oar as a lever against water that pushes back, so the rigger carries
+`(1 + inboard/outboard)` times the handle force. [D96]: "The oars can be
+used to force the hull flat during the drive."
+
+**Recovery — the blade is in the air.** There is nothing to push against.
+The only reaction available is the oar's own inertia: the rower angularly
+accelerates it about the oarlock and the reaction appears at the rigger.
+The available angular acceleration is bounded by how far the hands can
+travel vertically in the time available, so this is computed rather than
+assumed. [D96] confirms the mechanism is weak — hand-height changes "can
+only produce transient forces" — and rules out the alternative for crew
+boats:
+
+> "crew boats require you to get the spoons right off the water to clear
+> the puddles coming down from rowers behind you, hence this strategy is
+> not available"
+
+which removes blade-skimming and its ground-effect assist, both of which
+[D96] describes as powerful but available only to singles and pairs.
+
+| boat | drive authority | recovery authority | ratio |
+|---|---|---|---|
+| eight | 1474 N·m | **32.6 N·m** | **2.2%** |
+| coxed four | 720 | 15.9 | 2.2% |
+| single scull | 346 | 7.9 | 2.3% |
+
+The ratio is nearly constant because it is set by oar geometry and stroke
+timing, which barely differ between classes.
+
+The one physiological input is the vertical handle force a rower can apply
+while also pulling, taken as 150 N. Instrumented-oar work calibrates
+three-dimensional oarlock transducers over a 0–150 N blade-force range,
+and the vertical component a rower can spare mid-drive sits at the low end
+of what they produce horizontally, so this is deliberately conservative.
+Oar mass is 2.7 kg, a composite sweep oar.
+
+### The consequence, and why it matches what crews report
+
+For the eight:
+
+* recovery authority 32.6 N·m against a destabilising 2122 N·m/rad means
+  the crew can still arrest **0.88° of heel** with the blades out — and no
+  more;
+* the recovery lasts 1.130 s against an e-folding time of 0.218 s, i.e.
+  **5.2 time constants**, so an uncontrolled roll grows by a factor of
+  **179** between the finish and the next catch.
+
+Those two numbers close on each other. A boat set flat to within 0.006° at
+the finish arrives at the catch at 1°. **The ~1° roll oscillation this
+model produces is therefore not noise — it is the signature of an unstable
+plant being caught once per stroke**, flattened on the drive, diverging
+through the recovery, and caught again.
+
+Replacing the constant 4000 N·m limit with this phase-dependent one raises
+the simulated roll swing from 1.06° to 2.45°. The rowers' objection that
+holding the boat during the recovery is the hard part is quantitatively
+correct, and it is hard for a specific reason: they are not damping a
+stable mode, they are catching a diverging one with 2% of the authority
+they had a moment earlier.
+
+### Bounded smoothing
+
+The limit is physically a square wave. The phase-locked mesh puts nodes
+exactly at the catch and the finish, where a square wave has no
+derivative, so it is smoothed with a pair of logistic edges.
+`PhaseAuthority.window_error` measures the departure from the square wave
+away from the transition bands: **1.7% of drive authority** at the default
+sharpness. The transition occupies about 0.19 s at rate 32, comparable to
+the time a blade actually takes to enter and leave the water, so the
+smoothing corresponds to something physical rather than being pure
+numerical convenience.
+
+### What this exposed: a double rotation in the buoyancy moment
+
+Making the authority honest immediately broke the 6-DOF model — roll
+diverged to 300°. The cause was a latent frame bug that the over-generous
+4000 N·m had been masking.
+
+`HullMesh.submerged` returns the centre of buoyancy in the **absolute**
+frame: its own `buoyancy_moment` equals `cross(centre, force)` against an
+unrotated vertical force, which only balances if the centre already
+carries the attitude. `HullSurrogate` tabulated that value directly, and
+`SixDofModel` then rotated it again by the full attitude — applying roll
+and pitch twice.
+
+At one degree of heel this turned an 18.16 N·m righting moment into
+2.35 N·m. **It destroyed 87% of the hull's roll stiffness.** It was
+invisible at zero roll, where every previous check had looked, and it
+stayed invisible while the crew were credited with roughly 100× the
+recovery authority they actually have.
+
+The surrogate now stores the centre of buoyancy in the hull frame. The
+reconstructed roll moment is −18.154 N·m against the exact mesh's
+−18.161 N·m, and the numpy and CasADi paths agree on roll acceleration at
+1° of heel to **0.02%**, against 14% before the fix.
+
+This is the clearest case so far of the project's working assumption: an
+over-generous parameter does not merely make one number wrong, it hides
+errors elsewhere by absorbing them.

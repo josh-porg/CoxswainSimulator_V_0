@@ -293,6 +293,11 @@ class SixDofModel:
 
         # the crew's balance reflex, matching sim.control.BalanceController
         self.balance_rig = BalanceRig.from_boat(boat)
+        #: Phase-dependent saturation.  The blades are the only thing a crew
+        #: can push against for roll, so authority collapses when they leave
+        #: the water.  Set to ``None`` to recover the old constant limit.
+        from ..crew.balance import PhaseAuthority
+        self.balance_authority = PhaseAuthority.from_boat(boat)
         self.balance_stiffness = 6000.0
         self.balance_damping = 2000.0
         self.balance_limit = 4000.0
@@ -416,7 +421,16 @@ class SixDofModel:
         # eight pitches it; a pure x couple cannot represent that.
         balance = -(self.balance_stiffness * roll
                     + self.balance_damping * omega_hull[0])
-        balance = self.balance_limit * ca.tanh(balance / self.balance_limit)
+        # The saturation is a function of stroke phase, not a constant.  A
+        # buried blade gives the crew something to push against; an
+        # airborne one gives them only the oar's own inertia, which is
+        # about 2% as much.  Smoothed with logistic edges because the mesh
+        # puts nodes exactly at the catch and the finish.
+        if self.balance_authority is not None:
+            limit = self.balance_authority.window(time, self.boat.timing, ca)
+        else:
+            limit = self.balance_limit
+        balance = limit * ca.tanh(balance / limit)
         balance_force_t, balance_moment_t = self.balance_rig.loads(balance)
         balance_force = ca.vertcat(*balance_force_t)
         balance_moment = ca.vertcat(*balance_moment_t)

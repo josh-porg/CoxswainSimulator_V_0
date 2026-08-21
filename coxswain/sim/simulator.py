@@ -339,7 +339,7 @@ class RowingSimulator:
         # longitudinally, so the same forces carry a pitch couple of about
         # 0.72 of the roll couple.  See coxswain.crew.balance.
         balance_force, balance_moment = self.balance_rig.loads(
-            self.coxswain.roll_moment(state))
+            self.coxswain.roll_moment(state, t))
         appendage_force_hull = appendage_force_hull + np.array(balance_force)
         appendage_moment_hull = appendage_moment_hull + np.array(
             balance_moment)

@@ -236,3 +236,227 @@ def test_the_lateral_moment_arm_is_not_constant(eight):
                                  eight.oar_sweep)
         arms.append(abs(float(handle[1]) - float(lock.position[1])))
     assert min(arms) < 0.85 < max(arms), arms
+
+
+# --------------------------------------------------------------------------
+# Phase-dependent balance authority
+#
+# [D96] "Balance of Racing Rowing Boats", Furnivall Sculling Club 1996,
+#       2013 PDF revision, https://eodg.atm.ox.ac.uk/user/dudhia/rowing/
+#       physics/Balance_of_Racing_Rowing_Boats_v3.pdf
+# --------------------------------------------------------------------------
+def test_a_loaded_racing_shell_is_statically_unstable_in_roll(eight):
+    """[D96]'s central claim, reproduced independently.
+
+    "No racing rowing boat is statically stable with the crew rigid in the
+    boat and the oars off the water."  A shell carries its centre of
+    gravity above its metacentre, so buoyancy does not right it -- every
+    newton-metre of flatness comes from the crew.
+
+    Positive stiffness here means destabilising.
+    """
+    from coxswain.crew.balance import static_roll_stiffness
+
+    assert static_roll_stiffness(eight) > 0.0
+
+
+def test_every_boat_class_is_unstable_not_just_the_eight():
+    from coxswain.crew.balance import static_roll_stiffness
+
+    for factory in (catalog.eight, catalog.coxed_four, catalog.single_scull):
+        boat = factory(rate=32.0)
+        assert static_roll_stiffness(boat) > 0.0, boat
+
+
+def test_centre_of_gravity_height_matches_the_published_table(eight):
+    """[D96] Table 1 gives 28 cm above the waterline for an eight.
+
+    This model is built from de Leva segment inertias and a hull mesh with
+    no reference to that table, so agreement is a real check on both.
+    """
+    mass, position, _, _ = eight.crew_field(0.0)
+    centre = float((mass * position[:, 2]).sum() / eight.total_mass)
+    height = 100.0 * (centre - eight.equilibrium_heave())
+    assert 22.0 < height < 32.0, height
+
+
+def test_recovery_authority_is_a_small_fraction_of_the_drive(eight):
+    """The whole point.
+
+    On the drive the blade is buried and the crew push against the water.
+    On the recovery the blade is in the air and the only reaction available
+    is the oar's own inertia -- [D96] notes hand-height changes "can only
+    produce transient forces", and that skimming the blades, the other
+    mechanism, is unavailable to a crew boat because the spoons must clear
+    the puddles of the crew ahead.
+    """
+    from coxswain.crew.balance import PhaseAuthority
+
+    authority = PhaseAuthority.from_boat(eight)
+    assert authority.recovery < 0.10 * authority.drive
+    assert authority.recovery > 0.0, "not zero -- the oar still has mass"
+
+
+def test_the_authority_ratio_is_similar_across_boat_classes():
+    """It is set by oar geometry and stroke timing, which barely differ."""
+    from coxswain.crew.balance import PhaseAuthority
+
+    ratios = [PhaseAuthority.from_boat(factory(rate=32.0)).ratio
+              for factory in (catalog.eight, catalog.coxed_four,
+                              catalog.single_scull)]
+    assert max(ratios) - min(ratios) < 0.01, ratios
+
+
+def test_the_crew_runs_out_of_authority_at_about_one_degree(eight):
+    """The number that answers the rowers' complaint.
+
+    Recovery authority divided by the destabilising stiffness is the
+    largest heel the crew can still arrest with the blades out of the
+    water.  It comes out near a degree -- which is also the size of the
+    roll oscillation the model produces, and that is not a coincidence.
+    """
+    from coxswain.crew.balance import PhaseAuthority, static_roll_stiffness
+
+    authority = PhaseAuthority.from_boat(eight)
+    holdable = np.degrees(authority.recovery / static_roll_stiffness(eight))
+    assert 0.3 < holdable < 2.0, holdable
+
+
+def test_the_recovery_lasts_several_instability_time_constants(eight):
+    """Why it is hard rather than merely annoying.
+
+    The uncontrolled roll mode grows exponentially with an e-folding time
+    of about 0.2 s, and the recovery is over a second long.  The crew are
+    not damping a stable mode; they are catching a diverging one.
+    """
+    from coxswain.crew.balance import roll_divergence_time
+
+    tau = roll_divergence_time(eight)
+    assert 0.1 < tau < 0.4, tau
+    assert eight.timing.recovery_duration / tau > 3.0
+
+
+def test_the_authority_window_is_high_on_the_drive_and_low_after(eight):
+    from coxswain.crew.balance import PhaseAuthority
+
+    authority = PhaseAuthority.from_boat(eight)
+    period = eight.timing.period
+    mid_drive = authority.window(0.2 * period, eight.timing)
+    mid_recovery = authority.window(0.8 * period, eight.timing)
+    assert mid_drive > 10.0 * mid_recovery
+
+
+def test_the_smoothed_window_tracks_the_square_wave(eight):
+    """A bounded smoothing has to have its bound measured.
+
+    The transition is smoothed because the mesh puts nodes exactly at the
+    catch and the finish and a square wave has no derivative there.  Away
+    from the edges the smoothed limit must still be the real one.
+    """
+    from coxswain.crew.balance import PhaseAuthority
+
+    authority = PhaseAuthority.from_boat(eight)
+    assert authority.window_error(eight.timing) < 0.05
+
+
+def test_phase_dependent_balance_makes_the_boat_harder_to_hold(eight):
+    """It must cost something, or it is not modelling anything."""
+    from coxswain.crew.balance import PhaseAuthority
+    from coxswain.sim.control import BalanceController, Coxswain
+    from coxswain.sim.simulator import RowingSimulator
+
+    def swing(authority):
+        controller = BalanceController(
+            authority=authority,
+            timing=eight.timing if authority is not None else None)
+        result = RowingSimulator(
+            eight, coxswain=Coxswain(balance=controller)).run(
+            duration=14.0, dt=0.005, surge_speed=4.6)
+        roll = np.degrees(np.asarray(result.roll))
+        half = len(roll) // 2
+        return roll[half:].max() - roll[half:].min()
+
+    constant = swing(None)
+    phased = swing(PhaseAuthority.from_boat(eight))
+    assert phased > 1.5 * constant, (constant, phased)
+
+
+# --------------------------------------------------------------------------
+# the buoyancy frame bug that the honest authority exposed
+# --------------------------------------------------------------------------
+def test_hull_surrogate_stores_the_centre_of_buoyancy_in_the_hull_frame(eight):
+    """The bug a too-generous balance limit had been hiding.
+
+    ``HullMesh.submerged`` returns the centre of buoyancy in the
+    **absolute** frame -- its own ``buoyancy_moment`` is ``cross(centre,
+    force)`` against an unrotated vertical force.  The surrogate used to
+    tabulate that value directly and the dynamics then rotated it again,
+    applying roll and pitch twice.
+
+    At one degree of heel it turned an 18.2 N m righting moment into
+    2.4 N m: 87% of the hull's roll stiffness, gone.  It was invisible at
+    zero roll, which is where every earlier check had looked, and it stayed
+    invisible while the crew were credited with 4000 N m of balance
+    authority they do not have.
+    """
+    pytest.importorskip("casadi")
+    from coxswain.core.frames import hull_to_abs
+    from coxswain.river.hullsurrogate import HullSurrogate
+
+    surrogate = HullSurrogate.from_boat(eight, n_heave=17, n_pitch=9,
+                                        n_roll=13,
+                                        roll_range=np.radians(4.0))
+    heave = eight.equilibrium_heave()
+    roll = np.radians(1.0)
+
+    values = surrogate(heave, 0.0, roll)
+    buoyancy = eight.water.density * 9.80665 * values["volume"]
+    centre_hull = np.array([values["buoyancy_x"], values["buoyancy_y"],
+                            values["buoyancy_z"]])
+    rotation = hull_to_abs(np.array([roll, 0.0, 0.0]))
+    moment = np.cross(rotation @ centre_hull, np.array([0.0, 0.0, buoyancy]))
+
+    exact = eight.mesh.submerged(
+        np.array([0.0, 0.0, heave]), np.array([roll, 0.0, 0.0]),
+        rho=eight.water.density, gravity=9.80665, water_level=0.0)
+    expected = float(np.asarray(exact.buoyancy_moment)[0])
+    assert moment[0] == pytest.approx(expected, rel=0.02), (moment[0],
+                                                            expected)
+
+
+def test_the_two_paths_agree_on_roll_acceleration_at_heel(eight):
+    """The check that would have caught the double rotation.
+
+    Comparing at zero roll proves nothing about a frame error in roll.
+    """
+    pytest.importorskip("casadi")
+    from coxswain.crew.balance import PhaseAuthority
+    from coxswain.river.hullsurrogate import HullSurrogate
+    from coxswain.river.sixdof import SixDofModel
+    from coxswain.sim.control import BalanceController, Coxswain
+    from coxswain.sim.simulator import RowingSimulator
+
+    authority = PhaseAuthority.from_boat(eight)
+    surrogate = HullSurrogate.from_boat(eight, n_heave=21, n_pitch=9,
+                                        n_roll=15,
+                                        roll_range=np.radians(4.0))
+    model = SixDofModel(eight, surrogate=surrogate)
+    function = model.function()
+    simulator = RowingSimulator(eight, coxswain=Coxswain(
+        balance=BalanceController(authority=authority, timing=eight.timing)))
+
+    time = 0.1 * eight.timing.period
+    state = simulator.initial_state(surge_speed=4.6)
+    state[3] = np.radians(1.0)
+    numeric = simulator.derivative(time, state)
+
+    symbolic_state = np.zeros(13)
+    symbolic_state[3] = np.radians(1.0)
+    symbolic_state[6] = 4.6
+    symbolic_state[2] = eight.equilibrium_heave()
+    symbolic_state[12] = model.anaerobic_capacity
+    symbolic = np.array(
+        function(symbolic_state, [0.0, 0.0, 1.0], time)).ravel()
+
+    assert symbolic[9] == pytest.approx(numeric[9], rel=0.05), \
+        (numeric[9], symbolic[9])

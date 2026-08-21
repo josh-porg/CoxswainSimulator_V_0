@@ -58,6 +58,28 @@ TABULATED = (
 )
 
 
+
+def _to_hull(centre, roll, pitch):
+    """Express a mesh-frame centre of buoyancy in the hull frame.
+
+    :meth:`HullMesh.submerged` returns the centre of buoyancy in the
+    **absolute** frame -- its own ``buoyancy_moment`` is ``cross(centre,
+    force)`` with an unrotated vertical force, which only balances if the
+    centre already carries the attitude.
+
+    The dynamics need it in the hull frame, because they rotate it by the
+    full attitude (yaw included) before crossing it with gravity.  Storing
+    the absolute value and rotating it again applies roll and pitch twice.
+    At one degree of heel that turned an 18.3 N m righting moment into
+    2.4 N m -- it destroyed 87% of the hull's roll stiffness, and it was
+    invisible at zero roll, which is where every previous check looked.
+    """
+    from ..core.frames import hull_to_abs
+
+    rotation = hull_to_abs(np.array([roll, pitch, 0.0]))
+    return rotation.T @ np.asarray(centre, dtype=float)
+
+
 @dataclass
 class HullSurrogate:
     """Submerged hull properties as a smooth function of attitude.
@@ -101,8 +123,8 @@ class HullSurrogate:
                         np.array([phi, theta, 0.0]),
                         rho=boat.water.density, gravity=gravity,
                         water_level=water_level)
-                    centre = np.asarray(properties.centre_of_buoyancy,
-                                        dtype=float)
+                    centre = _to_hull(properties.centre_of_buoyancy,
+                                      phi, theta)
                     table[:, i, j, k] = (
                         properties.volume,
                         properties.wetted_area,
@@ -169,7 +191,7 @@ class HullSurrogate:
                 np.array([0.0, 0.0, z]), np.array([phi, theta, 0.0]),
                 rho=self.boat.water.density, gravity=gravity,
                 water_level=water_level)
-            centre = np.asarray(exact.centre_of_buoyancy, dtype=float)
+            centre = _to_hull(exact.centre_of_buoyancy, phi, theta)
             truth = {
                 "volume": exact.volume,
                 "wetted_area": exact.wetted_area,
