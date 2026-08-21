@@ -59,6 +59,13 @@ class Oar:
     blade_area: float = 0.11
     blade_efficiency: float = 0.78
     grip_separation: float = 0.0
+    #: Oar mass in kg.  Irrelevant to propulsion -- the lever model does
+    #: not need it -- but it is the *entire* mechanism by which a crew can
+    #: influence roll during the recovery, when the blade is in the air and
+    #: there is nothing else to push against.  Default is a composite sweep
+    #: oar; Concept2's published mass for a Fat2/Skinny sweep oar is about
+    #: 2.7 kg depending on layup and length.
+    mass: float = 2.7
 
     def __post_init__(self) -> None:
         if not 0.0 < self.blade_efficiency <= 1.0:
@@ -73,6 +80,26 @@ class Oar:
                 f"inboard ({self.inboard}) must lie strictly between 0 and "
                 f"the oar length ({self.length})"
             )
+
+    @property
+    def inertia_about_lock(self) -> float:
+        """Second moment of the oar about the oarlock, kg m^2.
+
+        Uniform slender rod of length ``L`` with the pivot ``inboard`` from
+        the handle end, so the centre of mass sits ``L/2 - inboard``
+        outboard of the pivot: ``m (L^2/12 + d^2)``.  A real oar is not
+        uniform -- the blade end is lighter than a solid rod would be and
+        modern shafts taper -- so this is an upper bound on the inertia and
+        therefore a *conservative* estimate of recovery authority: a
+        lighter-ended oar is easier to swing, not harder.
+        """
+        offset = 0.5 * self.length - self.inboard
+        return self.mass * (self.length ** 2 / 12.0 + offset ** 2)
+
+    @property
+    def centre_of_mass_offset(self) -> float:
+        """Distance of the oar's centre of mass outboard of the lock."""
+        return 0.5 * self.length - self.inboard
 
     @property
     def gearing(self) -> float:
