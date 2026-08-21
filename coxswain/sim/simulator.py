@@ -280,14 +280,25 @@ class RowingSimulator:
         # symmetrically so it is a pure yaw couple and adds no net thrust.
         split = self.coxswain.split(t, state)
 
+        phases = boat.phase_offsets
+        period = boat.timing.period
         for seat_index, seat in enumerate(boat.rig.seats):
             hand_hull = hands[seat_index]
+            # A rower who is late is late in their oar as well as their
+            # body.  Evaluating the oar at the boat's time while the body
+            # runs on its own would decouple the hands from the handle,
+            # which is the constraint the whole crew model rests on.
+            seat_time = t - float(phases[seat_index]) * period
             for lock in seat.oarlocks:
-                applied = oar_force(t, boat.timing, lock.side,
+                applied = oar_force(seat_time, boat.timing, lock.side,
                                     boat.force_profile, boat.oar_sweep)
                 if split != 0.0:
                     applied = applied * self.coxswain.side_gain(split,
                                                                 lock.side)
+                # What the crew actually produce, as distinct from what the
+                # coxswain asked for.  Individual differences and
+                # stroke-to-stroke scatter both live here.
+                applied = applied * float(boat.power_scales[seat_index])
                 gearing = (lock.oar.gearing * gearing_scale
                            if blade is not None
                            else lock.oar.effective_gearing)

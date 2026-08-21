@@ -1759,3 +1759,77 @@ composition of aerodynamic drag.
 [H21] "Rowing Against the Wind: An Analysis of the Impact of Variable Wind
 Conditions", Harvard.
 <https://dash.harvard.edu/server/api/core/bitstreams/4f46c026-cb8b-4f50-aa82-1a63b2baa8a5/content>
+
+
+## 21. Per-rower stroke phase (plan step A1)
+
+Every rower shared one stroke phase until now. Sections 15–16 make clear
+why that mattered: roll is an unstable mode held through the recovery by
+about 5% of the drive's authority, and port/starboard timing asymmetry is
+one of the main things that disturbs it. **Setting all phases equal set
+that disturbance to exactly zero.**
+
+`Boat.phase_offsets` now carries one offset per seat, as a fraction of a
+stroke, positive meaning late. Zero for every seat reproduces every prior
+result exactly, which is asserted rather than assumed.
+
+The offset enters in two places, and it has to be both: the rower's
+kinematic chain *and* their oar. Evaluating the oar at the boat's time
+while the body ran on its own would take the hands off the handle, which
+is the constraint the crew model rests on.
+
+Cost is honest: the kinematics batching keys on the offset, so a crew of
+individuals costs one chain per seat rather than one per crew. A
+synchronised eight still collapses to a single group.
+
+### What a timing split does
+
+Port side lagging starboard, stroke-averaged oar loads on the hull, eight
+at rate 32. Recovery balance authority for comparison: **84.1 N·m**.
+
+| split | roll rms | fraction of recovery authority | yaw rms |
+|---|---|---|---|
+| 0 ms | 0.4 N·m | 0.01 | **199.2 N·m** |
+| 10 ms | 12.9 | 0.15 | 88.1 |
+| 20 ms | 26.4 | 0.31 | **40.4** |
+| 40 ms | 52.6 | 0.63 | 129.2 |
+| 60 ms | 78.4 | **0.93** | 260.5 |
+| 80 ms | 103.5 | 1.23 | 392.0 |
+
+**A port/starboard split of about 65 ms exhausts the crew's entire
+recovery balance authority.** That is 3.5% of a stroke at rate 32. It is
+an uncomfortably small number, and it connects the two halves of this
+work: §15 says how little authority there is, §21 says how little timing
+error it takes to spend it.
+
+### An unexpected result: timing as a steering trim
+
+The yaw column is **not monotonic**. A perfectly synchronised sweep eight
+already yaws — the rig is not port-starboard symmetric, and §15's baseline
+is 199 N·m rms. A small timing split pushes the other way, and around
+**20 ms it very nearly cancels the rig's own bias** (199 → 40 N·m).
+Beyond that it overtakes it and grows.
+
+That is a different statement from "timing error is bad". Crew timing is a
+**steering trim** as well as a disturbance, and there exists a small
+non-zero split that makes a sweep eight track straighter than a perfectly
+synchronised one would. Whether real crews find it unconsciously is a
+testable question; that it exists is a property of the rig.
+
+### Where the cost is not
+
+Stroke-averaged surge force is essentially unchanged across this whole
+range (409.2 → 409.4 N). At these splits the price of poor timing is paid
+in **roll and yaw, not in thrust**. That is worth stating plainly because
+the usual explanation offered to crews is that being out of time "wastes
+power", and at this scale that is not where it goes — it goes into making
+the boat harder to hold and harder to steer, both of which cost time by
+other routes.
+
+### Next
+
+This is step A1 of `docs/PLAN_SYNCHRONISATION_AND_BLADES.md`. Still to
+come: the vertical phase ψᵢ (blade height, separate from the horizontal
+sweep — an early extraction changes one without the other), the
+Kuramoto-type coupling with both mechanical and sensory channels, and
+skill as (σ, K_sensory, ψ–φ offset).

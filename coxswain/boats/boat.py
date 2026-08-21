@@ -203,29 +203,97 @@ class Boat:
         return self.rig.n_seats
 
     # -- crew state ------------------------------------------------------
+    @property
+    def phase_offsets(self) -> np.ndarray:
+        """Per-seat stroke-phase offset, as a fraction of one stroke.
+
+        Zero for every seat means a perfectly synchronised crew, which is
+        what every earlier version of this model assumed.  That is not a
+        small idealisation: section 15 shows roll is an unstable mode held
+        by a few percent of the drive's authority through the recovery,
+        and port/starboard timing asymmetry is one of the main things that
+        disturbs it.  Setting these to zero sets the disturbance to zero.
+
+        Positive means *late* -- that rower reaches a given point in the
+        stroke later than the reference.  Ordered by seat index.
+        """
+        offsets = getattr(self, "_phase_offsets", None)
+        if offsets is None:
+            offsets = np.zeros(self.n_seats)
+            self._phase_offsets = offsets
+        return offsets
+
+    @property
+    def power_scales(self) -> np.ndarray:
+        """Per-seat multiplier on handle force, one entry per seat.
+
+        Ones everywhere is a crew of identical rowers all pulling their
+        nominal load.  Real crews are not that: rowers differ from each
+        other, and each rower differs from stroke to stroke.
+
+        This is separate from the coxswain's *commanded* pressure split,
+        which is a control input.  This is what the crew actually does,
+        including the part nobody asked for.
+        """
+        scales = getattr(self, "_power_scales", None)
+        if scales is None:
+            scales = np.ones(self.n_seats)
+            self._power_scales = scales
+        return scales
+
+    @power_scales.setter
+    def power_scales(self, values) -> None:
+        values = np.asarray(values, dtype=float).ravel()
+        if values.shape != (self.n_seats,):
+            raise ValueError(
+                f"power_scales must have one entry per seat "
+                f"({self.n_seats}), got {values.shape}")
+        if np.any(values < 0.0):
+            raise ValueError("power_scales must be non-negative")
+        self._power_scales = values
+
+    @phase_offsets.setter
+    def phase_offsets(self, values) -> None:
+        values = np.asarray(values, dtype=float).ravel()
+        if values.shape != (self.n_seats,):
+            raise ValueError(
+                f"phase_offsets must have one entry per seat "
+                f"({self.n_seats}), got {values.shape}")
+        self._phase_offsets = values
+        # the grouping keys on the offsets, so it has to be rebuilt
+        self._crew_group_cache = None
+
     def _crew_groups(self):
         """Group seats whose rowers move identically, for batch evaluation.
 
-        Built once and reused: a homogeneous crew collapses to a single
-        group, so a derivative evaluation costs one kinematic chain rather
-        than one per seat.  Each entry is
-        ``(representative_rower, seat_indices, x_offsets)``.
+        Built once and reused: a homogeneous, synchronised crew collapses
+        to a single group, so a derivative evaluation costs one kinematic
+        chain rather than one per seat.  Each entry is
+        ``(representative_rower, seat_indices, x_offsets, phase_offset)``.
+
+        The phase offset is part of the grouping key: two rowers with
+        identical anthropometry but different timing are not doing the same
+        thing and cannot share an evaluation.  A crew with all-distinct
+        offsets therefore costs one chain per seat, which is the honest
+        price of modelling them as individuals.
         """
         if getattr(self, "_crew_group_cache", None) is not None:
             return self._crew_group_cache
 
+        phases = self.phase_offsets
         groups = {}
         for member in self.crew:
-            groups.setdefault(member.rower.kinematics_signature(),
-                              []).append(member)
+            key = (member.rower.kinematics_signature(),
+                   round(float(phases[member.seat_index]), 12))
+            groups.setdefault(key, []).append(member)
 
         built = []
-        for members in groups.values():
+        for (_, phase), members in groups.items():
             leader = members[0].rower
             offsets = np.array([m.rower.station.x_ankle
                                 - leader.station.x_ankle for m in members])
             indices = np.array([m.seat_index for m in members])
-            built.append((leader, indices, offsets))
+            built.append((leader, indices, offsets, float(phase)))
 
         self._crew_group_cache = built
         return built
@@ -244,9 +312,10 @@ class Boat:
         ``crew_field_by_seat`` is available when the caller does care.
         """
         masses, positions, velocities, accelerations = [], [], [], []
-        for leader, indices, offsets in self._crew_groups():
+        period = self.timing.period
+        for leader, indices, offsets, phase in self._crew_groups():
             position, velocity, acceleration = leader.segment_state(
-                t, x_offsets=offsets)
+                t - phase * period, x_offsets=offsets)
             positions.append(position)
             velocities.append(velocity)
             accelerations.append(acceleration)
@@ -287,8 +356,9 @@ class Boat:
         from ..crew.oarlock import handle_position
 
         positions = np.zeros((self.n_seats, 3))
-        for leader, indices, offsets in self._crew_groups():
-            hand = leader.joint_positions(t)["hand"]
+        period = self.timing.period
+        for leader, indices, offsets, phase in self._crew_groups():
+            hand = leader.joint_positions(t - phase * period)["hand"]
             positions[indices] = hand
             positions[indices, 0] += offsets
         for index, seat in enumerate(self.rig.seats):
