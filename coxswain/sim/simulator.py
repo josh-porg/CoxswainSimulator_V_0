@@ -159,10 +159,19 @@ class RowingSimulator:
         elif np.isfinite(boat.shallow.depth):
             depth = float(boat.shallow.depth)
 
+        # Blockage only -- deliberately *not* ``depth_factor``, which also
+        # carries ``immersion_factor``.  The constant this replaces is a
+        # measured *total* blade efficiency at nominal cover, so it already
+        # absorbs the immersion loss; multiplying it back in charges for it
+        # twice.  That double count is what cost 14% of boat speed in the
+        # first attempt (SOURCES section 7).  A caller who wants to study
+        # blade depth passes ``blade_cover`` explicitly and then owns the
+        # bookkeeping.
         if depth is not None and depth > blade.blade_width:
-            efficiency *= blade.depth_factor(depth)
-        else:
-            efficiency *= blade.immersion_factor()
+            efficiency *= blade.blockage_factor(depth)
+        cover = getattr(self.boat, "blade_cover", None)
+        if cover is not None:
+            efficiency *= blade.immersion_factor(cover)
 
         return float(np.clip(efficiency, 0.0, 1.0))
 

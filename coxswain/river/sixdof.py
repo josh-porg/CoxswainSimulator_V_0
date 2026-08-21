@@ -463,10 +463,18 @@ def _blade_efficiency(blade, oars, time, surge, depth, ca):
     efficiency = 1.0 - ca.fabs(slip) / magnitude
     efficiency = ca.fmax(efficiency, 0.05)
 
-    factor = blade.immersion_factor()
+    # Deliberately *not* multiplied by ``immersion_factor``.  The lumped
+    # 0.78 this replaces is a measured total blade efficiency at nominal
+    # cover, so it already carries the ventilation and immersion losses;
+    # charging for them again is the double count recorded in SOURCES
+    # section 7, and it is what made an earlier attempt lose 14% of boat
+    # speed.  What the fixed constant cannot carry is the *variation* --
+    # slip within the stroke, and the depth of water round the blade --
+    # so those are exactly what is restored here.
+    factor = 1.0
     if depth is not None:
         sigma = blade.blade_width / ca.fmax(depth, blade.blade_width * 1.5)
-        factor = factor * (1.0 + blade.blockage_m * sigma * blade.blade_cd)
+        factor = 1.0 + blade.blockage_m * sigma * blade.blade_cd
     return efficiency * factor
 
 
