@@ -187,13 +187,34 @@ class SixDofTrajectory:
         return ca.Function("sixdof_river", [state, control, time],
                            [derivative])
 
+    def initial_state(self, position, heading, speed):
+        """A start state that is actually consistent.
+
+        The velocity states are in the **absolute** frame, so a boat
+        pointing along ``heading`` and moving forwards has
+        ``(u cos h, u sin h)`` -- not ``(u, 0)``.  Setting the latter with
+        a nonzero heading asks the model for a boat crabbing sideways at
+        racing speed, which produces enormous lateral load and rolls it
+        over.  That is the model behaving correctly on a nonsense input,
+        and it is an easy input to write by accident.
+        """
+        state = np.zeros(self.model.n_states)
+        state[0], state[1] = float(position[0]), float(position[1])
+        state[2] = float(self.boat.equilibrium_heave())
+        state[5] = float(heading)
+        state[6] = float(speed) * np.cos(float(heading))
+        state[7] = float(speed) * np.sin(float(heading))
+        state[12] = float(self.model.anaerobic_capacity)
+        return state
+
     # -- transcription ----------------------------------------------------
     def solve(self, start_state, n_strokes: int = 6,
               drive_intervals: int = 6, recovery_intervals: int = 4,
               scheme=None, guess=None, max_iter: int = 400,
               rudder_limit: float = np.radians(25.0),
               split_limit: float = 0.15,
-              power_bounds=(0.70, 1.15), print_level: int = 0):
+              power_bounds=(0.70, 1.15), print_level: int = 0,
+              exact_hessian: bool = False):
         """Maximise progress along the channel over ``n_strokes``.
 
         ``scheme`` defaults to Hermite-Simpson.  Pass ``RadauIIA(s)`` to
@@ -302,14 +323,26 @@ class SixDofTrajectory:
         problem = {"x": variables,
                    "f": -made + smoothing,
                    "g": ca.vertcat(*constraints)}
-        solver = ca.nlpsol("sixdof", "ipopt", problem, {
+        options = {
             "ipopt.max_iter": max_iter,
             "ipopt.print_level": print_level,
             "ipopt.sb": "yes",
             "print_time": False,
             "ipopt.tol": 1e-5,
             "ipopt.acceptable_tol": 1e-4,
-        })
+            "ipopt.mu_strategy": "adaptive",
+        }
+        if not exact_hessian:
+            # A quasi-Newton Hessian.  This is a *solver* choice, not a
+            # change to the model: the objective, the constraints and the
+            # dynamics are identical either way, and IPOPT still converges
+            # to a point satisfying the same KKT conditions.  The exact
+            # Hessian of this dynamics -- through the hull surrogate, the
+            # Fourier fits and the blade model -- is enormous to form, and
+            # for a collocation problem of this size L-BFGS is the standard
+            # trade.  Pass ``exact_hessian=True`` to compare.
+            options["ipopt.hessian_approximation"] = "limited-memory"
+        solver = ca.nlpsol("sixdof", "ipopt", problem, options)
 
         x0 = self._initial_guess(start_state, times, n, n_states, n_controls,
                                  guess)
@@ -345,16 +378,32 @@ class SixDofTrajectory:
         ca = self._ca
         if guess is not None:
             return guess
-        states = np.tile(np.asarray(start_state, dtype=float)[:, None],
-                         (1, n + 1))
-        speed = float(start_state[6])
-        heading = float(start_state[5])
-        states[0, :] = start_state[0] + speed * np.cos(heading) * times
-        states[1, :] = start_state[1] + speed * np.sin(heading) * times
-        controls = np.zeros((n_controls, n + 1))
-        controls[2, :] = 1.0
-        mid = np.zeros((n_controls, n))
-        mid[2, :] = 1.0
+        # Roll the real dynamics forward instead of guessing a straight
+        # coast.  A straight-line guess leaves every defect large, and the
+        # solver spends its whole budget making the trajectory dynamically
+        # feasible before it can start improving it.  Integrating first
+        # makes the defects small at iteration zero, so IPOPT starts from
+        # a trajectory the boat could actually fly.
+        dynamics = self.dynamics_function()
+        states = np.zeros((n_states, n + 1))
+        states[:, 0] = np.asarray(start_state, dtype=float)
+        nominal = np.zeros(n_controls)
+        nominal[2] = 1.0
+        for k in range(n):
+            step = float(times[k + 1] - times[k])
+            x = states[:, k]
+            t = float(times[k])
+            k1 = np.array(dynamics(x, nominal, t)).ravel()
+            k2 = np.array(dynamics(x + 0.5 * step * k1, nominal,
+                                   t + 0.5 * step)).ravel()
+            k3 = np.array(dynamics(x + 0.5 * step * k2, nominal,
+                                   t + 0.5 * step)).ravel()
+            k4 = np.array(dynamics(x + step * k3, nominal,
+                                   t + step)).ravel()
+            states[:, k + 1] = x + step / 6.0 * (k1 + 2 * k2 + 2 * k3 + k4)
+
+        controls = np.tile(nominal[:, None], (1, n + 1))
+        mid = np.tile(nominal[:, None], (1, n))
         return ca.vertcat(ca.DM(states.reshape(-1, 1, order="F")),
                           ca.DM(controls.reshape(-1, 1, order="F")),
                           ca.DM(mid.reshape(-1, 1, order="F")))

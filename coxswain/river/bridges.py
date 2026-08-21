@@ -49,6 +49,14 @@ __all__ = ["Pier", "BridgeGate", "OSM_BRIDGE_DECKS", "build_gates"]
 #: racing reach; see the module docstring for provenance.
 OSM_BRIDGE_DECKS = {
     "Eliot Bridge": ((42.3714040, -71.1335355), (42.3719846, -71.1322580)),
+    # The seven bridges of the race course, in upstream (racing) order,
+    # are BU, Grand Junction, River Street, Western Avenue, Weeks, Larz
+    # Anderson and Eliot.  The first two sit almost on top of each other
+    # just above the start and are the reason the opening 500 m is the
+    # most congested water on the course.
+    "BU Bridge": ((42.3513013, -71.1108090), (42.3534798, -71.1105131)),
+    "Grand Junction RR": ((42.3521494, -71.1109938),
+                          (42.3530544, -71.1096620)),
     "Larz Anderson": ((42.3686436, -71.1234695), (42.3692860, -71.1229182)),
     "Weeks Footbridge": ((42.3680971, -71.1185501), (42.3688631, -71.1177282)),
     "Western Avenue": ((42.3642964, -71.1162617), (42.3641615, -71.1181022)),
