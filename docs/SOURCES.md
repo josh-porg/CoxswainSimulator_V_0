@@ -1320,6 +1320,70 @@ correct, and it is hard for a specific reason: they are not damping a
 stable mode, they are catching a diverging one with 2% of the authority
 they had a moment earlier.
 
+### The criterion is bounded growth, not stability
+
+Calling the boat "unstable" is true but sets the wrong control objective,
+and it is worth being precise because the distinction changes what the
+crew are being asked to do.
+
+Closed loop, the boat does **not** need to be stable in any asymptotic
+sense. Nothing needs to converge. The blades return to the water every
+1.9 s at rate 32, and the drive re-establishes 1526 N·m of authority --
+eighteen times what the recovery has. The requirement is only that roll
+does not grow *too much* between the finish and the next catch:
+
+    |phi(t_catch)| <= phi_max,   given |phi(t_finish)| and the growth over
+    the recovery
+
+which is a **finite-horizon boundedness** condition, not a stability one.
+An unstable open-loop mode is perfectly acceptable provided the horizon is
+short enough relative to its e-folding time and the margin is wide enough.
+
+So the quantities that matter are:
+
+| | eight |
+|---|---|
+| e-folding time of the open-loop roll mode | 0.218 s |
+| recovery duration | 1.130 s |
+| **growth factor over one recovery** | **×179** |
+| heel the crew can arrest on the recovery | 2.27° |
+| implied tolerance on heel at the finish | **0.013°** |
+
+That last line is the operative number, and it is the one to design
+against. It is not "make the boat stable"; it is "leave the finish flat to
+within about a hundredth of a degree, or arrive at the catch outside what
+you can hold." That is a demanding but finite requirement, and it explains
+why the skill is trained as *set the boat at the finish* rather than as
+*correct it during the recovery* -- by the time there is something to
+correct, the authority to correct it is gone.
+
+It also identifies the right lever. Growth over the recovery is
+exponential in `recovery_duration / tau`, so anything that shortens the
+recovery helps disproportionately. Sweeping the rating:
+
+| rate | recovery | growth factor | tolerance on heel at the finish |
+|---|---|---|---|
+| 24 | 1.700 s | ×2464 | 0.0007° |
+| 28 | 1.373 s | ×547 | 0.0036° |
+| 32 | 1.130 s | ×180 | 0.0126° |
+| 36 | 0.942 s | ×76 | 0.0351° |
+| 40 | 0.790 s | ×38 | **0.0846°** |
+
+**A boat is about 120 times more forgiving in balance at rate 40 than at
+rate 24.** Nothing about that was put into the model -- it follows from an
+exponential whose exponent is the recovery duration over a timescale set
+by hydrostatics and inertia. It reproduces one of the most universally
+reported facts in the sport: boats fall over at low rate, and feel solid
+at racing rate. Crews and coaches usually attribute this to concentration
+or to "having something to sit on"; this model says it is mostly that the
+unstable mode has less time to run.
+
+It is also a falsifiable prediction with an obvious experiment: measure
+heel variance against rating for a fixed crew. The predicted scaling is
+exponential in the recovery duration, not linear, and it should hold
+regardless of crew skill -- skill sets the disturbance amplitude at the
+finish, the rating sets the amplification.
+
 ### Bounded smoothing
 
 The limit is physically a square wave. The phase-locked mesh puts nodes
@@ -1359,3 +1423,142 @@ reconstructed roll moment is −18.154 N·m against the exact mesh's
 This is the clearest case so far of the project's working assumption: an
 over-generous parameter does not merely make one number wrong, it hides
 errors elsewhere by absorbing them.
+
+
+## 16. Trunk lean: the other recovery actuator, and the stronger one
+
+The first version of §15 credited the recovery only to oar inertia. That
+was too pessimistic, and the omission mattered: it made the boat unsittable
+in simulation.
+
+A rower who leans their upper body laterally moves a large mass on a long
+lever. For the eight, 704 kg of crew sits above seat height with its
+centroid 0.214 m above it, so:
+
+| lean | lateral shift | roll moment | vs oar inertia |
+|---|---|---|---|
+| 1° | 3.7 mm | 25.7 N·m | 0.8× |
+| **2°** | **7.5 mm** | **51.5 N·m** | **1.6×** |
+| 3° | 11.2 mm | 77.2 N·m | 2.4× |
+| 5° | 18.6 mm | 128.5 N·m | 3.9× |
+
+**Trunk lean dominates hand height on the recovery.** With it included:
+
+| boat | drive | recovery = oars + lean | ratio | heel it can hold |
+|---|---|---|---|---|
+| eight | 1526 N·m | 84.1 = 32.6 + 51.5 | 5.5% | 2.27° |
+| coxed four | 744 | 39.8 = 15.9 + 23.9 | 5.4% | 1.96° |
+| single scull | 351 | 13.1 = 7.9 + 5.2 | 3.7% | 2.27° |
+
+Simulated roll swing: 1.06° with the old constant limit, 1.23° with
+phase-dependent authority including lean, **2.45° with the oars alone**.
+Trunk lean is what makes an eight sittable through the recovery.
+
+This is [D96]'s "body inertia" mechanism, and it is the one it describes a
+sculler actually using:
+
+> "if you set the boat up at the finish and swing straight down the hull,
+> your upper torso is not going anywhere very quickly and its inertia can
+> be used as a reference point to sit the boat flat"
+
+It also matches coaching practice better than the hand-height story does:
+[D96] shows that lifting and dropping the hands to hold blade clearance is
+*positive feedback*, whereas using the body is not.
+
+Two caveats, both from [D96], and both reasons the term is bounded rather
+than free:
+
+* it is **transient**. Shifting mass laterally cannot fix a persistent
+  list — "You cannot correct a consistently off-flat racing boat by
+  permanently leaning slightly sideways to the uphill side, it will tend to
+  reinforce the tilt, not reduce it."
+* it moves the crew centre of gravity, which is the quantity that makes
+  the boat unstable in the first place, so leaning hard raises the
+  stiffness it is fighting.
+
+The ratio is not class-independent: the oar term scales with the rig, but
+the lean term scales with crew mass per oar, so a sculler gets
+proportionally less from it. [D96] observes the consequence from the other
+end — small boats depend on skimming the blades, which crew boats cannot
+do.
+
+
+## 17. Blades on the water: a modelled boundary, stated
+
+The model assumes the blades are clear of the water throughout the
+recovery. That is the intent of good rowing and, per the crew this work is
+for, what elite crews achieve on nearly every stroke of the Charles. It is
+not what always happens, and the difference is worth recording because it
+sits exactly on the edge of what is modelled.
+
+An unset boat produces two effects that are outside the current scope:
+
+1. **Blades skipping the surface.** A feathered blade dragging or skipping
+   along the water decelerates the boat. [D96] treats the same contact as
+   a *balance aid* — the spoon carries some of the rigger's weight, and
+   "by exact hand control you can scull a boat dead flat this way" — so
+   the same event is simultaneously a stability gain and a speed loss.
+   The model has neither.
+2. **Truncated drives.** Once a blade is in the water the rower must go
+   with it: an unset boat forces an early catch and less than full
+   extension. That is a *timing and length* penalty, not a drag penalty,
+   and it couples roll error directly into propulsion.
+
+Both make roll error costly in a way the current model does not represent
+— here, poor balance costs nothing but roll. Since §15 establishes that
+roll is an unstable mode held by a few percent of the drive's authority,
+and §16 that the margin is about 2°, these are the mechanisms by which
+exceeding that margin would actually show up on a stopwatch. Adding them
+would make balance a performance variable rather than a comfort one.
+
+Recorded as a known boundary rather than a defect: the assumption is
+stated, its violation is described, and its consequences are named.
+
+
+## 18. Crew synchronisation as coupled oscillators
+
+Every rower in this model is at exactly the same stroke phase. Real crews
+are not, and the deviation is the natural disturbance source for
+everything in §15.
+
+**Naomi Ehrich Leonard** (Princeton, Mechanical and Aerospace Engineering,
+and Applied and Computational Mathematics) works on phase models of
+coupled oscillators and their connection to collective motion, including a
+collaboration using improvisational dance as a model system for
+in-the-moment collective decision making.
+Publications: <https://naomi.princeton.edu/publications/>
+
+The framework transfers to a rowing crew directly, and with an unusually
+clean physical justification:
+
+* each rower is a phase oscillator with phase φᵢ around the stroke cycle;
+* the **coupling is physical, not perceptual**. Rower *i*'s motion moves
+  the hull, and every other rower is rigidly attached to that hull. The
+  coupling is therefore mean-field through a shared body, which is exactly
+  the structure Leonard's collective-motion work treats — rather than the
+  looser visual or auditory coupling usually assumed for human
+  synchronisation;
+* the stroke seat sets a phase reference, giving a directed coupling
+  topology rather than an all-to-all one.
+
+Why it matters here rather than being merely analogous:
+
+1. **Phase spread is a roll disturbance.** §15 establishes that roll is an
+   unstable mode with a 0.218 s e-folding time, held by ~5% of the drive's
+   authority during the recovery, with about 2° of margin. Port/starboard
+   phase asymmetry injects roll moment directly. Synchronisation quality
+   therefore sets the disturbance amplitude for a plant that is already
+   marginal — the two halves of the problem meet.
+2. **Phase spread is a steering disturbance.** Asymmetric timing between
+   sides is a yaw moment, i.e. exactly the standing bias whose correction
+   the steering study of `studies/steering_strategy.py` compares.
+3. **It is the timing half of the stochastic problem.** The stochastic
+   optimal control goal already calls for stroke-to-stroke variation in
+   rower *power*; variation in rower *timing* is the same question and has
+   a ready-made dynamical formalism.
+
+Status: not yet implemented. The model currently hard-codes a single crew
+phase, so the first step is a per-rower phase offset in the crew field —
+after which a Kuramoto-type coupling can be driven by the hull motion the
+simulator already computes, which closes the loop between Leonard's
+formalism and this model rather than bolting one onto the other.

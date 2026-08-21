@@ -69,6 +69,11 @@ class BalanceController:
     #: can push against, so on the recovery there is almost nothing.
     authority: object = None
     timing: object = None
+    #: Stroke-to-stroke learned trim (:class:`coxswain.crew.trim.StrokeTrim`).
+    #: Feedforward, replayed from the previous stroke -- this is how a crew
+    #: actually uses hand heights, and it is a different control law from
+    #: the within-stroke reflex that [D96] shows is positive feedback.
+    trim: object = None
 
     def limit(self, t: float = None) -> float:
         if self.authority is None or self.timing is None or t is None:
@@ -79,6 +84,10 @@ class BalanceController:
         if not self.enabled:
             return 0.0
         demand = -(self.stiffness * roll + self.damping * roll_rate)
+        if self.trim is not None and self.timing is not None and t is not None:
+            # Feedforward first: the learned trim is already being applied
+            # before the error it corrects would recur.
+            demand += self.trim.command(t, self.timing)
         bound = self.limit(t)
         return float(np.clip(demand, -bound, bound))
 
