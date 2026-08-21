@@ -1113,3 +1113,95 @@ That is why a boat is hardest to balance on the recovery, and the model
 does not currently know it. Fixing it needs a sourced figure for the
 vertical handle force a rower can apply while also pulling, which has not
 been found; the geometry above is ready for it when it is.
+
+
+## 13. The rowers were not holding their oars sideways
+
+`Boat.hand_positions` fed the oar moment arms and, through them, every
+oar-generated force and moment on the hull. It returned `y = 0` for every
+seat, at every instant, in every boat.
+
+Two independent causes, which is why it survived:
+
+1. The rower's joint chain is **sagittal**. `joint_positions` solves a
+   planar linkage in the boat's centreplane, so the hand it returns has no
+   lateral component at all.
+2. `hand_positions` batches seats into kinematics groups, evaluates the
+   group leader once, and offsets the others. It offset **`x` only**, so
+   even a lateral position would have been copied unmirrored to every seat
+   in the group.
+
+The consequence is not subtle. A sweep handle sweeps a wide lateral arc:
+on this rig `+0.187 m` at the catch through `-0.280 m` at mid-drive, and
+mirrored between port and starboard. The oar's lateral moment arm, taken
+from the oarlock at `y = ±0.85 m` to the hand, was therefore a constant
+0.85 m against a true value swinging from 0.71 m to 1.13 m:
+
+| stroke fraction | true lateral arm | with hands at y=0 | error |
+|---|---|---|---|
+| 0.05 (catch) | 0.709 m | 0.850 m | **−19.9%** |
+| 0.25 (mid-drive) | 1.130 m | 0.850 m | **+24.7%** |
+
+**The error changes sign through the drive**, so the oar yaw moment was
+distorted in *shape*, not merely scaled — and that moment is what the
+entire steering model rests on.
+
+The fix takes `x` and `z` from the joint chain, which already agree with
+the rig geometry exactly, and the lateral component from the oar. For a
+sculler the two handles mirror and the mean is on the centreline, which is
+the right answer there and was the only case the old code got right.
+
+### A side effect worth recording
+
+`yaw_per_split` needed 32 Fourier harmonics to hit tolerance and now needs
+16. The constant moment arm had been imposing a spurious step at the catch
+on top of the real discontinuity; removing it halved the spectrum. A model
+error showing up as a harder Fourier fit is a useful smell.
+
+
+## 14. Bridges
+
+Six bridges cross the racing reach, and they are the tightest constraint on
+the course. `charles.BRIDGES` held only their centre coordinates, which is
+enough to label a plot and nothing else — an optimised trajectory was free
+to pass straight through a pier.
+
+`coxswain.river.bridges` makes them constraints.
+
+### What is measured and what is not
+
+**The deck geometry is real.** Each bridge's carriageway centreline comes
+from the OpenStreetMap Overpass API, projected onto the same local tangent
+plane as the depth survey:
+
+| bridge | deck span | navigable opening |
+|---|---|---|
+| Eliot Bridge | 123.2 m | 63.0 m |
+| Larz Anderson | 84.6 m | 61.1 m |
+| Weeks Footbridge | 108.7 m | 84.2 m |
+| Western Avenue | 152.0 m | 84.2 m |
+| River Street | 134.6 m | 77.9 m |
+
+**The pier positions are not surveyed.** No published source for the arch
+spans of these particular bridges was found. Rather than invent them, the
+opening is derived from data that does exist: a gate is open exactly where
+the bridge line crosses water the channel raster calls navigable. That
+keeps a boat off the abutments and out of the shallows without pretending
+to know where a mid-river pier stands. `BridgeGate.piers` subtracts any
+piers that are supplied, so the constraint is ready for survey data.
+
+The openings above are therefore **full water widths, not arch spans** —
+the real constraint at Weeks and Anderson is tighter than this, and those
+are exactly the two bridges where Head of the Charles crews collide.
+
+### Why a gate rather than an obstacle
+
+A bridge is a line the boat crosses once, at a point that must lie inside
+an opening with clearance. That gives the optimiser one scalar constraint
+per bridge evaluated at a single crossing, rather than a keep-out region it
+must be excluded from along the whole trajectory — cheaper and better
+conditioned.
+
+Clearance must be compared against the **blade tips**, not the hull. An
+eight is 0.57 m in the beam, but its oarlocks sit at ±0.85 m and the blades
+reach 2.56 m beyond that.
