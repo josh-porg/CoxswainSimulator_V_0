@@ -254,3 +254,61 @@ def test_scattered_timing_does_not_read_as_a_chain():
 def test_one_seat_is_not_enough():
     with pytest.raises(ValueError, match="at least two"):
         fit_synchronisation([_synthetic()])
+
+
+# --------------------------------------------------------------------------
+# what real data taught the pipeline
+# --------------------------------------------------------------------------
+def test_hull_vibration_does_not_defeat_the_period_finder():
+    """The failure real data found that synthetic data never would.
+
+    A boat-mounted phone picks up hull slap and vibration an order of
+    magnitude above the stroke frequency and often larger in amplitude.
+    The original autocorrelation-based finder pinned to the shortest
+    allowed lag under that: every trial in the CC0 elite set read 75 spm
+    for rowing that was 16 to 34.
+
+    A band-limited spectrum does not have that failure mode, because the
+    stroke fundamental is the largest peak *inside the plausible band*
+    whatever is happening above it.
+    """
+    period = 2.5
+    time = np.arange(0.0, 60.0, 0.01)
+    stroke = 0.8 * np.sin(2.0 * np.pi * time / period)
+    vibration = 2.5 * np.sin(2.0 * np.pi * 11.0 * time)
+    slap = np.random.default_rng(0).normal(0.0, 1.5, time.shape)
+    trace = StrokeTrace(time=time, velocity=4.0 + stroke + vibration + slap)
+    assert trace.stroke_period() == pytest.approx(period, rel=0.05)
+
+
+def test_the_rating_band_is_a_real_constraint_not_a_tuned_one():
+    """Nobody rows below 12 or above 50, so the band is physical."""
+    period = 60.0 / 30.0
+    time = np.arange(0.0, 60.0, 0.01)
+    trace = StrokeTrace(
+        time=time, velocity=4.0 + np.sin(2.0 * np.pi * time / period))
+    assert trace.stroke_period() == pytest.approx(period, rel=0.03)
+    # a signal outside the band must not be picked up as a stroke
+    fast = StrokeTrace(time=time,
+                       velocity=4.0 + np.sin(2.0 * np.pi * time / 0.5))
+    assert fast.stroke_period() > 60.0 / 50.0
+
+
+def test_the_period_finder_refuses_a_trace_with_too_few_strokes():
+    """Two strokes is not a measurement.  Better to refuse than to return
+    the length of the window."""
+    time = np.arange(0.0, 3.0, 0.01)
+    trace = StrokeTrace(
+        time=time, velocity=4.0 + np.sin(2.0 * np.pi * time / 1.875))
+    with pytest.raises(ValueError, match="too short"):
+        trace.stroke_period()
+
+
+def test_sub_bin_refinement_beats_the_fft_resolution():
+    """A 40 s trace has 0.025 Hz bins, which is 1.5 spm at racing rate --
+    coarser than the differences being measured."""
+    period = 1.913
+    time = np.arange(0.0, 40.0, 0.01)
+    trace = StrokeTrace(
+        time=time, velocity=4.0 + np.sin(2.0 * np.pi * time / period))
+    assert trace.stroke_period() == pytest.approx(period, rel=0.01)

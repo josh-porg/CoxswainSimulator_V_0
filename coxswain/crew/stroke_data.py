@@ -55,6 +55,7 @@ why it is recorded but not used as the default.
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass, field
 from typing import Dict, Sequence, Tuple
 
@@ -70,6 +71,7 @@ __all__ = [
     "OLYMPIC_VS_TRADITIONAL_2025",
     "DATASETS",
     "default_dataset",
+    "scale_leg_amplitude",
 ]
 
 #: The four instants at which the source studies report angles.
@@ -261,6 +263,44 @@ DATASETS: Dict[str, StrokeKinematicsDataset] = {
         OLYMPIC_VS_TRADITIONAL_2025,
     )
 }
+
+
+
+def scale_leg_amplitude(dataset: "StrokeKinematicsDataset",
+                        factor: float,
+                        name: str = None) -> "StrokeKinematicsDataset":
+    """Scale the shank angle excursion about its own mean.
+
+    The seat travel follows from the shank and knee angles, and in every
+    dataset here those come from Caplan & Gardner -- an **ergometer**
+    measurement -- even in the record whose trunk angles are Kleshnev's
+    on-water telemetry.  Rowers do not use the slide identically on an erg
+    and in a boat, and the model shows it: the legs take 38.9% of the
+    stroke length where Kleshnev's published segment amplitudes give 33%.
+
+    Legs and trunk carry about 85% of body mass, so an inflated leg
+    excursion inflates the crew's centre-of-mass travel specifically --
+    which is the quantity section 24 measured as 1.5x too large against
+    differential GPS.
+
+    This scales the shank excursion, leaving its mean posture alone, so
+    the rower still sits where the measurement says; only how far they
+    slide changes.  ``factor`` below one shortens the slide.
+    """
+    import numpy as np
+
+    shank = np.asarray(dataset.shank, dtype=float)
+    centre = 0.5 * (shank.max() + shank.min())
+    scaled = centre + factor * (shank - centre)
+    return dataclasses.replace(
+        dataset,
+        name=name or f"{dataset.name}_legs{factor:.3f}",
+        shank=tuple(scaled.tolist()),
+        notes=(dataset.notes + f"  Shank excursion scaled by {factor:.3f} "
+               "about its mean to match Kleshnev's published segment "
+               "amplitude split (legs 33% of stroke length); see "
+               "docs/SOURCES.md section 25."),
+    )
 
 
 def default_dataset() -> StrokeKinematicsDataset:

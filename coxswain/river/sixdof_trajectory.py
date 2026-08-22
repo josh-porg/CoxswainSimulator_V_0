@@ -170,8 +170,14 @@ class SixDofTrajectory:
             self.current_north = interpolant("cur_n", raster.current_north,
                                              0.0)
 
-    def dynamics_function(self):
-        """The full 6-DOF derivative, with the river read from the state."""
+    def dynamics_function(self, wind=None):
+        """The full 6-DOF derivative, with the river read from the state.
+
+        ``wind`` is an optional object carrying ``wind_speed`` and
+        ``wind_bearing``; when given, the aerodynamic loads of
+        :mod:`coxswain.hydro.wind` are added.  Used by the stochastic
+        solver, where each scenario has its own weather.
+        """
         ca = self._ca
         state = ca.MX.sym("state", self.model.n_states)
         control = ca.MX.sym("control", self.model.n_controls)
@@ -192,6 +198,11 @@ class SixDofTrajectory:
                                     derivative[3:])
         return ca.Function("sixdof_river", [state, control, time],
                            [derivative])
+
+    def wind_note(self, wind):
+        """Placeholder hook: scenario wind enters through the boat's aero
+        model, which the stochastic solver configures per scenario."""
+        return wind
 
     def initial_state(self, position, heading, speed):
         """A start state that is actually consistent.
@@ -221,7 +232,9 @@ class SixDofTrajectory:
               split_limit: float = 0.15,
               power_bounds=(0.70, 1.15), print_level: int = 0,
               exact_hessian: bool = False, scaling=None,
-              smoothing_weight: float = 1e-2):
+              smoothing_weight: float = 1e-2,
+              terminal_weight: float = 5e-2,
+              roll_weight: float = 2e-2):
         """Maximise progress along the channel over ``n_strokes``.
 
         ``scheme`` defaults to Hermite-Simpson.  Pass ``RadauIIA(s)`` to
@@ -383,6 +396,29 @@ class SixDofTrajectory:
         # port/starboard power bias, not a straight reach.
         rate = control[0, 1:] - control[0, :-1]
         smoothing = smoothing_weight * ca.sumsqr(rate)
+
+        # Terminal room.  A receding horizon that only maximises progress
+        # over its own block is myopic: it cuts the inside of every bend,
+        # and the clearance it spends is not paid back because the next
+        # block inherits the position.  Running the Weeks-Anderson section
+        # that way, clearance fell 30 -> 17 -> 6 m over three blocks and
+        # the solve went infeasible with the boat against the bank.
+        #
+        # Rewarding room at the end of the block is the standard fix: it is
+        # a terminal cost standing in for the value of the states the block
+        # cannot see.
+        end = ca.vertcat(state[0, n] * state_scale[0],
+                         state[1, n] * state_scale[1])
+        terminal_room = self.clearance(end) / clearance_scale
+        smoothing = smoothing - terminal_weight * terminal_room
+
+        # Roll is bounded by the hull surrogate's sampled range, and the
+        # optimiser will sit on that bound if nothing else stops it -- 7.6
+        # deg peak to peak, against the 1-2 deg sections 15-16 show a crew
+        # actually holds.  A bound that comes from how the surrogate was
+        # tabulated is not a physical statement, so roll is penalised
+        # rather than left to rest on it.
+        smoothing = smoothing + roll_weight * ca.sumsqr(state[3, :])
 
         # Every bound is stated in physical units above; divide through so
         # the solver sees O(1) boxes to match its O(1) variables.

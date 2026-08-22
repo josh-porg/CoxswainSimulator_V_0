@@ -75,7 +75,9 @@ class Boat:
                  default_anthropometry: RowerAnthropometry = None,
                  stroke_dataset: StrokeKinematicsDataset = None,
                  shallow: ShallowWaterModel = None,
-                 blade_model=None):
+                 blade_model=None,
+                 recovery_arrival: float = 1.0,
+                 uniform_traverse: float = 0.0):
         self.name = name
         self.offsets = offsets
         self.mesh = HullMesh(offsets, n_girth=n_girth)
@@ -88,6 +90,26 @@ class Boat:
         self.resistance = resistance or ResistanceCoefficients()
         self.force_profile = force_profile or OarForceProfile()
         self.oar_sweep = oar_sweep or OarAngleSweep()
+        #: Retiming of the recovery traverse ("slow into the front").
+        #: Applied identically to the crew's joint drivers and to the oar
+        #: sweep, so the hands stay on the handle; see
+        #: :func:`coxswain.crew.stroke.recovery_warp` and SOURCES sec. 25.
+        self.recovery_arrival = float(recovery_arrival)
+        if self.recovery_arrival != 1.0:
+            import dataclasses as _dc
+            self.oar_sweep = _dc.replace(
+                self.oar_sweep, recovery_arrival=self.recovery_arrival)
+        #: Experimental reparameterisation of the crew's traverse towards
+        #: constant rate.  **Off by default and not recommended above
+        #: ~0.5.**  It does reduce the surge fluctuation, but not honestly:
+        #: the composed warp has to be clamped monotone to keep the hands
+        #: on the handle, and the clamping truncates the stroke -- centre
+        #: of mass travel falls from 0.794 m to 0.625 m as the blend goes
+        #: from 0 to 0.7.  A pure retiming would preserve travel exactly.
+        #: See SOURCES sec. 25: the fluctuation gap is real but this is not
+        #: the way to close it.
+        self.uniform_traverse = float(uniform_traverse)
+        self.phase_warp = None
         self.stroke_dataset = stroke_dataset or default_dataset()
         #: Finite-depth correction; deep water unless a depth is given.
         self.shallow = shallow or ShallowWaterModel()
@@ -102,9 +124,72 @@ class Boat:
         if np.linalg.eigvalsh(self.hull_inertia).min() <= 0:
             raise ValueError("hull_inertia must be positive definite")
 
+        if self.uniform_traverse > 0.0:
+            self.phase_warp = self._traverse_warp(
+                anthropometry, default_anthropometry)
+            import dataclasses as _dc
+            self.oar_sweep = _dc.replace(self.oar_sweep,
+                                         warp_knots=self.phase_warp)
+
         self.crew = self._build_crew(anthropometry, crew_phase_offsets,
                                      default_anthropometry)
         self._validate()
+
+    def _traverse_warp(self, anthropometry, default_anthropometry):
+        """Warp table making this crew traverse at near-constant rate.
+
+        Built from a probe rower -- same dataset, timing and stature, no
+        hand constraint -- whose centre-of-mass path gives the arc length
+        to reparameterise by.  The probe's legs and trunk carry ~85% of
+        the moving mass, and the arms follow the handle regardless, so the
+        probe is an adequate stand-in for the constrained crew.
+        """
+        from ..crew.stroke import uniform_traverse_warp
+
+        template = (anthropometry[0] if anthropometry
+                    else default_anthropometry or RowerAnthropometry(
+                        mass=85.0, stature=1.88))
+        phases = np.linspace(0.0, 1.0, 512, endpoint=False)
+        period = self.timing.period
+        drive = self.timing.drive_fraction
+
+        def centre_of_mass(warp):
+            probe = JointDrivenRower(
+                template, RowerStation(x_ankle=0.0), self.timing,
+                dataset=self.stroke_dataset, phase_warp=warp)
+            mass = probe.segment_masses
+            return np.array([
+                float((mass * probe.segment_state(t)[0][:, 0]).sum()
+                      / mass.sum())
+                for t in phases * period])
+
+        # Iterate.  The warp is derived from the centre of mass but applied
+        # to joint *angles*, and the centre of mass is a nonlinear function
+        # of those, so one pass leaves the traverse well short of uniform --
+        # measured 1.82 m/s of velocity swing against a constant-rate bound
+        # of 1.33 for the same travel.  Re-deriving the warp from the
+        # already-warped crew converges in a few passes.
+        warp = None
+        for _ in range(self._TRAVERSE_PASSES):
+            com = centre_of_mass(warp)
+            step = uniform_traverse_warp(phases, com, drive,
+                                         blend=self.uniform_traverse)
+            if warp is None:
+                composed = step
+            else:
+                composed = np.interp(step, phases, np.asarray(warp[1]))
+            # Composition can overshoot into postures the arms cannot
+            # reach, so keep it monotone and inside the cycle.  A warp that
+            # asks for a reach the athlete does not have is not a better
+            # model of their timing, it is a broken one.
+            composed = np.maximum.accumulate(
+                np.clip(composed, 0.0, 1.0 - 1e-9))
+            warp = (tuple(phases.tolist()), tuple(composed.tolist()))
+        return warp
+
+    #: Fixed-point passes for the traverse warp.  Three is enough: the
+    #: residual peakiness falls by about an order of magnitude a pass.
+    _TRAVERSE_PASSES = 3
 
     # -- construction ----------------------------------------------------
     def _build_crew(self, anthropometry, phase_offsets,
@@ -132,6 +217,8 @@ class Boat:
                     athlete, station, self.timing,
                     dataset=self.stroke_dataset, phase_offset=offset,
                     hand_targets=self._hand_targets(seat),
+                    recovery_arrival=self.recovery_arrival,
+                    phase_warp=self.phase_warp,
                 ),
                 seat_index=index,
             ))

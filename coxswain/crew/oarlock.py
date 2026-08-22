@@ -96,6 +96,15 @@ class OarAngleSweep:
     #: does; the default is left at 0 only because the regression suite is
     #: pinned to it.  See ``docs/SOURCES.md`` section 7.
     flatness: float = 0.0
+    #: Retiming of the recovery sweep: the oar, like the body it is
+    #: attached to, moves back early in the recovery and arrives at the
+    #: catch at this fraction of the nominal rate.  Must match the crew's
+    #: ``recovery_arrival`` or the hands leave the handle.  1.0 = uniform.
+    recovery_arrival: float = 1.0
+    #: Full-cycle phase warp ``((phases...), (warped...))`` shared with the
+    #: crew's joint drivers -- the hands are on the handle, so the oar must
+    #: run on the same clock as the body.  ``None`` is the identity.
+    warp_knots: tuple = None
 
     def __call__(self, t, timing: StrokeTiming):
         """Oar angle at time ``t``.
@@ -115,11 +124,19 @@ class OarAngleSweep:
         """
         t = np.asarray(t, dtype=float)
         phase = timing.phase(t)
+        if self.warp_knots is not None:
+            knots, images = self.warp_knots
+            phase = np.interp(phase, np.asarray(knots, dtype=float),
+                              np.asarray(images, dtype=float))
         drive = timing.drive_fraction
 
         on_drive = phase < drive
         drive_progress = np.clip(phase / drive, 0.0, 1.0)
         recovery_progress = np.clip((phase - drive) / (1.0 - drive), 0.0, 1.0)
+        if self.recovery_arrival != 1.0:
+            from .stroke import recovery_warp
+            recovery_progress = recovery_warp(recovery_progress,
+                                              self.recovery_arrival)
 
         span = self.finish_angle - self.catch_angle
         during_drive = self.catch_angle + span * self._ramp(drive_progress)
@@ -140,7 +157,11 @@ class OarAngleSweep:
         return (1.0 - flatness) * cosine + flatness * progress
 
     def rate(self, t, timing: StrokeTiming):
-        """Analytic angular rate ``d(angle)/dt`` in rad/s.
+        """Angular rate ``d(angle)/dt`` in rad/s.
+
+        With a phase warp in place the analytic form no longer applies, so
+        the rate is a central difference of the warped angle -- the result
+        feeds Fourier fits and diagnostics, which smooth it anyway.
 
         The blade model needs this, and finite-differencing the angle would
         be both slower and noisier inside a derivative evaluation.  Signed
@@ -148,6 +169,10 @@ class OarAngleSweep:
         oar sweeps from a bow-ward catch to a stern-ward finish.
         """
         t = np.asarray(t, dtype=float)
+        if self.warp_knots is not None:
+            step = 1e-5 * timing.period
+            return (np.asarray(self(t + step, timing))
+                    - np.asarray(self(t - step, timing))) / (2.0 * step)
         phase = timing.phase(t)
         drive = timing.drive_fraction
         span = self.finish_angle - self.catch_angle
@@ -155,12 +180,19 @@ class OarAngleSweep:
         on_drive = phase < drive
         drive_progress = np.clip(phase / drive, 0.0, 1.0)
         recovery_progress = np.clip((phase - drive) / (1.0 - drive), 0.0, 1.0)
+        warp_slope = 1.0
+        if self.recovery_arrival != 1.0:
+            from .stroke import recovery_warp, recovery_warp_slope
+            warp_slope = recovery_warp_slope(recovery_progress,
+                                             self.recovery_arrival)
+            recovery_progress = recovery_warp(recovery_progress,
+                                              self.recovery_arrival)
 
         # d(phase)/dt is 1/period; each phase then rescales by its own span
         during_drive = (span * self._ramp_slope(drive_progress)
                         / (drive * timing.period))
         during_recovery = (-span * self._ramp_slope(recovery_progress)
-                           / ((1.0 - drive) * timing.period))
+                           * warp_slope / ((1.0 - drive) * timing.period))
         return np.where(on_drive, during_drive, during_recovery)
 
     def _ramp_slope(self, progress):

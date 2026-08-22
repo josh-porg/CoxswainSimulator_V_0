@@ -225,7 +225,9 @@ class JointAngles:
                      timing: StrokeTiming,
                      n_harmonics: int = KEYFRAME_HARMONICS,
                      phase_offset: float = 0.0,
-                     include_thigh: bool = False) -> "JointAngles":
+                     include_thigh: bool = False,
+                     recovery_arrival: float = 1.0,
+                     phase_warp=None) -> "JointAngles":
         """Build the leg and trunk drivers from a measured dataset.
 
         ``phase_offset`` shifts this rower's stroke in normalised phase.  It
@@ -238,6 +240,8 @@ class JointAngles:
             profile = FourierProfile.from_keyframes(
                 phases, np.radians(np.asarray(values_deg, dtype=float)),
                 timing, n_harmonics,
+                recovery_arrival=recovery_arrival,
+                phase_warp=phase_warp,
             )
             return _shift_phase(profile, phase_offset)
 
@@ -283,7 +287,9 @@ class JointDrivenRower:
                  arm_posture=None,
                  hand_targets: Dict[int, object] = None,
                  phase_offset: float = 0.0,
-                 n_harmonics: int = KEYFRAME_HARMONICS):
+                 n_harmonics: int = KEYFRAME_HARMONICS,
+                 recovery_arrival: float = 1.0,
+                 phase_warp=None):
         if thigh_mode not in THIGH_MODES:
             raise ValueError(
                 f"thigh_mode must be one of {THIGH_MODES}, got {thigh_mode!r}"
@@ -291,6 +297,13 @@ class JointDrivenRower:
 
         self.anthropometry = anthropometry
         self.timing = timing
+        #: Retiming of the recovery traverse; see
+        #: :func:`coxswain.crew.stroke.recovery_warp`.  Applied to every
+        #: joint driver -- legs, trunk and arms share one clock.
+        self.recovery_arrival = float(recovery_arrival)
+        #: Full-cycle warp table shared with the oar sweep; see
+        #: :func:`coxswain.crew.stroke.uniform_traverse_warp`.
+        self.phase_warp = phase_warp
         self.dataset = default_dataset() if dataset is None else dataset
         self.thigh_mode = thigh_mode
         self.phase_offset = float(phase_offset)
@@ -334,6 +347,8 @@ class JointDrivenRower:
             self.dataset, timing, n_harmonics=n_harmonics,
             phase_offset=phase_offset,
             include_thigh=(thigh_mode == "measured"),
+            recovery_arrival=self.recovery_arrival,
+            phase_warp=self.phase_warp,
         )
 
         self.hand_targets = hand_targets
@@ -399,7 +414,9 @@ class JointDrivenRower:
             # producing a spurious full rotation and enormous accelerations.
             radians = np.unwrap(np.radians(values_deg))
             profile = FourierProfile.from_keyframes(
-                phases, radians, self.timing, arm_harmonics
+                phases, radians, self.timing, arm_harmonics,
+                recovery_arrival=self.recovery_arrival,
+                phase_warp=self.phase_warp,
             )
             return _shift_phase(profile, phase_offset)
 
@@ -878,7 +895,9 @@ class JointDrivenRower:
         return (
             anthro.mass, anthro.stature, anthro.sex,
             self.dataset.name, self.timing.rate, self.thigh_mode,
-            self.phase_offset, self.n_harmonics,
+            self.phase_offset, self.n_harmonics, self.recovery_arrival,
+            None if self.phase_warp is None else (
+                tuple(np.round(np.asarray(self.phase_warp[1]), 9))),
             station.z_ankle, station.seat_height, station.foot_half_span,
             station.hip_half_span, station.shoulder_half_span,
         )

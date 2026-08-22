@@ -2053,3 +2053,574 @@ Until then the model overstates intracycle velocity variation by about
 1.6x, and any result that depends on the *amplitude* of the surge
 oscillation — rather than its mean — should be read with that in mind.
 The blade model's absolute calibration is the main one.
+
+## 24. Section 23 was wrong, measured against real data
+
+§23 concluded that the model's excess intracycle velocity variation came
+from the **shape** of the crew's centre-of-mass velocity profile — that
+four keyframes plus a truncated Fourier series reconstructed something too
+peaky, and the fix needed densely sampled kinematics. Measured against
+real boat telemetry, that diagnosis does not survive.
+
+### The data
+
+[Accompanying Raw Data for "Adaptive smartphone-based sensor fusion for
+estimating competitive rowing kinematic metrics"](https://api.figshare.com/v2/articles/7963643),
+**CC0**, 195 MB. A club session and an elite session, each with a
+smartphone on the boat, one on the rower, and a Swift Navigation RTK
+receiver. The usable channel is the **DGPS baseline log**: boat position
+relative to the base station at 10 Hz with 9 mm accuracy.
+
+Not the `velocity_log` or `position_log` files, which carry the base
+station's own solution and read a steady 0.008 m/s.
+
+### The pipeline recovers the logged rates
+
+| stamp | logged | detected | error |
+|---|---|---|---|
+| 091022 | 22 | 22.5 | +0.5 |
+| 091604 | 22 | 21.9 | −0.1 |
+| 092004 | 24 | 24.3 | +0.3 |
+| 092443 | 24 | 24.0 | 0.0 |
+| 092925 | 26 | 26.2 | +0.2 |
+| 093324 | 26 | 26.1 | +0.1 |
+
+**Mean absolute error 0.21 spm.** The detector is trustworthy, which is
+what makes the rest of this section evidence rather than opinion.
+
+### The correction
+
+Comparing hull velocity like for like — the same quantity, the same
+definitions:
+
+| | peakiness | IVV |
+|---|---|---|
+| model, 1x, on-water kinematics, 24 spm | 2.358 | 57.3% |
+| model, 1x, ergometer kinematics | 2.453 | 61.5% |
+| **measured, club 2x, 22–26 spm** | **2.407** | **37.3%** |
+| published, elite 1x, 33.7 spm | — | 37.5% |
+
+**The shape is right.** Measured peakiness 2.407 against the model's
+2.358 — within 2%, and the model sits between the two datasets. §23's
+central claim, that the reconstruction is too sinusoidal, is contradicted:
+the real hull surge is at least as peaked as the model's.
+
+**The amplitude is wrong.** IVV 57.3% against 37.3% measured — a factor of
+1.54, and the measurement independently reproduces the published 37.5%
+for elite singles from a completely different boat, crew and instrument.
+
+§23's peakiness figures of 1.589 and 1.861 were measured on the **crew
+centre of mass**, not the hull, and were compared against a hull number.
+That is the error: two different quantities, and the conclusion drawn from
+the comparison does not hold.
+
+### What it means for the diagnosis
+
+The gap is amplitude, not shape, so the remaining candidates are the ones
+that scale the surge without changing its form:
+
+* **crew centre-of-mass travel.** 0.72 m in the model; roughly 0.55 m
+  would give the measured amplitude. But the seat travel is 0.633 m and
+  matches the 0.60–0.70 m literature, and trunk swing adds to seat travel
+  rather than cancelling it, so 0.72 m is kinematically consistent. This
+  does not obviously close.
+* **blade anchoring.** During the drive the hull is not a free body — it
+  is coupled to the water through blades that are, to first order,
+  anchored. That impedance resists surge oscillation. The model applies
+  oar *force* to the hull but represents the blade through an effective
+  gearing, which may understate how much the anchored blade resists the
+  hull surging against it. This is the leading hypothesis and it is
+  testable: it predicts the excess is concentrated in the drive, not the
+  recovery.
+
+### Method note
+
+The telemetry pipeline needed two fixes that only real data could have
+prompted, both now pinned by tests:
+
+* **autocorrelation fails on hull vibration.** A boat-mounted phone picks
+  up slap an order of magnitude above stroke frequency and often larger in
+  amplitude; the autocorrelation peak pins to the shortest allowed lag.
+  Every elite trial read 75 spm — the search floor — for rowing that was
+  16 to 34. Replaced with a band-limited spectrum.
+* **band-limiting alone is not enough.** Low-frequency energy from
+  integration drift and from the boat accelerating inside the window can
+  outrank the fundamental; in the 34 spm trial the correct peak at exactly
+  34.0 ranked sixth. Harmonic support is now used to weight the spectrum —
+  as a weight rather than a product, since a pure tone has no harmonics
+  and the textbook harmonic product spectrum would zero it.
+
+## 25. Literature review: rower kinematics and boat velocity fluctuation
+
+The fluctuation gap of §24 -- shape right, amplitude 1.5x too large -- was
+diagnosed against two papers. That is not a literature review. This
+section is the corpus, what each source constrains, and the three
+quantitative checks it makes possible.
+
+### The corpus
+
+**Rower kinematics, measured**
+
+1. **Caplan & Gardner (2010)**, *J. Sports Sci.* 28(3) 263-269. Joint
+   angles at four keyframes, Concept 2 ergometer. The model's driver.
+   Ergometer, not on-water -- catch trunk angle -38.1 deg.
+2. **Kleshnev**, *Rowing Biomechanics Newsletter* / row2k, "Analysis of
+   Angles of Body Segments in the World's Best Rowers" (2019). On-water
+   elite telemetry: catch trunk -24.5 deg, finish +26.3, stroke length
+   1.52 m. Used as the on-water cross-check.
+3. **Kleshnev**, "Amplitude and power of body segments". Segment shares of
+   **stroke length: legs 33%, trunk 31%, arms 36%**; of **power: legs 43%,
+   trunk 33%, arms 24%**. Trunk velocity peaks at ~70% of the drive.
+4. **de Leva (1996)**, *J. Biomech.* 29(9) 1223-1230. Segment masses,
+   lengths and centre-of-mass fractions. The model's mass distribution.
+5. **Lintmeijer et al. (2018)**, *Eur. J. Sport Sci.*, "An accurate
+   estimation of the horizontal acceleration of a rower's centre of mass
+   using inertial sensors: a validation". Finds CoM acceleration is
+   recovered accurately from a **13-segment** IMU suit plus a mass model,
+   and explicitly that it is **not** recoverable from pelvis acceleration
+   alone.
+6. **Lintmeijer et al. (2017)**, *J. Sports Sci.*, "Improved determination
+   of mechanical power output in rowing". True power differs from the
+   oar-based measure by ``m * a_CoM * v_boat`` -- the same product that
+   drives the fluctuation problem here.
+7. **Geneau et al. (2024)**, *Sensors* 24(18) 6085. On-water kinematics by
+   class: W8+ 37.9 spm / 5.47 m/s, W4- 36.7 / 4.92, W1x 31.9 / 4.09.
+
+**Boat velocity fluctuation**
+
+8. **Caplan & Gardner**, "Modelling the influence of crew movement on boat
+   velocity fluctuations during the rowing stroke". Their own single-mass
+   simulation matched *mean* velocity but **modelled instantaneous
+   velocity poorly**; a five-segment crew model was needed to reproduce
+   the features of on-water data.
+9. **Kleshnev (2010)**, *Proc. IMechE P: J. Sports Eng. Tech.*, "Boat
+   acceleration, temporal structure of the stroke cycle, and effectiveness
+   in rowing". Six drive and three recovery microphases; the relative
+   magnitudes of boat and rower CoM acceleration switch twice during the
+   drive.
+10. **PMC12349136 (2025)**, *Sensors* 25(15) 4696. Elite single scull over
+    2000 m: IVV 5.78 km/h on 15.40 mean = **37.5%** (males), 41.2%
+    (females); CVV 14.13% / 11.64%.
+11. **Day et al. (2011)** and the scoping review -- longer boats show lower
+    intracycle velocity variation.
+12. **"The impact of fluctuations in boat velocity during the rowing cycle
+    on race time"** -- the fluctuation implies a **5-6% power loss**.
+
+**Crew coordination**
+
+13. **Cuijpers, Zaal & de Poel (2015)**, *PLoS ONE* 10(7) e0133527,
+    "Rowing Crew Coordination Dynamics at Increasing Stroke Rates".
+    Coupled-oscillator treatment of a rowing dyad. **SD of relative phase
+    2.2 deg in-phase, 4.2 deg antiphase** (trunk-based); by rate 4.13 /
+    3.21 / 4.24 / 4.81 deg at 30 / 32 / 34 / 36 spm. Ergometer velocity
+    fluctuation SD **0.667 in-phase against 0.221 antiphase**.
+14. **Kleshnev**, variability series. Force variation **2.3% elite, 5.1%
+    junior**; work per stroke 1.3% / 4.7%.
+
+**Hydrodynamics, blade, environment**
+
+15. **Formaggia, Miglio, Mola & Montano (2009)**, *Int. J. Numer. Meth.
+    Fluids* 61:119-143. The 6-DOF formulation; eq. (14) is the mass
+    matrix.
+16. **Cabrera, Ruina & Kleshnev (2006)**. Slip-based blade model.
+17. **Brearley (2009)**, *ANZIAM J.* 50:534-540. Blade efficiency versus
+    oar angle.
+18. **Lazauskas**, Technical Report L9701, hull drag comparisons.
+19. **Dudhia (1996/2013)**, "Balance of Racing Rowing Boats". Static roll
+    instability; sections 15-16.
+20. **Bristow, Tharayil & Alleyne (2006)**, *IEEE Control Syst. Mag.*
+    26(3) 96-114. Iterative learning control; section 19.
+
+### What the corpus changes
+
+**(a) Crew timing spread is now measured, not guessed.** §22 used
+plausible values. Cuijpers et al. give SD of relative phase 2.2-4.8 deg,
+which at 32 spm is **11-25 ms** -- squarely inside the range §21 tested
+and consistent with the finding there that realistic spread does *not*
+explain the fluctuation gap (49.4% at zero spread, 49.2% at 30 ms).
+
+**(b) The segment amplitude split is wrong, and it is the right size to
+matter.** Against Kleshnev's published shares of stroke length:
+
+| segment | model | Kleshnev |
+|---|---|---|
+| legs | **38.9%** | 33% |
+| trunk | **37.4%** | 31% |
+| arms | **34.0%** | 36% |
+
+The model over-weights legs and trunk and under-weights arms. Legs and
+trunk carry ~85% of body mass and the arms ~9%, so this inflates the
+centre-of-mass travel specifically. Matching the published legs share
+would put seat travel at 0.524 m rather than the model's 0.618 m.
+
+The cause is structural and was already documented: **Caplan & Gardner
+measured only the legs and trunk**, so the model's arm postures are
+hand-specified (``DEFAULT_ARM_POSTURE``) rather than measured. The one
+part of the chain not driven by data is the one that is short.
+
+**(c) The failure mode is a known one.** Caplan & Gardner's own single-mass
+simulation reproduced mean velocity but not instantaneous velocity, and
+needed five crew segments to fix it. This model has twelve, so
+segmentation is not the issue here -- which narrows the remaining
+candidates to the amplitude of the segment motions themselves, exactly
+where (b) points.
+
+### What it does not resolve
+
+Correcting the segment split to the published shares moves centre-of-mass
+travel by roughly 15%, which is worth having but is not the factor of 1.5
+that §24 measured. The remaining discrepancy is still open. Lintmeijer's
+``m * a_CoM * v_boat`` correction is the most promising lead, because it
+is the same product and it is measured directly on a force plate rather
+than inferred -- but both Lintmeijer papers are paywalled and the
+numerical values were not obtained.
+
+## 26. Two ways out of the kinematics gap, and a third
+
+§24 and §25 leave the crew's centre-of-mass motion as the open quantity:
+the model has ~1.5x too much of it, the shape is right, and four measured
+keyframes cannot pin the amplitude. There are two obvious routes and one
+less obvious one.
+
+### Route A -- measure the kinematics properly
+
+**[UHL23] Uhlrich, Falisse, Kidzinski, Muccini, Ko, Chaudhari, Hicks &
+Delp (2023).** "OpenCap: Human movement dynamics from smartphone videos."
+*PLOS Computational Biology*. Open-source pipeline: two or more
+smartphones, pose estimation, then deep learning and biomechanical models
+for three-dimensional kinematics, then physics-based simulation for muscle
+activations. Kinematic RMSE across lower-extremity degrees of freedom is
+comparable to IMU approaches (2.0-12 deg for walking, running and daily
+activities) and to eight-camera video systems.
+
+This is the practical route. It needs two phones and no laboratory, it
+produces full-cycle joint angles rather than four keyframes, and it is
+subject-specific -- so the driver becomes *this crew*, not a 2010
+ergometer study.
+
+**[LIN18] Lintmeijer et al. (2018).** *Eur. J. Sport Sci.* Validates
+recovering a rower's anterior-posterior centre-of-mass acceleration from a
+**13-segment** IMU suit plus a mass distribution model, and shows it is
+**not** recoverable from pelvis acceleration alone. Relevant twice over:
+it is the direct measurement of the quantity in question, and it is why
+the waist-phone channel in the CC0 dataset was not used to settle it.
+
+Also noted: **"Functional Data Analysis of Rowing Technique Using Motion
+Capture Data"**, Proc. 6th Int. Conf. on Movement and Computing (2019) --
+rowing-specific marker-based capture of six elite rowers on an ergometer.
+No large-scale open rowing motion-capture dataset appears to exist.
+
+### Route B -- change the formulation
+
+**[VDB11] van den Bogert, Blana & Heinrich (2011).** "Implicit methods for
+efficient musculoskeletal simulation and optimal control." *Procedia
+IUTAM* 2:297-316. Poses the dynamics implicitly as ``f(x, xdot, u) = 0``
+rather than solving explicitly for accelerations, which suits direct
+collocation: exact sparse Jacobians, each constraint touching only two
+neighbouring nodes, and -- the relevant part here -- it is specifically
+designed for systems where **small masses couple to stiff elements**.
+
+That is this model. §15 established that the crew's balance loop is stiff
+(roll e-folds in 0.218 s) and that explicit integration of it diverges at
+mesh-interval steps. There is also a concrete efficiency win available:
+``SixDofModel.derivative`` currently ends in ``ca.solve(mass_matrix, ...)``
+at every collocation point. The implicit form replaces that linear solve
+with the residual ``M a - F = 0`` and promotes the accelerations to
+decision variables, which removes the solve and improves sparsity.
+
+**[FDR21] "A Review of Forward-Dynamics Simulation Models for Predicting
+Optimal Technique in Maximal Effort Sporting Movements."** *Applied
+Sciences* 11(4):1450. Surveys the four-stage process -- model
+construction, parameter determination, model evaluation, model
+optimisation -- and the distinction between **data-tracking** and
+**predictive** simulations.
+
+### Route C -- stop prescribing the kinematics
+
+That distinction is the third route, and it dissolves the problem rather
+than solving it.
+
+This model is a *data-tracking* simulation: the crew's motion is
+prescribed from measured keyframes, so any error in those keyframes is an
+error in the answer, and the centre-of-mass travel is an **input** that
+has to be right.
+
+A *predictive* formulation makes the crew's motion a **decision variable**
+constrained by what a rower can actually do -- joint limits, the seat on
+its rail, the hands on the handle, a power budget. The centre-of-mass
+travel then comes out of the optimisation as whatever is consistent with
+the physics and the physiology, rather than being measured and imposed.
+The 1.5x amplitude error would not be correctable in that formulation
+because it would not be expressible.
+
+It is also the honest version of the question this project asks. The
+current model optimises the *line* for a prescribed stroke; a predictive
+one would optimise the line and the stroke together, which is what a crew
+actually chooses.
+
+The cost is a much larger optimisation problem and a physiological model
+that does not yet exist here. Route A is cheaper and would settle §24
+directly; Route C is the better model.
+
+## 27. Route C started: solving for the stroke instead of prescribing it
+
+`coxswain.crew.predictive` implements the predictive formulation of §26:
+the rower's motion is a decision variable, not an input.  Configuration is
+``(slide, trunk lean, arm extension)`` and the **oar angle follows** from
+where those put the hands.  This is the structure of [MSD13], which
+represents rower, boat and oars as rigid links and lets the optimisation
+determine movement and forces together.
+
+### Three modelling errors it exposed
+
+Each was found by the optimiser exploiting it, which is the point of a
+predictive formulation -- a prescribed stroke cannot reveal that its own
+assumptions are wrong.
+
+1. **Oar angle free, reach as an inequality.**  The optimiser left the
+   trunk still -- 0.2 degrees of swing -- and swept the oar on its own.
+   A rower cannot do that.  Making the oar angle *follow* the hands fixed
+   it, and the trunk immediately began to matter.
+2. **Power omitted work on the water.**  Thrust was free; the answer was a
+   6.9 m/s single scull drawing 112 W of a 300 W budget.
+3. **Central difference on boat speed.**  Odd and even nodes decoupled and
+   the optimiser put a sawtooth in the speed at no cost: 203% of
+   intracycle variation.  Trapezoidal integration fixed it.
+
+### What it chooses
+
+Single scull, 24 spm, nothing prescribed:
+
+| quantity | predictive | reference |
+|---|---|---|
+| mean speed | 3.8-4.7 m/s | right for a 1x |
+| trunk swing | **40-52 deg** | Kleshnev **50.8 deg** |
+| oar sweep | 67-74 deg | model prescribes 90 |
+| slide travel | 0.22-0.37 m | measured **0.60-0.70** |
+| crew CoM travel | 0.33-0.43 m | prescribed model 0.79 |
+| **boat IVV** | **36.8-40.6%** | **measured 37.3%** |
+
+**The IVV result is the one to watch.**  §24 measured 37.3% on
+differential GPS against 54-58% for the prescribed-kinematics model, and
+§25 traced the excess to the crew's centre-of-mass amplitude.  The
+predictive formulation, told nothing about kinematics, lands on 37-41%.
+
+That is exactly what §26 predicted would happen, and it is the strongest
+evidence so far that prescribing the stroke from four keyframes was the
+source of the error rather than any of the hydrodynamics.
+
+### Why it is not yet a result
+
+**None of these solves converged.**  They terminate on
+``Maximum_Iterations_Exceeded``, not infeasibility -- the power constraint
+is satisfied at the returned point (298 W against a 300 W budget) and the
+answers are stable across budgets, but IPOPT does not reach its tolerance.
+A number from an unconverged solve is suggestive, not established, and the
+IVV agreement above is quoted on that basis.
+
+The slide travel is also plainly wrong: 0.22-0.37 m where crews use
+0.60-0.70.  The optimiser is under-using the legs, which is a physiological
+statement the model does not yet make properly.  Kleshnev's measured power
+shares -- legs 43%, trunk 33%, arms 24% -- are imposed as per-segment
+budgets, but the cost of moving each segment is still a crude
+mass-times-acceleration-times-rate term rather than a joint torque.
+
+### Fixes applied, and one lesson repeated
+
+* **Smooth power.**  ``|force x velocity|`` has a corner wherever either
+  factor crosses zero -- four times a cycle per segment.  Replaced with
+  ``sqrt(x^2 + eps)``, a bounded smoothing with the bound reported: at
+  ``eps = 1e-4`` the error is under 0.01 W against a 300 W budget.
+* **Scaling, again.**  The predictive NLP mixed O(1) geometry with O(100)
+  power terms and was unscaled -- the same mistake that cost the
+  trajectory solver a factor of 25 in iterations before §24 fixed it.
+  Now non-dimensionalised.
+* **Status reporting.**  Collapsing every non-success to "not converged"
+  hid the distinction between ``Maximum_Iterations_Exceeded`` and genuine
+  infeasibility for several iterations of this work.  IPOPT's own status
+  is now reported.
+
+### Next
+
+The power model is the blocker.  [VDB11] writes the cost as generalised
+force times generalised velocity from an implicit musculoskeletal
+formulation, which is both smoother and physically correct; the current
+term is neither.  Getting that right should give convergence and, if the
+IVV agreement survives it, close §24.
+
+## 28. Withdrawing the §27 IVV result
+
+§27 reported that the predictive formulation, told nothing about
+kinematics, produced 36.8-40.6% of intracycle velocity variation against
+the 37.3% measured in §24, and called it the strongest evidence yet that
+prescribing the stroke was the source of the §24 gap.
+
+**That result is withdrawn.**  It was produced by a power model that is
+wrong, and it does not survive the correction.
+
+### The error
+
+The per-segment power terms charged each segment only for accelerating
+its own mass:
+
+```
+leg_power ~ m_leg * |s_ddot * s_dot|
+```
+
+and then applied Kleshnev's measured shares -- legs 43%, trunk 33%, arms
+24% -- as budgets on those terms.  But Kleshnev's shares are shares of
+the work delivered **through the handle**, which is a different quantity.
+Constraining one with the other is a category error.
+
+It also has a clear mechanical consequence.  The legs are the largest
+segment mass in the body, so the formulation billed them the most and
+credited them with none of the work that mass does on the blade.  The
+optimiser responded exactly as it should have: it stopped using them.
+That is the 0.22-0.37 m of slide travel §27 flagged as "plainly wrong",
+against the 0.60-0.70 m crews actually use.
+
+### The correction
+
+``hand_x = s + L sin(phi) - a``, so handle velocity splits additively:
+
+```
+v_hand = s_dot + L cos(phi) phi_dot - a_dot
+```
+
+This is the decomposition Kleshnev's shares are shares *of*.  Handle work
+is taken from the oar -- so it stays consistent with the blade model --
+and attributed across segments by their share of handle speed, with
+smoothed weights so the denominator stays bounded at the four instants
+per cycle where the handle reverses.  The three shares sum to the total
+by construction, so the attribution can neither invent nor destroy power.
+
+### What the correction does
+
+| | old (wrong) | corrected |
+|---|---|---|
+| slide travel, 400 W | 0.225 m | **0.430 m** |
+| trunk swing | 44.3 deg | 29.4 deg |
+| **IVV** | **36.8%** | **54.5%** |
+| measured IVV (§24) | | **37.3%** |
+
+Slide travel moves substantially toward the measured 0.60-0.70 m, which
+is the predicted consequence of no longer starving the legs.  But the IVV
+agreement evaporates: 54-64%, right back with the prescribed-kinematics
+model's 54-58%.
+
+**So §26's hypothesis is not supported.**  The §24 gap is not explained
+by the stroke being prescribed from keyframes.  A formulation that solves
+for the stroke reproduces the same excess fluctuation once its power
+model is correct, which points the diagnosis back at the momentum
+coupling or the hydrodynamics rather than at the kinematics.
+
+### Standing caveat
+
+Neither the withdrawn numbers nor the corrected ones come from a
+converged solve -- everything here terminates on
+``Maximum_Iterations_Exceeded``, and the 400 W case returns 647 W against
+its budget, so that column is an infeasible point and is quoted only to
+show the direction of the change.  The withdrawal does not depend on the
+new numbers being right; it depends on the old ones having been generated
+by a model with a demonstrable error in it.
+
+Route C is not yet producing numbers that can be trusted either way.  The
+honest status is that it has found and fixed three modelling errors
+(§27) plus this fourth, and has not yet earned a result.
+
+## 29. The §24 gap is the model, and the mechanism is segment sequencing
+
+Asked directly whether the intracycle-velocity gap is a fault of the model
+or of the target, the answer is **the model** -- and the target survives
+three independent checks while the model contradicts itself.
+
+### The target is sound
+
+**Sampling is not the problem.**  IVV is a peak-to-peak statistic and the
+DGPS trace is 10 Hz, 25 samples per 2.5 s cycle, on a signal §24 showed is
+sharply peaked -- so discrete sampling should bias it low.  Sampling a
+waveform tuned to the measured peakiness of 2.407 at 10 Hz with arbitrary
+phase recovers 37.0% of a true 37.3%: a **0.8% loss**.  The instrument is
+adequate.
+
+| rate | samples/cycle | IVV recovered | loss |
+|---|---|---|---|
+| 10 Hz | 25 | 37.0% | 0.8% |
+| 20 Hz | 50 | 37.2% | 0.2% |
+| 50 Hz | 125 | 37.3% | 0.0% |
+
+**Momentum balance reproduces the target from first principles.**  With no
+hydrodynamics, no blade model and no keyframes -- if the crew COM moves
+``L`` over a drive occupying fraction ``f`` of the stroke, the hull must
+swing by the crew mass fraction times the crew's relative velocity swing:
+
+| COM travel | drive fraction | IVV |
+|---|---|---|
+| 0.72 m | 33% | 38.6% |
+| 0.72 m | 40% | 35.6% |
+
+That brackets the measured 37.3%, and agrees with the published 37.5% for
+elite 1x.  Three independent lines -- club 2x telemetry, published elite
+1x, and momentum conservation -- all land near 37%.
+
+**The segment masses are right.**  Checked against de Leva: head 6.9%,
+trunk 43.5%, thigh 14.2% each, shank+foot 5.7% each.  No indexing error.
+
+### The model contradicts itself
+
+The model's own crew COM travel is **0.811 m**, against a seat travel of
+0.652 m that matches the 0.60-0.70 m literature.  To produce the measured
+IVV the COM travel would have to be **0.635 m**.  §24 justified 0.811 m by
+arguing that trunk swing adds to seat travel rather than cancelling it.
+
+**That is only true if the segments move in phase.**  They do not, in real
+rowing -- the drive sequences legs, then trunk, then arms.
+
+Phase of each segment's most-sternward instant, as a fraction of the
+stroke:
+
+| segment | most stern | most bow |
+|---|---|---|
+| head | 0.919 | 0.360 |
+| upper trunk | 0.923 | 0.360 |
+| lower trunk | 0.934 | 0.368 |
+| thigh | 0.935 | 0.405 |
+| shank+foot | 0.935 | 0.405 |
+| forearm+hand | 0.992 | 0.331 |
+
+The entire body reaches its extreme within 0.073 of a stroke.  Quantified
+as the cancellation between the in-phase upper bound on COM travel and
+what is actually realised:
+
+```
+COM travel if all segments in phase : 0.813 m
+COM travel actually realised        : 0.811 m
+sequencing cancellation             :   0.3%
+required for the measured IVV       :  21.9%
+```
+
+**The model's rower moves as a rigid block.**  That inflates COM travel by
+28%, which inflates the hull surge by the same factor through the momentum
+coupling, and that is the §24 gap.
+
+### This partially reinstates §23
+
+§23 blamed the four-keyframe plus three-harmonic reconstruction and was
+overruled by §24 on the grounds that the hull peakiness matched.  That
+refutation was correct about peakiness and wrong to conclude "the shape is
+right": the shape of the *aggregate* is right, the *relative timing
+between segments* is not.  With four keyframes and ``KEYFRAME_HARMONICS =
+3``, differential segment timing is close to unrepresentable, which is
+exactly the failure observed.
+
+### Consequence for the rower model
+
+This gives a concrete, falsifiable acceptance test for any replacement
+rower model, which §30 takes up:
+
+* crew COM travel **0.635 m** against a seat travel of 0.65 m
+* sequencing cancellation **~22%**, not 0.3%
+* resulting IVV **37.3%**
+
+and it means the fix belongs in the *kinematics*, not in the
+hydrodynamics, the blade model or the solver.

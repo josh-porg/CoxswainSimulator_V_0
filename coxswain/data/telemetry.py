@@ -117,23 +117,77 @@ class StrokeTrace:
         return raw - trend
 
     # -- stroke segmentation ----------------------------------------------
-    def stroke_period(self) -> float:
-        """Dominant period, from the autocorrelation of the surge.
+    def stroke_period(self, low_spm: float = 12.0,
+                      high_spm: float = 50.0) -> float:
+        """Dominant stroke period, from the band-limited power spectrum.
 
-        More robust than counting peaks: a rowing trace has two maxima per
-        cycle when the crew are rough, and peak counting then reports twice
-        the rate.
+        Autocorrelation was the obvious choice and it does not survive real
+        data.  A boat-mounted phone picks up hull vibration and slap an
+        order of magnitude above the stroke frequency, and the
+        autocorrelation peak then pins to whatever the shortest allowed lag
+        is -- every trial in the CC0 elite set reported the search floor,
+        75 spm, for rowing that was actually 16 to 34.
+
+        The spectrum does not have that failure mode: the stroke
+        fundamental is the largest peak *inside the plausible band*,
+        whatever is happening above it.  Rating is bounded by the sport --
+        nobody rows below 12 or above 50 -- so the band is a real
+        constraint rather than a tuned one.
         """
         signal = self.surge()
         signal = signal - signal.mean()
-        correlation = np.correlate(signal, signal, mode="full")
-        correlation = correlation[len(signal) - 1:]
-        rate = self.sample_rate
-        low = int(rate * 0.8)          # no crew rates above ~75 spm
-        high = min(int(rate * 4.0), len(correlation) - 1)
-        if high <= low:
+        if len(signal) < 16:
             raise ValueError("trace too short to find a stroke period")
-        return float(np.argmax(correlation[low:high]) + low) / rate
+        window = np.hanning(len(signal))
+        spectrum = np.abs(np.fft.rfft(signal * window))
+        frequency = np.fft.rfftfreq(len(signal), 1.0 / self.sample_rate)
+
+        band = (frequency >= low_spm / 60.0) & (frequency <= high_spm / 60.0)
+        if not band.any() or self.duration < 2.0 * 60.0 / low_spm:
+            raise ValueError("trace too short to find a stroke period")
+
+        # Harmonic product spectrum.  Band-limiting alone is not enough on
+        # real data: a 60 s window of rowing carries low-frequency energy
+        # from integration drift, from the boat pitching, and from the crew
+        # winding the rate up inside the window, and that can outrank the
+        # stroke fundamental.  In the CC0 elite set the 34 spm trial had a
+        # clean peak at exactly 34.0 -- ranked sixth, behind 12 spm of
+        # drift.
+        #
+        # A real stroke frequency has harmonics; drift does not.  Boat
+        # acceleration in particular has a pronounced second harmonic --
+        # the double peak Kleshnev describes during the drive -- so
+        # multiplying the spectrum by its own decimations sharpens the true
+        # fundamental and suppresses everything that only has energy at one
+        # frequency.
+        # Multiplying outright would be the textbook harmonic product
+        # spectrum, and it zeroes a pure tone -- which has no harmonics at
+        # all.  A synthetic sinusoid is exactly that, and so is a very
+        # smooth crew.  So harmonic support is used as a *weight* rather
+        # than a factor: a peak with harmonics is promoted, a peak without
+        # them is left alone rather than destroyed.
+        scale = float(spectrum.max()) or 1.0
+        support = np.zeros_like(spectrum)
+        for harmonic in (2, 3):
+            reachable = len(spectrum) // harmonic
+            support[:reachable] += spectrum[::harmonic][:reachable] / scale
+        score = spectrum * (1.0 + support)
+        index = int(np.argmax(np.where(band, score, 0.0)))
+        spectrum = score
+
+        # Parabolic refinement: the FFT bin is coarse for a short trace,
+        # and the period feeds every downstream quantity.
+        if 0 < index < len(spectrum) - 1:
+            left, centre, right = spectrum[index - 1:index + 2]
+            denominator = left - 2.0 * centre + right
+            shift = 0.0 if denominator == 0 else                 0.5 * (left - right) / denominator
+        else:
+            shift = 0.0
+        step = frequency[1] - frequency[0]
+        peak = frequency[index] + float(np.clip(shift, -0.5, 0.5)) * step
+        if peak <= 0.0:
+            raise ValueError("no stroke frequency found in band")
+        return float(1.0 / peak)
 
     def cycles(self, period: Optional[float] = None):
         """Split into whole strokes; yields ``(time, surge)`` per cycle."""

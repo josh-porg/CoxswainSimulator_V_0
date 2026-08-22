@@ -50,6 +50,95 @@ DEFAULT_HARMONICS = 8
 DEFAULT_FLATNESS = 0.75
 
 
+
+
+def uniform_traverse_warp(phases, com_x, drive_fraction: float,
+                          blend: float = 1.0,
+                          dwell: float = 0.25) -> np.ndarray:
+    """Phase warp that makes the crew traverse at near-constant rate.
+
+    Given the centre-of-mass longitudinal position ``com_x`` sampled at
+    ``phases`` (one full stroke, uniform grid), returns warped phases
+    ``w(phi)`` -- same grid, same endpoints, catch and finish fixed -- such
+    that re-sampling the motion through ``w`` yields ``|d com_x / dt|``
+    close to constant *within each phase*.
+
+    This is arc-length reparameterisation, done separately for the drive
+    and the recovery so their durations (and the force profile's clock)
+    are untouched: ``w' proportional to 1 / max(|x'|, dwell * mean|x'|)``,
+    normalised per phase.
+
+    Why: the hull's speed fluctuation is set almost entirely by the peak
+    of the crew's centre-of-mass velocity (momentum conservation), and the
+    measured fluctuation of real boats sits at the *constant-rate floor* --
+    37.3% measured against 36.5% for a perfectly uniform traverse and 58%
+    for the keyframe-spline reconstruction.  Real rowers move at
+    near-constant slide speed; four keyframes cannot say so, and the
+    smooth interpolant between them is humped.  The warp removes the hump
+    without touching any measured posture.
+
+    ``blend`` interpolates identity (0) to fully uniform (1).
+    ``dwell`` floors the traverse speed used in the reparameterisation, as
+    a fraction of the phase's mean speed: the centre of mass reverses at
+    the catch and the finish, where ``|x'| -> 0`` and its reciprocal would
+    demand the reversal take no time at all.  The floor spends a finite,
+    reportable fraction of the phase in the reversal instead.
+    """
+    phases = np.asarray(phases, dtype=float)
+    com_x = np.asarray(com_x, dtype=float)
+    rate = np.gradient(com_x, phases)
+    warped = np.array(phases)
+
+    for low, high in ((0.0, drive_fraction), (drive_fraction, 1.0)):
+        inside = (phases >= low) & (phases <= high)
+        if inside.sum() < 4:
+            continue
+        speed = np.abs(rate[inside])
+        floor = dwell * max(speed.mean(), 1e-12)
+        speed = np.maximum(speed, floor)
+        # cumulative arc length: how much of the traverse is done by each
+        # phase.  The floored speed keeps the reversal from taking zero
+        # time in the reparameterised motion.
+        arc = np.concatenate([[0.0], np.cumsum(
+            0.5 * (speed[1:] + speed[:-1]) * np.diff(phases[inside]))])
+        if arc[-1] <= 0.0:
+            continue
+        # constant rate means arc grows linearly with time, so the posture
+        # to show at phase ``phi`` is the one whose accumulated arc equals
+        # the elapsed fraction: ``w = A^{-1}(linear)``.
+        target = arc[-1] * (phases[inside] - low) / (high - low)
+        warped[inside] = np.interp(target, arc, phases[inside])
+
+    return (1.0 - float(blend)) * phases + float(blend) * warped
+
+
+def recovery_warp(progress, arrival: float):
+    """Monotone retiming of the recovery traverse: slow into the catch.
+
+    ``w(s) = s + (1 - arrival)(s^2 - s^3)`` on normalised recovery progress
+    ``s`` in [0, 1].  Endpoints are fixed, ``w'(0) = 1`` so the clock is
+    continuous at the finish, and ``w'(1) = arrival`` -- the crew arrive at
+    the catch at ``arrival`` times the nominal traverse rate.
+
+    ``arrival = 1`` is the identity (uniform clock).  Values below one move
+    the traverse earlier in the recovery and soften the reversal at the
+    catch, which is the universal coaching instruction ("slow into the
+    front") and what Kleshnev's recovery-phase analysis reports: seat speed
+    peaks early in the recovery and decays toward the catch.
+
+    Monotone for ``arrival >= 0``: ``w' = 1 + (1-arrival)(2s - 3s^2)`` has
+    its minimum ``arrival`` at ``s = 1``.
+    """
+    arrival = float(arrival)
+    return progress + (1.0 - arrival) * (progress ** 2 - progress ** 3)
+
+
+def recovery_warp_slope(progress, arrival: float):
+    """``dw/ds`` of :func:`recovery_warp`."""
+    arrival = float(arrival)
+    return 1.0 + (1.0 - arrival) * (2.0 * progress - 3.0 * progress ** 2)
+
+
 @dataclass(frozen=True)
 class StrokeTiming:
     """Drive / recovery split as a function of cadence."""
@@ -282,7 +371,9 @@ class FourierProfile:
     def from_keyframes(cls, phases, values, timing: StrokeTiming,
                        n_harmonics: int = 3,
                        n_samples: int = 512,
-                       flatness: float = None) -> "FourierProfile":
+                       flatness: float = None,
+                       recovery_arrival: float = 1.0,
+                       phase_warp=None) -> "FourierProfile":
         """Smooth periodic profile through measured keyframes.
 
         This is the entry point for published stroke kinematics: give the
@@ -359,7 +450,28 @@ class FourierProfile:
         spline = CubicSpline(closed_phases, closed_values, bc_type="periodic")
 
         grid = np.arange(n_samples) / n_samples
-        smooth = spline(grid)
+        sample_at = grid
+        if phase_warp is not None:
+            # A full-cycle warp table ``(phases, warped)`` fixing the catch
+            # and the finish: the posture shown at phase ``phi`` is the one
+            # the unwarped motion had at ``warp(phi)``.  Built by
+            # :func:`uniform_traverse_warp`; see SOURCES sec. 25.
+            knots, images = phase_warp
+            sample_at = np.interp(grid, np.asarray(knots, dtype=float),
+                                  np.asarray(images, dtype=float))
+        if recovery_arrival != 1.0:
+            # Retime the recovery: sample the spline ahead of the uniform
+            # clock early in the recovery and at ``recovery_arrival`` of
+            # the nominal rate at the catch.  Keyframe *postures* are
+            # preserved; only when they occur within the recovery shifts.
+            # See :func:`recovery_warp` for the physics and the source.
+            drive = timing.drive_fraction
+            sample_at = np.array(grid)
+            recovering = grid >= drive
+            progress = (grid[recovering] - drive) / (1.0 - drive)
+            sample_at[recovering] = drive + (1.0 - drive) * recovery_warp(
+                progress, recovery_arrival)
+        smooth = spline(sample_at)
 
         # Default OFF.  Turning it up trades keyframe fidelity for profile
         # realism and you cannot have both: the straight-line traverse has
