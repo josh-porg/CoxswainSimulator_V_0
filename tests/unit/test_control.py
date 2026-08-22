@@ -88,6 +88,7 @@ def test_split_sign_convention():
 # effect on the full model
 # --------------------------------------------------------------------------
 @pytest.mark.parametrize("split", [0.15, 0.30])
+@pytest.mark.slow
 def test_split_turns_the_boat_in_the_full_model(split):
     """The headline result: a pressure split is real steering authority.
 
@@ -105,6 +106,7 @@ def test_split_turns_the_boat_in_the_full_model(split):
     assert abs(rate) > np.radians(0.1), "a split must produce a real turn"
 
 
+@pytest.mark.slow
 def test_split_does_not_change_net_thrust():
     """A symmetric split is a pure couple, so speed should barely move."""
     from coxswain.boats import catalog

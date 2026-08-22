@@ -52,15 +52,20 @@ def test_surrogate_volume_decreases_as_the_boat_rises(surrogate):
 
 def test_heel_moves_the_centre_of_buoyancy_sideways(surrogate):
     """The restoring lever: without it there is no roll hydrostatics."""
-    port = surrogate(-0.02, 0.0, np.radians(5.0))["buoyancy_y"]
+    # Probe inside the sampled box rather than at a hard-coded angle:
+    # the surrogate is deliberately sampled close to where the boat lives,
+    # and a fixed 5 degrees would ask it to extrapolate.
+    heel = 0.7 * float(surrogate.roll[-1])
+    port = surrogate(-0.02, 0.0, heel)["buoyancy_y"]
     level = surrogate(-0.02, 0.0, 0.0)["buoyancy_y"]
-    starboard = surrogate(-0.02, 0.0, np.radians(-5.0))["buoyancy_y"]
+    starboard = surrogate(-0.02, 0.0, -heel)["buoyancy_y"]
     assert level == pytest.approx(0.0, abs=1e-3)
     assert port * starboard < 0.0, "must be antisymmetric in heel"
 
 
 def test_pitch_moves_the_centre_of_buoyancy_fore_and_aft(surrogate):
-    bow_down = surrogate(-0.02, np.radians(2.0), 0.0)["buoyancy_x"]
+    bow_down = surrogate(-0.02, 0.7 * float(surrogate.pitch[-1]),
+                         0.0)["buoyancy_x"]
     level = surrogate(-0.02, 0.0, 0.0)["buoyancy_x"]
     assert abs(bow_down - level) > 1e-4
 
@@ -189,10 +194,16 @@ def test_a_sweep_rig_does_produce_lateral_forcing(model):
 
 def test_buoyancy_balances_weight_at_the_float_point(model, boat):
     weight = boat.total_mass * 9.80665
+    # Bracket over the surrogate's own sampled range.  A hard-coded
+    # bracket asks the bspline to extrapolate, and an extrapolated
+    # volume can have the wrong sign at the ends -- which is a bad way
+    # to find out the sampled box has moved.
+    low = float(model.surrogate.heave[0])
+    high = float(model.surrogate.heave[-1])
     float_z = brentq(
         lambda z: boat.water.density * 9.80665
-        * model.surrogate(z, 0.0, 0.0)["volume"] - weight, -0.16, 0.06)
-    assert -0.16 < float_z < 0.06
+        * model.surrogate(z, 0.0, 0.0)["volume"] - weight, low, high)
+    assert low < float_z < high
     lift = (boat.water.density * 9.80665
             * model.surrogate(float_z, 0.0, 0.0)["volume"])
     assert lift == pytest.approx(weight, rel=1e-6)

@@ -119,7 +119,7 @@ class RowingSimulator:
     def __init__(self, boat: Boat, coxswain: Optional[Coxswain] = None,
                  rudder: Optional[Callable[[float, State], float]] = None,
                  water_level: float = 0.0, gravity: float = GRAVITY,
-                 course=None, wind=None, aero=None):
+                 course=None, wind=None, aero=None, blade_contact=None):
         self.boat = boat
         #: Geometry linking the crew's balance effort to the hull load.
         #: Sweep rigs make this more than a roll couple; see
@@ -144,6 +144,11 @@ class RowingSimulator:
             from ..hydro.wind import AeroModel
             aero = AeroModel.calibrate(boat)
         self.aero = aero
+        #: Blades touching the water on the recovery.  ``None`` keeps the
+        #: old assumption that they are always clear -- which is the intent
+        #: of good rowing, but not what always happens, and the difference
+        #: is what gives roll error a cost in seconds.
+        self.blade_contact = blade_contact
         self._shallow_cache = (None, None)
         self._crew_cache = (None, None)
         self._hand_cache = (None, None)
@@ -361,6 +366,23 @@ class RowingSimulator:
                 true_wind, state.velocity, rot)
             appendage_force_hull = appendage_force_hull + wind_force
             appendage_moment_hull = appendage_moment_hull + wind_moment
+
+        # -- blades touching the water, on the recovery only ---------------
+        # During the drive the blade is meant to be in the water and the oar
+        # model already accounts for it.  On the recovery it is a fault, and
+        # an expensive one: at two degrees of heel eight blades drag more
+        # than the hull does.  The same contact is a powerful stabiliser --
+        # about twenty-five times the crew's own recovery authority -- which
+        # is the trade a crew makes when the boat is unset.
+        if self.blade_contact is not None:
+            phase = boat.timing.phase(t)
+            if phase >= boat.timing.drive_fraction:
+                contact_drag, contact_roll = self.blade_contact.loads(
+                    float(state.roll), float(state.velocity_hull[0]))
+                appendage_force_hull = appendage_force_hull + np.array(
+                    [contact_drag, 0.0, 0.0])
+                appendage_moment_hull = appendage_moment_hull + np.array(
+                    [contact_roll, 0.0, 0.0])
 
         # -- crew balance, applied through the riggers --------------------
         # Not a pure couple.  The crew balance by changing handle height,

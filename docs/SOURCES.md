@@ -1833,3 +1833,223 @@ come: the vertical phase ψᵢ (blade height, separate from the horizontal
 sweep — an early extraction changes one without the other), the
 Kuramoto-type coupling with both mechanical and sensory channels, and
 skill as (σ, K_sensory, ψ–φ offset).
+
+
+## 22. Crew synchronisation as coupled oscillators (plan step A2)
+
+§21 gave rowers individual phases as *inputs*. Real crews do not have
+prescribed phases — they converge on one, imperfectly, and that
+convergence is a dynamical process with its own timescale and failure
+modes. `coxswain.crew.synchronisation` models it.
+
+### The framework, and what rowing contributes back to it
+
+This is the setting Naomi Ehrich Leonard's group works in [L-PUB]: phase
+models of coupled oscillators and their connection to collective motion,
+including a collaboration using improvisational dance as a model system
+for in-the-moment collective decision making.
+
+Most human-synchronisation systems have one perceptual coupling. A rowing
+crew has **two**, and they are physically different:
+
+| | mechanism | latency | topology |
+|---|---|---|---|
+| **mechanical** | shared hull — rower *i*'s motion moves the shell every other rower is bolted to | none | mean-field |
+| **sensory** | watching the blade or back ahead, hearing the catch | 150–250 ms | directed chain toward stroke |
+
+The mechanical channel is what rowing offers *back* to the coupled-
+oscillator literature rather than merely borrowing from it: the mean-field
+term is not a modelling convenience but an actual mechanical path through
+a shared rigid body, with a transfer function this simulator already
+computes.
+
+### Two phases, not one
+
+An early extraction changes vertical timing without changing the
+horizontal sweep, and they reach the boat through different terms:
+
+* `phi` — horizontal: sweep angle and handle force → surge and yaw;
+* `psi` — vertical: blade immersion and extraction → roll and blade forces.
+
+A rower who washes out early has `psi` leading `phi`. Invisible to a
+single-phase model, and a roll disturbance arriving exactly when §15–16
+say roll authority is lowest.
+
+### A modelling error worth recording
+
+The first version used naive delayed coupling — comparing your phase *now*
+against another rower's phase 200 ms ago. **That makes the whole crew row
+slow**, by an amount independent of gain: a persistent 1.47 rad/s against
+a nominal 3.35, i.e. 44% below the rate called. Gain-independence is the
+signature of a structural error rather than a tuning one.
+
+Real sensorimotor synchronisation is *predictive*: people tap **with** a
+metronome, not behind it. Advancing the seen phase by the delay before
+comparing fixes it, and a synchronised crew then feels no coupling force
+at all, which is the correct behaviour.
+
+This mattered beyond tidiness. The naive version produced a dramatic
+result — a sharp synchronisation transition, with visually-coupled crews
+unable to lock at all — which **did not survive the correction**. It is
+recorded here because it was nearly reported as a finding.
+
+### What the corrected model says
+
+Detuning sd 0.10 rad/s (3% of stroke rate), `sensory_gain = 4`:
+
+| chain / mean-field | coherence | spread |
+|---|---|---|
+| 0% / 100% | 0.9999 | **12.0 ms** |
+| 50% / 50% | 0.9998 | 14.7 ms |
+| 100% / 0% | 0.9962 | **75.1 ms** |
+
+§21 puts the balance budget at about 65 ms of port/starboard split. So:
+
+* a crew coupled purely through the **visual chain sits right at the edge
+  of the balance budget**;
+* one coupled through the **shared hull has roughly six times the margin**;
+* both channels work — the hull one is far more effective per unit of
+  coupling, because it is immediate and reaches everyone at once.
+
+A chain-coupled crew can still get inside the budget, but only with strong
+coupling: 187 ms of spread at gain 1, 75 ms at 4, 48 ms at 16. That is a
+plausible reading of what drilling together actually trains — not better
+eyesight, but a higher gain on what is seen.
+
+### A testable discriminator
+
+The two topologies leave different signatures: a **chain accumulates lag
+monotonically from stroke toward bow**; mean-field does not. Per-seat
+telemetry can distinguish them directly, which turns "which channel
+dominates?" from a matter of opinion into a measurement.
+
+### References
+
+[L-PUB] Leonard, N. E., Princeton University, Mechanical and Aerospace
+Engineering / Applied and Computational Mathematics.
+<https://naomi.princeton.edu/publications/>
+[KUR] Kuramoto, Y. *Chemical Oscillations, Waves, and Turbulence* (1984).
+[K-VAR] Kleshnev, V. "Rowing Science: New Analysis of Variability of
+Rower's Technique", parts 1–3, row2k.
+
+
+## 23. The speed-fluctuation discrepancy, diagnosed
+
+The model's intracycle velocity variation has been too high since the
+beginning. This section closes the investigation: the cause is identified,
+three plausible hypotheses are eliminated, and the remaining fix is a data
+problem rather than a code one.
+
+### First, the target was misquoted
+
+`test_speed_fluctuation_is_larger_than_measured` cited "37.5% for elite
+male single scullers (max 5.94, min 3.10, mean 4.28 m/s)". Those numbers
+do not give 37.5% — they give 66%. Going back to the source
+(PMC12349136) resolves it: the max and min quoted are **whole-race**
+extremes, and the paper says so explicitly. The intracycle quantity is
+separate:
+
+| | males | females |
+|---|---|---|
+| mean velocity | 15.40 km/h | 13.36 km/h |
+| **IVV** (max−min *within each cycle*) | **5.78 km/h** | 5.50 km/h |
+| IVV / mean | **37.5%** | **41.2%** |
+| CVV (SD/mean) | 14.13% | 11.64% |
+
+So 37.5% is right, but only for the intracycle definition. The note had
+put whole-race extremes next to an intracycle percentage, which invites
+exactly the error it caused.
+
+### Like for like
+
+Measuring the model with the paper's own definitions, single scull at the
+same 33.65 spm:
+
+| | mean | IVV | IVV % | CVV % |
+|---|---|---|---|---|
+| **measured, elite male 1x** | 4.278 | **1.606** | **37.5** | **14.13** |
+| model, ergometer kinematics | 4.442 | 2.895 | 65.2 | 21.43 |
+| model, on-water kinematics | 4.451 | 2.659 | 59.7 | 20.39 |
+
+### Three hypotheses, eliminated
+
+**It is not the slide travel.** The recorded suspicion was that the crew
+centre of mass travels 0.77 m against 0.4–0.5 m implied by measurement.
+That rested on reading segment 0 of the crew field as the seat; it is the
+**head**, which legitimately travels 1.33 m because the trunk swing adds
+to the slide. The rower's actual `slide_travel()` is **0.633 m**, against
+0.60–0.70 m reported for on-water crews. The kinematics are right.
+
+**It is not the dataset.** The default driver is Caplan & Gardner, which
+is ergometer data (Concept 2 stretcher) with a catch trunk angle of
+−38.1°; Kleshnev's on-water elite telemetry gives −24.5°. Switching to
+the on-water set moves IVV from 65.2% to 59.7% — real, but a small part
+of the gap.
+
+**It is not crew synchronisation.** A plausible story was that an eight
+fluctuates less than a single because its rowers are not quite together,
+smoothing the aggregate. Tested directly with per-seat phase offsets:
+49.4% at zero spread, 49.2% at 30 ms, and only 46.0% at an unrealistic
+80 ms. It does not explain the gap.
+
+### What it is
+
+The fluctuation is set almost entirely by the crew's centre-of-mass
+velocity — momentum conservation alone predicts 50.8% against the 53.9%
+simulated, so 94% of it. The travel is right and the timing is right, so
+the error must be in the **shape** of the velocity profile, and it is:
+
+| | peakiness (peak rate / mean rate) |
+|---|---|
+| model, drive | **1.589** |
+| model, recovery | **1.861** |
+| pure sinusoid | 1.571 |
+| constant rate | 1.000 |
+
+The reconstruction is essentially a sinusoid, and slightly worse than one
+on the recovery. Quantitatively, for the single scull:
+
+| | COM velocity swing |
+|---|---|
+| slowest possible (exactly constant rate) | **1.664 m/s** |
+| implied by the measured 37.5% | **1.887 m/s** |
+| what the model produces | **2.470 m/s** |
+
+Real rowers sit **13% above the constant-rate floor**; the model sits
+**48% above it**. The measured value is comfortably reachable given the
+same keyframes and timing — this is not a contradiction in the data.
+
+### Why it cannot be fixed by interpolating better
+
+`FourierProfile.from_keyframes` fits a periodic cubic spline through
+**four** measured instants and truncates to three harmonics. Four points
+per cycle cannot help being near-sinusoidal.
+
+A `flatness` parameter now exists to blend the spline towards
+straight-line traverse, and it helps: with 8 harmonics it moves an elite
+single from 60% to 54%, about a third of the way. It cannot do better,
+and pushing it breaks something that matters — the straight-line traverse
+has corners at the keyframes, truncating that rings around them, and the
+reconstruction **stops passing through the measured angles**. Two unit
+tests catch exactly that. Raising the harmonic count to chase the corners
+fits spline artefacts instead of rower motion.
+
+So `flatness` defaults to zero and the keyframe fidelity is kept.
+
+### The conclusion
+
+**This is a data-resolution limit, not a modelling error.** Four instants
+per stroke do not determine the shape of the traverse between them, and
+the shape is what sets the boat's speed variation. Every other input —
+travel, timing, mass ratio, synchronisation — checks out.
+
+Fixing it needs a **densely sampled seat-position trace**, not a cleverer
+interpolation of four points. A seat or hull IMU at 50 Hz for a few
+strokes would determine the profile directly and close this. That is a
+single outing's work and it would replace the largest remaining
+validation gap in the model with a measurement.
+
+Until then the model overstates intracycle velocity variation by about
+1.6x, and any result that depends on the *amplitude* of the surge
+oscillation — rather than its mean — should be read with that in mind.
+The blade model's absolute calibration is the main one.

@@ -63,6 +63,7 @@ def test_fitted_yaw_inertia_includes_the_crew():
 # --------------------------------------------------------------------------
 # collocation
 # --------------------------------------------------------------------------
+@pytest.mark.slow
 def test_solves_a_straight_leg(straight_channel):
     line = straight_channel.centreline()
     start, goal = line[len(line) // 6], line[-len(line) // 6]
@@ -71,6 +72,7 @@ def test_solves_a_straight_leg(straight_channel):
     assert solution.duration > 0.0
 
 
+@pytest.mark.slow
 def test_solution_reaches_the_goal(straight_channel):
     line = straight_channel.centreline()
     start, goal = line[len(line) // 6], line[-len(line) // 6]
@@ -79,6 +81,7 @@ def test_solution_reaches_the_goal(straight_channel):
     assert solution.position[1, -1] == pytest.approx(goal[1], abs=1.0)
 
 
+@pytest.mark.slow
 def test_solution_starts_at_the_start(straight_channel):
     line = straight_channel.centreline()
     start, goal = line[len(line) // 6], line[-len(line) // 6]
@@ -87,6 +90,7 @@ def test_solution_starts_at_the_start(straight_channel):
     assert solution.position[1, 0] == pytest.approx(start[1], abs=1e-6)
 
 
+@pytest.mark.slow
 def test_solution_respects_the_rudder_limit(straight_channel):
     model = ReducedModel(rudder_limit=np.radians(8.0))
     line = straight_channel.centreline()
@@ -96,6 +100,7 @@ def test_solution_respects_the_rudder_limit(straight_channel):
     assert np.all(np.abs(solution.rudder) <= np.radians(8.0) + 1e-6)
 
 
+@pytest.mark.slow
 def test_solution_stays_in_navigable_water(straight_channel):
     line = straight_channel.centreline()
     start, goal = line[len(line) // 6], line[-len(line) // 6]
@@ -106,6 +111,7 @@ def test_solution_stays_in_navigable_water(straight_channel):
     assert all(navigable)
 
 
+@pytest.mark.slow
 def test_hermite_simpson_defects_are_satisfied(straight_channel):
     """The collocation constraint must actually hold on the solution.
 
@@ -125,6 +131,7 @@ def test_hermite_simpson_defects_are_satisfied(straight_channel):
     assert np.all(np.isfinite(solution.state))
 
 
+@pytest.mark.slow
 def test_more_nodes_do_not_change_the_answer_much(straight_channel):
     """Convergence check: the transcription must be resolution-independent."""
     line = straight_channel.centreline()
@@ -135,6 +142,7 @@ def test_more_nodes_do_not_change_the_answer_much(straight_channel):
     assert abs(coarse.duration - fine.duration) / fine.duration < 0.10
 
 
+@pytest.mark.slow
 def test_summary_reports_the_expected_keys(straight_channel):
     line = straight_channel.centreline()
     start, goal = line[len(line) // 6], line[-len(line) // 6]
@@ -177,6 +185,7 @@ def test_split_adds_yaw_authority():
     assert with_split < 200.0
 
 
+@pytest.mark.slow
 def test_split_is_bounded_in_the_solution(straight_channel):
     model = ReducedModel(split_limit=0.2)
     line = straight_channel.centreline()
@@ -192,6 +201,7 @@ def test_split_costs_speed():
     assert model.split_drag > 0.0
 
 
+@pytest.mark.slow
 def test_summary_reports_the_split(straight_channel):
     line = straight_channel.centreline()
     start, goal = line[len(line) // 6], line[-len(line) // 6]
@@ -217,6 +227,7 @@ def test_more_power_gives_more_speed():
             > model.straight_line_speed(power_fraction=1.0))
 
 
+@pytest.mark.slow
 def test_pacing_pushes_until_something_binds(straight_channel):
     """At the optimum either the energy budget or the power cap binds.
 
@@ -242,6 +253,7 @@ def test_pacing_pushes_until_something_binds(straight_channel):
     assert exhausted or at_the_cap
 
 
+@pytest.mark.slow
 def test_anaerobic_capacity_is_never_negative(straight_channel):
     """The crew cannot spend energy it does not have."""
     line = straight_channel.centreline()
@@ -250,6 +262,7 @@ def test_anaerobic_capacity_is_never_negative(straight_channel):
     assert np.all(solution.anaerobic_remaining >= -1e-6)
 
 
+@pytest.mark.slow
 def test_power_respects_its_bounds(straight_channel):
     model = ReducedModel(power_min=0.8, power_max=1.2)
     line = straight_channel.centreline()
@@ -260,6 +273,7 @@ def test_power_respects_its_bounds(straight_channel):
     assert np.all(solution.power <= 1.2 + 1e-6)
 
 
+@pytest.mark.slow
 def test_free_pacing_beats_constant_power(straight_channel):
     """The point of making power a control.
 
@@ -275,6 +289,7 @@ def test_free_pacing_beats_constant_power(straight_channel):
     assert free.duration < fixed.duration
 
 
+@pytest.mark.slow
 def test_summary_reports_power_and_energy(straight_channel):
     line = straight_channel.centreline()
     start, goal = line[len(line) // 6], line[-len(line) // 6]

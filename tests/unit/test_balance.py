@@ -352,6 +352,7 @@ def test_trunk_lean_beats_hand_heights_on_the_recovery(eight):
     assert lean > oars, (lean, oars)
 
 
+@pytest.mark.slow
 def test_trunk_lean_is_what_makes_an_eight_sittable(eight):
     """Remove it and the boat is materially harder to hold."""
     from coxswain.crew.balance import PhaseAuthority
@@ -410,6 +411,7 @@ def test_the_smoothed_window_tracks_the_square_wave(eight):
     assert authority.window_error(eight.timing) < 0.05
 
 
+@pytest.mark.slow
 def test_phase_dependent_balance_makes_the_boat_harder_to_hold(eight):
     """It must cost something, or it is not modelling anything."""
     from coxswain.crew.balance import PhaseAuthority
@@ -435,6 +437,7 @@ def test_phase_dependent_balance_makes_the_boat_harder_to_hold(eight):
 # --------------------------------------------------------------------------
 # the buoyancy frame bug that the honest authority exposed
 # --------------------------------------------------------------------------
+@pytest.mark.slow
 def test_hull_surrogate_stores_the_centre_of_buoyancy_in_the_hull_frame(eight):
     """The bug a too-generous balance limit had been hiding.
 
@@ -475,6 +478,7 @@ def test_hull_surrogate_stores_the_centre_of_buoyancy_in_the_hull_frame(eight):
                                                             expected)
 
 
+@pytest.mark.slow
 def test_the_two_paths_agree_on_roll_acceleration_at_heel(eight):
     """The check that would have caught the double rotation.
 

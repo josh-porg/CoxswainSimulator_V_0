@@ -220,6 +220,7 @@ def test_mesh_buoyancy_moment_matches_its_own_centre(eight, roll_deg,
 
 
 @pytest.mark.parametrize("roll_deg,pitch_deg", [(1.0, 0.0), (1.5, -0.7)])
+@pytest.mark.slow
 def test_surrogate_reconstructs_the_mesh_buoyancy_moment(eight, roll_deg,
                                                          pitch_deg):
     """The double rotation, asserted away.

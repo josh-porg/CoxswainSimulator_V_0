@@ -98,17 +98,42 @@ class HullSurrogate:
 
     # -- construction -----------------------------------------------------
     @classmethod
-    def from_boat(cls, boat, heave_range: Tuple[float, float] = (-0.16, 0.06),
-                  pitch_range: float = np.radians(4.0),
-                  roll_range: float = np.radians(12.0),
+    def from_boat(cls, boat, heave_range: Tuple[float, float] = (-0.10, 0.05),
+                  pitch_range: float = np.radians(1.5),
+                  roll_range: float = np.radians(4.0),
                   n_heave: int = 23, n_pitch: int = 13, n_roll: int = 13,
                   water_level: float = 0.0, gravity: float = 9.80665):
         """Sample the exact mesh over the range the boat actually visits.
 
-        The default ranges are generous against measured motion -- an eight
-        heaves a few centimetres, pitches under a degree and rolls a degree
-        or two -- because an optimiser will probe outside the physical
-        envelope and the surrogate has to stay sane when it does.
+        **Sample where the boat lives.**  The ranges used to be far wider
+        than the motion -- roll to +/-12 degrees against a measured
+        excursion of -0.80 to +0.25 -- on the reasoning that an optimiser
+        probes outside the physical envelope.  That reasoning is right but
+        the margin was not free: a fixed number of knots spread over
+        fifteen times the operating range puts the interpolation error
+        where it matters most.
+
+        Measured on the roll restoring moment at one degree of heel, at a
+        fixed 9 roll nodes:
+
+        ==============  ===============
+        roll range      error at 1 deg
+        ==============  ===============
+        +/-12 deg       1.358%
+        +/- 8 deg       1.224%
+        +/- 4 deg       0.284%
+        +/- 3 deg       0.070%
+        ==============  ===============
+
+        Narrowing to +/-4 degrees is a factor of five better for nothing,
+        and still leaves five times the observed excursion as headroom --
+        which the trajectory bounds then clamp to 0.95 of, so the optimiser
+        cannot leave the sampled box in any case.
+
+        Pitch and heave were similarly generous (measured excursions
+        +/-0.28 degrees and 30% of the sampled heave) and are narrowed on
+        the same reasoning.  Widen them explicitly for a study that needs
+        it -- a capsize, or a boat being deliberately over-rolled.
         """
         heave = np.linspace(heave_range[0], heave_range[1], n_heave)
         pitch = np.linspace(-pitch_range, pitch_range, n_pitch)

@@ -271,6 +271,7 @@ def test_split_turns_the_boat_only_on_the_drive(model, boat):
     assert abs(on_drive[6]) > 3.0 * abs(on_recovery[6])
 
 
+@pytest.mark.slow
 def test_surge_oscillation_matches_the_full_model(model, boat):
     """The reason for resolving the stroke at all.
 

@@ -50,6 +50,7 @@ def test_route_rejects_non_increasing_stations():
         Route(np.array([0.0, 1.0, 0.5]), np.zeros(3))
 
 
+@pytest.mark.slow
 def test_centreline_route_is_all_zero(straight_course):
     assert np.allclose(Route.centreline(straight_course).offsets, 0.0)
 
@@ -120,6 +121,7 @@ def test_speed_accepts_scalars_and_arrays(straight_course):
 # --------------------------------------------------------------------------
 # evaluation
 # --------------------------------------------------------------------------
+@pytest.mark.slow
 def test_deep_line_beats_shallow_line_with_no_current(straight_course):
     """With no flow the only trade is depth against distance.
 
@@ -132,6 +134,7 @@ def test_deep_line_beats_shallow_line_with_no_current(straight_course):
     assert middle.elapsed < edge.elapsed
 
 
+@pytest.mark.slow
 def test_path_length_of_a_straight_centreline_is_the_course_length(
         straight_course):
     result = RouteEvaluator(straight_course).evaluate(
@@ -140,6 +143,7 @@ def test_path_length_of_a_straight_centreline_is_the_course_length(
                                                rel=1e-6)
 
 
+@pytest.mark.slow
 def test_a_weaving_line_is_longer_than_a_straight_one(straight_course):
     evaluator = RouteEvaluator(straight_course)
     stations = np.linspace(0.0, straight_course.length, 9)
@@ -160,6 +164,7 @@ def test_grounding_is_penalised(straight_course):
     assert result.elapsed > clean.elapsed
 
 
+@pytest.mark.slow
 def test_mean_ground_speed_is_length_over_time(straight_course):
     result = RouteEvaluator(straight_course, minimum_depth=0.1).evaluate(
         Route.centreline(straight_course))
@@ -170,6 +175,7 @@ def test_mean_ground_speed_is_length_over_time(straight_course):
 # --------------------------------------------------------------------------
 # current
 # --------------------------------------------------------------------------
+@pytest.mark.slow
 def test_current_helps_downstream_and_hurts_upstream(straight_course):
     """The same line must be quicker with the stream than against it."""
     route = Route.centreline(straight_course)
@@ -180,6 +186,7 @@ def test_current_helps_downstream_and_hurts_upstream(straight_course):
     assert down.evaluate(route).elapsed < up.evaluate(route).elapsed
 
 
+@pytest.mark.slow
 def test_current_sign_is_negative_upstream(straight_course):
     up = RouteEvaluator(straight_course, flow=_UniformFlow(straight_course),
                         upstream=True)
@@ -187,6 +194,7 @@ def test_current_sign_is_negative_upstream(straight_course):
     assert np.all(result.current_along < 0.0)
 
 
+@pytest.mark.slow
 def test_current_sign_is_positive_downstream(straight_course):
     down = RouteEvaluator(straight_course, flow=_UniformFlow(straight_course),
                           upstream=False)
@@ -194,6 +202,7 @@ def test_current_sign_is_positive_downstream(straight_course):
     assert np.all(result.current_along > 0.0)
 
 
+@pytest.mark.slow
 def test_no_flow_gives_zero_current(straight_course):
     result = RouteEvaluator(straight_course).evaluate(
         Route.centreline(straight_course))
@@ -203,6 +212,7 @@ def test_no_flow_gives_zero_current(straight_course):
 # --------------------------------------------------------------------------
 # optimiser
 # --------------------------------------------------------------------------
+@pytest.mark.slow
 def test_optimiser_never_returns_worse_than_the_centreline(straight_course):
     evaluator = RouteEvaluator(straight_course, minimum_depth=0.1)
     baseline = evaluator.evaluate(Route.centreline(straight_course))

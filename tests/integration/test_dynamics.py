@@ -129,6 +129,7 @@ def test_hydrodynamic_forces_rotate_with_the_hull(sim):
                                atol=1e-6)
 
 
+@pytest.mark.slow
 def test_yawing_the_boat_does_not_change_its_speed_history(boat):
     """Heading is a symmetry of the dynamics; only the track should rotate."""
     coxswain = Coxswain(heading=HeadingController(enabled=False))
@@ -184,11 +185,13 @@ def test_the_boat_makes_progress(sim):
 # --------------------------------------------------------------------------
 # stability of the closed loop
 # --------------------------------------------------------------------------
+@pytest.mark.slow
 def test_roll_is_bounded_over_many_strokes(sim):
     result = sim.run(duration=8.0, surge_speed=5.0, dt=0.005)
     assert np.degrees(np.abs(result.roll)).max() < 3.0
 
 
+@pytest.mark.slow
 def test_a_roll_disturbance_is_rejected(sim):
     start = sim.initial_state(surge_speed=5.0)
     start[3] = np.radians(4.0)
@@ -213,12 +216,14 @@ def test_the_boat_capsizes_without_the_crew_balancing(boat):
     assert np.degrees(np.abs(result.roll)).max() > 20.0
 
 
+@pytest.mark.slow
 def test_heading_is_held_against_the_sweep_yaw_couple(sim):
     """An alternating sweep rig applies a net yaw moment every drive."""
     result = sim.run(duration=10.0, surge_speed=5.0, dt=0.005)
     assert np.degrees(np.abs(result.yaw)).max() < 5.0
 
 
+@pytest.mark.slow
 def test_yaw_wanders_without_steering(boat):
     coxswain = Coxswain(heading=HeadingController(enabled=False))
     sim = RowingSimulator(boat, coxswain=coxswain)
@@ -226,6 +231,7 @@ def test_yaw_wanders_without_steering(boat):
     assert np.degrees(np.abs(result.yaw)).max() > 1.0
 
 
+@pytest.mark.slow
 def test_the_rudder_can_turn_the_boat(boat):
     coxswain = Coxswain(rudder_override=lambda t, s: np.radians(15.0))
     sim = RowingSimulator(boat, coxswain=coxswain)
@@ -233,6 +239,7 @@ def test_the_rudder_can_turn_the_boat(boat):
     assert result.yaw[-1] < np.radians(-2.0), "positive rudder turns starboard"
 
 
+@pytest.mark.slow
 def test_a_heading_change_is_tracked(boat):
     coxswain = Coxswain(heading=HeadingController(target=np.radians(10.0)))
     sim = RowingSimulator(boat, coxswain=coxswain)

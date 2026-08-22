@@ -146,6 +146,7 @@ def test_f09_literal_wave_model_is_reproducible_but_not_physical():
 # ==========================================================================
 @pytest.mark.parametrize("name,rate", [("8+", 32.0), ("4+", 32.0),
                                        ("1x", 30.0)])
+@pytest.mark.slow
 def test_f09_fig13_pitch_amplitude(name, rate, simulate):
     """[F09] Fig. 13: pitch stays inside +-0.02 rad (1.15 deg).
 
@@ -161,6 +162,7 @@ def test_f09_fig13_pitch_amplitude(name, rate, simulate):
 
 @pytest.mark.parametrize("name,rate", [("8+", 32.0), ("4+", 32.0),
                                        ("1x", 30.0)])
+@pytest.mark.slow
 def test_f09_fig13_heave_amplitude(name, rate, simulate):
     """[F09] Fig. 13: heave stays inside about 0.08 m peak to peak."""
     result = simulate(name, rate=rate, duration=16.0, surge_speed=4.5,
@@ -189,6 +191,7 @@ def test_f09_single_scull_hull_properties():
     ("1x", 20.0, 3.3, 4.0),
     ("1x", 30.0, 4.1, 4.7),
 ])
+@pytest.mark.slow
 def test_steady_speed_matches_published_race_pace(name, rate, low, high,
                                                   simulate):
     result = simulate(name, rate=rate, duration=22.0, surge_speed=4.2,
@@ -200,6 +203,7 @@ def test_steady_speed_matches_published_race_pace(name, rate, low, high,
     )
 
 
+@pytest.mark.slow
 def test_higher_rate_gives_higher_speed(simulate):
     speeds = [
         simulate("8+", rate=r, duration=20.0, surge_speed=4.5,
@@ -209,6 +213,7 @@ def test_higher_rate_gives_higher_speed(simulate):
     assert speeds[0] < speeds[1] < speeds[2]
 
 
+@pytest.mark.slow
 def test_an_eight_is_faster_than_a_four_at_the_same_rate(simulate):
     """More crew per unit drag: the classic ordering of the boat classes."""
     eight = simulate("8+", rate=32.0, duration=20.0, surge_speed=4.5,
@@ -230,6 +235,7 @@ def test_hull_resistance_of_an_eight_matches_towing_data():
     assert 350.0 < detail["total_longitudinal"] < 620.0
 
 
+@pytest.mark.slow
 def test_the_boat_runs_fastest_on_the_recovery(simulate):
     """The signature of rowing: the crew moves bow-ward on the drive, so the
     hull is checked then and surges while they come back."""
@@ -248,15 +254,20 @@ def test_the_boat_runs_fastest_on_the_recovery(simulate):
 # ==========================================================================
 # Known departures from the paper, pinned so they cannot drift silently
 # ==========================================================================
+@pytest.mark.slow
 def test_speed_fluctuation_is_larger_than_measured(simulate):
     """A known, documented gap -- now with a properly sourced target.
 
     Measured peak-to-peak surge as a fraction of mean speed:
 
     * **37.5%** for elite male single scullers over a 2000 m race at
-      33.65 spm (max 5.94, min 3.10, mean 4.28 m/s; CVV 14.13%) --
-      "Intracycle Velocity Variation During a Single-Sculling 2000 m
-      Rowing Competition", PMC12349136;
+      33.65 spm -- "Intracycle Velocity Variation During a Single-Sculling
+      2000 m Rowing Competition", PMC12349136.  The paper's IVV is
+      5.78 km/h on a mean of 15.40 km/h; **that** is the 37.5%.
+      Its quoted max 21.39 and min 11.15 km/h are **whole-race**
+      extremes, not intracycle, and putting them next to an intracycle
+      percentage is what sent an earlier investigation down the wrong
+      path -- they give 66%, which is a different quantity;
     * **41.2%** for elite females in the same study;
     * "almost 50%" for a men's pair at rate 35, from Kleshnev (2002)
       acceleration data as reported by Day et al. (2011).
@@ -268,12 +279,21 @@ def test_speed_fluctuation_is_larger_than_measured(simulate):
     target is a band, not a number.
 
     The fluctuation is set almost entirely by the crew centre-of-mass
-    velocity amplitude: over one stroke, drag barely damps the surge and
-    the oar impulse is smaller than the crew reaction.  The model's crew
-    centre of mass travels 0.77 m relative to the hull against roughly
-    0.4-0.5 m implied by the measurements.  Constraining the hands to the
-    oar handle brought this from 65.4% to 62.9%; smoothing the oar sweep
-    put it back to 65.1%.  The residual is not yet explained.
+    velocity: momentum conservation alone predicts 50.8% of the 53.9%
+    simulated.  Section 23 of docs/SOURCES.md closes the diagnosis.
+
+    It is **not** the slide travel -- that is 0.633 m against a measured
+    0.60-0.70; the earlier note blaming 0.77 m had misread the head for
+    the seat.  It is not the dataset (ergometer versus on-water kinematics
+    is worth 5 points of 22) and not crew synchronisation (tested: 49.4%
+    at zero timing spread, 46.0% at an unrealistic 80 ms).
+
+    It is the **shape** of the centre-of-mass velocity profile.  Real
+    rowers traverse at 13% above the constant-rate floor; a cubic spline
+    through four keyframes, truncated to three harmonics, lands at 48%
+    above it -- essentially a sinusoid.  That is a data-resolution limit:
+    four instants per stroke do not determine the shape between them.
+    Closing it needs a densely sampled seat-position trace.
 
     See docs/SOURCES.md section 4.
     """
@@ -287,6 +307,7 @@ def test_speed_fluctuation_is_larger_than_measured(simulate):
     )
 
 
+@pytest.mark.slow
 def test_the_boat_class_ordering_of_fluctuation_is_right(simulate):
     """Longer boats run smoother.
 

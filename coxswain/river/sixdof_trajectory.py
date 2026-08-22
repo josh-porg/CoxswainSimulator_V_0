@@ -54,6 +54,7 @@ from typing import Optional, Sequence
 import numpy as np
 
 from .collocation import HermiteSimpson, phase_locked_mesh
+from .scaling import ProblemScaling
 
 __all__ = ["SixDofPlan", "SixDofTrajectory", "solve_sixdof_trajectory"]
 
@@ -219,7 +220,8 @@ class SixDofTrajectory:
               rudder_limit: float = np.radians(25.0),
               split_limit: float = 0.15,
               power_bounds=(0.70, 1.15), print_level: int = 0,
-              exact_hessian: bool = False):
+              exact_hessian: bool = False, scaling=None,
+              smoothing_weight: float = 1e-2):
         """Maximise progress along the channel over ``n_strokes``.
 
         ``scheme`` defaults to Hermite-Simpson.  Pass ``RadauIIA(s)`` to
@@ -236,9 +238,25 @@ class SixDofTrajectory:
                          + [mesh[-1].end])
         durations = np.array([interval.duration for interval in mesh])
 
-        dynamics = self.dynamics_function()
+        raw_dynamics = self.dynamics_function()
         n_states = self.model.n_states
         n_controls = self.model.n_controls
+
+        # Non-dimensionalise.  The unscaled transcription spans six orders
+        # of magnitude -- 1000 m of position against 0.02 rad of roll --
+        # and an interior-point method inherits that conditioning directly.
+        # This is a change of units, not of model; see coxswain.river.scaling.
+        if scaling is None:
+            travel = max(float(np.hypot(*(np.asarray(start_state)[6:8])))
+                         * float(times[-1]), 1.0)
+            scaling = ProblemScaling.for_six_dof(
+                self.model, leg_length=travel,
+                speed=max(float(np.hypot(*np.asarray(start_state)[6:8])), 1.0),
+                rudder_limit=rudder_limit, split_limit=split_limit)
+        self.scaling = scaling
+        dynamics = scaling.scaled_dynamics(raw_dynamics, ca)
+        state_scale = ca.DM(scaling.state.reshape(-1, 1))
+        control_scale = ca.DM(scaling.control.reshape(-1, 1))
 
         state = ca.MX.sym("X", n_states, n + 1)
         control = ca.MX.sym("U", n_controls, n + 1)
@@ -249,7 +267,8 @@ class SixDofTrajectory:
         lower = [np.zeros(n_states * n)]
         upper = [np.zeros(n_states * n)]
 
-        constraints.append(state[:, 0] - ca.DM(np.asarray(start_state)))
+        constraints.append(
+            state[:, 0] - ca.DM(scaling.to_scaled_state(start_state)))
         lower.append(np.zeros(n_states))
         upper.append(np.zeros(n_states))
 
@@ -257,11 +276,19 @@ class SixDofTrajectory:
         # The blades must stay inside the navigable channel.  Minimum
         # distance from the edge, not tracking a centreline: the boat may
         # be anywhere it likes so long as it clears.
+        clearance_scale = self.blade_reach + self.margin
         room = []
         for k in range(n + 1):
-            where = ca.vertcat(state[0, k], state[1, k])
-            room.append(self.clearance(where)
-                        - (self.blade_reach + self.margin))
+            where = ca.vertcat(state[0, k] * state_scale[0],
+                               state[1, k] * state_scale[1])
+            # Divided by the clearance the boat needs, so the constraint
+            # reads "how many boat-widths of room is there, minus one" and
+            # is O(1) like the defects and the reserve.  Left in metres it
+            # was ~30 against their ~1, which is the same conditioning
+            # mistake as leaving the variables unscaled.
+            room.append((self.clearance(where)
+                         - (self.blade_reach + self.margin))
+                        / clearance_scale)
         constraints.append(ca.vertcat(*room))
         lower.append(np.zeros(n + 1))
         upper.append(np.full(n + 1, ca.inf))
@@ -311,17 +338,60 @@ class SixDofTrajectory:
         fill(control_lo, control_hi, n, mesh[-1].phase)
 
         # -- objective -----------------------------------------------------
-        final = ca.vertcat(state[0, n], state[1, n])
-        first = ca.vertcat(state[0, 0], state[1, 0])
-        made = self.progress(final) - self.progress(first)
+        final = ca.vertcat(state[0, n] * state_scale[0],
+                           state[1, n] * state_scale[1])
+        first = ca.vertcat(state[0, 0] * state_scale[0],
+                           state[1, 0] * state_scale[1])
+        # Progress in metres, divided by the distance the boat would cover
+        # anyway.  The objective is then O(1) and, more usefully, it means
+        # the same thing on a four-stroke test and a full-course solve --
+        # an unscaled objective would be twenty on one and five hundred on
+        # the other, and IPOPT's convergence tolerances are absolute.
+        objective_scale = max(float(scaling.state[0]), 1.0)
+        made = (self.progress(final) - self.progress(first))             / objective_scale
 
         # A light penalty on rudder rate.  Without it the solver may
         # chatter between adjacent nodes, which is not a steering input a
         # coxswain could produce and would make the drive-versus-recovery
-        # comparison meaningless.  Reported in the stats so its size can be
-        # checked against the objective it is perturbing.
+        # comparison meaningless.
+        #
+        # ``control`` is scaled, so ``rate`` is a fraction of full rudder
+        # per interval and the weight is dimensionless.  Both terms of the
+        # objective are now non-dimensional, which they were not when the
+        # variables were scaled and this was left alone -- the weight then
+        # meant something different depending on the rudder limit.
+        #
+        # This weight matters more than a regulariser usually does, because
+        # on a straight reach with no power bias the rudder's split between
+        # drive and recovery lies in the **null space of the objective**.
+        # Progress is 20.12 m at every weight from 1e-4 to 1e0; only the
+        # chatter changes, and the apparent drive-versus-recovery
+        # difference tracks the chatter:
+        #
+        #     weight   drive-rec   chatter
+        #     1e-4     -2.72 deg   0.680 deg
+        #     1e-3     -2.34       0.259
+        #     1e-2     -0.81       0.069
+        #     1e-1     -0.11       0.009
+        #     1e0      -0.01       0.002
+        #
+        # So a large reported difference is not a finding, it is an
+        # under-determined direction being filled with noise.  Read
+        # ``rudder_by_phase`` only when the chatter is well below the
+        # difference being claimed.  The interesting case -- where the
+        # split is genuinely determined -- is a bend, or a standing
+        # port/starboard power bias, not a straight reach.
         rate = control[0, 1:] - control[0, :-1]
-        smoothing = 5.0 * ca.sumsqr(rate)
+        smoothing = smoothing_weight * ca.sumsqr(rate)
+
+        # Every bound is stated in physical units above; divide through so
+        # the solver sees O(1) boxes to match its O(1) variables.
+        state_lo = state_lo / scaling.state[:, None]
+        state_hi = state_hi / scaling.state[:, None]
+        control_lo = control_lo / scaling.control[:, None]
+        control_hi = control_hi / scaling.control[:, None]
+        mid_lo = mid_lo / scaling.control[:, None]
+        mid_hi = mid_hi / scaling.control[:, None]
 
         variables = ca.vertcat(ca.vec(state), ca.vec(control),
                                ca.vec(control_mid))
@@ -350,7 +420,7 @@ class SixDofTrajectory:
         solver = ca.nlpsol("sixdof", "ipopt", problem, options)
 
         x0 = self._initial_guess(start_state, times, n, n_states, n_controls,
-                                 guess)
+                                 guess, scaling)
         solution = solver(
             x0=x0,
             lbx=ca.vertcat(ca.vec(ca.DM(state_lo)), ca.vec(ca.DM(control_lo)),
@@ -368,6 +438,8 @@ class SixDofTrajectory:
         states = values[:cut].reshape(n_states, n + 1, order="F")
         controls = values[cut:cut + n_controls * (n + 1)].reshape(
             n_controls, n + 1, order="F")
+        states = states * scaling.state[:, None]
+        controls = controls * scaling.control[:, None]
 
         start_progress = float(ca.DM(
             self.progress(ca.DM([states[0, 0], states[1, 0]])))[0])
@@ -379,7 +451,7 @@ class SixDofTrajectory:
                           stats=stats)
 
     def _initial_guess(self, start_state, times, n, n_states, n_controls,
-                       guess):
+                       guess, scaling=None):
         ca = self._ca
         if guess is not None:
             return guess
@@ -421,6 +493,13 @@ class SixDofTrajectory:
 
         controls = np.tile(nominal[:, None], (1, n + 1))
         mid = np.tile(nominal[:, None], (1, n))
+        if scaling is not None:
+            # The rollout runs in physical units -- it has to, it calls the
+            # real dynamics -- so it is scaled on the way out, not on the
+            # way in.
+            states = states / scaling.state[:, None]
+            controls = controls / scaling.control[:, None]
+            mid = mid / scaling.control[:, None]
         return ca.vertcat(ca.DM(states.reshape(-1, 1, order="F")),
                           ca.DM(controls.reshape(-1, 1, order="F")),
                           ca.DM(mid.reshape(-1, 1, order="F")))

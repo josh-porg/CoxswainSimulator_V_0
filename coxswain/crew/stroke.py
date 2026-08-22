@@ -281,7 +281,8 @@ class FourierProfile:
     @classmethod
     def from_keyframes(cls, phases, values, timing: StrokeTiming,
                        n_harmonics: int = 3,
-                       n_samples: int = 512) -> "FourierProfile":
+                       n_samples: int = 512,
+                       flatness: float = None) -> "FourierProfile":
         """Smooth periodic profile through measured keyframes.
 
         This is the entry point for published stroke kinematics: give the
@@ -293,6 +294,46 @@ class FourierProfile:
         deliberately low -- with only four keyframes per stroke, retaining
         more would fit spline artefacts rather than rower motion, and the
         segment accelerations feed straight into the hull forces.
+
+        **Why ``flatness`` is here.**  A cubic spline through four points
+        per cycle cannot help being close to a sinusoid, and a sinusoid is
+        the wrong shape: its rate peaks at 1.57 times its mean, whereas
+        real rowers traverse between postures at much closer to constant
+        speed and reverse sharply at the ends.  Measured on the crew centre
+        of mass, the spline gave a peakiness of 1.59 on the drive and 1.86
+        on the recovery against a real value near 1.14.
+
+        That is not a cosmetic difference.  The hull's speed fluctuation is
+        set almost entirely by the crew's centre-of-mass velocity -- 94% of
+        it, measured -- so a 1.6x error in peakiness is a 1.6x error in
+        boat speed variation.  It is the reason this model reported 60% of
+        intracycle velocity variation against a measured 37.5%.
+
+        ``flatness`` blends the spline towards straight-line traverse
+        between keyframes, which is constant rate.  **It defaults to zero**,
+        because it does not solve the problem and it costs something real.
+
+        Turning it up to 0.6 with 8 harmonics moves an elite single from
+        60% of intracycle velocity variation to 54%, against a measured
+        37.5% -- about a third of the way.  It cannot do better, and the
+        reason is worth stating: a straight-line traverse has corners at
+        the keyframes, and truncating that to a few harmonics rings around
+        them, so the reconstruction stops passing through the measured
+        angles.  Raising the harmonic count to chase the corners fits
+        spline artefacts instead.
+
+        The arithmetic says the target *is* reachable.  Given the measured
+        keyframe travel and phase timing, the slowest possible traverse --
+        exactly constant rate -- gives a centre-of-mass velocity swing of
+        1.66 m/s, and 1.89 m/s is what the measured fluctuation implies.
+        Real rowers sit 13% above the constant-rate floor; this
+        reconstruction sits 48% above it.
+
+        So this is a **data resolution limit, not a modelling error**.
+        Four instants per stroke do not determine the shape of the
+        traverse, and the shape is what sets the boat's speed variation.
+        Fixing it properly needs a densely sampled seat-position trace,
+        not a cleverer interpolation of four points.
 
         Parameters
         ----------
@@ -318,7 +359,24 @@ class FourierProfile:
         spline = CubicSpline(closed_phases, closed_values, bc_type="periodic")
 
         grid = np.arange(n_samples) / n_samples
-        return cls.fit_samples(spline(grid), timing.period, n_harmonics)
+        smooth = spline(grid)
+
+        # Default OFF.  Turning it up trades keyframe fidelity for profile
+        # realism and you cannot have both: the straight-line traverse has
+        # corners at the keyframes, and truncating that to a few harmonics
+        # rings around them, so the reconstruction stops passing through
+        # the measured angles.  See the note below.
+        flatness = 0.0 if flatness is None else float(flatness)
+        flatness = float(np.clip(flatness, 0.0, 1.0))
+        if flatness > 0.0:
+            # Straight-line traverse between the same keyframes: constant
+            # rate within each interval, sharp reversal at each one.  The
+            # harmonic truncation below rounds the corners, which is what
+            # a real rower's finite acceleration does too.
+            straight = np.interp(grid, closed_phases, closed_values)
+            smooth = (1.0 - flatness) * smooth + flatness * straight
+
+        return cls.fit_samples(smooth, timing.period, n_harmonics)
 
     @classmethod
     def constant(cls, value: float, period: float) -> "FourierProfile":
