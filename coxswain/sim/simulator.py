@@ -119,7 +119,8 @@ class RowingSimulator:
     def __init__(self, boat: Boat, coxswain: Optional[Coxswain] = None,
                  rudder: Optional[Callable[[float, State], float]] = None,
                  water_level: float = 0.0, gravity: float = GRAVITY,
-                 course=None, wind=None, aero=None, blade_contact=None):
+                 course=None, wind=None, aero=None, blade_contact=None,
+                 added_mass=True):
         self.boat = boat
         #: Geometry linking the crew's balance effort to the hull load.
         #: Sweep rigs make this more than a roll couple; see
@@ -130,6 +131,22 @@ class RowingSimulator:
             self.coxswain.rudder_override = rudder
         self.water_level = float(water_level)
         self.gravity = float(gravity)
+        #: Hull added mass.  Entrained water, by strip theory; in sway and
+        #: yaw it is comparable to the boat itself, so leaving it out makes
+        #: the boat several times too easy to turn.  Pass
+        #: ``added_mass=False`` to recover the old behaviour, or an
+        #: :class:`~coxswain.hydro.addedmass.AddedMass` to override it.
+        from ..hydro.crossflow import CrossFlowHull
+        #: Station table for the distributed cross-flow integral.
+        self._cross_flow = CrossFlowHull(boat.offsets)
+        if added_mass is True:
+            from ..hydro.addedmass import AddedMass
+            self._added_mass = AddedMass.from_offsets(
+                boat.offsets, rho=boat.water.density)
+        elif added_mass in (False, None):
+            self._added_mass = None
+        else:
+            self._added_mass = added_mass
         #: Optional :class:`~coxswain.river.course.Course`.  When set, the
         #: water depth and current are looked up at the boat's position
         #: every step instead of being uniform, which is what makes a river
@@ -339,9 +356,32 @@ class RowingSimulator:
             velocity_hull, submerged, boat.length, boat.water,
             boat.resistance, shallow,
         )
-        # resistance acts at the centre of the wetted volume; the offset
-        # from G_h is small and its moment is dominated by the appendages
+        # Distributed cross-flow drag.
+        #
+        # The lateral force above is computed from the uniform sideslip,
+        # and the hull's yaw moment used to be set to zero outright -- all
+        # yaw damping came from the skeg and rudder.  That is survivable
+        # only while the hull has no Munk moment either; with the Munk
+        # moment present and nothing opposing it, an eight yawed 3 degrees
+        # off course reaches 285 degrees within ten strokes.
+        #
+        # Charging each strip the drag of its *local* lateral velocity
+        # ``v + x r`` recovers both the sway force -- identically, at zero
+        # yaw rate -- and the yaw damping, which is what actually holds a
+        # hull straight.  See :mod:`coxswain.hydro.crossflow`.
         resistance_moment_hull = np.zeros(3)
+        immersion = 1.0
+        design_area = self._cross_flow.lateral_area
+        if design_area > 0.0:
+            immersion = float(submerged.lateral_area) / design_area
+        sway_force, yaw_moment = self._cross_flow.load(
+            velocity_hull[1], float(state.omega_hull[2]),
+            boat.water.density, boat.resistance.cross_flow_lateral,
+            immersion,
+        )
+        # replace the lumped lateral term rather than adding to it
+        resistance_hull[1] = sway_force
+        resistance_moment_hull[2] = yaw_moment
 
         deflection = float(self.coxswain.rudder(t, state))
         appendage_force_hull = np.zeros(3)
@@ -402,6 +442,18 @@ class RowingSimulator:
         inertia_abs = rotate_inertia_to_abs(boat.hull_inertia, state.attitude)
         gyro = gyroscopic_moment(inertia_abs, state.omega)
 
+        # Added-mass Coriolis, the Munk moment among it.  Grouped with the
+        # appendages because both are hull-frame hydrodynamic loads and
+        # because they are the two things that decide whether the boat
+        # holds a line: the Munk moment pushes it broadside, the skeg and
+        # rudder push back.
+        munk_force = np.zeros(3)
+        munk_moment = np.zeros(3)
+        if self._added_mass is not None:
+            load = self._added_mass.coriolis(rot.T @ state.velocity,
+                                             rot.T @ state.omega)
+            munk_force, munk_moment = load[0:3], load[3:6]
+
         return ForceBreakdown(
             crew_force=crew_force,
             crew_moment=crew_moment,
@@ -413,8 +465,8 @@ class RowingSimulator:
             gravity_moment=gravity_moment,
             resistance_force=rot @ resistance_hull,
             resistance_moment=rot @ resistance_moment_hull,
-            appendage_force=rot @ appendage_force_hull,
-            appendage_moment=rot @ appendage_moment_hull,
+            appendage_force=rot @ (appendage_force_hull + munk_force),
+            appendage_moment=rot @ (appendage_moment_hull + munk_moment),
             gyroscopic=gyro,
             resistance_detail=detail,
         )
@@ -429,7 +481,25 @@ class RowingSimulator:
                                               state.attitude),
             mass=mass,
             position=position_hull @ rot.T,
+            added_mass_abs=self._added_mass_abs(rot),
         )
+
+    def _added_mass_abs(self, rot: np.ndarray) -> np.ndarray:
+        """Hull added mass, rotated from the hull frame to the absolute one.
+
+        The matrix is body-fixed -- it is a property of the hull's shape --
+        so each 3x3 block transforms as ``R A R^T``.
+        """
+        if self._added_mass is None:
+            return None
+        a = self._added_mass.matrix
+        out = np.zeros((6, 6))
+        out[0:3, 0:3] = rot @ a[0:3, 0:3] @ rot.T
+        out[3:6, 3:6] = rot @ a[3:6, 3:6] @ rot.T
+        block = rot @ a[0:3, 3:6] @ rot.T
+        out[0:3, 3:6] = block
+        out[3:6, 0:3] = block.T
+        return out
 
     # -- dynamics ---------------------------------------------------------
     def derivative(self, t: float, y: np.ndarray) -> np.ndarray:

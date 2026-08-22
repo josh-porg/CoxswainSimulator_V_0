@@ -67,7 +67,8 @@ def _rudder(x: float, span: float = 0.090, chord: float = 0.120,
 #: modelled resistance at the boat's known cruising speed.  These values
 #: are calibrated to do that: an eight at rate 32 settles at about
 #: 5.2 m/s, which is where an eight actually cruises at that rate.
-PEAK_OARLOCK_FORCE = {"8+": 950.0, "4+": 1050.0, "1x": 700.0}
+PEAK_OARLOCK_FORCE = {"8+": 950.0, "4+": 1050.0, "1x": 700.0,
+                      "2x": 780.0}
 
 
 def eight(rate: float = 32.0, rower_mass: float = 88.0,
@@ -181,6 +182,55 @@ def single_scull(rate: float = 30.0, rower_mass: float = 85.0,
     )
 
 
+def double_scull(rate: float = 30.0, rower_mass: float = 82.0,
+                 rower_stature: float = 1.84,
+                 water: WaterProperties = FRESH_WATER, **kwargs) -> Boat:
+    """Double scull (2x).
+
+    Built so the fluctuation validation can be run like for like.  Every
+    model figure in sections 24 and 29-31 is a 1x, while the measured
+    37.3% of intracycle velocity variation is a **club 2x** -- and IVV is
+    normalised by mean speed, which differs between the classes at the
+    same rate.  Section 31 identifies that as the largest uncontrolled
+    difference in the comparison.
+
+    10.4 m and 27 kg: World Rowing's minimum hull mass for the class, and
+    the length and waterline beam of a standard club 2x.  Seats 1.22 m
+    apart as in every other class here, 0.80 m span as for the 1x.
+
+    Peak oarlock force is scaled from the 1x figure by the usual
+    observation that per-rower blade loading falls slightly as crew size
+    rises -- Kleshnev's tables put a 2x sculler a little above a 1x at the
+    same rate, which is where 780 N comes from.
+    """
+    length, beam, draft = 10.40, 0.345, 0.135
+    hull_mass = 27.0
+    offsets = parametric_offsets(length, beam, draft, fullness=2.4,
+                                 freeboard=0.22)
+    rig = build_sculling_rig(
+        n_seats=2, spacing=1.22, stern_station=-0.35, span=0.80,
+        oarlock_height=0.33, oar=SCULLING_OAR,
+    )
+    # Slender-body estimate, consistent with how the eight and four are
+    # built; the 1x uses Formaggia's published 66 kg m^2 because that
+    # boat exists to reproduce their validation case.
+    inertia = _slender_inertia(hull_mass, length, beam, draft)
+    return Boat(
+        name="double scull (2x)",
+        offsets=offsets,
+        rig=rig,
+        hull_mass=hull_mass,
+        hull_inertia=inertia,
+        timing=StrokeTiming(rate),
+        appendages=(_skeg(-3.6, span=0.11, chord=0.17, depth=-0.15),),
+        water=water,
+        default_anthropometry=RowerAnthropometry(mass=rower_mass,
+                                                 stature=rower_stature),
+        **{"force_profile": OarForceProfile(
+            max_x=PEAK_OARLOCK_FORCE["2x"]), **kwargs},
+    )
+
+
 #: Name -> factory, for configuration-driven use.
 CATALOG = {
     "8+": eight,
@@ -189,6 +239,8 @@ CATALOG = {
     "coxed_four": coxed_four,
     "1x": single_scull,
     "single": single_scull,
+    "2x": double_scull,
+    "double": double_scull,
 }
 
 

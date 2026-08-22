@@ -48,7 +48,7 @@ bow, and the seat travels *towards the bow* as the legs extend.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Sequence, Tuple
+from typing import Dict, NamedTuple, Sequence, Tuple
 
 import numpy as np
 
@@ -62,6 +62,8 @@ __all__ = [
     "JointAngles",
     "JointDrivenRower",
     "SEGMENT_ORDER",
+    "SegmentSequencing",
+    "SYNCHRONOUS",
     "THIGH_MODES",
     "DEFAULT_ARM_POSTURE",
     "KEYFRAME_HARMONICS",
@@ -79,6 +81,67 @@ SEGMENT_ORDER = (
     "thigh_port", "thigh_starboard",
     "shank_foot_port", "shank_foot_starboard",
 )
+
+class SegmentSequencing(NamedTuple):
+    """Relative timing of the joint drivers, in fractions of a stroke.
+
+    Caplan & Gardner Table II reports every joint at the **same** four
+    instants -- catch, mid-drive, finish, mid-recovery -- so the relative
+    timing between joints is simply not in the source data.  Fitting three
+    harmonics through four common phases then collapses every joint onto
+    a near-common phase, and §29 measured the result: 0.3% of sequencing
+    cancellation where real rowing needs about 22%, inflating crew
+    centre-of-mass travel by 28% and the hull speed fluctuation with it.
+
+    These amplitudes restore what the keyframes cannot carry.  Positive
+    *leads*: the joint reaches its mid-drive posture earlier.
+
+    They are **within-phase warps, not phase shifts.**  A plain shift was
+    tried first and is wrong: it moves the catch along with everything
+    else, so the seat is already retreating when the blade goes in, and
+    the arms -- pinned to the handle by the oar -- cannot reach.  That
+    failure appears at stroke phase 0.08-0.12, just after the catch, and
+    it binds at +-0.08 having closed less than a fifth of the §29 gap.
+
+    A warp instead holds the catch, the finish and the mid-recovery
+    instants fixed and redistributes the motion *between* them.  The
+    keyframe postures are therefore untouched, which matters because
+    crew centre-of-mass **travel is geometric** -- fixed by the catch and
+    finish postures, not by timing.  What sequencing changes is the
+    velocity *shape*, and the hull surge follows the velocity.
+
+    The ordering -- legs, then trunk, then arms -- is the uncontroversial
+    part of rowing technique and is asserted by :meth:`validate`; the
+    magnitude is calibrated in §30 against the measured intracycle
+    velocity variation.
+    """
+
+    shank: float = 0.0
+    thigh: float = 0.0
+    trunk: float = 0.0
+
+    #: Monotonicity bound.  ``dw/du = 1 + a pi cos(...)`` must stay
+    #: positive or the warp runs time backwards inside the drive.
+    LIMIT = 1.0 / np.pi
+
+    def validate(self) -> "SegmentSequencing":
+        """Legs must not lag the trunk, and the warp must stay monotone."""
+        for name, value in zip(self._fields, self):
+            if abs(float(value)) >= self.LIMIT:
+                raise ValueError(
+                    f"sequencing warp {name}={value} exceeds {self.LIMIT:.3f}; "
+                    "the phase map would stop being monotone")
+        if self.shank < self.trunk:
+            raise ValueError(
+                f"legs must lead the trunk: shank={self.shank} lags "
+                f"trunk={self.trunk}")
+        return self
+
+
+#: Measured sequencing is absent from the four-keyframe datasets, so the
+#: default is the synchronous behaviour those datasets imply.  §30
+#: calibrates the value that reproduces the measured hull fluctuation.
+SYNCHRONOUS = SegmentSequencing()
 
 #: Harmonics retained when smoothing a four-keyframe dataset.  Deliberately
 #: low: with four measured instants per stroke, more harmonics would fit
@@ -227,7 +290,9 @@ class JointAngles:
                      phase_offset: float = 0.0,
                      include_thigh: bool = False,
                      recovery_arrival: float = 1.0,
-                     phase_warp=None) -> "JointAngles":
+                     phase_warp=None,
+                     sequencing: "SegmentSequencing" = None,
+                     flatness: float = None) -> "JointAngles":
         """Build the leg and trunk drivers from a measured dataset.
 
         ``phase_offset`` shifts this rower's stroke in normalised phase.  It
@@ -235,21 +300,73 @@ class JointAngles:
         models imperfect timing.
         """
         phases = dataset.keyframe_phases(timing.drive_fraction)
+        order = (SYNCHRONOUS if sequencing is None
+                 else sequencing.validate())
 
-        def build(values_deg):
+        def build(values_deg, lead=0.0):
             profile = FourierProfile.from_keyframes(
                 phases, np.radians(np.asarray(values_deg, dtype=float)),
                 timing, n_harmonics,
                 recovery_arrival=recovery_arrival,
                 phase_warp=phase_warp,
+                flatness=flatness,
             )
+            # ``phase_offset`` is this rower's timing against the crew --
+            # a genuine shift of the whole stroke.  ``lead`` is one
+            # joint's timing against the rest of the body, which is a
+            # redistribution *inside* the stroke and must not move the
+            # catch.  Different quantities, different operations.
+            profile = _warp_within_phase(profile, timing.drive_fraction,
+                                         lead)
             return _shift_phase(profile, phase_offset)
 
-        built = {"shank": build(dataset.shank),
-                 "trunk": build(dataset.trunk_link)}
+        built = {"shank": build(dataset.shank, order.shank),
+                 "trunk": build(dataset.trunk_link, order.trunk)}
         if include_thigh:
-            built["thigh"] = build(dataset.thigh)
+            built["thigh"] = build(dataset.thigh, order.thigh)
         return cls(**built)
+
+
+def _warp_within_phase(profile: FourierProfile, drive_fraction: float,
+                       amplitude: float, n_harmonics: int = 12
+                       ) -> FourierProfile:
+    """Redistribute a joint's motion inside the drive and the recovery.
+
+    The map is identity at the catch (``u = 0``), the finish
+    (``u = drive_fraction``) and the next catch, and bulges in between:
+
+    ``w(u) = u + a f sin(pi u / f)``   on the drive, and the mirror of it
+    on the recovery.  Positive ``a`` samples the original profile *later*,
+    so the joint reaches its mid-drive posture earlier -- it leads.
+
+    The warped signal is no longer three-harmonic, so it is re-fitted at
+    ``n_harmonics``.  That is a representation change, not a smoothing
+    choice: the warp of a smooth signal is smooth, and the extra harmonics
+    describe the redistribution rather than fitting noise.
+    """
+    if amplitude == 0.0:
+        return profile
+
+    f = float(drive_fraction)
+    n = 4096
+    u = np.arange(n) / n
+    drive = u < f
+    w = np.empty_like(u)
+    w[drive] = u[drive] + amplitude * f * np.sin(np.pi * u[drive] / f)
+    rest = ~drive
+    span = 1.0 - f
+    w[rest] = u[rest] + amplitude * span * np.sin(
+        np.pi * (u[rest] - f) / span)
+
+    sampled = profile(w * profile.period).value
+    spectrum = np.fft.rfft(sampled) / n
+    cos_c = np.zeros(n_harmonics + 1)
+    sin_c = np.zeros(n_harmonics + 1)
+    cos_c[0] = spectrum[0].real
+    keep = min(n_harmonics, len(spectrum) - 1)
+    cos_c[1:keep + 1] = 2.0 * spectrum[1:keep + 1].real
+    sin_c[1:keep + 1] = -2.0 * spectrum[1:keep + 1].imag
+    return FourierProfile(cos_c, sin_c, profile.period)
 
 
 def _shift_phase(profile: FourierProfile, phase_offset: float) -> FourierProfile:
@@ -289,7 +406,9 @@ class JointDrivenRower:
                  phase_offset: float = 0.0,
                  n_harmonics: int = KEYFRAME_HARMONICS,
                  recovery_arrival: float = 1.0,
-                 phase_warp=None):
+                 phase_warp=None,
+                 sequencing: SegmentSequencing = None,
+                 flatness: float = None):
         if thigh_mode not in THIGH_MODES:
             raise ValueError(
                 f"thigh_mode must be one of {THIGH_MODES}, got {thigh_mode!r}"
@@ -307,6 +426,13 @@ class JointDrivenRower:
         self.dataset = default_dataset() if dataset is None else dataset
         self.thigh_mode = thigh_mode
         self.phase_offset = float(phase_offset)
+        #: Relative timing of legs, trunk and arms within the stroke.
+        #: See :class:`SegmentSequencing` and §29-30 of ``docs/SOURCES.md``.
+        self.sequencing = (SYNCHRONOUS if sequencing is None
+                           else sequencing.validate())
+        #: Blend of the traverse towards constant rate; see
+        #: :meth:`FourierProfile.from_keyframes` and SOURCES sec. 35.
+        self.flatness = flatness
         self.n_harmonics = int(n_harmonics)
 
         self._segments = {s.name: s for s in anthropometry.segments}
@@ -349,6 +475,8 @@ class JointDrivenRower:
             include_thigh=(thigh_mode == "measured"),
             recovery_arrival=self.recovery_arrival,
             phase_warp=self.phase_warp,
+            sequencing=self.sequencing,
+            flatness=self.flatness,
         )
 
         self.hand_targets = hand_targets

@@ -234,7 +234,9 @@ class SixDofTrajectory:
               exact_hessian: bool = False, scaling=None,
               smoothing_weight: float = 1e-2,
               terminal_weight: float = 5e-2,
-              roll_weight: float = 2e-2):
+              roll_weight: float = 2e-2,
+              comfort: float = 1.2,
+              comfort_weight: float = 6e-2):
         """Maximise progress along the channel over ``n_strokes``.
 
         ``scheme`` defaults to Hermite-Simpson.  Pass ``RadauIIA(s)`` to
@@ -411,6 +413,36 @@ class SixDofTrajectory:
                          state[1, n] * state_scale[1])
         terminal_room = self.clearance(end) / clearance_scale
         smoothing = smoothing - terminal_weight * terminal_room
+
+        # Running clearance comfort.
+        #
+        # A terminal reward alone is not enough, and the Weeks-Anderson
+        # section shows why.  Its centreline clearance runs 60 m through
+        # stations 200-350 and pinches to 30 m at station 450.  Through
+        # the wide part a linear terminal reward barely competes with
+        # progress, so the boat corner-cuts; it then arrives at the pinch
+        # some 22 m off the centreline and the solve fails with 8.5 m of
+        # room at station 476.
+        #
+        # This term costs nothing while the boat is comfortably clear and
+        # rises quadratically once it is not, which is the usual soft
+        # treatment of a state constraint whose hard version is already
+        # imposed above.  It shapes the approach without distorting the
+        # optimum where there is room to spare -- the boat is still free
+        # to be anywhere it likes, it just stops spending clearance it
+        # will need later.
+        #
+        # ``room`` is already non-dimensional: clearance beyond what the
+        # boat needs, in units of what it needs.  ``comfort`` is therefore
+        # read as "keep this many boat-clearances in reserve".
+        deficit = 0
+        for entry in room:
+            slack = comfort - entry
+            # smooth max(0, slack); the corner at slack = 0 is exactly
+            # where the term switches on, so it must not be a corner
+            positive = 0.5 * (slack + ca.sqrt(slack * slack + 1e-6))
+            deficit = deficit + positive * positive
+        smoothing = smoothing + comfort_weight * deficit / (n + 1)
 
         # Roll is bounded by the hull surrogate's sampled range, and the
         # optimiser will sit on that bound if nothing else stops it -- 7.6

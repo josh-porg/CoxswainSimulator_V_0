@@ -2624,3 +2624,463 @@ rower model, which §30 takes up:
 
 and it means the fix belongs in the *kinematics*, not in the
 hydrodynamics, the blade model or the solver.
+
+## 30. Sequencing eliminated; the defect was interpolant overshoot
+
+§29 proposed that the hull-fluctuation gap came from the model's segments
+moving in phase, and set a target of ~22% sequencing cancellation.  That
+hypothesis is **wrong**, and testing it properly found the actual defect.
+
+### Sequencing was implemented, and it cannot close the gap
+
+`SegmentSequencing` gives each joint driver its own timing.  Two
+parametrisations were tried:
+
+**A plain phase shift is the wrong operation.**  It moves the catch along
+with everything else, so the seat is already retreating when the blade
+goes in and the arms -- pinned to the handle by the oar -- cannot reach.
+The failure appears at stroke phase 0.08-0.12, just after the catch, and
+binds at +-0.08 having moved IVV only 47.7% -> 45.0%.
+
+**A within-phase warp is the right operation** and it does not help
+either.  The map holds the catch, finish and mid-recovery fixed and
+redistributes motion between them, so keyframe postures are untouched.
+Scanned over the full sign space of leg and trunk warps:
+
+```
+IVV % : rows = legs warp, cols = trunk warp     (target 37.3)
+           -0.30   -0.20   -0.10    0.00    0.10    0.20    0.30
+  -0.30   reach   reach   reach    65.4    63.5    62.0    61.0
+  -0.10   reach   reach    50.5    49.5    48.8    48.3   reach
+   0.00   reach   reach    48.1    47.7   reach   reach   reach
+   0.10    50.2    51.6    52.4   reach   reach   reach   reach
+   0.30    66.4   reach   reach   reach   reach   reach   reach
+```
+
+**Measured this way, the synchronous case is the minimum** -- every
+perturbation makes things worse and most of the space is unreachable.
+
+That conclusion did not survive the fix below, and the reason is worth
+recording: **this scan was run through the overshooting interpolant.**
+Re-run against the shape-preserving one, sequencing becomes a real lever
+in the anatomically correct direction:
+
+```
+IVV % (post-PCHIP): rows = legs, cols = trunk       target 37.3
+         -0.20  -0.15  -0.10  -0.05   0.00   0.05   0.10
+ -0.10   reach   49.0   49.3   49.4   49.4   49.2   48.9
+  0.00    42.6   43.1   43.9   44.6   45.3   45.8   46.4
+  0.10    45.8   45.4   45.3   45.4   46.0  reach  reach
+```
+
+Best is **42.6%** at legs nominal and trunk lagging -- legs first, then
+trunk, which is the uncontroversial description of a rowing drive.  The
+overshoot had been masking the effect it was itself causing.
+
+The magnitude is *calibrated* against the measured fluctuation rather
+than predicted, so the resulting agreement is not independent evidence,
+and the default stays `SYNCHRONOUS` until there is kinematic data to set
+it.  What the scan establishes is that the lever exists and points the
+right way.
+
+§29's arithmetic was separately wrong in a way worth recording: **crew COM
+travel is geometric.**  It is fixed by the catch and finish postures, not
+by timing, so no amount of sequencing changes it.  What sequencing
+changes is the velocity *shape*.  §29 set its target on travel.
+
+The machinery is kept and defaults to `SYNCHRONOUS`.  It is a genuine
+second-order lever, worth about 2.7 points of fluctuation, but it is not
+the primary defect.
+
+### The actual defect
+
+Checking the reconstruction against the keyframes it interpolates:
+
+| joint | keyframes span | reconstruction | inflation |
+|---|---|---|---|
+| trunk link | 54.7 deg | **62.4 deg** | +14% |
+| shank | 76.9 deg | **85.2 deg** | +11% |
+
+`CubicSpline(..., bc_type="periodic")` through four unevenly spaced points
+**overshoots**.  Every joint excursion came out 11-14% larger than the
+data, crew COM travel is a mass-weighted sum of those excursions, and the
+hull surge is proportional to COM travel.
+
+This is distinct from the traverse-shape question in
+`FourierProfile.from_keyframes`, which is a genuine data-resolution
+limit.  Reporting a joint swing *larger than the data being interpolated*
+is not a resolution limit -- it is an artefact of the interpolant, and it
+had propagated into every kinematic quantity in the model.
+
+### The fix
+
+PCHIP is shape-preserving: it cannot exceed the local data range.
+Periodicity comes from interpolating a three-period tiling and keeping
+the middle.  `shape_preserving=True` is now the default.
+
+| | before | after | reference |
+|---|---|---|---|
+| trunk link swing | 62.4 deg | **54.5 deg** | Kleshnev 50.8 |
+| shank swing | 85.2 deg | 76.1 deg | keyframes 76.9 |
+| seat travel | 0.652 m | 0.604 m | 0.60-0.70 |
+| crew COM travel | 0.811 m | **0.751 m** | |
+| IVV, momentum balance | 47.7% | **45.3%** | measured 37.3% |
+
+All 1011 fast tests pass unchanged.
+
+### What is left, and a prediction
+
+45.3% against 37.3% -- about a quarter of the gap closed.  But note the
+sign of what remains.  45.3% is the **crew-only** figure: what the crew's
+motion alone would do to a free hull.  During the drive the crew moves
+bow-ward, pushing the hull sternward, while the blade thrust pushes it
+bow-ward.  **These oppose.**  The measured 37.3% sitting *below* the
+crew-only 45.3% is exactly what that cancellation predicts.
+
+The full 6-DOF model reported 57.3% -- *above* its own crew-only figure.
+That is the wrong side.  If thrust opposed crew reaction correctly, the
+6-DOF result would have to come in below 45.3%, not above it.
+
+So the prediction for §31 is that the remaining gap is not in the
+kinematics at all but in the **relative phase of blade thrust and crew
+reaction** in the surge equation, and that checking their phase against
+each other over the stroke will show them adding where they should cancel.
+
+## 31. The §30 prediction was wrong: the phasing is correct
+
+§30 predicted that the remaining fluctuation gap was a **relative phase
+error between blade thrust and crew reaction** in the surge equation --
+that they were adding where they should cancel.  Checked against the full
+6-DOF simulator, that is **not** what is happening.
+
+### The phasing is textbook
+
+Straight-line run, 1x at 24 spm, eight strokes, last two cycles:
+
+| | phase | expected |
+|---|---|---|
+| hull speed **minimum** | 0.094 | just after the catch |
+| hull speed **maximum** | 0.438 | early recovery |
+
+Drive occupies 0 to 0.32.  Minimum just after the catch and maximum in
+the early recovery is the standard picture, and it is what a rower
+reports: the boat runs fastest on the recovery, not the drive.  There is
+no sign or phase error to find.
+
+### But the amplitude still exceeds the crew-only bound
+
+| | IVV |
+|---|---|
+| full 6-DOF | **60.1%** |
+| crew-only momentum bound, same kinematics | 52.2% |
+| measured (§24) | 37.3% |
+
+Sitting above the crew-only bound is still the wrong side of the line,
+and §30's reasoning about that stands even though its proposed mechanism
+does not.  Thrust and drag varying over the cycle *can* legitimately add
+to the crew term; what they cannot do is add this much while being
+correctly phased.
+
+### A second contributor, previously missed
+
+The same run reports a **mean speed of 3.907 m/s** for a single scull at
+24 spm.  That is not itself wrong -- Kleshnev puts a 1x at that rate near
+3.8-4.0 m/s, and 4.2-4.5 is *race* pace at 32-36 spm, not 24.  But it
+matters directly, because IVV is a ratio:
+
+```
+IVV = swing / mean
+```
+
+The crew-only bound quoted as 45.3% in §30 was computed against an
+assumed 4.5 m/s.  Against the model's own 3.907 m/s the same swing gives
+52.2%.  So **roughly a seventh of the apparent gap is a normalisation
+difference rather than a fluctuation excess** -- and the fault is in the
+comparison, not the model.  §30's 45.3% used a mean speed the model does
+not have; the honest crew-only figure for this boat at this rate is
+52.2%.  Chasing that seventh in the kinematics would have been chasing a
+quantity that was never wrong.
+
+### Standing caveat on the comparison
+
+The measured 37.3% is a club **2x**; every model figure here is a **1x**.
+The crew mass fraction is nearly identical between the two (0.859 vs
+0.863) so the momentum coupling transfers, but mean speed does not, and
+IVV is normalised by mean speed.  This has been a weakness of the
+comparison since §24 and it is now the largest single uncontrolled
+difference in it.
+
+### Where this leaves the diagnosis
+
+Three candidates remain, in order of how much they would move the number:
+
+1. **1x model against 2x data at different mean speeds.**  Now the
+   largest uncontrolled difference, and the one that needs fixing first
+   because every other comparison is normalised through it.  A 2x runs
+   faster than a 1x at the same rate, so the same absolute swing reports
+   a smaller IVV.  Fixable by building the 2x; the catalog has only
+   `eight`, `coxed_four` and `single_scull`.
+2. **Crew COM swing still too large** -- §30 took travel from 0.811 to
+   0.751 m; sequencing is worth another ~2.7 points once there is data
+   to set its magnitude.
+3. **Residual excess over the crew-only bound** -- 60.1% against 52.2%,
+   correctly phased, so whatever it is, it is not a sign error.
+
+The phase hypothesis is closed.
+
+## 32. Like for like at last: the 2x
+
+§31 named the 1x-model-against-2x-data mismatch as the largest
+uncontrolled difference in the fluctuation comparison.  `double_scull`
+now exists, so the comparison can be run properly.
+
+10.4 m, 27 kg (World Rowing minimum for the class), two seats at the
+usual 1.22 m spacing, 0.80 m span, peak oarlock force 780 N.
+
+### Boat class is worth 8.6 points
+
+Same rate, same kinematics, same blade model:
+
+| boat | mean speed | IVV | crew-only bound |
+|---|---|---|---|
+| 1x | 3.907 m/s | 60.1% | 52.2% |
+| **2x** | **4.805 m/s** | **51.5%** | 42.5% |
+| measured club 2x | | **37.3%** | |
+
+IVV is normalised by mean speed, and a 2x runs faster than a 1x at the
+same rate, so the same absolute swing reports a smaller ratio.  **8.6 of
+the 22.8 points of apparent disagreement were the comparison, not the
+model.**
+
+The remaining like-for-like gap is 51.5% against 37.3%.
+
+### Running total on the §24 gap
+
+| | IVV | note |
+|---|---|---|
+| as first reported (1x vs 2x data) | 57-60% | |
+| after §30 removed interpolant overshoot | -2.4 | genuine fix |
+| after §32 compares 2x with 2x | **51.5%** | comparison fix |
+| sequencing, if calibrated (§30) | ~-2.7 | needs data to justify |
+| measured | **37.3%** | |
+
+About a third of the original discrepancy has been accounted for, split
+between one real defect and one bad comparison.  What is left is a
+genuine amplitude excess that sits above the crew-only momentum bound
+(51.5% against 42.5%) while being correctly phased (§31).
+
+## 33. Getting the deterministic leg to run end to end
+
+The first full-leg attempt stopped at 476 m of 850, block 18 going
+infeasible with 8.5 m of clearance and roll spiking to 4.8 deg.  Three
+separate problems, only one of which was physics.
+
+### The channel pinches, and the horizon could not see it
+
+Centreline clearance along the Weeks-Anderson section:
+
+| station | 0 | 200 | 300 | **450** | 600 | 850 |
+|---|---|---|---|---|---|---|
+| clearance m | 38 | 65 | 60 | **30** | 51 | 38 |
+
+The boat failed at 476 m with 8.5 m of room, meaning it entered a 30 m
+channel about 22 m off the centreline.  It had drifted through the wide
+reach at 200-350 m, where a *terminal* clearance reward barely competes
+with progress and there is room to spare in every direction.
+
+**Fix: a running comfort barrier.**  Zero cost while the boat is
+comfortably clear, quadratic once it is not -- the usual soft treatment
+of a state constraint whose hard version is already imposed.  It shapes
+the approach without distorting the optimum where there is room, so the
+boat is still free to be anywhere it likes; it just stops spending
+clearance it will need later.  `comfort = 1.2` reads as "keep 1.2
+boat-clearances in reserve", the units being non-dimensionalised the same
+way the hard constraint already was.
+
+The same term and roll penalty were added to the stochastic solver, which
+has its own objective.  A stochastic run that behaved differently from
+the deterministic one for reasons unrelated to uncertainty would not be
+measuring uncertainty.
+
+### A failed block ended the run
+
+The driver broke out of its loop on the first non-converged block.  It
+now escalates -- more iterations, then a shorter horizon -- before giving
+up, and stops only after three consecutive blocks make no progress.
+
+### The mean speed was a reporting bug
+
+The first run reported **2.35 m/s** for an eight, which would be a
+serious physics problem, and is not one.  It divided total progress by
+`BLOCKS * STROKES_PER_BLOCK * period` using the number of blocks
+*requested* rather than the number actually solved before breaking out.
+Accumulating simulated time from the blocks that ran gives **4.63 m/s**,
+which is right for an eight at rate 32.
+
+Worth recording as its own item: a wrong number in a summary line looked
+exactly like a modelling failure and would have sent the next day's work
+into the drag model.
+
+## 34. Rower kinematics, from the same boat and the same outing
+
+The figshare dataset used in §24 carries a **rower-mounted** sensor as
+well as the hull one, and it had never been touched.  For the club
+session it is `Pelvis2x-20180420T085631` -- the same 2x, the same outing
+that gave the 37.3% intracycle velocity variation.  Rower kinematics and
+hull fluctuation therefore come from one crew on one row, which is what
+makes this a like-for-like check rather than another cross-dataset
+comparison.
+
+50.7 Hz, 45 minutes, with device orientation, so **the trunk rotation is
+measured directly** -- no integration, no drift to fight.
+
+### Two pipeline faults worth recording
+
+**The log is not in time order.**  `log_time` steps between −322 s and
++326 s between adjacent rows: the file interleaves streams.  Unsorted, it
+gave a pelvis swing of 0.2-1.7 deg, which reads as "the rower barely
+moves" and is entirely an artefact.  Sorting and de-duplicating first is
+mandatory.
+
+**Detrending can eat the signal.**  A 6 s moving-average high-pass is
+only 2.4 stroke periods and attenuates the fundamental it is supposed to
+preserve, giving a median swing of 16.8 deg with a 3.2-28.5 deg spread --
+the scatter being the tell.  At 20 s (~8 strokes) the same window gives
+**37.1 deg with an inter-quartile range of 36.5-38.1**.  A measurement
+that tight is the real one; the earlier scatter was the method.
+
+### The trunk kinematics are probably fine
+
+| | value |
+|---|---|
+| measured pelvis roll swing, club 2x @ 22.3 spm | **37.1 deg** (IQR 36.5-38.1) |
+| model trunk **link** swing (post-§30) | 54.5 deg |
+| Kleshnev trunk swing | 50.8 deg |
+
+These are not the same quantity: a pelvis-mounted sensor measures pelvic
+tilt, while the trunk angle Kleshnev reports is the hip-to-shoulder line,
+which is pelvic tilt **plus** lumbar and thoracic flexion.  37 deg of
+pelvis with the usual 10-20 deg of spinal contribution lands at roughly
+50 deg of trunk -- consistent with both Kleshnev and the model.
+
+**So the measurement does not indict the trunk kinematics.**  Which
+matters for what to do next, because it removes the most obvious
+remaining kinematic suspect.
+
+### What this means for "do we need more data"
+
+The remaining like-for-like gap (§32) is 51.5% against 37.3%, and it
+splits at the crew-only momentum bound of 42.5%:
+
+* **51.5 -> 42.5, about 9 points.**  The model exceeds what its own crew
+  motion could do to a free hull, while being correctly phased (§31).
+  This is the force path -- thrust, drag, added mass -- and **no amount
+  of kinematic data addresses it.**
+* **42.5 -> 37.3, about 5 points.**  This is inside the crew motion, and
+  denser kinematics is the right instrument for it.
+
+Densely sampled kinematics is therefore worth having but is **not the
+main lever**: it can reach at most about a third of what is left, and the
+larger share is in the hull force balance.
+
+## 35. The model had no added mass
+
+Asked to make the boat's *response* trustworthy -- what a rudder input or
+a pressure split actually does -- the first thing to check was the
+inertia the boat turns with.  Searching the codebase for added mass
+returned nothing. There was none.
+
+A hull accelerating through water accelerates water with it.  For a
+rowing shell the entrained water is not a correction:
+
+| boat | added sway / boat mass | added yaw / physical yaw |
+|---|---|---|
+| 1x | 1.63 | **9.2x** |
+| 2x | 1.26 | **5.9x** |
+| **8+** | 0.71 | **1.22x** |
+
+The eight was turning with ~9500 kg m^2 of yaw inertia where it should
+have ~21000.  The small boats were out by most of an order of magnitude.
+**Every steering result the model has produced was computed on a boat
+several times too easy to turn.**
+
+### What was implemented
+
+`coxswain.hydro.addedmass`, classical strip theory.  Sections here are
+semi-elliptical, and the 2D added mass of an ellipse is classical: a full
+ellipse with semi-axes ``b`` horizontal and ``T`` vertical entrains
+``rho pi T^2`` per unit length moving horizontally and ``rho pi b^2``
+moving vertically [Lamb 1932 art. 71].  A surface-piercing half section
+is treated by images with the free surface as a rigid wall, halving those
+values [Newman 1977 sec. 4.13; Korotkin 2009].  Integrating along the
+length gives sway, heave, roll, pitch and yaw, plus the sway-yaw and
+heave-pitch coupling that makes a hull turn and heel together.
+
+Surge is separate: a slender body moving along its own axis entrains
+almost nothing, and the right figure is Lamb's ``k1`` for a prolate
+spheroid.  The implementation is checked against Lamb's published table
+-- 0.500 for a sphere, 0.209 at 2:1, 0.059 at 5:1.
+
+### What it changes
+
+Steady turn rate barely moves, and should not: steady state is rudder
+moment against yaw damping, with no inertia in it.  The transient is the
+whole effect, and a coxswain's corrections live in the transient.
+
+Eight, +-5 deg oscillating rudder:
+
+| steering period | yaw amplitude, with added mass |
+|---|---|
+| 4 s | **62%** of before |
+| 8 s | **79%** of before |
+
+Frequency-dependent, as inertia must be.  For quick corrections the model
+was overstating the effect of the rudder by about 60%.
+
+### What it does not change
+
+**Surge added mass is tiny** -- 3.3 kg on an eight, 0.4% of displacement
+-- so this does *not* close the intracycle velocity gap of §32.  That
+hypothesis, floated in the §31 candidate list, is wrong: a slender hull
+slipping along its own axis entrains almost nothing.  The asymmetry
+between surge and sway is the physics, not an artefact.
+
+### A related negative result: flatness
+
+§30's shape-preserving interpolant made `flatness` worth retesting, since
+the reason it was abandoned -- Fourier ringing around corners -- was
+partly the overshooting spline.  On the kinematics alone it looked like a
+fix: flatness 0.8 at 14 harmonics brings crew COM velocity swing down to
+where the measured fluctuation implies, with keyframe error of 1.4 deg
+against a dataset whose own measurement SD is 5.5 to 11.1 deg.
+
+Run through the full 6-DOF it makes things **worse** -- IVV 51.5% ->
+54.5%, and crew acceleration peak-to-peak nearly doubles, 11.7 -> 22.2
+m/s^2.
+
+The reason is worth keeping: **the hull responds to crew acceleration,
+not crew velocity.**  A flattened traverse has corners at the keyframes,
+and corners are acceleration spikes.  Judging the fix on a velocity
+metric hid that completely.  `flatness` is now plumbed through the rower
+for experiment but stays off by default, and the original docstring's
+verdict stands.
+
+### Measured hull dynamics, for the record
+
+From the club 2x boat phone, axis identified by stroke-band power and
+validated by integrating to velocity (which reproduces the DGPS 37.3%
+independently, at 35.3 / 37.8 / 35.8 / 35.7% across four clean windows):
+
+| | measured | model 2x |
+|---|---|---|
+| hull surge accel, peak-to-peak | ~9.2 m/s^2 | 11.7 |
+| hull surge velocity, peak-to-peak | ~1.57 m/s | 2.47 |
+
+### Known limitation: no Munk moment
+
+Added mass also produces *velocity-dependent* forces, not just the mass
+matrix.  The most important for a slender hull is the Munk moment, which
+is destabilising in yaw and is what makes a bare hull want to broach.
+The mass-matrix terms are implemented here; the Munk moment is not, and
+until it is, directional stability is set by the skeg and rudder alone.
+This is now the leading known gap in the steering model.

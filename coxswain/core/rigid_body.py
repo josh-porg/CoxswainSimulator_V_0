@@ -143,7 +143,8 @@ def moving_mass_inertia(mass: np.ndarray, position: np.ndarray) -> np.ndarray:
 
 
 def assemble_mass_matrix(total_mass: float, inertia_abs: np.ndarray,
-                         mass: np.ndarray, position: np.ndarray) -> np.ndarray:
+                         mass: np.ndarray, position: np.ndarray,
+                         added_mass_abs: np.ndarray = None) -> np.ndarray:
     """Build the symmetric 6x6 generalised mass matrix.
 
     Parameters
@@ -156,6 +157,13 @@ def assemble_mass_matrix(total_mass: float, inertia_abs: np.ndarray,
         Hull inertia tensor about ``G_h``, expressed in the absolute frame.
     mass, position:
         The moving-mass cloud in the absolute frame.
+    added_mass_abs:
+        Optional ``(6, 6)`` hydrodynamic added mass, already rotated into
+        the absolute frame.  A hull accelerating through water accelerates
+        water with it, and for a rowing shell the entrained water is not a
+        correction: in sway and yaw it is comparable to the boat or
+        larger.  Omitting it leaves the boat several times too easy to
+        turn.  See :mod:`coxswain.hydro.addedmass`.
 
     Returns
     -------
@@ -168,6 +176,8 @@ def assemble_mass_matrix(total_mass: float, inertia_abs: np.ndarray,
     matrix[0:3, 3:6] = -coupling
     matrix[3:6, 0:3] = coupling
     matrix[3:6, 3:6] = inertia_abs + moving_mass_inertia(mass, position)
+    if added_mass_abs is not None:
+        matrix = matrix + np.asarray(added_mass_abs, dtype=float)
     return matrix
 
 

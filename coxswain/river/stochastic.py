@@ -243,6 +243,8 @@ class StochasticTrajectory:
     def solve(self, start_state, n_strokes: int = 2,
               drive_intervals: int = 4, recovery_intervals: int = 3,
               kappa: float = 0.0, max_iter: int = 400,
+              comfort: float = 1.2, comfort_weight: float = 6e-2,
+              roll_weight: float = 2e-2,
               rudder_limit: float = np.radians(25.0),
               split_limit: float = 0.15,
               power_bounds=(0.70, 1.15),
@@ -284,6 +286,8 @@ class StochasticTrajectory:
 
         constraints, lower, upper = [], [], []
         progress_terms = []
+        room_terms = []
+        roll_terms = []
         clearance_scale = self.base.blade_reach + self.base.margin
 
         for leg, X in zip(self.legs, states):
@@ -309,6 +313,8 @@ class StochasticTrajectory:
             constraints.append(ca.vertcat(*room))
             lower.append(np.zeros(n + 1))
             upper.append(np.full(n + 1, ca.inf))
+            room_terms.append(room)
+            roll_terms.append(X[3, :])
 
             constraints.append(ca.reshape(X[12, :], n + 1, 1))
             lower.append(np.zeros(n + 1))
@@ -332,6 +338,24 @@ class StochasticTrajectory:
 
         rate = control[0, 1:] - control[0, :-1]
         objective = objective + smoothing_weight * ca.sumsqr(rate)
+
+        # The same running clearance-comfort barrier and roll penalty the
+        # deterministic solver uses.  They are not options: without them
+        # the deterministic run cut the inside of the wide reaches and
+        # arrived at the station-450 pinch with 8.5 m of room, and roll sat
+        # on the surrogate's tabulation bound rather than anywhere
+        # physical.  A stochastic solve that behaved differently from the
+        # deterministic one for reasons unrelated to uncertainty would not
+        # be measuring uncertainty.  See SOURCES sec. 30.
+        for weight, entries in zip(weights, room_terms):
+            deficit = 0
+            for entry in entries:
+                slack = comfort - entry
+                positive = 0.5 * (slack + ca.sqrt(slack * slack + 1e-6))
+                deficit = deficit + positive * positive
+            objective = objective + weight * comfort_weight * deficit / (n + 1)
+        for weight, roll in zip(weights, roll_terms):
+            objective = objective + weight * roll_weight * ca.sumsqr(roll)
 
         # ---- bounds ---------------------------------------------------
         surrogate = self.base.model.surrogate

@@ -373,7 +373,8 @@ class FourierProfile:
                        n_samples: int = 512,
                        flatness: float = None,
                        recovery_arrival: float = 1.0,
-                       phase_warp=None) -> "FourierProfile":
+                       phase_warp=None,
+                       shape_preserving: bool = True) -> "FourierProfile":
         """Smooth periodic profile through measured keyframes.
 
         This is the entry point for published stroke kinematics: give the
@@ -433,7 +434,7 @@ class FourierProfile:
         values:
             Value at each phase, in whatever units the caller uses.
         """
-        from scipy.interpolate import CubicSpline
+        from scipy.interpolate import CubicSpline, PchipInterpolator
 
         phases = np.asarray(phases, dtype=float)
         values = np.asarray(values, dtype=float)
@@ -447,7 +448,34 @@ class FourierProfile:
         # close the loop: repeat the first keyframe at phase 1
         closed_phases = np.append(phases, 1.0)
         closed_values = np.append(values, values[0])
-        spline = CubicSpline(closed_phases, closed_values, bc_type="periodic")
+        if shape_preserving:
+            # A periodic cubic spline through four unevenly spaced points
+            # **overshoots**, and the overshoot is not small: measured
+            # against the Caplan & Gardner keyframes it inflated the trunk
+            # link swing from 54.7 to 62.4 degrees and the shank from 76.9
+            # to 85.2 -- 11 to 14% on every joint excursion.  Crew
+            # centre-of-mass travel is a mass-weighted sum of those
+            # excursions, so it inherited the same inflation, and the hull
+            # speed fluctuation is proportional to it.  See SOURCES sec. 30.
+            #
+            # This is distinct from the traverse-shape question discussed
+            # above, which is a genuine data-resolution limit.  Reporting a
+            # joint swing larger than the data being interpolated is not a
+            # resolution limit; it is an artefact of the interpolant.
+            #
+            # PCHIP is shape-preserving -- it will not exceed the local
+            # data range -- and periodicity is obtained by interpolating a
+            # three-period tiling and keeping the middle one.
+            tiled_phases = np.concatenate([closed_phases[:-1] - 1.0,
+                                           closed_phases,
+                                           closed_phases[1:] + 1.0])
+            tiled_values = np.concatenate([closed_values[:-1],
+                                           closed_values,
+                                           closed_values[1:]])
+            spline = PchipInterpolator(tiled_phases, tiled_values)
+        else:
+            spline = CubicSpline(closed_phases, closed_values,
+                                 bc_type="periodic")
 
         grid = np.arange(n_samples) / n_samples
         sample_at = grid

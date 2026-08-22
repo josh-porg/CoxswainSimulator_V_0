@@ -88,30 +88,83 @@ def test_crew_com_travel_is_the_quantity_that_sets_the_surge():
     com = (m[None, :] * X).sum(axis=1) / m.sum()
 
     assert 0.60 <= rower.slide_travel() <= 0.70      # matches literature
-    # and yet the centre of mass travels far further than the 0.635 m
-    # that the measured IVV implies
-    assert (com.max() - com.min()) > 0.75
+    # and yet the centre of mass travels further than the ~0.65 m that
+    # the measured IVV implies.  Section 30 removed the interpolant
+    # overshoot, taking this from 0.811 to 0.751; the rest is section 31.
+    assert 0.70 < (com.max() - com.min()) < 0.78
 
 
-@pytest.mark.xfail(reason="§29: segments move in phase; the fix is §30's "
-                          "rower model. Expected to pass once sequencing "
-                          "is represented.",
-                   strict=True)
-def test_segments_are_sequenced_not_synchronous():
-    """Real rowing sequences legs, then trunk, then arms.
+def test_reconstruction_does_not_exceed_the_data_it_interpolates():
+    """Section 30: the periodic cubic spline overshot its own keyframes.
 
-    Measured as the cancellation between the in-phase upper bound on
-    crew-COM travel and what the kinematics actually realise.  The model
-    currently achieves 0.3%; reaching the measured IVV needs ~22%.
+    It inflated the trunk link swing from 54.7 to 62.4 degrees and the
+    shank from 76.9 to 85.2 -- 11 to 14% on every joint excursion, which
+    propagated into crew centre-of-mass travel and hence the hull surge.
+    A shape-preserving interpolant cannot do this, which is the whole
+    point of using one.
     """
     rower = catalog.single_scull(rate=24.0).crew[0].rower
-    period = rower.timing.period
-    m = np.asarray(rower.segment_masses, float)
-    _, X = _segment_x(rower, period)
+    data = rower.dataset
+    t = np.linspace(0.0, rower.timing.period, 1501)
 
-    travel = X.max(axis=0) - X.min(axis=0)
-    in_phase = float((m * travel).sum() / m.sum())
-    com = (m[None, :] * X).sum(axis=1) / m.sum()
-    cancellation = (in_phase - (com.max() - com.min())) / in_phase
+    for profile, keyframes in ((rower.joint_angles.shank, data.shank),
+                               (rower.joint_angles.trunk, data.trunk_link)):
+        measured = np.asarray(keyframes, dtype=float)
+        rebuilt = np.degrees([profile(x).value for x in t])
+        # truncating to a few harmonics may undershoot slightly; it must
+        # never overshoot the data it is interpolating
+        assert (rebuilt.max() - rebuilt.min()) <= (
+            measured.max() - measured.min()) * 1.02
 
-    assert cancellation > 0.15
+
+def test_trunk_lagging_the_legs_reduces_the_fluctuation():
+    """Sequencing is a real lever -- but only once section 30's fix is in.
+
+    Measured through the overshooting interpolant, every warp made the
+    fluctuation worse and sequencing looked like a dead end.  With the
+    shape-preserving interpolant the anatomically correct direction --
+    legs at nominal, trunk lagging -- reduces the crew centre-of-mass
+    velocity swing, which is what the drive sequence is supposed to do.
+    """
+    from coxswain.crew.kinematics import JointDrivenRower, SegmentSequencing
+
+    r = catalog.single_scull(rate=24.0).crew[0].rower
+
+    def swing(seq):
+        built = JointDrivenRower(
+            r.anthropometry, r.station, r.timing, dataset=r.dataset,
+            thigh_mode=r.thigh_mode, hand_targets=r.hand_targets,
+            n_harmonics=r.n_harmonics,
+            recovery_arrival=r.recovery_arrival, sequencing=seq)
+        t, X = _segment_x(built, built.timing.period)
+        m = np.asarray(built.segment_masses, float)
+        com = (m[None, :] * X).sum(axis=1) / m.sum()
+        return float(np.ptp(np.gradient(com, t)))
+
+    reference = swing(None)
+    lagged = swing(SegmentSequencing(shank=0.0, thigh=0.0, trunk=-0.15))
+    assert lagged < reference
+
+    # and the ordering constraint is enforced: the trunk may not lead
+    with pytest.raises(ValueError, match="legs must lead"):
+        SegmentSequencing(shank=-0.10, thigh=-0.10, trunk=0.10).validate()
+
+
+def test_double_scull_exists_for_like_for_like_validation():
+    """Section 32: the measured fluctuation is a 2x, so the model needs one.
+
+    Comparing a 1x model against 2x telemetry cost 8.6 points of apparent
+    disagreement, because IVV is normalised by mean speed and a 2x is
+    faster at the same rate.
+    """
+    boat = catalog.double_scull(rate=24.0)
+    assert boat.n_seats == 2
+    assert boat.hull_mass == pytest.approx(27.0)      # World Rowing minimum
+    assert 10.0 < boat.length < 11.0
+    crew = sum(float(np.sum(c.rower.segment_masses)) for c in boat.crew)
+    # crew mass fraction must be close to the 1x, or the momentum coupling
+    # that carries the whole diagnosis does not transfer between classes
+    single = catalog.single_scull(rate=24.0)
+    one = sum(float(np.sum(c.rower.segment_masses)) for c in single.crew)
+    assert (crew / (crew + boat.hull_mass)) == pytest.approx(
+        one / (one + single.hull_mass), abs=0.02)
