@@ -53,7 +53,7 @@ __all__ = ["Pier", "BridgeGate", "OSM_BRIDGE_DECKS", "build_gates",
            "Arch", "BridgeStructure", "BRIDGE_STRUCTURE", "MEASURED_PIERS",
            "PIER_THICKNESS", "EIGHT_ROWED_WIDTH", "HOCR_ARCH_RULE",
            "WRONG_ARCH_PENALTY", "waterway", "derive_piers", "bridge_arches",
-           "racing_arch"]
+           "candidate_arches", "racing_arch"]
 
 
 #: Bridge deck centrelines from OpenStreetMap, as ``(lat, lon)`` endpoints
@@ -584,24 +584,38 @@ def _resolve_arch_rule(names, intervals):
     return chosen
 
 
-def racing_arch(gate: BridgeGate, raster, min_depth: float = 0.6):
-    """The arch a racing crew should be pointed at.
+def candidate_arches(gate: BridgeGate, raster, min_depth: float = 0.6):
+    """Every arch a racing crew is *allowed* to use.
 
-    The centre arch where the rules allow one, which is not always the
-    widest: at River Street and Western Avenue the side arches are the
-    larger openings, and a rule that just took the widest would point the
-    boat at the Cambridge arch on a stretch where the regatta calls the
-    centre the preferred route and the Cambridge arch a way out of
-    congestion.  Falls back to the widest legal arch where no centre arch
-    is permitted.
+    This, not :func:`racing_arch`, is what a route search or an optimiser
+    should be given.  An arch is only removed from the set when the rules
+    remove it, and at River Street and Western Avenue the rules remove
+    only the Boston arch -- the Cambridge arch stays in, and it is the
+    wider of the two openings at both bridges (25.9 m against 19.6 m at
+    River Street, 27.0 m against 23.5 m at Western Avenue).  Whether the
+    line through it is quicker depends on where it puts the boat for the
+    next bend, which is a question for the trajectory solver and not one to
+    be settled in advance by this function.
     """
-    legal = [a for a in bridge_arches(gate, raster, min_depth) if a.legal]
+    return tuple(a for a in bridge_arches(gate, raster, min_depth) if a.legal)
+
+
+def racing_arch(gate: BridgeGate, raster, min_depth: float = 0.6):
+    """The conventional line: the centre arch where the rules allow one.
+
+    A **default for drawing and reporting, not a constraint.**  The centre
+    arch is the regatta's stated preferred route, but it is not always the
+    widest and it is not always the fastest -- see
+    :func:`candidate_arches`, which is the function to use when the
+    question is where the boat is permitted to go.  Falls back to the
+    widest legal arch where no centre arch is permitted.
+    """
+    arches = bridge_arches(gate, raster, min_depth)
+    legal = [a for a in arches if a.legal]
     if not legal:
         return None
-    named = _resolve_arch_rule(("centre",),
-                              [a.interval for a in
-                               bridge_arches(gate, raster, min_depth)])
+    centre = _resolve_arch_rule(("centre",), [a.interval for a in arches])
     for arch in legal:
-        if arch.index in named:
+        if arch.index in centre:
             return arch
     return max(legal, key=lambda a: a.width)
