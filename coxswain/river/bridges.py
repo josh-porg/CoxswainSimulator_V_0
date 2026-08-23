@@ -53,7 +53,7 @@ __all__ = ["Pier", "BridgeGate", "OSM_BRIDGE_DECKS", "build_gates",
            "Arch", "BridgeStructure", "BRIDGE_STRUCTURE", "MEASURED_PIERS",
            "PIER_THICKNESS", "EIGHT_ROWED_WIDTH", "HOCR_ARCH_RULE",
            "WRONG_ARCH_PENALTY", "waterway", "derive_piers", "bridge_arches",
-           "candidate_arches", "racing_arch"]
+           "candidate_arches", "racing_arch", "crossing_angle"]
 
 
 #: Bridge deck centrelines from OpenStreetMap, as ``(lat, lon)`` endpoints
@@ -452,21 +452,46 @@ WRONG_ARCH_PENALTY = 60.0
 
 @dataclass(frozen=True)
 class Arch:
-    """One opening under a bridge."""
+    """One opening under a bridge.
+
+    Two widths, because a skewed bridge has two.  :attr:`width` is the
+    structural opening, measured along the deck between pier faces.
+    :attr:`effective_width` is what a boat rowing along the river actually
+    has to fit through, which is smaller whenever the bridge does not
+    cross square.
+    """
 
     index: int              # 0 is the Boston shore arch
     centre: float           # metres along the span from the Boston end
-    width: float            # clear opening between pier faces
+    width: float            # clear opening between pier faces, along the deck
     legal: bool             # may a racing crew use it
     label: str = ""
+    #: Sine of the angle between the deck and the river, so 1.0 for a
+    #: square crossing.  See :func:`crossing_angle`.
+    squareness: float = 1.0
 
     @property
     def interval(self) -> Tuple[float, float]:
         return (self.centre - 0.5 * self.width, self.centre + 0.5 * self.width)
 
+    @property
+    def effective_width(self) -> float:
+        """Clear width across the boat's path rather than across the deck.
+
+        A corridor heading down the river between two pier faces ``w``
+        apart along a deck meeting the river at angle ``phi`` is only
+        ``w sin(phi)`` wide.  Square crossings are unaffected; the Grand
+        Junction trestle crosses at 41 degrees off square and loses a
+        quarter of every opening.
+        """
+        return self.width * float(self.squareness)
+
     def fits(self, boat_width: float = EIGHT_ROWED_WIDTH) -> float:
-        """How many boats of ``boat_width`` fit abreast in this arch."""
-        return self.width / float(boat_width)
+        """How many boats of ``boat_width`` fit abreast in this arch.
+
+        Uses :attr:`effective_width`, since that is the one the boat meets.
+        """
+        return self.effective_width / float(boat_width)
 
 
 def waterway(gate: BridgeGate, raster, min_depth: float = 0.6,
@@ -569,6 +594,7 @@ def bridge_arches(gate: BridgeGate, raster, min_depth: float = 0.6):
     legal = _resolve_arch_rule(gate.legal_arches or
                                HOCR_ARCH_RULE.get(gate.name, ()),
                                intervals)
+    squareness = crossing_angle(gate, raster)
     arches = []
     for i, (low, high) in enumerate(intervals):
         if i == 0:
@@ -578,8 +604,39 @@ def bridge_arches(gate: BridgeGate, raster, min_depth: float = 0.6):
         else:
             label = "centre" if len(intervals) == 3 else "arch %d" % (i + 1)
         arches.append(Arch(index=i, centre=0.5 * (low + high),
-                           width=high - low, legal=i in legal, label=label))
+                           width=high - low, legal=i in legal, label=label,
+                           squareness=squareness))
     return tuple(arches)
+
+
+def crossing_angle(gate: BridgeGate, raster) -> float:
+    """How square the bridge meets the river: ``sin`` of the angle between.
+
+    ``1.0`` is a square crossing.  Six of the seven bridges on the reach
+    are within 20 degrees of square and one is not: the Grand Junction
+    trestle carries the railway diagonally across the river at 47 degrees
+    while the river runs at 96, a **41 degree skew**, so every opening
+    under it is a quarter narrower to a boat than it is to the bridge.
+
+    Returns ``1.0`` when there is no channel to measure against, which
+    leaves the structural width unchanged rather than inventing a skew.
+    """
+    if raster is None or not hasattr(raster, "centreline"):
+        return 1.0
+    centreline = raster.centreline()
+    middle = 0.5 * (gate.start + gate.end)
+    index = int(np.argmin(np.linalg.norm(centreline - middle, axis=1)))
+    low = max(index - 8, 0)
+    high = min(index + 8, len(centreline) - 1)
+    along = centreline[high] - centreline[low]
+    norm = float(np.linalg.norm(along))
+    if norm < 1e-9:
+        return 1.0
+    along = along / norm
+    # |sin| of the angle between the deck and the river is the magnitude of
+    # their 2-D cross product, both being unit vectors.
+    deck = gate.direction
+    return float(abs(deck[0] * along[1] - deck[1] * along[0]))
 
 
 def _resolve_arch_rule(names, intervals):

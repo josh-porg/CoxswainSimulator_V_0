@@ -275,3 +275,49 @@ def test_racing_arch_is_a_default_not_a_restriction(rigged, channel):
         arch = racing_arch(gate, channel)
         assert arch is not None, gate.name
         assert arch.index in {a.index for a in candidate_arches(gate, channel)}
+
+
+def test_a_square_crossing_loses_nothing(rigged, channel):
+    """Five of the seven bridges cross within about 6 degrees of square,
+    so their structural and effective widths must be near enough equal."""
+    from coxswain.river.bridges import bridge_arches
+    by_name = {gate.name: gate for gate in rigged}
+    for name in ("BU Bridge", "Weeks Footbridge", "Eliot Bridge"):
+        for arch in bridge_arches(by_name[name], channel):
+            assert arch.effective_width == pytest.approx(arch.width, rel=0.02)
+
+
+def test_the_skewed_trestle_is_narrower_to_a_boat_than_to_the_bridge(rigged,
+                                                                     channel):
+    """The Grand Junction carries the railway diagonally across the river.
+
+    Its openings are measured along the deck, but a boat runs along the
+    river, and between two pier faces `w` apart on a deck meeting the
+    river at angle phi the corridor is only ``w sin(phi)`` wide.  At 41
+    degrees off square that is a quarter of every opening, and reporting
+    the deck width would tell the coxswain the gap is bigger than it is.
+    """
+    from coxswain.river.bridges import crossing_angle, racing_arch
+    gate = {g.name: g for g in rigged}["Grand Junction RR"]
+    assert crossing_angle(gate, channel) == pytest.approx(0.75, abs=0.06)
+    arch = racing_arch(gate, channel)
+    assert arch.effective_width < 0.8 * arch.width
+    assert arch.effective_width == pytest.approx(16.3, abs=1.0)
+
+
+def test_effective_width_is_what_counts_boats(rigged, channel):
+    from coxswain.river.bridges import EIGHT_ROWED_WIDTH, bridge_arches
+    for gate in rigged:
+        for arch in bridge_arches(gate, channel):
+            assert arch.fits() == pytest.approx(
+                arch.effective_width / EIGHT_ROWED_WIDTH)
+
+
+def test_the_trestle_deck_follows_the_railway_it_carries(rigged):
+    """The recorded deck is the Grand Junction Running Track's own
+    alignment across the river, so its bearing must match the rails."""
+    import math
+    gate = {g.name: g for g in rigged}["Grand Junction RR"]
+    bearing = math.degrees(math.atan2(gate.direction[0],
+                                      gate.direction[1])) % 180.0
+    assert bearing == pytest.approx(47.4, abs=1.5)
