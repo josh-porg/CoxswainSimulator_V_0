@@ -356,18 +356,30 @@ class BridgeStructure:
     vertical_clearance: Optional[float] = None   # NBI 39
     year_built: Optional[int] = None
     source: str = ""
+    #: NBI 49, the whole structure end to end.  Used to stop the opening
+    #: running past the abutments: the depth raster only knows about water
+    #: and will happily report it where a bridge's wing wall stands, which
+    #: at River Street made the waterway come out 78 m wide against a 64 m
+    #: bridge and turned each abutment into a phantom 26 m shore arch.
+    structure_length: Optional[float] = None
 
 
 #: Structure of every bridge on the racing reach.
 BRIDGE_STRUCTURE = {
-    "River Street": BridgeStructure(3, 22.9, 21.3, 4.9, 1925, "NBI 2024"),
-    "Western Avenue": BridgeStructure(3, 26.8, 25.9, 3.7, 1924, "NBI 2024"),
-    "Weeks Footbridge": BridgeStructure(3, None, None, None, 1926, "SGH; OSM deck"),
-    "Larz Anderson": BridgeStructure(3, 23.5, 25.9, 3.7, 1912, "NBI 2024"),
-    "Eliot Bridge": BridgeStructure(3, 33.5, 30.5, 4.3, 1950, "NBI 2024"),
-    "BU Bridge": BridgeStructure(7, 51.8, None, None, 1928, "NBI 2024"),
-    "Grand Junction RR": BridgeStructure(6, None, None, None, 1900,
-                                         "OSM pier survey"),
+    "River Street": BridgeStructure(
+        3, 22.9, 21.3, 4.9, 1925, "NBI 2024", structure_length=64.0),
+    "Western Avenue": BridgeStructure(
+        3, 26.8, 25.9, 3.7, 1924, "NBI 2024", structure_length=85.3),
+    "Weeks Footbridge": BridgeStructure(
+        3, None, None, None, 1926, "SGH; OSM deck"),
+    "Larz Anderson": BridgeStructure(
+        3, 23.5, 25.9, 3.7, 1912, "NBI 2024", structure_length=70.7),
+    "Eliot Bridge": BridgeStructure(
+        3, 33.5, 30.5, 4.3, 1950, "NBI 2024", structure_length=112.2),
+    "BU Bridge": BridgeStructure(
+        7, 51.8, None, None, 1928, "NBI 2024", structure_length=220.7),
+    "Grand Junction RR": BridgeStructure(
+        6, None, None, None, 1900, "OSM pier survey"),
 }
 
 #: Piers of the Grand Junction railroad trestle, ``(lat, lon)`` of each
@@ -447,7 +459,16 @@ def waterway(gate: BridgeGate, raster, min_depth: float = 0.6,
     runs = _runs(distance, wet)
     if not runs:
         return (0.0, gate.span)
-    return max(runs, key=lambda pair: pair[1] - pair[0])
+    low, high = max(runs, key=lambda pair: pair[1] - pair[0])
+
+    # A bridge cannot open wider than it is long.  Where the raster says
+    # water past the abutments, trust the bridge.
+    structure = gate.structure or BRIDGE_STRUCTURE.get(gate.name)
+    limit = None if structure is None else structure.structure_length
+    if limit is not None and (high - low) > limit:
+        middle = 0.5 * (low + high)
+        low, high = middle - 0.5 * limit, middle + 0.5 * limit
+    return (low, high)
 
 
 def derive_piers(gate: BridgeGate, raster, min_depth: float = 0.6):
@@ -477,14 +498,29 @@ def derive_piers(gate: BridgeGate, raster, min_depth: float = 0.6):
             key=lambda p: p.centre))
 
     structure = gate.structure or BRIDGE_STRUCTURE.get(gate.name)
-    if structure is None or structure.max_span is None:
+    if structure is None:
         return ()
 
     low, high = waterway(gate, raster, min_depth)
     middle = 0.5 * (low + high)
-    half = 0.5 * float(structure.max_span)
-    return (Pier(middle - half, PIER_THICKNESS),
-            Pier(middle + half, PIER_THICKNESS))
+
+    if structure.max_span is not None:
+        half = 0.5 * float(structure.max_span)
+        return (Pier(middle - half, PIER_THICKNESS),
+                Pier(middle + half, PIER_THICKNESS))
+
+    # No inventory record -- the Weeks footbridge is the case, since a
+    # footbridge is not in the National Bridge Inventory at all.  Its arch
+    # count is documented even though its spans are not, so divide the
+    # opening into that many equal arches.  Equal spacing is what the three
+    # bridges with measured spans come out at anyway: Anderson's side spans
+    # are 23.6 m against a 23.5 m centre.
+    n = int(structure.main_spans)
+    if n < 2:
+        return ()
+    pitch = (high - low) / n
+    return tuple(Pier(low + pitch * (i + 1), PIER_THICKNESS)
+                 for i in range(n - 1))
 
 
 def bridge_arches(gate: BridgeGate, raster, min_depth: float = 0.6):
@@ -494,8 +530,12 @@ def bridge_arches(gate: BridgeGate, raster, min_depth: float = 0.6):
     cannot fit through is not an arch as far as this model is concerned,
     and keeping them would shift the numbering the rules depend on.
     """
-    intervals = [pair for pair in gate.open_intervals(raster, min_depth)
-                 if pair[1] - pair[0] >= EIGHT_ROWED_WIDTH]
+    low, high = waterway(gate, raster, min_depth)
+    intervals = []
+    for a, b in gate.open_intervals(raster, min_depth):
+        a, b = max(a, low), min(b, high)
+        if b - a >= EIGHT_ROWED_WIDTH:
+            intervals.append((a, b))
     if not intervals:
         return ()
 
@@ -545,8 +585,23 @@ def _resolve_arch_rule(names, intervals):
 
 
 def racing_arch(gate: BridgeGate, raster, min_depth: float = 0.6):
-    """The arch a racing crew should be pointed at: the widest legal one."""
+    """The arch a racing crew should be pointed at.
+
+    The centre arch where the rules allow one, which is not always the
+    widest: at River Street and Western Avenue the side arches are the
+    larger openings, and a rule that just took the widest would point the
+    boat at the Cambridge arch on a stretch where the regatta calls the
+    centre the preferred route and the Cambridge arch a way out of
+    congestion.  Falls back to the widest legal arch where no centre arch
+    is permitted.
+    """
     legal = [a for a in bridge_arches(gate, raster, min_depth) if a.legal]
     if not legal:
         return None
+    named = _resolve_arch_rule(("centre",),
+                              [a.interval for a in
+                               bridge_arches(gate, raster, min_depth)])
+    for arch in legal:
+        if arch.index in named:
+            return arch
     return max(legal, key=lambda a: a.width)
