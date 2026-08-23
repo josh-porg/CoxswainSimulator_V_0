@@ -112,6 +112,45 @@ def uniform_traverse_warp(phases, com_x, drive_fraction: float,
     return (1.0 - float(blend)) * phases + float(blend) * warped
 
 
+def drive_timing_warp(phases, drive_fraction: float, lag: float):
+    """Retime the drive so the crew reaches peak speed later in it.
+
+    ``w(u) = u - lag * f * sin(pi u / f)`` on the drive, identity on the
+    recovery.  The catch, the finish and the next catch are fixed points,
+    so keyframe postures and the force profile's clock are untouched and
+    the crew's travel is preserved exactly -- this is a reparameterisation
+    of the same path, not a change to it.
+
+    Positive ``lag`` samples the underlying motion *earlier* in mid-drive,
+    which delays the crew's progress and pushes the peak of their
+    centre-of-mass speed later in the drive.
+
+    Why this exists
+    ---------------
+    The model's crew reaches peak centre-of-mass speed at 37% of the
+    drive.  Kleshnev measures peak handle velocity at **60%**.  Past its
+    peak the crew is decelerating, and a decelerating crew's reaction
+    *pushes the hull forward* -- so from 37% onward the model's crew
+    reaction adds to blade thrust instead of opposing it.  Measured on
+    the water the two very nearly cancel: mean absolute hull acceleration
+    through the drive is 0.71 m/s^2, against 3.47 in the model.
+
+    The warp must be applied to the oar sweep as well as to the joint
+    angles.  Retiming the body alone moves the shoulders out from under
+    the handle, and since the hands are pinned to it by the rig, the
+    reach constraint fails at about 0.20 of lag.  See SOURCES sec. 40.
+
+    Monotone for ``|lag| < 1/pi``.
+    """
+    phases = np.asarray(phases, dtype=float)
+    f = float(drive_fraction)
+    warped = phases.copy()
+    on_drive = phases < f
+    warped[on_drive] = (phases[on_drive]
+                        - float(lag) * f * np.sin(np.pi * phases[on_drive] / f))
+    return np.clip(warped, 0.0, 1.0 - 1e-9)
+
+
 def recovery_warp(progress, arrival: float):
     """Monotone retiming of the recovery traverse: slow into the catch.
 

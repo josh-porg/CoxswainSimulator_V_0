@@ -77,7 +77,8 @@ class Boat:
                  shallow: ShallowWaterModel = None,
                  blade_model=None,
                  recovery_arrival: float = 1.0,
-                 uniform_traverse: float = 0.0):
+                 uniform_traverse: float = 0.0,
+                 drive_lag: float = 0.0):
         self.name = name
         self.offsets = offsets
         self.mesh = HullMesh(offsets, n_girth=n_girth)
@@ -111,6 +112,13 @@ class Boat:
         #: stroke; that was a normalisation bug in the warp composition,
         #: not a property of the method.  See SOURCES sec. 40.
         self.uniform_traverse = float(uniform_traverse)
+        #: Retiming of the drive so the crew reaches peak speed
+        #: later in it; see
+        #: :func:`coxswain.crew.stroke.drive_timing_warp` and
+        #: SOURCES sec. 40.  Applied to the oar sweep as well as
+        #: to the joint angles, which is what keeps the hands on
+        #: the handle.
+        self.drive_lag = float(drive_lag)
         self.phase_warp = None
         self.stroke_dataset = stroke_dataset or default_dataset()
         #: Finite-depth correction; deep water unless a depth is given.
@@ -125,6 +133,16 @@ class Boat:
             raise ValueError("hull_inertia must be a 3x3 tensor")
         if np.linalg.eigvalsh(self.hull_inertia).min() <= 0:
             raise ValueError("hull_inertia must be positive definite")
+
+        if self.drive_lag != 0.0:
+            from ..crew.stroke import drive_timing_warp
+            import dataclasses as _dc
+            knots = np.linspace(0.0, 1.0, 512, endpoint=False)
+            images = drive_timing_warp(knots, self.timing.drive_fraction,
+                                       self.drive_lag)
+            self.phase_warp = (tuple(knots.tolist()), tuple(images.tolist()))
+            self.oar_sweep = _dc.replace(self.oar_sweep,
+                                         warp_knots=self.phase_warp)
 
         if self.uniform_traverse > 0.0:
             self.phase_warp = self._traverse_warp(

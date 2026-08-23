@@ -3414,3 +3414,320 @@ rather than on an assumed frequency.
 
 That is the next thing to do, and until it is done the phasing claim
 stays a hypothesis.
+
+## 40. The drive is mistimed, and Gibbs was never the problem
+
+### Catch-aligned measurement
+
+§39 could not use the phase comparison because the measured profile was
+averaged over windows with spectrally-estimated periods, and period error
+smears exactly the features the comparison rests on.  Replacing that with
+**per-stroke catch detection** -- find the sharpest deceleration in each
+cycle, resample between successive catches -- gives 162 catch-aligned
+cycles and a clean profile.
+
+It validates: hull velocity minimum at phase 0.14 (just after the catch)
+and maximum at 0.80 (on the recovery), which is the textbook behaviour
+and was not imposed.
+
+| | measured | model |
+|---|---|---|
+| velocity min / max phase | 0.14 / 0.80 | 0.09 / 0.45 |
+| velocity peak-to-peak | 1.31 m/s | 2.08 |
+| **mean abs hull acceleration through the drive** | **0.71 m/s^2** | **3.47** |
+
+**The real boat is nearly in equilibrium during the drive.**  Thrust and
+crew reaction cancel to within 0.71 m/s^2.  The model's boat is driven
+forward five times harder, and then coasts.
+
+### The cause: the crew stops accelerating too early
+
+The model's crew centre of mass reaches peak speed at **37% of the
+drive**; Kleshnev reports peak handle velocity at **60%**.  After the
+model's crew passes its peak it is decelerating, and its reaction then
+*pushes the hull forward* -- adding to thrust rather than opposing it.
+That is the +0.136 correlation of §39 and the 3.47 m/s^2.
+
+Retiming the whole body with the §30 within-phase warp moves the peak to
+52% and takes IVV from 56.0% to **49.4%**, the largest single improvement
+so far.  It binds at -0.20 on reach, because the body is retimed while
+the oar sweep is not, and the hands are pinned to the handle.
+
+### Two bugs in the traverse warp
+
+`uniform_traverse` was abandoned in §25 for truncating the stroke.  Two
+separate mechanisms were doing that.
+
+1. **The composition was not onto.**  `np.maximum.accumulate` on a
+   clipped warp flattens any decreasing stretch into a plateau and pins
+   everything past an overshoot at the endpoint, so the warp stopped
+   spanning its interval and the extreme postures were never sampled.
+   Fixed by renormalising the drive onto ``[0, f]`` and the recovery onto
+   ``[f, 1]`` after enforcing monotonicity.  A reparameterisation
+   traverses the same path, so travel must be preserved exactly.
+2. **The refit truncated it.**  A warped three-harmonic signal is no
+   longer three-harmonic, and refitting it at ``KEYFRAME_HARMONICS = 3``
+   discarded the difference.  Crew CoM travel against harmonic count, at
+   blend 0.9: 0.539 (3), 0.606 (6), 0.676 (14), 0.696 (20), against 0.744
+   unwarped.
+
+### Gibbs was a wrong diagnosis
+
+With both fixed, the warp preserves travel and IVV gets **worse** -- 62.7%
+at 20 harmonics against 56.0% at 3.  This was attributed to Gibbs ringing
+around the corners the warp introduces.  **That was wrong**, and the
+check is direct.  Representing one warped joint-angle profile:
+
+| basis | range deg | d2/dt2 ptp | travel kept |
+|---|---|---|---|
+| Fourier, 3 harmonics | 71.79 | 12.7 | 94.4% |
+| Fourier, 8 | 75.78 | 27.1 | 99.6% |
+| Fourier, 20 | 76.07 | **38.2** | 100.0% |
+| dense periodic spline | 76.07 | **307.9** | 100.0% |
+| **spline, knots at catch and finish** | **75.66** | **34.7** | **99.5%** |
+| **raw warped signal** | **76.07** | **38.7** | **100%** |
+
+The raw signal's own second derivative is 38.7.  Fourier at 20 harmonics
+gives 38.2 -- that is *faithful*, not ringing.  Three harmonics were
+damping the accelerations threefold, and raising the count merely stopped
+hiding them.
+
+So the warped motion genuinely demands those accelerations, and a better
+basis would represent them more honestly and make the hull fluctuate
+more.  This is the same lesson as §35: **flattening crew velocity
+concentrates crew acceleration into the reversals**, and the hull feels
+the acceleration.
+
+### On the basis question anyway
+
+A cubic spline knotted at the catch and the finish is nonetheless the
+right representation for this signal -- 99.5% of travel with a
+well-behaved second derivative -- and a *dense* spline is catastrophic,
+307.9, because it interpolates resampling noise.  Putting the corners on
+knots is what matters; it is the Gauss-Lobatto instinct applied where it
+bites, the stroke being two smooth phases joined at near-corners rather
+than one smooth periodic signal.  Worth doing, but it is a representation
+improvement, not the fluctuation fix.
+
+### Where this leaves it
+
+The live hypothesis is now specific and literature-anchored: **the
+model's drive is mistimed**, the crew reaching peak speed at 37% of the
+drive where Kleshnev measures 60%, so the crew reaction stops opposing
+thrust a third of the way in.  Fixing it properly needs the body and the
+oar sweep retimed together, since retiming the body alone breaks the
+reach constraint -- which is exactly what the densely sampled kinematics
+requested in `DATA_REQUESTS.md` would settle.
+
+## 41. Drive timing falsified; the force loop is the live suspect
+
+### The §40 hypothesis, tested properly and rejected
+
+§40 proposed that the fluctuation gap came from the model's crew reaching
+peak centre-of-mass speed at 37% of the drive where Kleshnev measures
+60%.  Retiming the body alone appeared to support it -- IVV 56.0% ->
+49.4%.  But retiming the body while leaving the oar sweep prescribed
+moves the shoulders out from under the handle, and the improvement came
+from distorting the arms rather than from the timing.
+
+`drive_timing_warp` now applies the same warp to the **oar sweep and the
+joint angles together**, which is what keeps the hands on the handle.
+Done consistently:
+
+| lag | peak, % of drive | CoM travel | IVV | drive abs acc |
+|---|---|---|---|---|
+| 0.00 | 37 | 0.744 | 56.0% | 3.46 |
+| 0.10 | 47 | 0.747 | 54.1% | 3.23 |
+| **0.20** | **58** | 0.756 | **57.2%** | 3.22 |
+| 0.30 | 65 | 0.772 | 64.9% | 3.71 |
+
+Travel is preserved, as a reparameterisation must, and Kleshnev's 60% is
+reached at lag 0.20.  **The fluctuation does not improve.**  The
+hypothesis is rejected; the warp is kept because it is correct machinery
+and defaults to zero.
+
+### What is left: the crew and the blade are prescribed independently
+
+Through the drive the model has the crew reaction and the blade thrust
+pushing the hull the same way in **62% of samples**:
+
+| phase | crew reaction | oar | same sign |
+|---|---|---|---|
+| 0.000 | -831 N | +2 N | no |
+| 0.096 | -341 | +414 | no |
+| 0.144 | +417 | +519 | **yes** |
+| 0.192 | +715 | +403 | **yes** |
+| 0.288 | +392 | +26 | **yes** |
+
+A positive crew reaction means the crew is *decelerating* -- their
+reaction pushes the hull forward.  So through the second half of the
+drive the model has a rower who is being decelerated **and** pulling hard
+on the handle at the same time, both driving the boat forward.
+
+**On the water, what decelerates the rower is the handle.**  A large
+handle force and a decelerating body are the same event seen from two
+ends, not two independent events that happen to coincide.  In this model
+they *are* independent: `OarForceProfile` prescribes the blade loading
+from a fitted curve, and the crew reaction comes from prescribed
+kinematics, and nothing enforces the rower's own Newton equation between
+them.
+
+That is consistent with everything measured.  On the water the two very
+nearly cancel through the drive -- mean absolute hull acceleration 0.71
+m/s^2 against the model's 3.46 -- which is what a closed force loop
+through one body produces.  It is also consistent with the failure of
+every kinematic remedy tried so far (§30, §35, §38, §40): if the defect
+is that two prescribed quantities are mutually inconsistent, no amount of
+retiming one of them will fix it.
+
+### Why this is not yet a fix
+
+Closing the loop means the handle force and the crew's acceleration have
+to be solved together rather than both imposed -- which is exactly what
+the predictive formulation of §27 was for, and why it is worth returning
+to now that its power model is right.  It is a structural change to how
+the crew drives the boat, not a parameter, and it should not be attempted
+on a hunch.
+
+The measurement that would confirm or kill it is the same one
+`DATA_REQUESTS.md` asks for: synchronised handle force and rower
+kinematics through the stroke.  With both, the rower's force balance can
+be checked directly instead of inferred from the hull.
+
+## 42. Correcting §41: there is no double count
+
+§41 proposed that the crew reaction and the blade thrust were both being
+charged to the hull with the handle path counted twice, and called it the
+live suspect.  **That is wrong.**  Worked through properly it does not
+hold, and the model's bookkeeping is correct.
+
+### The derivation
+
+Take the oar as massless, handle at ``r_h`` from the pin and blade at
+``L - r_h`` on the other side.
+
+*Oar, moments about the pin:* ``F_h r_h = F_b (L - r_h)``.
+
+*Oar, force balance:* the pin carries ``F_pin = F_h + F_b``, so
+
+    F_pin = F_b [(L - r_h)/r_h + 1] = F_b L / r_h
+    =>  F_b = (r_h / L) F_pin
+
+*Crew:* ``m_c a_c = F_stretcher + F_handle_on_crew``.
+
+*Force on the boat*, adding the stretcher path and the pin path and using
+the crew equation to eliminate the stretcher term, the handle force
+cancels identically and what is left is
+
+    F_boat = -m_c a_c + F_b
+
+**The handle force does not appear.**  It is internal to the loop
+crew -> handle -> oar -> pin -> boat -> stretcher -> crew, and it cancels
+against itself.  The hull needs only the total crew reaction and the
+blade force; how that total splits between stretcher and handle is
+invisible to it.
+
+### The model implements exactly this
+
+`hull_load` computes ``net_force = gearing * F_o`` with
+``gearing = r_h / L``, which by the line above **is the blade force**.
+Added to the moving-mass reaction ``-m_c a_c`` from
+`moving_mass_reaction`, the hull receives ``-m_c a_c + F_b``.  That is
+the derivation, and it is Formaggia eq. (14a).  No term is counted twice.
+
+The 62% same-sign statistic in §41 is real but means nothing on its own:
+crew reaction and blade force *may* push the same way without any
+inconsistency, because they are genuinely separate contributions.
+
+### What actually remains
+
+The two prescriptions are independent **in provenance**, which is a
+different and smaller claim than the one §41 made.  Crew kinematics come
+from Caplan & Gardner's four keyframes; the oarlock force peak is
+calibrated to make each boat hit its known cruising speed.  Nothing makes
+them describe the same crew on the same outing, and the measurement says
+real rowing couples them tightly -- mean absolute hull acceleration
+through the drive is 0.71 m/s^2, against 3.46 in the model.
+
+So the model is not wrong in its physics; it is being driven by two
+inputs that were never measured together.  That is not something a
+derivation can fix, and it is precisely what the synchronised handle
+force and rower kinematics in `DATA_REQUESTS.md` would supply.
+
+### The standing lesson
+
+§41 was written after a plausible mechanism and a suggestive statistic,
+without doing the algebra.  The algebra takes ten lines and says the
+opposite.
+
+## 43. It is the timing, not the amplitude
+
+### Inverting the hull equation
+
+The hull equation ``a_hull = (F_b - m_c a_rel) / m_total`` can be solved
+for the crew's acceleration given a measured ``a_hull``.  The blade force
+is known to have the right *mean* -- it is calibrated so the boat hits the
+measured 3.82 m/s -- so this gives a crew acceleration profile inferred
+from the hull, without touching the pelvis channel whose device-frame
+rotation §38 could not correct.
+
+Against the model, on the catch-aligned grid of §40:
+
+| phase | implied | model |
+|---|---|---|
+| 0.01 | +3.32 | +5.30 |
+| **0.14** | **+3.00** | **-1.86** |
+| **0.20** | **+1.88** | **-4.28** |
+| 0.26 | +0.05 | -2.90 |
+| 0.45 | -0.74 | -0.79 |
+| **0.70** | **-4.43** | -0.48 |
+| **0.76** | **-5.00** | -1.17 |
+| 0.95 | +2.13 | +3.85 |
+
+| | implied | model | ratio |
+|---|---|---|---|
+| peak-to-peak | 9.22 | 9.83 | **1.07** |
+| mean abs through the drive | 2.15 | 3.39 | 1.58 |
+
+**The amplitude is right to 7%.**  Through the mid-drive the two profiles
+have **opposite signs**, and in the late recovery the model has almost
+nothing where the real crew has its largest excursion.
+
+### Why every previous remedy failed
+
+Sequencing (§30), traverse flatness (§35), the drive force curve (§38),
+the uniform-traverse warp (§40) and harmonic count all adjust *how much*
+the crew moves, or how sharply.  The amount was never wrong.  Six
+attempts moved a quantity that was already correct to 7%, which is why
+none of them closed more than a couple of points and several made it
+worse.
+
+### Why the §41 test came out null
+
+`drive_timing_warp` retimes the joint angles **and the oar sweep
+together**, because retiming the body alone breaks the reach constraint.
+But moving both preserves the phase relationship between crew motion and
+blade force -- and that relationship is the thing that is wrong.  The
+test was null because it could not perturb the quantity in question.
+
+What is needed is the crew's motion retimed *relative to* the blade
+force, which is precisely the case that fails on reach.
+
+### The reach failure is the finding, not the obstacle
+
+Taken at face value, the model's rig-and-arm geometry **cannot
+accommodate the measured timing**: asking the body to keep accelerating
+through the mid-drive, as the inference says it does, moves the shoulders
+out from under a handle whose path is fixed by the oar sweep.
+
+Two things could give.  The **arm posture table**, which §29 already
+flagged as the un-measured input in the chain -- `DEFAULT_ARM_POSTURE`
+fixes how much elbow bend the rower carries, and a different posture
+changes how far the shoulders may travel while the hands stay on the
+handle.  Or the **oar sweep**, if the blade's angular history through the
+drive is not what `OarAngleSweep` prescribes.
+
+Both are testable against the same synchronised measurement, and the ask
+in `DATA_REQUESTS.md` should be stated in those terms: not "rower
+kinematics" in general, but **handle position and body position sampled
+together through the drive**, which is what fixes the relative phase.
