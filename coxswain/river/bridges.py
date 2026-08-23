@@ -86,9 +86,11 @@ class BridgeGate:
     """A line the boat must cross, and the part of it that is passable."""
 
     name: str
-    start: np.ndarray              # (2,) metres east/north
-    end: np.ndarray                # (2,) metres east/north
+    start: np.ndarray              # (2,) metres east/north, the Boston shore
+    end: np.ndarray                # (2,) metres east/north, the Cambridge shore
     piers: Sequence[Pier] = field(default_factory=tuple)
+    structure: Optional["BridgeStructure"] = None
+    legal_arches: Tuple[str, ...] = ()
     _openings: Optional[Sequence[Tuple[float, float]]] = None
 
     # -- geometry ---------------------------------------------------------
@@ -226,3 +228,136 @@ def build_gates(origin=None, names=None):
                                 start=np.array([east[0], north[0]]),
                                 end=np.array([east[1], north[1]])))
     return gates
+
+
+# ---------------------------------------------------------------------------
+# Structure: how many arches, how wide, and which one you are allowed to use
+# ---------------------------------------------------------------------------
+#
+# The docstring above was written when no source for the arch spans had been
+# found, so the gates knew only "somewhere in the wet part".  Sources have
+# since been found and the piers below are no longer guesses.
+#
+# **Span counts and lengths** come from the Federal Highway Administration's
+# National Bridge Inventory, 2024 Massachusetts delimited file, matched to
+# these structures by position (every match lands within 8 m of the surveyed
+# bridge coordinate).  NBI item 45 gives the number of spans in the main
+# unit, item 48 the length of the longest, items 39/40 the permitted
+# navigation clearances.
+#
+# **Pier thickness is measured**, not assumed: OpenStreetMap carries five
+# ``bridge:support=pier`` polygons for the Grand Junction trestle, and they
+# measure 3.14-3.45 m thick, mean 3.32 m, each 18 m long in the flow
+# direction.  That is the only direct pier survey on the reach and it is
+# what :data:`PIER_THICKNESS` records.
+#
+# The Weeks Footbridge is a footbridge, so it is absent from the National
+# Bridge Inventory; its three arches are documented instead by Simpson
+# Gumpertz & Heger, who carried out its restoration, and its deck length
+# comes from the same OpenStreetMap survey as the rest.
+#
+# One independent check says the method works.  Eliot's centre span is
+# 33.5 m centre-to-centre; take one pier thickness off and the clear opening
+# is 30.2 m, against the 30.5 m navigation clearance NBI states for it.  The
+# two numbers come from different columns and agree to 1%.
+#
+# Where they disagree, they disagree in a way that is worth knowing: NBI
+# gives Anderson and Western Avenue the *same* 25.9 m clearance despite
+# different span lengths, and gives Anderson a clearance 2.4 m wider than
+# its own longest span, which is impossible for a physical opening.  Item 40
+# is a permitted channel width, not a measured one.  The physical opening
+# derived from the spans is used for geometry; the NBI figure is kept beside
+# it as :attr:`BridgeStructure.permitted_width` so the two never get mixed up.
+
+#: Pier thickness across the channel, metres.  Measured; see above.
+PIER_THICKNESS = 3.32
+
+#: Bow-to-blade-tip width of a rowed eight, metres -- the width that
+#: actually has to fit through an arch.  Oarlock 0.85 m off centre, oar
+#: 3.70 m with 1.14 m inboard, so a blade tip sits 3.41 m out and two of
+#: them span 6.82 m.  Derived from the rig in :mod:`coxswain.boats.catalog`.
+EIGHT_ROWED_WIDTH = 6.82
+
+
+@dataclass(frozen=True)
+class BridgeStructure:
+    """What the bridge is made of, as far as the record shows."""
+
+    main_spans: int
+    max_span: Optional[float] = None        # NBI 48, centre to centre
+    permitted_width: Optional[float] = None  # NBI 40, see the note above
+    vertical_clearance: Optional[float] = None   # NBI 39
+    year_built: Optional[int] = None
+    source: str = ""
+
+
+#: Structure of every bridge on the racing reach.
+BRIDGE_STRUCTURE = {
+    "River Street": BridgeStructure(3, 22.9, 21.3, 4.9, 1925, "NBI 2024"),
+    "Western Avenue": BridgeStructure(3, 26.8, 25.9, 3.7, 1924, "NBI 2024"),
+    "Weeks Footbridge": BridgeStructure(3, None, None, None, 1926, "SGH; OSM deck"),
+    "Larz Anderson": BridgeStructure(3, 23.5, 25.9, 3.7, 1912, "NBI 2024"),
+    "Eliot Bridge": BridgeStructure(3, 33.5, 30.5, 4.3, 1950, "NBI 2024"),
+    "BU Bridge": BridgeStructure(7, 51.8, None, None, 1928, "NBI 2024"),
+    "Grand Junction RR": BridgeStructure(6, None, None, None, 1900,
+                                         "OSM pier survey"),
+}
+
+#: Piers of the Grand Junction railroad trestle, ``(lat, lon)`` of each
+#: pier centre, measured from OpenStreetMap ``bridge:support=pier``
+#: polygons.  These are surveyed positions, not derived ones.
+MEASURED_PIERS = {
+    "Grand Junction RR": (
+        (42.3523313, -71.1107551),
+        (42.3524827, -71.1105298),
+        (42.3526290, -71.1103000),
+        (42.3527396, -71.1101340),
+        (42.3528863, -71.1099136),
+    ),
+}
+
+#: Which arch a Head of the Charles entry may use, by name.
+#:
+#: The regatta's rules are written as prohibitions and they are asymmetric.
+#: The **left (Boston) arch of every bridge is out of bounds**, and the
+#: **right (Cambridge) arch is additionally out of bounds at the BU railroad
+#: trestle, Anderson and Eliot**.  Either is a 60 second penalty, on top of
+#: any buoy penalty.  Everywhere else the centre arch is the preferred route
+#: and the Cambridge arch is available when the centre is congested.
+#:
+#: ``"centre"`` and ``"cambridge"`` are resolved against the arches actually
+#: found in the opening.  BU Bridge is the exception that needs naming
+#: rather than counting: it is a seven span bridge whose shore arch is
+#: shallow, and the Charles River Rowing Committee's traffic pattern puts
+#: upstream traffic through *the second arch from the Cambridge shore*.
+HOCR_ARCH_RULE = {
+    "BU Bridge": ("second_from_cambridge",),
+    "Grand Junction RR": ("centre",),
+    "River Street": ("centre", "cambridge"),
+    "Western Avenue": ("centre", "cambridge"),
+    "Weeks Footbridge": ("centre", "cambridge"),
+    "Larz Anderson": ("centre",),
+    "Eliot Bridge": ("centre",),
+}
+
+#: Penalty for using a prohibited arch, seconds.
+WRONG_ARCH_PENALTY = 60.0
+
+
+@dataclass(frozen=True)
+class Arch:
+    """One opening under a bridge."""
+
+    index: int              # 0 is the Boston shore arch
+    centre: float           # metres along the span from the Boston end
+    width: float            # clear opening between pier faces
+    legal: bool             # may a racing crew use it
+    label: str = ""
+
+    @property
+    def interval(self) -> Tuple[float, float]:
+        return (self.centre - 0.5 * self.width, self.centre + 0.5 * self.width)
+
+    def fits(self, boat_width: float = EIGHT_ROWED_WIDTH) -> float:
+        """How many boats of ``boat_width`` fit abreast in this arch."""
+        return self.width / float(boat_width)

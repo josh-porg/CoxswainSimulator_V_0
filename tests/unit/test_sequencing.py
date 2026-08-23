@@ -204,3 +204,51 @@ def test_hull_velocity_waveform_matches_the_dgps_shape():
     # velocity must RISE through the mid-drive
     mid = (u > 0.15) & (u < drive - 0.05)
     assert np.all(np.diff(prof[mid]) > -0.02)
+
+
+def test_charles_landmarks_sit_on_the_channel_and_in_the_right_order():
+    """Bridge coordinates, checked two ways.
+
+    A landmark can be *in* the channel and still be in the wrong place
+    along it -- Weeks used to sit 6 m from the centreline but 370 m too
+    far upstream, almost on top of Anderson, leaving 259 m between two
+    bridges that are 426 m apart.  Offset alone did not catch it.  The
+    spacing and sinuosity do.  See coxswain.river.charles.
+    """
+    from coxswain.river import charles
+
+    raster = charles.charles_channel()
+    seen = []
+    for name, latlon in charles.BRIDGES:
+        station, offset = charles.landmark_station(latlon, raster)
+        assert offset < 40.0, (name, offset)
+        east, north = charles.local_tangent_plane(
+            latlon[0], latlon[1], charles.CHARLES_ORIGIN)
+        seen.append((name, station, np.array([float(east), float(north)])))
+
+    # upstream order is decreasing station, and no two bridges collide
+    for (n0, s0, p0), (n1, s1, p1) in zip(seen[:-1], seen[1:]):
+        gap = s0 - s1
+        straight = float(np.linalg.norm(p1 - p0))
+        assert gap > 300.0, (n0, n1, gap)
+        assert 0.95 <= gap / straight <= 1.8, (n0, n1, gap / straight)
+
+
+def test_hocr_course_is_three_miles_from_the_boathouse():
+    """The race starts off DeWolfe Boathouse, not at the BU Bridge."""
+    from coxswain.river import charles
+
+    raster = charles.charles_channel()
+    start_xy, finish_xy, line, (start, finish) = charles.hocr_course(raster)
+    assert start - finish == pytest.approx(4828.0, abs=1.0)
+
+    bu, _ = charles.landmark_station(charles.BU_BRIDGE, raster)
+    assert 100.0 < start - bu < 260.0          # start is below the bridge
+
+    eliot, _ = charles.landmark_station(charles.ELIOT_BRIDGE, raster)
+    assert 600.0 < eliot - finish < 1100.0     # finish is above Eliot
+
+    # every bridge falls inside the race
+    for name, latlon in charles.BRIDGES:
+        station, _ = charles.landmark_station(latlon, raster)
+        assert finish <= station <= start, name

@@ -4765,3 +4765,78 @@ swing**.  It is now the only F-class quantity left in the fluctuation
 chain, it is boxed to 0.65-0.75 of the erg value for this crew, and the
 synchronised crew-plus-hull measurement in `DATA_REQUESTS.md` is the one
 observation that would pin it.
+
+## 58. Charting the Charles, and three wrong bridges
+
+Plotting the course as a chart -- bathymetry, current, boundaries,
+bridges, start and finish -- was meant to inspect the river model.  It
+found four errors in it.
+
+### Three bridges were simply in the wrong place
+
+The extracted centreline comes from the bathymetry alone and knows
+nothing about bridges, so the distance from a bridge coordinate to that
+centreline is a free check on both.  Three were far off, and replacing
+the coordinates with published ones fixed all three -- **the channel was
+never at fault**:
+
+| bridge | offset before | after |
+|---|---|---|
+| BU Bridge | 136 m | **30 m** |
+| Western Avenue | 167 m | **3 m** |
+| Eliot Bridge | 361 m | **6 m** |
+
+### The fourth was invisible to that check
+
+Weeks Footbridge sat **6 m** from the centreline, so it passed.  It was
+still wrong: 370 m too far upstream, nearly on top of Anderson, leaving
+259 m between two bridges that are 426 m apart.
+
+**A small offset proves a landmark is in the channel, not that it is at
+the right place along it.**  The catch is the *gap* to the neighbouring
+bridge and the *sinuosity* -- channel distance over straight-line
+distance.  With Weeks at its published position (42.36853, -71.11807) and
+Anderson at its own (42.36890, -71.12320):
+
+| gap | channel | straight | sinuosity |
+|---|---|---|---|
+| BU to River St | 1281 m | 1102 m | 1.16 |
+| River St to Western Ave | 336 m | 333 m | 1.01 |
+| Western Ave to Weeks | 498 m | 489 m | 1.02 |
+| Weeks to Anderson | 426 m | 423 m | 1.01 |
+| Anderson to Eliot | 1268 m | 852 m | 1.49 |
+
+Every value physical, and 1.49 is the big northward loop.  Both checks
+are now tests.
+
+### The race does not start at the BU Bridge
+
+It starts off the front of BU's DeWolfe Boathouse, at the foot of the
+bridge and 163 m below it.  With the start there and the official 4828 m
+run up the channel, the course marks fall out:
+
+| mark | from the start |
+|---|---|
+| BU Bridge | 163 m |
+| River Street | 1444 m |
+| Western Avenue | 1781 m |
+| Weeks Footbridge | 2278 m |
+| Anderson Memorial | 2704 m |
+| Eliot Bridge | 3972 m |
+| finish | 4828 m (856 m above Eliot) |
+
+### What the charts show about the water
+
+* **Depth** on the centreline runs 2.15-5.61 m, median 3.17, never under
+  2 m.  The deep water wanders across the channel rather than following
+  the centreline, and there is a scour hole at Eliot.
+* **Navigable width** 50-162 m, median 88.  It narrows steadily above
+  Anderson, and the tightest 50 m is between Anderson and Eliot -- the
+  same stretch where §33's receding-horizon solve kept failing.
+* **Current**, resolved across the width by the conveyance distribution
+  rather than as a section mean, runs 2.5-26 mm/s, and **varies up to
+  4.4x across a single cross-section**.  The thread follows the deep
+  channel.  At October median discharge the reach is effectively slack:
+  even the fastest thread is 26 mm/s against a boat doing 5 m/s, so line
+  choice on the Charles is about distance and clearance, not about
+  finding the current.  In flood it would not be.
