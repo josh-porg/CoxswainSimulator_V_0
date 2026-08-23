@@ -8,7 +8,7 @@ lands where the river is.  That is not hypothetical: plotting the landmarks
 is what turned up three bridges with wrong coordinates, and a fourth that
 was 370 m out along the channel while still sitting only 6 m off it.
 
-Four charts, each answering a different question:
+Five charts, each answering a different question:
 
 ``course_map``
     Where the course goes, over the bathymetry, with the bridges, their
@@ -23,6 +23,11 @@ Four charts, each answering a different question:
 ``arch_chart``
     Every bridge's arches to scale, with the legal ones marked and an
     eight drawn against them for comparison.
+``span_map``
+    The navigable spans drawn on the water, one panel per bridge, each
+    rotated so the boat runs up the page.  The course map has to draw
+    4.8 km, at which scale a 20 m arch is a hairline; this is the one to
+    look at to see an opening against the river it sits in.
 
 Matplotlib is imported lazily inside each function, so importing this
 module costs nothing if you are not drawing.
@@ -39,14 +44,16 @@ from . import bridges as _bridges
 from . import charles as _charles
 
 __all__ = ["course_map", "current_map", "course_profiles", "arch_chart",
-           "write_all", "CourseGeometry", "CHART_FILENAMES"]
+           "span_map", "write_all", "CourseGeometry", "BUILDERS",
+           "CHART_FILENAMES"]
 
 
 #: What :func:`write_all` writes, in the order it writes them.
 CHART_FILENAMES = ("charles_course_bathymetry.png",
                    "charles_course_current.png",
                    "charles_course_profiles.png",
-                   "charles_bridge_arches.png")
+                   "charles_bridge_arches.png",
+                   "charles_navigable_spans.png")
 
 _WATER = ["#d9edf5", "#a9d6e8", "#6fb4d4", "#3d8cb8", "#22608f", "#123a5c"]
 _FLOW = ["#eef3f5", "#cfe3d8", "#a8d3a0", "#e3d270", "#e09a4a", "#b0472c"]
@@ -77,8 +84,8 @@ class CourseGeometry(object):
     """Everything the charts share, worked out once.
 
     Building the channel raster and the bridge gates is the expensive part
-    of drawing any of these, and all four want the same ones, so they are
-    gathered here and passed around rather than rebuilt per chart.
+    of drawing any of these, and every chart wants the same ones, so they
+    are gathered here and passed around rather than rebuilt per chart.
     """
 
     def __init__(self, channel=None, month: int = 10):
@@ -461,9 +468,171 @@ def arch_chart(geometry=None, path: Optional[str] = None):
     return _save(fig, path, CHART_FILENAMES[3])
 
 
+def span_map(geometry=None, path: Optional[str] = None, half: float = 110.0,
+             samples: int = 260):
+    """The navigable spans, drawn on the river, one panel per bridge.
+
+    The whole-course map has to draw 4.8 km, at which scale a 20 m arch is
+    a hairline and the thing that decides the race is invisible.  This
+    draws each crossing at about 200 m across instead, over the real
+    bathymetry, so the opening can be seen against the water it sits in.
+
+    Every panel is rotated so the boat runs **up** the page.  That puts
+    Cambridge on the right in each one, matching both the starboard hand
+    in the boat and the arch chart, and it means the panels can be read
+    against each other even though the river faces a different way at
+    each bridge.
+
+    The direction of travel is taken from the gate's own normal, signed by
+    where the course goes next, rather than from the channel tangent: the
+    tangent is unreliable at Eliot for the same reason it cannot tell the
+    banks apart there.
+    """
+    plt = _style()
+    from matplotlib.colors import Normalize
+    from matplotlib.lines import Line2D
+    from matplotlib.patches import Rectangle
+
+    geometry = CourseGeometry() if geometry is None else geometry
+    channel = geometry.channel
+    marks = geometry.gates_on_course()
+
+    columns = 4
+    rows = int(np.ceil(len(marks) / float(columns)))
+    fig, axes = plt.subplots(rows, columns, figsize=(15.0, 5.0 * rows),
+                             gridspec_kw={"hspace": 0.30, "wspace": 0.16})
+    axes = np.atleast_1d(axes).ravel()
+
+    grid = np.linspace(-half, half, samples)
+    across, along = np.meshgrid(grid, grid)
+
+    for panel, (gate, metres) in enumerate(marks):
+        ax = axes[panel]
+        middle = 0.5 * (gate.start + gate.end)
+        starboard = gate.direction                 # Boston -> Cambridge
+        ahead = _course_heading(geometry, gate, metres)
+        # Right-handed panel frame: +x to starboard, +y up the course.
+        world = (middle[None, None, :]
+                 + across[..., None] * starboard[None, None, :]
+                 + along[..., None] * ahead[None, None, :])
+        depth = _sample_depth(channel, world[..., 0], world[..., 1])
+        navigable = _sample_navigable(channel, world[..., 0], world[..., 1])
+
+        ax.imshow(depth, origin="lower", extent=[-half, half, -half, half],
+                  cmap=_cmap("water", _WATER), norm=Normalize(0.0, 6.0),
+                  interpolation="bilinear", zorder=1)
+        ax.contour(grid, grid, navigable.astype(float), levels=[0.5],
+                   colors=[_GOLD], linewidths=1.0, zorder=3)
+
+        racing = _bridges.racing_arch(gate, channel)
+        low, high = _bridges.waterway(gate, channel)
+        offset = gate.station_of(middle)
+        ax.plot([low - offset, high - offset], [0.0, 0.0], color=_INK,
+                lw=1.0, alpha=0.35, zorder=4)
+        for arch in _bridges.bridge_arches(gate, channel):
+            a, b = arch.interval
+            is_racing = racing is not None and arch.index == racing.index
+            colour = (_GREEN if is_racing
+                      else (_ACCENT if arch.legal else _WARN))
+            ax.plot([a - offset, b - offset], [0.0, 0.0], color=colour,
+                    lw=6.0 if is_racing else 3.5, solid_capstyle="butt",
+                    zorder=6)
+            # Six arches at the trestle are narrower than their own labels,
+            # so the labels are stepped to keep them apart.
+            ax.annotate("%.1f" % arch.width,
+                        (0.5 * (a + b) - offset,
+                         9.0 + 11.0 * (arch.index % 2)),
+                        ha="center", fontsize=7.5, color=colour, zorder=8,
+                        bbox=dict(boxstyle="round,pad=0.12", fc="white",
+                                  ec="none", alpha=0.7))
+            if is_racing:
+                boat = _bridges.EIGHT_ROWED_WIDTH
+                ax.add_patch(Rectangle(
+                    (0.5 * (a + b) - offset - 0.5 * boat, -half), boat,
+                    2 * half, facecolor=_GREEN, alpha=0.13,
+                    edgecolor="none", zorder=5))
+        for pier in gate.piers:
+            a, b = pier.interval
+            ax.add_patch(Rectangle((a - offset, -9.0), b - a, 18.0,
+                                   facecolor=_INK, edgecolor="none", zorder=6))
+
+        ax.set_xlim(-half, half)
+        ax.set_ylim(-half, half)
+        ax.set_aspect("equal")
+        ax.set_title("%s\n%.0f m from the start" % (gate.name, metres),
+                     fontsize=9.5, loc="left", pad=6)
+        ax.set_xticks([-100, -50, 0, 50, 100])
+        ax.set_yticks([])
+        if panel // columns == rows - 1:
+            ax.set_xlabel("metres across the opening", fontsize=8)
+        ax.tick_params(labelsize=7)
+        ax.annotate("", xy=(-half + 18, -half + 44),
+                    xytext=(-half + 18, -half + 14),
+                    arrowprops=dict(arrowstyle="-|>", color=_INK, lw=1.2))
+        ax.annotate("row", (-half + 22, -half + 26), fontsize=7,
+                    color=_INK, va="center")
+
+    for spare in range(len(marks), len(axes)):
+        axes[spare].axis("off")
+
+    handles = [
+        Line2D([], [], color=_GREEN, lw=5, label="racing arch"),
+        Line2D([], [], color=_ACCENT, lw=4, label="legal alternative"),
+        Line2D([], [], color=_WARN, lw=4, label="60 s penalty"),
+        Line2D([], [], color=_INK, lw=5, label="pier"),
+        Line2D([], [], color=_GOLD, lw=1.2, label="navigable edge"),
+    ]
+    if len(marks) < len(axes):
+        # Put the key in the empty panel rather than over a bridge.
+        axes[len(marks)].legend(handles=handles, loc="center", fontsize=9,
+                                frameon=False)
+    else:
+        axes[-1].legend(handles=handles, loc="lower right", fontsize=7,
+                        framealpha=0.95, edgecolor=_RULE)
+
+    fig.suptitle("Head of the Charles — the navigable spans on the river\n"
+                 "each panel %.0f m across, rotated so the boat runs up the "
+                 "page and Cambridge lies to starboard; numbers are clear "
+                 "widths in metres" % (2 * half),
+                 x=0.008, ha="left", fontsize=12, y=0.985)
+    return _save(fig, path, CHART_FILENAMES[4])
+
+
+def _course_heading(geometry, gate, metres) -> np.ndarray:
+    """Unit vector along the course through ``gate``, in the racing sense."""
+    ahead = geometry.line[geometry.index_at(min(metres + 120.0,
+                                                geometry.length))]
+    behind = geometry.line[geometry.index_at(max(metres - 120.0, 0.0))]
+    forward = ahead - behind
+    normal = gate.normal
+    if float(np.dot(forward, normal)) < 0.0:
+        normal = -normal
+    return normal / max(np.linalg.norm(normal), 1e-9)
+
+
+def _grid_index(axis, values):
+    step = float(axis[1] - axis[0])
+    index = np.round((values - float(axis[0])) / step).astype(int)
+    return np.clip(index, 0, len(axis) - 1)
+
+
+def _sample_depth(channel, east, north):
+    depth = channel.depth[_grid_index(channel.north, north),
+                          _grid_index(channel.east, east)].astype(float)
+    wet = channel.water[_grid_index(channel.north, north),
+                        _grid_index(channel.east, east)]
+    return np.where(wet, depth, np.nan)
+
+
+def _sample_navigable(channel, east, north):
+    return channel.navigable[_grid_index(channel.north, north),
+                             _grid_index(channel.east, east)]
+
+
 #: Chart name to builder, for :func:`write_all` and the command line.
 BUILDERS = {"bathymetry": course_map, "current": current_map,
-            "profiles": course_profiles, "arches": arch_chart}
+            "profiles": course_profiles, "arches": arch_chart,
+            "spans": span_map}
 
 
 def write_all(directory: str = ".", month: int = 10,
