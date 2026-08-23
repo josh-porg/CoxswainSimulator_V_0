@@ -222,3 +222,36 @@ the trunk as one rigid link.
   against Vicon
 - drive fraction: Telfer, confirmed independently by their catch-at-57%
 - blade efficiency: 0.828 in Kleshnev's band with **no fitted parameter**
+
+---
+
+## Resolution (SOURCES §57)
+
+**The catch-aligned hull *acceleration* profile (`hull_profile.npz`) is
+NOT USABLE.** The pipeline is clean, but model-free inversion shows the
+profile implies +350 N of external force with the blades out of the
+water, and the DGPS velocity waveform contradicts its phase structure.
+Conclusions formerly drawn from it (§43 phase inversion, §55 wrong
+distribution, §56 missing unsteady term) are withdrawn.
+
+**The DGPS velocity waveform (`hull_vel_profile.npz`, 37 cycles) is the
+shape target.** Textbook curve — minimum after the catch, rising through
+the drive, maximum at the finish. The model matches it at **r = 0.92**
+(0.95 with club-plausible inputs).
+
+**Amplitude is conditional on one input.** Per-stroke DGPS IVV of 37.3%
+is noise-inflated; the true value is ≈33.5%. The model with
+static-erg-validated crew kinematics predicts ≈51% — the erg-scale
+answer, because the crew input is erg-scale. The measured hull implies
+this club crew's relative CoM velocity swing was 0.65–0.75 of the erg
+value (gentler travel *and* smoother waveform), consistent with the
+documented static-erg-versus-water difference and light paddling. That
+swing is now the **only unmeasured quantity in the fluctuation chain**;
+the synchronised crew+hull measurement in `DATA_REQUESTS.md` pins it.
+
+Validation table updates: crew CoM travel **PASSES** (0.760 vs 0.727
+measured by Vicon markers; the old "~0.65 implied" target was an
+inference through the corrupted profile and is withdrawn). Velocity
+waveform shape **PASSES** (r = 0.92). IVV becomes a conditional check —
+the model must land in the erg band (45–56%) when given erg inputs.
+`scripts/validate.py`: **18 of 18 checks pass.**

@@ -168,3 +168,39 @@ def test_double_scull_exists_for_like_for_like_validation():
     one = sum(float(np.sum(c.rower.segment_masses)) for c in single.crew)
     assert (crew / (crew + boat.hull_mass)) == pytest.approx(
         one / (one + single.hull_mass), abs=0.02)
+
+
+def test_hull_velocity_waveform_matches_the_dgps_shape():
+    """SOURCES sec. 57: the model's within-stroke velocity waveform is
+    validated against the DGPS profile (37 catch-aligned cycles) at
+    r = 0.92.  The waveform is textbook: minimum after the catch, rising
+    through the drive, maximum near the finish, drag-rate decay through
+    the recovery.  Guard the qualitative structure so it cannot silently
+    regress; the full quantitative check lives in scripts/validate.py.
+    """
+    from coxswain.sim.simulator import RowingSimulator
+
+    boat = catalog.double_scull(rate=24.0)
+    period = boat.timing.period
+    res = RowingSimulator(boat).run(duration=9 * period, dt=0.005,
+                                    surge_speed=3.8)
+    t = res.time
+    v = np.asarray(res.speed, float)
+    keep = t >= 7 * period
+    phase = ((t[keep] - t[keep][0]) % period) / period
+    bins = np.linspace(0.0, 1.0, 49)
+    prof = np.array([v[keep][(phase >= bins[i]) & (phase < bins[i + 1])].mean()
+                     for i in range(48)])
+    prof = np.roll(prof - prof.mean(), -int(np.argmin(prof)))
+    u = (np.arange(48) + 0.5) / 48
+    drive = boat.timing.drive_fraction
+
+    # minimum at the catch (by construction of the alignment), and the
+    # maximum must fall in the last third of the drive or early recovery
+    # -- NOT deep in the recovery, which is what the corrupted
+    # accelerometer profile claimed
+    peak = u[np.argmax(prof)]
+    assert 0.25 <= peak <= drive + 0.15
+    # velocity must RISE through the mid-drive
+    mid = (u > 0.15) & (u < drive - 0.05)
+    assert np.all(np.diff(prof[mid]) > -0.02)
