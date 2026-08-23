@@ -400,8 +400,12 @@ def arch_chart(geometry=None, path: Optional[str] = None):
     boat = _bridges.EIGHT_ROWED_WIDTH
 
     fig, ax = plt.subplots(figsize=(13.0, 7.5))
+    # Drawn as the coxswain meets them: first bridge at the bottom, the
+    # boat running up the page, so Cambridge falls on the right of the
+    # chart exactly as it falls to starboard in the boat.  Ordering these
+    # the other way would put the starboard bank on the left of the page.
     for row, (gate, metres) in enumerate(marks):
-        y = len(marks) - row
+        y = row + 1
         low, high = _bridges.waterway(gate, channel)
         middle = 0.5 * (low + high)
         racing = _bridges.racing_arch(gate, channel)
@@ -438,10 +442,13 @@ def arch_chart(geometry=None, path: Optional[str] = None):
     ax.set_ylim(0.3, len(marks) + 0.9)
     ax.set_yticks([])
     ax.set_xlabel("metres from the middle of the opening   "
-                  "(Boston shore left, Cambridge shore right)")
+                  "(port / Boston shore left, starboard / Cambridge shore "
+                  "right)")
     ax.set_title("Head of the Charles — the arches, to scale\n"
-                 "dark blocks are piers; the green bar is a rowed eight "
-                 "(%.2f m blade tip to blade tip)" % boat, loc="left", pad=12)
+                 "as the coxswain meets them: first bridge at the bottom, "
+                 "Cambridge to starboard. Dark blocks are piers; the green "
+                 "bar is a rowed eight (%.2f m tip to tip)" % boat,
+                 loc="left", pad=12)
     for side in ("left", "right", "top"):
         ax.spines[side].set_visible(False)
     ax.legend(handles=[

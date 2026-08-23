@@ -149,3 +149,129 @@ def test_real_bridges_have_a_navigable_opening(gates):
 def test_deck_endpoints_are_distinct():
     for name, (first, second) in OSM_BRIDGE_DECKS.items():
         assert first != second, name
+
+
+# --------------------------------------------------------------------------
+# arches: the spans, the piers, and which of them the rules allow
+# --------------------------------------------------------------------------
+@pytest.fixture(scope="module")
+def channel():
+    from coxswain.river.charles import charles_channel
+    return charles_channel()
+
+
+@pytest.fixture(scope="module")
+def rigged(channel):
+    return build_gates(channel=channel)
+
+
+def test_every_gate_runs_from_the_boston_bank_to_the_cambridge_bank(rigged):
+    """Arch numbering only means something if every gate is oriented the
+    same way, so ``start`` must be Boston and ``end`` Cambridge at all
+    seven bridges.  Six of the seven cross the river roughly south to
+    north; Western Avenue crosses west to east.  Either way the Cambridge
+    end must be the further one along north-plus-east."""
+    for gate in rigged:
+        delta = gate.end - gate.start
+        assert delta[0] + delta[1] > 0.0, gate.name
+
+
+def test_the_boston_arch_is_never_legal(rigged, channel):
+    """The regatta puts the left arch of every bridge out of bounds."""
+    from coxswain.river.bridges import bridge_arches
+    for gate in rigged:
+        arches = bridge_arches(gate, channel)
+        if arches:
+            assert not arches[0].legal, gate.name
+
+
+def test_every_bridge_leaves_a_legal_way_through(rigged, channel):
+    """A course a crew cannot legally complete would be a modelling bug."""
+    from coxswain.river.bridges import EIGHT_ROWED_WIDTH, candidate_arches
+    for gate in rigged:
+        legal = candidate_arches(gate, channel)
+        assert legal, gate.name
+        assert max(a.width for a in legal) > EIGHT_ROWED_WIDTH, gate.name
+
+
+def test_the_cambridge_arch_is_open_on_the_powerhouse_stretch(rigged, channel):
+    """River Street, Western Avenue and Weeks carry no penalty for the
+    Cambridge arch, so both it and the centre must survive as candidates.
+
+    This is the test that stops a legal line being quietly discarded.  At
+    two of the three the Cambridge arch is the *wider* opening, so which
+    of them is quicker is a question for the trajectory solver, and it can
+    only answer it if both are still on the table.
+    """
+    from coxswain.river.bridges import candidate_arches
+    by_name = {gate.name: gate for gate in rigged}
+    for name in ("River Street", "Western Avenue", "Weeks Footbridge"):
+        gate = by_name[name]
+        legal = candidate_arches(gate, channel)
+        assert len(legal) == 2, name
+        assert legal[-1].label == "Cambridge shore", name
+
+
+def test_anderson_and_eliot_are_centre_arch_only(rigged, channel):
+    """Both bar the Cambridge arch as well as the Boston one."""
+    from coxswain.river.bridges import candidate_arches
+    by_name = {gate.name: gate for gate in rigged}
+    for name in ("Larz Anderson", "Eliot Bridge"):
+        legal = candidate_arches(by_name[name], channel)
+        assert len(legal) == 1, name
+        assert legal[0].label == "centre", name
+
+
+def test_eliot_opening_matches_its_published_navigation_clearance(rigged,
+                                                                  channel):
+    """An independent check on the whole pier construction.
+
+    The centre opening here is derived: span length from one National
+    Bridge Inventory column, pier thickness measured off the trestle a
+    mile downstream.  The navigation clearance is a different column
+    entirely.  They agree to within a metre, which they need not have.
+    """
+    from coxswain.river.bridges import BRIDGE_STRUCTURE, racing_arch
+    gate = {g.name: g for g in rigged}["Eliot Bridge"]
+    arch = racing_arch(gate, channel)
+    published = BRIDGE_STRUCTURE["Eliot Bridge"].permitted_width
+    assert abs(arch.width - published) < 1.0
+
+
+def test_an_opening_never_exceeds_the_bridge_that_spans_it(rigged, channel):
+    """The depth raster will report water where an abutment stands, which
+    at River Street invented a 26 m shore arch out of a wing wall."""
+    from coxswain.river.bridges import BRIDGE_STRUCTURE, waterway
+    for gate in rigged:
+        length = BRIDGE_STRUCTURE[gate.name].structure_length
+        if length is None:
+            continue
+        low, high = waterway(gate, channel)
+        assert high - low <= length + 1e-6, gate.name
+
+
+def test_the_trestle_piers_are_the_measured_ones(rigged, channel):
+    """Grand Junction is the one bridge with surveyed piers, five of them,
+    at the roughly 25 m spacing the survey shows."""
+    gate = {g.name: g for g in rigged}["Grand Junction RR"]
+    assert len(gate.piers) == 5
+    spacing = np.diff([pier.centre for pier in gate.piers])
+    assert spacing.min() > 15.0
+    assert spacing.max() < 30.0
+
+
+def test_piers_sit_inside_the_opening_they_divide(rigged, channel):
+    from coxswain.river.bridges import waterway
+    for gate in rigged:
+        low, high = waterway(gate, channel)
+        for pier in gate.piers:
+            assert low <= pier.centre <= high, gate.name
+
+
+def test_racing_arch_is_a_default_not_a_restriction(rigged, channel):
+    """``racing_arch`` may only ever name an arch the rules allow."""
+    from coxswain.river.bridges import candidate_arches, racing_arch
+    for gate in rigged:
+        arch = racing_arch(gate, channel)
+        assert arch is not None, gate.name
+        assert arch.index in {a.index for a in candidate_arches(gate, channel)}

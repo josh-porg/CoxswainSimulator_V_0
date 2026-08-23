@@ -59,6 +59,22 @@ __all__ = ["Pier", "BridgeGate", "OSM_BRIDGE_DECKS", "build_gates",
 #: Bridge deck centrelines from OpenStreetMap, as ``(lat, lon)`` endpoints
 #: of the span crossing the river.  Queried from the Overpass API over the
 #: racing reach; see the module docstring for provenance.
+#:
+#: **Ordered (Boston end, Cambridge end)** at every bridge, which is what
+#: makes arch numbering mean the same thing everywhere and lets the
+#: regatta's left/right rules be written down once.
+#:
+#: This ordering is stated rather than inferred, and that is deliberate.
+#: Working it out from the river -- Cambridge is the bank to starboard of a
+#: crew rowing up the course -- is right in principle and fails in practice
+#: at Eliot, because the course turns through the big northward loop there
+#: and the centreline's local heading at the bridge is not the direction of
+#: travel through it.  No choice of baseline fixes that: short baselines
+#: pick up the wiggle, long ones pick up the loop, and the two disagree by
+#: more than ninety degrees.  Latitude alone will not do it either, since
+#: Western Avenue crosses close enough to east-west that its ends differ by
+#: 15 m in latitude and 150 m in longitude.  Which bank is Cambridge is a
+#: fact about the river, so it is recorded as one.
 OSM_BRIDGE_DECKS = {
     "Eliot Bridge": ((42.3714040, -71.1335355), (42.3719846, -71.1322580)),
     # The seven bridges of the race course, in upstream (racing) order,
@@ -71,7 +87,10 @@ OSM_BRIDGE_DECKS = {
                           (42.3530544, -71.1096620)),
     "Larz Anderson": ((42.3686436, -71.1234695), (42.3692860, -71.1229182)),
     "Weeks Footbridge": ((42.3680971, -71.1185501), (42.3688631, -71.1177282)),
-    "Western Avenue": ((42.3642964, -71.1162617), (42.3641615, -71.1181022)),
+    # Listed Boston end first like the rest, which for this one means the
+    # western end: Western Avenue crosses almost east-west, so its banks
+    # are east and west rather than north and south.
+    "Western Avenue": ((42.3641615, -71.1181022), (42.3642964, -71.1162617)),
     "River Street": ((42.3609465, -71.1177158), (42.3614261, -71.1162116)),
 }
 
@@ -227,15 +246,9 @@ def build_gates(origin=None, names=None, channel=None, piers=True):
     """Every bridge on the reach, projected to the local tangent plane.
 
     Gates come back oriented so that ``start`` is the **Boston** shore and
-    ``end`` is the **Cambridge** shore, which is what makes arch numbering
-    mean the same thing at every bridge and lets the regatta's left/right
-    rules be written down once.  Orientation is worked out from the river
-    rather than from the compass: Cambridge is the bank on the starboard
-    hand of a crew rowing the course, and the course runs upstream, so the
-    two ends are told apart by projecting them onto the starboard normal of
-    the channel where the bridge crosses it.  Latitude will not do this --
-    Western Avenue crosses close enough to east-west that its two ends are
-    15 m apart in latitude and 150 m apart in longitude.
+    ``end`` is the **Cambridge** shore, taken from the order the endpoints
+    are listed in :data:`OSM_BRIDGE_DECKS`; see the note there for why that
+    ordering is recorded rather than worked out from the river.
 
     ``channel`` is the raster the piers and openings are read against; it
     defaults to the cached Charles channel.  Pass ``piers=False`` for the
@@ -259,8 +272,6 @@ def build_gates(origin=None, names=None, channel=None, piers=True):
                                           np.array([lon0, lon1]), origin)
         a = np.array([east[0], north[0]])
         b = np.array([east[1], north[1]])
-        if centreline is not None and _is_cambridge_first(a, b, centreline):
-            a, b = b, a
         gate = BridgeGate(name=name, start=a, end=b,
                           structure=BRIDGE_STRUCTURE.get(name),
                           legal_arches=HOCR_ARCH_RULE.get(name, ()))
@@ -281,16 +292,32 @@ def _station_on(point, centreline) -> float:
     return float(step.sum())
 
 
-def _is_cambridge_first(a, b, centreline) -> bool:
-    """Does ``a`` lie on the Cambridge bank rather than ``b``?
+#: Baseline for the river tangent used to tell the two banks apart, metres.
+#:
+#: A tangent taken over a couple of centreline points is far too short at
+#: Eliot: the course turns through the big northward loop there, and a
+#: short baseline picks up the curve instead of the direction of travel,
+#: which put Eliot's Cambridge end on the Boston bank while the other six
+#: bridges came out right.  Fifty metres is long against the bend and
+#: short against the reach.
+_TANGENT_BASELINE = 50.0
 
-    The course runs upstream, which is the direction of *decreasing*
-    station on this centreline, and Cambridge is to starboard of it.
+
+def starboard_end_is_first(a, b, centreline) -> bool:
+    """Is ``a`` the end to starboard of a crew rowing up the course?
+
+    Kept as a **cross-check on** :data:`OSM_BRIDGE_DECKS`, not as the way
+    the gates are built.  Cambridge is the starboard bank, so this should
+    agree with the recorded ordering at every bridge where the river runs
+    straight enough through the crossing for a local tangent to mean
+    anything -- which is all of them except Eliot.
     """
     middle = 0.5 * (a + b)
     index = int(np.argmin(np.linalg.norm(centreline - middle, axis=1)))
-    lo = max(index - 2, 0)
-    hi = min(index + 2, len(centreline) - 1)
+    step = np.linalg.norm(np.diff(centreline, axis=0), axis=1).mean()
+    reach = max(int(round(_TANGENT_BASELINE / max(step, 1e-6))), 2)
+    lo = max(index - reach, 0)
+    hi = min(index + reach, len(centreline) - 1)
     downstream = centreline[hi] - centreline[lo]
     upstream = -downstream / max(np.linalg.norm(downstream), 1e-9)
     starboard = np.array([upstream[1], -upstream[0]])
