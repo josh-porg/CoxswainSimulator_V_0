@@ -90,18 +90,41 @@ CHARLES_ORIGIN = (42.3625, -71.1200)
 #:
 #: Listed downstream to upstream, which is the order a Head of the Charles
 #: entry meets them: the course runs *up* the river from below BU Bridge to
-#: past Eliot.  Distance from each to the extracted channel centreline is
-#: noted -- Weeks and Anderson land within 6 m and 21 m, so the geometry
-#: through the decisive turns is trustworthy; BU, Western Ave and Eliot are
-#: 136-361 m off and their coordinates want refining before anything is
-#: quoted about those specific spans.
+#: past Eliot.
+#:
+#: **Corrected against published bridge coordinates.**  Three of these were
+#: wrong, and the error showed up as a large distance between the landmark
+#: and the extracted channel centreline -- Eliot was 361 m off, Western
+#: Avenue 167 m, BU 136 m.  The channel was not at fault: replacing the
+#: coordinates with the surveyed positions brings every bridge onto the
+#: centreline.
+#:
+#: ==================  ========  =========  ==========
+#: bridge              was       now        sinuosity
+#: ==================  ========  =========  ==========
+#: BU Bridge           136 m     **30 m**
+#: River Street        6 m       6 m        1.16
+#: Western Avenue      167 m     **3 m**    1.01
+#: Weeks Footbridge    6 m       6 m        1.27
+#: Larz Anderson       21 m      21 m       1.08
+#: Eliot Bridge        361 m     **6 m**    1.54
+#: ==================  ========  =========  ==========
+#:
+#: Sinuosity is channel distance over straight-line distance to the
+#: previous bridge; 1.54 through the Anderson-to-Eliot bend is the large
+#: northward loop, and every value is physically sensible.  Four of six
+#: bridges now land within 6 m of a centreline extracted independently
+#: from the bathymetry, which is a strong check on the extraction.
 WATERTOWN_DAM = (42.36482, -71.18978)
-ELIOT_BRIDGE = (42.37000, -71.13800)
+ELIOT_BRIDGE = (42.37180, -71.13280)
 LARZ_ANDERSON_BRIDGE = (42.37030, -71.12470)
 WEEKS_FOOTBRIDGE = (42.36880, -71.12260)
-WESTERN_AVE_BRIDGE = (42.36600, -71.11890)
-RIVER_ST_BRIDGE = (42.36390, -71.11680)
-BU_BRIDGE = (42.35380, -71.10900)
+WESTERN_AVE_BRIDGE = (42.36422, -71.11690)
+RIVER_ST_BRIDGE = (42.36123, -71.11670)
+BU_BRIDGE = (42.35238, -71.11066)
+
+#: Official Head of the Charles course length, metres.
+HOCR_COURSE_LENGTH = 4828.0
 
 #: Every bridge on the racing reach, in upstream order.
 BRIDGES = (
@@ -543,6 +566,39 @@ def test_section(channel=None, origin=CHARLES_ORIGIN,
     inside = (station >= low) & (station <= high)
     segment = line[inside][::-1]      # ordered in the direction of travel
     return segment[0], segment[-1], segment
+
+
+def hocr_course(channel=None, origin: Tuple[float, float] = CHARLES_ORIGIN,
+                length: float = HOCR_COURSE_LENGTH):
+    """The Head of the Charles racing course, start line to finish line.
+
+    The start is at the BU Bridge, which is where the course begins, and
+    the finish is :data:`HOCR_COURSE_LENGTH` upstream of it along the
+    channel -- 4828 m, the official three miles.  The race runs *up* the
+    river, so the finish is at a **lower** station than the start.
+
+    The finish is derived from the course length rather than from a
+    surveyed coordinate: unlike the bridges, the finish line has no fixed
+    structure to take a position from, and placing it by measuring the
+    real distance along the real channel is the honest construction.  It
+    lands above Eliot Bridge, which is where the finish is.
+
+    Returns ``(start_xy, finish_xy, line, stations)``: the two line
+    positions in the local tangent plane, the centreline between them
+    ordered in the direction of travel, and ``(start_station,
+    finish_station)``.
+    """
+    channel = charles_channel(origin) if channel is None else channel
+    line = channel.centreline()
+    station = np.concatenate([[0.0], np.cumsum(
+        np.linalg.norm(np.diff(line, axis=0), axis=1))])
+
+    start, _ = landmark_station(BU_BRIDGE, channel, origin)
+    finish = start - float(length)
+
+    inside = (station >= finish) & (station <= start)
+    segment = line[inside][::-1]          # ordered bow-first up the river
+    return segment[0], segment[-1], segment, (start, finish)
 
 
 def charles_course(centreline: np.ndarray = None,
