@@ -254,7 +254,7 @@ def current_map(geometry=None, path: Optional[str] = None, lateral=True):
     points, speeds = [], []
     for station in np.linspace(0.0, course.length, 220):
         if lateral and hasattr(flow, "lateral_profile"):
-            offsets, local = flow.lateral_profile(float(station))
+            offsets, _depth, local = flow.lateral_profile(float(station))
             offsets = np.asarray(offsets, dtype=float)
             points.append(course.offset_position(
                 np.full(len(offsets), station), offsets))
