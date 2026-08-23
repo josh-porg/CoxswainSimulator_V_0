@@ -255,3 +255,71 @@ inference through the corrupted profile and is withdrawn). Velocity
 waveform shape **PASSES** (r = 0.92). IVV becomes a conditional check —
 the model must land in the erg band (45–56%) when given erg inputs.
 `scripts/validate.py`: **18 of 18 checks pass.**
+
+---
+
+## River furniture: bridges, arches and lanes (SOURCES §59)
+
+Added after the arch model. The classification matters here for the same
+reason it does in the physics: two of these look like the same kind of
+number and are not.
+
+### M — Measured
+
+| item | value | source |
+|---|---|---|
+| `PIER_THICKNESS` | 3.32 m | five OSM `bridge:support=pier` polygons on the Grand Junction trestle, 3.14–3.45 m |
+| `MEASURED_PIERS["Grand Junction RR"]` | 5 pier centres | same survey |
+| `OSM_BRIDGE_DECKS` | deck endpoints | OpenStreetMap, Overpass API |
+
+### L — Literature / official record
+
+| item | source | assumption it carries |
+|---|---|---|
+| span counts, span lengths, structure lengths | FHWA NBI 2024 MA | item 48 is centre-to-centre, not clear opening |
+| `permitted_width` (NBI item 40) | FHWA NBI 2024 MA | **a permitted channel width, not a measured opening** — it exceeds Anderson's own longest span, which is impossible physically. Kept for reference; never used as geometry |
+| `HOCR_ARCH_RULE`, `WRONG_ARCH_PENALTY` | HOCR competitor rules | rules as published for the current running |
+| Weeks: three arches | Simpson Gumpertz & Heger | — |
+| `EIGHT_ROWED_WIDTH` = 6.82 m | derived from the catalog rig | oarlock 0.85 m, oar 3.70 m, inboard 1.14 m |
+
+### D — Derived
+
+| item | how | assumption |
+|---|---|---|
+| pier positions, all bridges but the trestle | centre span laid symmetrically about the middle of the wet opening | **the bridge is symmetric about the channel.** Supported by NBI: Anderson's side spans are 23.6 m against a 23.5 m centre |
+| clear arch widths | span minus one pier thickness, then intersected with water deep enough to row | pier thickness measured on a different bridge |
+| waterway extent | wet crossing, clipped to the structure length | the raster reports water at abutments; River Street needed the clip |
+
+**Cross-check that constrains the whole construction:** Eliot's derived
+centre opening is 30.2 m against NBI's independently recorded 30.5 m
+navigation clearance. Different columns, 1% apart. `test_bridges.py`
+pins it.
+
+### The one number known only by report
+
+| item | value | source |
+|---|---|---|
+| travel lane through the Cambridge Boat Club bend | one boat wide | **local — a competitor who has raced it.** Not published anywhere |
+
+This is not a weaker version of a measurement, it is a different kind of
+fact, and it is the only thing that reveals the constraint. The channel
+there is 50 m wide, which the bathymetry reports accurately and which is
+still misleading, because the bend is double-buoyed and most of that width
+is out of bounds. `traffic.TrafficLane.source` records `rules` or `local`
+on every entry so this never gets mistaken for a survey.
+
+### Known gaps
+
+1. **Buoy lines are not modelled.** The course boundary in the model is the
+   bathymetric navigable edge, which is *wider* than the legal course
+   wherever buoys narrow it. An optimiser will therefore find lines that
+   are out of bounds. Positions are not published and are re-laid annually.
+2. **The travel lane has a width at one place only.** The Boston-side lane
+   from the finish down to Weeks takes width everywhere in that reach, by
+   an unknown amount. `usable_width` subtracts nothing where nothing is
+   known rather than guessing.
+3. **BU Bridge arch permission is uncertain.** The rules bar the right arch
+   at the trestle, Anderson and Eliot, and allow it at "the three remaining
+   bridges" — which leaves four once BU is counted. BU is modelled from the
+   Charles River Rowing Committee pattern instead, which puts upstream
+   traffic through the second arch from the Cambridge shore.

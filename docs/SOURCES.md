@@ -4840,3 +4840,130 @@ run up the channel, the course marks fall out:
   even the fastest thread is 26 mm/s against a boat doing 5 m/s, so line
   choice on the Charles is about distance and clearance, not about
   finding the current.  In flood it would not be.
+
+## 59. The arches: piers, navigable spans, and a federal cross-check
+
+§58 fixed where the bridges are. This locates what is *under* them. Until
+now a bridge was a line across the river, so an optimised trajectory could
+pass through a pier, and the regatta's arch rules — which carry a 60 second
+penalty — were not in the model at all.
+
+### The sources
+
+`bridges.py` had been written with a note saying no source for the arch
+spans had been found, leaving `BridgeGate.piers` empty "for when survey
+data turns up". Two sources turned up.
+
+**FHWA National Bridge Inventory, 2024 Massachusetts file** (2.3 MB,
+`fhwa.dot.gov/bridge/nbi/2024/delimited/MA24.txt`). Item 45 gives the
+number of spans in the main unit, 48 the longest span, 49 the structure
+length, 39/40 the permitted navigation clearances. Bridges were matched by
+position; the coordinates are packed DDMMSSss for latitude and **DDDMMSSss
+for longitude**, and parsing both as eight digits silently returns zero
+matches rather than an error.
+
+**OpenStreetMap, via the Overpass API.** Deck outlines for every bridge,
+and five `bridge:support=pier` polygons. Those five measure 3.14–3.45 m
+thick, mean **3.32 m**, each 18 m long in the flow direction. They are the
+only direct pier survey on the reach.
+
+The Weeks footbridge is in neither inventory, being a footbridge. Its three
+arches are documented by Simpson Gumpertz & Heger, who restored it.
+
+| bridge | spans | longest | NBI nav. width | derived clear centre arch |
+|---|---|---|---|---|
+| River Street | 3 | 22.9 m | 21.3 m | 19.6 m |
+| Western Avenue | 3 | 26.8 m | 25.9 m | 23.5 m |
+| Weeks Footbridge | 3 | — | — | 24.7 m |
+| Anderson Memorial | 3 | 23.5 m | 25.9 m | 20.2 m |
+| Eliot Bridge | 3 | 33.5 m | 30.5 m | **30.2 m** |
+
+### The NBI positions independently confirm §58
+
+The corrections in §58 were made against published bridge coordinates. The
+inventory is a separate federal record, and it lands **River Street 5 m,
+Western Avenue 3 m, Anderson 8 m, Eliot 8 m and BU 27 m** from the
+corrected positions. Two independent sources agreeing to under 10 m is
+much stronger than either alone.
+
+### One number checks the whole construction
+
+The clear opening is derived: span length from one NBI column, pier
+thickness measured off a different bridge a mile downstream. At Eliot that
+gives 33.5 − 3.3 = **30.2 m** against the **30.5 m** navigation clearance
+NBI states in a column that played no part in the calculation. Agreement to
+1%.
+
+Where the two disagree they disagree informatively. NBI gives Anderson and
+Western Avenue the *same* 25.9 m clearance despite different spans, and
+gives Anderson a clearance **wider than its own longest span**, which is
+impossible for a physical opening. Item 40 is a permitted channel width,
+not a measured one. The geometry uses the derived opening and keeps the
+NBI figure alongside it as `permitted_width`.
+
+### The rules are asymmetric, and the model now carries them
+
+The **left (Boston) arch of every bridge is out of bounds**. The **right
+(Cambridge) arch is additionally out of bounds at the BU railroad trestle,
+Anderson and Eliot**. Either is 60 seconds, on top of any buoy penalty.
+Elsewhere the centre is the preferred route and the Cambridge arch is
+available when the centre is congested.
+
+That last point is a modelling constraint, not a footnote. At River Street
+and Western Avenue the Cambridge arch is the **wider** opening — 25.9 m
+against 19.6 m, and 27.0 m against 23.5 m. `candidate_arches` returns every
+arch the rules allow and is what a route search must be given;
+`racing_arch` names the conventional centre line and is for drawing and
+reporting only. Whether the Cambridge line is quicker is a question for the
+trajectory solver, and it can only answer it if both are still on the
+table.
+
+### The Grand Junction trestle was missing entirely
+
+The HOCR rules name the "BU Railroad Trestle Bridge" — the Grand Junction
+railroad bridge, 138 m from the start, 25 m before the BU Bridge. It has
+six openings, and its right arch is a penalty. It is now in the model.
+
+### Two things a local tangent cannot do
+
+Arch numbering only means anything if every gate runs Boston-to-Cambridge.
+Deriving that from the river — Cambridge is the starboard bank of a crew
+rowing up — is right in principle and **fails at Eliot**, where the course
+turns through the northward loop and the channel's local heading is not the
+direction of travel. No baseline fixes it: short ones pick up a wiggle,
+long ones pick up the loop, and they disagree by more than ninety degrees.
+Latitude fails too, since Western Avenue crosses nearly east-west with its
+ends 15 m apart in latitude and 150 m in longitude. Which bank is Cambridge
+is a fact about the river, so it is now recorded as one in
+`OSM_BRIDGE_DECKS` rather than inferred.
+
+The second: the depth raster reports water where an **abutment** stands. At
+River Street the wet crossing came out 78 m against a 64 m bridge, turning
+each wing wall into a phantom 26 m shore arch. Openings are now clipped to
+the structure length.
+
+### The traffic pattern
+
+Widths are **not published anywhere** — not in the regatta rules, not in
+the Charles River Rowing Committee pattern. Buoys are laid annually and
+are not surveyed. What is published is the pattern: orange buoys to port,
+intermittent green to starboard, returning crews down the Boston side from
+the finish to just below Weeks, and double-buoyed orange-and-white reaches
+at the Weeks turn and the Cambridge Boat Club bend with the water between
+the lines out of bounds.
+
+One width is known from local report rather than publication: **the travel
+lane through the Cambridge Boat Club bend is one boat wide.** That reach is
+also where the channel is narrowest on the whole course, 50 m at 3372 m
+from the start. The two facts together are the point — 50 m of water sounds
+ample and is not, because the bend is double-buoyed and most of that width
+is out of bounds. No depth survey would ever reveal that, which is why
+`traffic.py` marks the source of every width as `rules` or `local`.
+
+### Incidental confirmation of the start
+
+The Charles River Rowing Committee's pattern states that the Head of the
+Charles course "begins at the downstream corner of the BU balcony" and that
+crews line up at least 50 m below the boathouse. §58 had moved the start to
+the DeWolfe Boathouse from published regatta material; this is a second,
+independent source saying the same thing.
