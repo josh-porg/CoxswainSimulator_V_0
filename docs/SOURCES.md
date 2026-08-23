@@ -3992,3 +3992,80 @@ drive** -- where the handle is relative to the body, sampled through the
 stroke.  With that, `DEFAULT_ARM_POSTURE` becomes a measurement, the
 inversion becomes testable, and the phase question of §43 can be
 addressed rather than guessed at.
+
+## 48. Sculling boats were rowing a sweep arc
+
+### How it surfaced
+
+§47 established that the inverted chain fails on `DEFAULT_ARM_POSTURE`,
+the never-measured arm table.  Rather than ask for that measurement, it
+can be **extracted**: the constrained rower's hands lie on the handle by
+construction, so its arm configuration through the drive is exactly the
+posture the rig implies.
+
+Measured off the 2x:
+
+| % of drive | extension | prescribed table |
+|---|---|---|
+| **0 (catch)** | **0.562** | 0.970 |
+| 25 | 0.742 | -- |
+| 38 | 0.795 | -- |
+| 50 | 0.752 | 0.960 |
+| 100 (finish) | 0.370 | 0.460 |
+
+**Arm extension of 0.56 at the catch means the arms are 44% bent.**  A
+rower at the catch has straight arms; it is the first thing anyone is
+taught.  Worse, the extension then *rises* to 0.795 by mid-drive -- the
+arms straightening as the legs go down, which nobody does.
+
+The arms had been acting as a silent slack variable, bending to absorb a
+geometric inconsistency between the body, the rig and the oar arc.
+
+### The bug
+
+`OarAngleSweep` defaults to catch 55 deg, finish -35 deg: a **90 degree
+arc**.  The catalogue never overrode it, so every boat used it.  But
+sweep and sculling arcs are not the same thing:
+
+| rig | catch | finish | total |
+|---|---|---|---|
+| sweep | 53-58 deg | 32-35 | 87-90 |
+| **sculling** | **60-66** | **42-50** | **104-110** |
+
+A sculler holds two handles and swings them through a far wider arc than
+a sweep athlete swings one.  The 1x and 2x carry `SCULLING_OAR` and were
+rowing a sweep arc, so the handle never reached far enough at the catch
+and the arms bent to make up the difference.
+
+**§45 had already found the right number without knowing it.**  Releasing
+the arms and letting the oar follow the hands produced a 110 degree arc,
+which was read as evidence the free arms were wrong.  They were right;
+the prescribed sweep was wrong.
+
+### The fix
+
+`SWEEP_ARC` (56 / -34) and `SCULLING_ARC` (65 / -45) in the catalogue,
+assigned by rig type.  Arm extension through the 2x drive becomes:
+
+| % of drive | before | after |
+|---|---|---|
+| 0 | 0.562 | **0.736** |
+| 25 | 0.742 | **0.933** |
+| 75 | 0.487 | 0.575 |
+| 100 | 0.370 | 0.479 |
+
+The shape is now right -- long through the leg drive, drawing to the
+finish -- where before it was inverted.  Residual bend at the catch
+(0.736 against a straight-armed 0.95) says something else is still short
+by a few centimetres: the rig span, the inboard, or how far the body
+reaches at the catch.
+
+### What it does and does not fix
+
+2x speed 3.762 -> 3.665 m/s against a measured 3.82, and IVV 56.0% ->
+58.4%.  **The fluctuation is not fixed.**  This is a geometry correction,
+made because it is right, and it does not close §43's phase gap.
+
+It does remove a confound that had been sitting under every experiment in
+§39-47: those were all run on a sculling boat whose oar arc was 18% too
+narrow and whose rower's arms were bent at the catch.

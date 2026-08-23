@@ -258,3 +258,55 @@ def test_an_outboard_oarlock_yaws_the_boat():
     _, moment = hull_load(applied, np.array([0.0, 0.85, 0.38]), np.zeros(3),
                           0.31)
     assert abs(moment[2]) > 0.0
+
+
+def test_sculling_and_sweep_use_different_arcs():
+    """A sculler swings two handles through a much wider arc than a sweep
+    athlete swings one, and the catalogue used to give both the same.
+
+    Literature: sweep catch 53-58 / finish 32-35, total 87-90 deg;
+    sculling catch 60-66 / finish 42-50, total 104-110 deg.  The default
+    `OarAngleSweep` is the sweep arc, and nothing overrode it, so 1x and
+    2x rowed a sweep arc.  Symptom: arm extension at the catch came out
+    at 0.56 of arm length, where a rower at the catch has straight arms.
+    See SOURCES sec. 48.
+    """
+    from coxswain.boats import catalog
+
+    for factory in (catalog.single_scull, catalog.double_scull):
+        sweep = factory().oar_sweep
+        arc = np.degrees(sweep.catch_angle - sweep.finish_angle)
+        assert 104.0 <= arc <= 112.0
+        assert 60.0 <= np.degrees(sweep.catch_angle) <= 66.0
+
+    for factory in (catalog.eight, catalog.coxed_four):
+        sweep = factory().oar_sweep
+        arc = np.degrees(sweep.catch_angle - sweep.finish_angle)
+        assert 86.0 <= arc <= 92.0
+        assert 52.0 <= np.degrees(sweep.catch_angle) <= 58.0
+
+
+def test_arms_are_long_through_the_leg_drive():
+    """Arms stay long while the legs work, then draw.
+
+    With the sweep arc wrong the model had them 44% bent at the catch and
+    *extending* into mid-drive, which is not how anyone rows.
+    """
+    from coxswain.boats import catalog
+
+    boat = catalog.double_scull(rate=24.0)
+    rower = boat.crew[0].rower
+    period = rower.timing.period
+    drive = rower.timing.drive_fraction
+    arm = rower.upper_arm_length + rower.forearm_length
+
+    def extension(fraction):
+        joints = rower.joint_positions(fraction * drive * period)
+        gap = (np.asarray(joints["hand"], float)
+               - np.asarray(joints["shoulder"], float))
+        return float(np.hypot(gap[0], gap[-1])) / arm
+
+    early = extension(0.25)
+    assert early > 0.85                     # still long while legs drive
+    assert extension(1.0) < 0.6             # drawn in at the finish
+    assert extension(1.0) < early           # and the draw is monotone-ish

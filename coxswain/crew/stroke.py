@@ -202,9 +202,40 @@ class StrokeTiming:
 
     @property
     def drive_duration(self) -> float:
-        """Active-phase duration ``tau_a`` in seconds."""
-        offset = self.rate - 24.0
-        return 0.00015625 * offset ** 2 - 0.008125 * offset + 0.8
+        """Active-phase duration ``tau_a`` in seconds.
+
+        Fitted to Telfer et al. (2023), *The effect of foot-stretcher
+        position and stroke rate on ergometer rowing kinematics*, PLOS
+        ONE 18(5): e0285676, n = 11 collegiate rowers.  They report the
+        catch as a fraction of the stroke cycle at three rates, which
+        gives the drive fraction directly:
+
+        =======  =================  ==============
+        rate     measured fraction  previous model
+        =======  =================  ==============
+        22 spm   0.394              0.300
+        26 spm   0.430              0.340
+        32 spm   0.468              0.397
+        =======  =================  ==============
+
+        **The previous fit made the drive about 25% too short at every
+        rate**, and that matters out of proportion to its size: the crew
+        traverse the same distance in less time, so their acceleration
+        goes as ``1/t^2``, and the hull's speed fluctuation follows crew
+        acceleration.  Lengthening the drive to the measured value takes
+        intracycle velocity variation from 58.4% to 49.2% and mean
+        absolute hull acceleration through the drive from 3.54 to 2.52
+        m/s^2.  See SOURCES sec. 49.
+
+        **Caveat, stated plainly.**  Telfer et al. is ergometer data.
+        On-water drive-to-recovery ratios are not identical to ergometer
+        ones -- the boat runs under the crew during the recovery, which
+        tends to lengthen it -- so the true on-water fraction is probably
+        a little below these values.  The direction and rough magnitude
+        of the correction are well supported; the exact numbers are the
+        best available rather than definitive.
+        """
+        return -0.01966 * self.rate + 1.5057
 
     @property
     def recovery_duration(self) -> float:
