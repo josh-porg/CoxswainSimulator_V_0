@@ -99,29 +99,41 @@ CHARLES_ORIGIN = (42.3625, -71.1200)
 #: coordinates with the surveyed positions brings every bridge onto the
 #: centreline.
 #:
-#: ==================  ========  =========  ==========
-#: bridge              was       now        sinuosity
-#: ==================  ========  =========  ==========
+#: ==================  ========  =========  =========  =========
+#: bridge              was       now        gap        sinuosity
+#: ==================  ========  =========  =========  =========
 #: BU Bridge           136 m     **30 m**
-#: River Street        6 m       6 m        1.16
-#: Western Avenue      167 m     **3 m**    1.01
-#: Weeks Footbridge    6 m       6 m        1.27
-#: Larz Anderson       21 m      21 m       1.08
-#: Eliot Bridge        361 m     **6 m**    1.54
-#: ==================  ========  =========  ==========
+#: River Street        6 m       6 m        1281 m     1.16
+#: Western Avenue      167 m     **3 m**    336 m      1.01
+#: Weeks Footbridge    6 m*      **15 m**   498 m      1.02
+#: Anderson Memorial   21 m      **5 m**    426 m      1.01
+#: Eliot Bridge        361 m     **6 m**    1268 m     1.49
+#: ==================  ========  =========  =========  =========
+#:
+#: \* Weeks was the subtle one.  Its old coordinate sat 6 m from the
+#: centreline, so the offset check passed -- but 370 m too far *upstream*,
+#: almost on top of Anderson, leaving only 259 m between two bridges that
+#: are really 426 m apart.  **A small offset proves a landmark is in the
+#: channel, not that it is at the right place along it**; the gap and
+#: sinuosity columns are what catch a landmark that has slid along the
+#: river.  Both are now checked.
 #:
 #: Sinuosity is channel distance over straight-line distance to the
-#: previous bridge; 1.54 through the Anderson-to-Eliot bend is the large
-#: northward loop, and every value is physically sensible.  Four of six
-#: bridges now land within 6 m of a centreline extracted independently
-#: from the bathymetry, which is a strong check on the extraction.
+#: previous bridge; 1.49 through the Anderson-to-Eliot bend is the large
+#: northward loop and everything else is nearly straight, which is what
+#: the reach looks like.
 WATERTOWN_DAM = (42.36482, -71.18978)
 ELIOT_BRIDGE = (42.37180, -71.13280)
-LARZ_ANDERSON_BRIDGE = (42.37030, -71.12470)
-WEEKS_FOOTBRIDGE = (42.36880, -71.12260)
+LARZ_ANDERSON_BRIDGE = (42.36890, -71.12320)
+WEEKS_FOOTBRIDGE = (42.36853, -71.11807)
 WESTERN_AVE_BRIDGE = (42.36422, -71.11690)
 RIVER_ST_BRIDGE = (42.36123, -71.11670)
 BU_BRIDGE = (42.35238, -71.11066)
+
+#: Boston University's DeWolfe Boathouse, at the foot of the BU Bridge.
+#: The Head of the Charles start line lies just off its front, about 160 m
+#: downstream of the bridge -- the race does **not** start at the bridge.
+DEWOLFE_BOATHOUSE = (42.35420, -71.10850)
 
 #: Official Head of the Charles course length, metres.
 HOCR_COURSE_LENGTH = 4828.0
@@ -132,7 +144,7 @@ BRIDGES = (
     ("River Street", RIVER_ST_BRIDGE),
     ("Western Avenue", WESTERN_AVE_BRIDGE),
     ("Weeks Footbridge", WEEKS_FOOTBRIDGE),
-    ("Larz Anderson", LARZ_ANDERSON_BRIDGE),
+    ("Anderson Memorial", LARZ_ANDERSON_BRIDGE),
     ("Eliot Bridge", ELIOT_BRIDGE),
 )
 
@@ -572,10 +584,12 @@ def hocr_course(channel=None, origin: Tuple[float, float] = CHARLES_ORIGIN,
                 length: float = HOCR_COURSE_LENGTH):
     """The Head of the Charles racing course, start line to finish line.
 
-    The start is at the BU Bridge, which is where the course begins, and
-    the finish is :data:`HOCR_COURSE_LENGTH` upstream of it along the
-    channel -- 4828 m, the official three miles.  The race runs *up* the
-    river, so the finish is at a **lower** station than the start.
+    The start line lies off the front of BU's DeWolfe Boathouse, which
+    sits at the foot of the BU Bridge about 160 m downstream of it -- the
+    race does not start at the bridge.  The finish is
+    :data:`HOCR_COURSE_LENGTH` upstream along the channel, 4828 m, the
+    official three miles.  The race runs *up* the river, so the finish is
+    at a **lower** station than the start.
 
     The finish is derived from the course length rather than from a
     surveyed coordinate: unlike the bridges, the finish line has no fixed
@@ -593,7 +607,7 @@ def hocr_course(channel=None, origin: Tuple[float, float] = CHARLES_ORIGIN,
     station = np.concatenate([[0.0], np.cumsum(
         np.linalg.norm(np.diff(line, axis=0), axis=1))])
 
-    start, _ = landmark_station(BU_BRIDGE, channel, origin)
+    start, _ = landmark_station(DEWOLFE_BOATHOUSE, channel, origin)
     finish = start - float(length)
 
     inside = (station >= finish) & (station <= start)
