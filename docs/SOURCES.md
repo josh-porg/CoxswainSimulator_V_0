@@ -4599,3 +4599,66 @@ exonerated and drag ruled out, the force curve's *placement within the
 cycle* is what is left, and the target is no longer a fitted parameter
 but a measured hull acceleration profile with 162 catch-aligned cycles
 behind it.
+
+## 56. The force curve cannot fix it either
+
+§55 left the force curve's placement within the cycle as the last
+candidate.  Fitted against the 162-cycle catch-aligned hull acceleration
+profile, in a 1-DOF surge model driven by the validated crew kinematics:
+
+| force peak, % of drive | IVV | shape correlation |
+|---|---|---|
+| 25% | **38.5%** | 0.383 |
+| 33% | 41.9% | 0.394 |
+| **40% (Kleshnev, current)** | 44.6% | 0.412 |
+| 67% | 51.0% | 0.417 |
+| 83% | 54.8% | 0.441 |
+
+Two things follow, and they point the same way.
+
+**The number can be hit, but only by breaking a measurement.**  A peak at
+25% of the drive gives 38.5%, essentially the measured 37.3%.  Kleshnev
+measures the peak at 40%.  Buying the fluctuation by moving the force
+peak 15 points away from where it was measured is exactly the trade
+`PROVENANCE.md` exists to prevent: replacing a validated **L** quantity
+with a fitted **F** one to make a different number come out right.
+
+**And it would not even be right.**  The shape correlation against the
+measured acceleration profile is 0.38-0.45 at *every* placement, and the
+best correlation (0.445) belongs to the *worst* fluctuation (54.8%).  No
+placement of this force curve reproduces the measured waveform.  The
+model can be made to match the amplitude or lean toward the shape, but
+not both, which is the signature of a missing term rather than a
+mis-tuned one.
+
+### The state of the search
+
+Every component of the crew is now validated against measurement, and
+every candidate within the force path has been tested:
+
+* crew kinematics -- validated, 4.5% (§53)
+* drag -- correctly computed, too small to matter (§55)
+* crew-hull momentum coupling -- exact, r = 0.9993 (§39)
+* oar lever transmission -- derived, no double count (§42)
+* blade efficiency -- unfitted, in band (§50)
+* propulsion magnitude -- 4.10 predicted vs 3.82 measured (§47)
+* force curve placement -- cannot match amplitude and shape together
+  (this section)
+
+The model reproduces the hull's acceleration **amplitude** (8.05 against
+8.88 measured) while distributing it wrongly through the cycle, and no
+adjustment to the terms it already has fixes the distribution.  The
+measured boat is near equilibrium through the drive and gains its speed
+on the recovery; this model gains its speed on the drive.
+
+That pattern -- right amplitude, wrong distribution, unfixable by any
+existing term -- says a term is **missing**, not mistuned.  The candidate
+that fits the description is an unsteady one: a force that depends on the
+hull's acceleration or on the recent history of its motion rather than on
+its instantaneous velocity.  Day, Campbell, Clelland and Cichowicz
+measured exactly that for a single scull and found acceleration
+measurably affects viscous drag.  This model's resistance is entirely
+quasi-steady.
+
+That is the next thing to test, and it is the first candidate in twenty
+sections that is a *new term* rather than a re-tuning of an existing one.
