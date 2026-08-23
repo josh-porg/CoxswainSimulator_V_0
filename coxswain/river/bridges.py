@@ -13,17 +13,25 @@ from OpenStreetMap, projected to the same local tangent plane as the depth
 survey, so the line a bridge draws across the river is measured rather
 than guessed.
 
-The **pier positions are not surveyed**.  No published source for the arch
-spans of these particular bridges was found.  Rather than invent them, the
-navigable opening is derived from data that does exist: a gate is open
-exactly where the bridge line crosses water deep enough to row, according
-to the same channel raster the rest of the model uses.  That gives a hard
-constraint that is honest about what it knows -- it will keep a boat off
-the abutments and out of the shallows, and it will not pretend to know
-where a mid-river pier stands.
+The **piers are now known too**, which they were not when this module was
+first written.  That earlier version said no published source for the arch
+spans had been found and left :attr:`BridgeGate.piers` empty "for when
+survey data turns up"; it has since turned up, from two directions.  The
+Federal Highway Administration's National Bridge Inventory carries the span
+count and span lengths of every road bridge on the reach, and OpenStreetMap
+carries surveyed pier polygons for the Grand Junction trestle.  See the
+note above :data:`PIER_THICKNESS` for what each source does and does not
+support.
 
-:attr:`BridgeGate.piers` is there for when survey data turns up.  Any
-piers listed are subtracted from the opening.
+The distinction the old text drew is still the right one, it has just
+moved: the trestle's piers are *measured*, everything else's are *derived*
+from measured span lengths under a stated symmetry assumption.  Anything
+that turns out to depend on which of those it is should say so.
+
+The **water is the other half of the constraint**.  An arch is open only
+where it also crosses water deep enough to row, taken from the same
+channel raster as the rest of the model, so shallow shore arches close
+themselves without needing to be listed.
 
 Why a gate and not an obstacle
 ------------------------------
@@ -41,7 +49,11 @@ from typing import Optional, Sequence, Tuple
 
 import numpy as np
 
-__all__ = ["Pier", "BridgeGate", "OSM_BRIDGE_DECKS", "build_gates"]
+__all__ = ["Pier", "BridgeGate", "OSM_BRIDGE_DECKS", "build_gates",
+           "Arch", "BridgeStructure", "BRIDGE_STRUCTURE", "MEASURED_PIERS",
+           "PIER_THICKNESS", "EIGHT_ROWED_WIDTH", "HOCR_ARCH_RULE",
+           "WRONG_ARCH_PENALTY", "waterway", "derive_piers", "bridge_arches",
+           "racing_arch"]
 
 
 #: Bridge deck centrelines from OpenStreetMap, as ``(lat, lon)`` endpoints
@@ -211,12 +223,33 @@ def _subtract(intervals, hole):
     return result
 
 
-def build_gates(origin=None, names=None):
-    """Every bridge on the reach, projected to the local tangent plane."""
-    from .charles import CHARLES_ORIGIN
+def build_gates(origin=None, names=None, channel=None, piers=True):
+    """Every bridge on the reach, projected to the local tangent plane.
+
+    Gates come back oriented so that ``start`` is the **Boston** shore and
+    ``end`` is the **Cambridge** shore, which is what makes arch numbering
+    mean the same thing at every bridge and lets the regatta's left/right
+    rules be written down once.  Orientation is worked out from the river
+    rather than from the compass: Cambridge is the bank on the starboard
+    hand of a crew rowing the course, and the course runs upstream, so the
+    two ends are told apart by projecting them onto the starboard normal of
+    the channel where the bridge crosses it.  Latitude will not do this --
+    Western Avenue crosses close enough to east-west that its two ends are
+    15 m apart in latitude and 150 m apart in longitude.
+
+    ``channel`` is the raster the piers and openings are read against; it
+    defaults to the cached Charles channel.  Pass ``piers=False`` for the
+    bare deck lines with nothing subtracted.
+    """
+    from .charles import CHARLES_ORIGIN, charles_channel
     from .course import local_tangent_plane
 
     origin = CHARLES_ORIGIN if origin is None else origin
+    if channel is None and piers:
+        channel = charles_channel(origin)
+
+    centreline = None if channel is None else channel.centreline()
+
     gates = []
     for name, ends in OSM_BRIDGE_DECKS.items():
         if names is not None and name not in names:
@@ -224,10 +257,44 @@ def build_gates(origin=None, names=None):
         (lat0, lon0), (lat1, lon1) = ends
         east, north = local_tangent_plane(np.array([lat0, lat1]),
                                           np.array([lon0, lon1]), origin)
-        gates.append(BridgeGate(name=name,
-                                start=np.array([east[0], north[0]]),
-                                end=np.array([east[1], north[1]])))
+        a = np.array([east[0], north[0]])
+        b = np.array([east[1], north[1]])
+        if centreline is not None and _is_cambridge_first(a, b, centreline):
+            a, b = b, a
+        gate = BridgeGate(name=name, start=a, end=b,
+                          structure=BRIDGE_STRUCTURE.get(name),
+                          legal_arches=HOCR_ARCH_RULE.get(name, ()))
+        if piers and channel is not None:
+            gate.piers = derive_piers(gate, channel)
+        gates.append(gate)
+
+    if centreline is not None:
+        gates.sort(key=lambda g: -_station_on(0.5 * (g.start + g.end),
+                                              centreline))
     return gates
+
+
+def _station_on(point, centreline) -> float:
+    """Distance along ``centreline`` of the point nearest ``point``."""
+    index = int(np.argmin(np.linalg.norm(centreline - point, axis=1)))
+    step = np.linalg.norm(np.diff(centreline[:index + 1], axis=0), axis=1)
+    return float(step.sum())
+
+
+def _is_cambridge_first(a, b, centreline) -> bool:
+    """Does ``a`` lie on the Cambridge bank rather than ``b``?
+
+    The course runs upstream, which is the direction of *decreasing*
+    station on this centreline, and Cambridge is to starboard of it.
+    """
+    middle = 0.5 * (a + b)
+    index = int(np.argmin(np.linalg.norm(centreline - middle, axis=1)))
+    lo = max(index - 2, 0)
+    hi = min(index + 2, len(centreline) - 1)
+    downstream = centreline[hi] - centreline[lo]
+    upstream = -downstream / max(np.linalg.norm(downstream), 1e-9)
+    starboard = np.array([upstream[1], -upstream[0]])
+    return float(np.dot(a - middle, starboard)) > 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -361,3 +428,125 @@ class Arch:
     def fits(self, boat_width: float = EIGHT_ROWED_WIDTH) -> float:
         """How many boats of ``boat_width`` fit abreast in this arch."""
         return self.width / float(boat_width)
+
+
+def waterway(gate: BridgeGate, raster, min_depth: float = 0.6,
+             samples: int = 400) -> Tuple[float, float]:
+    """The wet part of the span, before any pier is taken out of it.
+
+    This is what the arches have to be laid out inside, so it has to be
+    measured before the piers exist rather than after.
+    """
+    distance = np.linspace(0.0, gate.span, samples)
+    points = gate.point_at(distance)
+    if hasattr(raster, "is_navigable"):
+        wet = np.array([bool(raster.is_navigable(p[0], p[1])) for p in points])
+    else:
+        wet = np.array([float(raster.depth_at(p[0], p[1])) >= min_depth
+                        for p in points])
+    runs = _runs(distance, wet)
+    if not runs:
+        return (0.0, gate.span)
+    return max(runs, key=lambda pair: pair[1] - pair[0])
+
+
+def derive_piers(gate: BridgeGate, raster, min_depth: float = 0.6):
+    """Piers of one bridge, as keep-out intervals along its span.
+
+    Surveyed positions are used where they exist -- only the Grand Junction
+    trestle has them.  Everywhere else the piers are placed from the span
+    lengths in the National Bridge Inventory: the centre span is laid
+    symmetrically about the middle of the wet opening and the piers sit at
+    its ends, one :data:`PIER_THICKNESS` wide.
+
+    That construction assumes the bridge is symmetric about the channel,
+    which is what a three arch bridge over a single channel normally is,
+    and which the near-equal side spans in the inventory support --
+    Anderson's two side spans come out at 23.6 m against a 23.5 m centre.
+    """
+    measured = MEASURED_PIERS.get(gate.name)
+    if measured is not None:
+        from .charles import CHARLES_ORIGIN
+        from .course import local_tangent_plane
+        lats = np.array([p[0] for p in measured])
+        lons = np.array([p[1] for p in measured])
+        east, north = local_tangent_plane(lats, lons, CHARLES_ORIGIN)
+        return tuple(sorted(
+            (Pier(gate.station_of(np.array([e, n])), PIER_THICKNESS)
+             for e, n in zip(east, north)),
+            key=lambda p: p.centre))
+
+    structure = gate.structure or BRIDGE_STRUCTURE.get(gate.name)
+    if structure is None or structure.max_span is None:
+        return ()
+
+    low, high = waterway(gate, raster, min_depth)
+    middle = 0.5 * (low + high)
+    half = 0.5 * float(structure.max_span)
+    return (Pier(middle - half, PIER_THICKNESS),
+            Pier(middle + half, PIER_THICKNESS))
+
+
+def bridge_arches(gate: BridgeGate, raster, min_depth: float = 0.6):
+    """Every opening under ``gate``, numbered from the Boston shore.
+
+    Openings narrower than a rowed eight are dropped: an arch a boat
+    cannot fit through is not an arch as far as this model is concerned,
+    and keeping them would shift the numbering the rules depend on.
+    """
+    intervals = [pair for pair in gate.open_intervals(raster, min_depth)
+                 if pair[1] - pair[0] >= EIGHT_ROWED_WIDTH]
+    if not intervals:
+        return ()
+
+    legal = _resolve_arch_rule(gate.legal_arches or
+                               HOCR_ARCH_RULE.get(gate.name, ()),
+                               intervals)
+    arches = []
+    for i, (low, high) in enumerate(intervals):
+        if i == 0:
+            label = "Boston shore"
+        elif i == len(intervals) - 1:
+            label = "Cambridge shore"
+        else:
+            label = "centre" if len(intervals) == 3 else "arch %d" % (i + 1)
+        arches.append(Arch(index=i, centre=0.5 * (low + high),
+                           width=high - low, legal=i in legal, label=label))
+    return tuple(arches)
+
+
+def _resolve_arch_rule(names, intervals):
+    """Turn rule names into arch indices for the openings actually found.
+
+    ``"centre"`` is resolved as the arch nearest the middle of the whole
+    opening rather than by counting, so it still means something when a
+    bridge has an even number of arches, as the trestle does.
+    """
+    if not intervals:
+        return set()
+    n = len(intervals)
+    middle = 0.5 * (intervals[0][0] + intervals[-1][1])
+    nearest_middle = min(range(n),
+                         key=lambda i: abs(0.5 * (intervals[i][0]
+                                                  + intervals[i][1]) - middle))
+    chosen = set()
+    for name in names:
+        if name == "centre":
+            chosen.add(nearest_middle)
+        elif name == "cambridge":
+            chosen.add(n - 1)
+        elif name == "boston":
+            chosen.add(0)
+        elif name == "second_from_cambridge":
+            chosen.add(max(n - 2, 0))
+        else:
+            raise ValueError("unknown arch rule %r" % (name,))
+    return chosen
+
+
+def racing_arch(gate: BridgeGate, raster, min_depth: float = 0.6):
+    """The arch a racing crew should be pointed at: the widest legal one."""
+    legal = [a for a in bridge_arches(gate, raster, min_depth) if a.legal]
+    if not legal:
+        return None
+    return max(legal, key=lambda a: a.width)
