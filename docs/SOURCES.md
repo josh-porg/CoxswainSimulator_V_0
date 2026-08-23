@@ -4148,3 +4148,454 @@ also the first that has had to be rejected on the strength of *competing*
 measurements rather than on its own failure.  The drive fraction stays
 the leading suspect, and the on-water drive fraction is now a named item
 in `DATA_REQUESTS.md`.
+
+## 50. Ground truth at last, and a rejection reversed
+
+Three things happened here, and the first caused the second.
+
+### The §49 rejection was circular
+
+§49 rejected Telfer's drive fraction partly because force-weighted blade
+efficiency rose to 0.91, outside Kleshnev's measured 0.80-0.85.  That
+test uses `OarAngleSweep(flatness=0.30)` -- and **0.30 is a fitted
+value**, chosen to put efficiency inside that band *under the old drive
+duration*.  Rejecting a change to the drive using a parameter fitted to
+the old drive is circular.
+
+Read without the fitted patch:
+
+| flatness | old drive | Telfer drive |
+|---|---|---|
+| **0.00** (unfitted default) | **0.747** — below band | **0.828** — in band |
+| 0.30 (fitted) | 0.831 | 0.907 |
+
+Under the old drive the raw sweep slips too much and needs a fitted
+flatness to rescue it.  **Under the corrected drive the unfitted sweep
+lands in Kleshnev's band by itself.**  The blade evidence, properly read,
+*supports* the longer drive, and adopting it makes a fitted parameter
+unnecessary.  A correction that removes a free parameter rather than
+requiring a new one is the kind worth trusting.
+
+Telfer's drive fraction is therefore adopted, as
+``0.63067 - 5.20991 / rate``.  Peak oarlock forces re-fitted; 2x IVV
+falls 56.9% -> 51.9% with speed held on its measured value.
+
+### The fixes do not stack
+
+Six single improvements have been found and individually judged
+insufficient.  Tested stacked on the corrected base:
+
+| stack | IVV |
+|---|---|
+| base (PCHIP, force curve, sculling arc, drive fraction) | 51.9% |
+| + sequencing | **49.7%** |
+| + recovery arrival | 51.0% |
+| + sequencing + arrival + flatness | 50.9% |
+
+They overlap or interfere rather than adding.  The remaining 11-15 points
+is **not** three small causes waiting to be combined.
+
+### Ground truth
+
+Telfer et al. publish their data: **github.com/Telfer/Rowing_Biomechanics**,
+11 subjects, Vicon motion capture, ankle / knee / hip / lower back / upper
+back / shoulder / elbow, seven foot-stretcher conditions x three stroke
+rates, each stroke cycle normalised to 101 points, with catch and finish
+frames marked.
+
+This is the first measured rower motion the model has ever been checked
+against.  Comparing waveform *shape* at 26 spm, Neutral condition:
+
+| joint | as-is | aligned | shift |
+|---|---|---|---|
+| knee | -0.832 | **+0.974** | +43% |
+| trunk | +0.792 | **+0.979** | +42% |
+| shank / ankle | -0.873 | **+0.972** | +44% |
+
+**The shapes are right.**  The common shift is not an error: Telfer
+normalise finish-to-finish, and put the catch at 57.0% of the cycle at 26
+spm, so a catch-referenced curve differs by exactly this offset.  That the
+same shift falls out of all three joints independently confirms both the
+alignment and, separately, the 0.43 drive fraction adopted above.
+
+### What this means
+
+The rower's **joint angle histories are now validated** -- shapes to
+r = 0.97 against mocap, trunk range 57 deg against the model's 54.5,
+knee 129 deg, hip 122 deg.  That removes a whole class of suspicion.
+
+It also sharpens what is left.  If the joint angles are right and the
+drive fraction is right, the remaining fluctuation error is in the step
+*from joint angles to segment positions* -- link lengths, the trunk
+pivot, how the arms are placed -- or in the coupling, not in the driving
+signal.  That is a much smaller search space, and it is checkable by
+driving our own kinematic chain with Telfer's measured angles and
+comparing the crew centre of mass directly.
+
+## 51. The trunk is not a rigid link
+
+Driving our own kinematic chain with Telfer's measured joint angles
+isolates the one step still unvalidated: joint angles to segment
+positions.
+
+### The legs cross-validate exactly
+
+| joint | Caplan & Gardner (2010) | Telfer (2023) Vicon | |
+|---|---|---|---|
+| **knee** | **130.2 deg** | **129.9 deg** (IQR 121-136, n=11) | **0.2%** |
+| hip | 90.4 deg | 129.9 deg (IQR 106-135) | **44% apart** |
+
+Two independent studies, thirteen years apart, four keyframes against
+101-point Vicon waveforms: the knee range agrees to two parts in a
+thousand.  That is a real cross-validation of the dataset this model's
+legs are driven by.
+
+### The hip disagreement is a segmentation difference, and it matters
+
+Caplan & Gardner report the hip as the interior thigh-to-**trunk** angle,
+treating the trunk as one segment.  Telfer measure the hip as thigh to
+**pelvis**, and then report lower back and upper back separately --
+32.2 deg and 32.4 deg at 26 spm, **64.6 deg of spinal flexion** on top of
+whatever the pelvis does.
+
+**This model has a single rigid trunk link, hip to shoulder, swinging
+54.8 degrees.**  The mocap says that is not what a trunk does: the pelvis
+rotates *and* the spine flexes, roughly 65 degrees of it.
+
+### Why that is a candidate for the centre-of-mass error
+
+The trunk carries 43.5% of body mass -- more than any other segment --
+and the outstanding failure is that crew centre-of-mass travel is 0.744 m
+where the measured hull motion implies about 0.65.
+
+A **rigid** link rotating about the hip carries its whole mass through an
+arc of radius ``L_com``.  A **flexing** trunk does not: the lower trunk
+rotates with the pelvis while the upper trunk and head curl relative to
+it, and the two contributions partly oppose.  The mass-weighted centre of
+mass of a curling trunk travels **less** than that of a rigid one through
+the same shoulder excursion.
+
+That is the right sign and plausibly the right size for the residual, and
+it is the first candidate that:
+
+* comes from measured data rather than from reasoning about the model;
+* concerns the joint-angle-to-position step, which §50 narrowed the
+  search to;
+* has not already been tried and rejected.
+
+### Not yet claimed
+
+The reconstruction that suggested it is convention-sensitive.  Driving
+our leg chain with Telfer's ankle and knee angles gives a seat travel of
+0.540 m against the model's 0.598, but that depends on how their ankle
+angle maps to shank orientation, and their ankle range (111 deg) is not
+directly comparable to Caplan's shank link angle (76.9 deg).  The knee
+agreement above is convention-independent; the seat-travel number is not,
+and is quoted only as motivation.
+
+Testing it properly means giving the trunk two segments -- pelvis and
+thorax -- driven by Telfer's LowerBack and UpperBack, and comparing crew
+centre-of-mass travel against the current rigid link.  That is a
+contained change to `JointDrivenRower`, and unlike the causal inversion
+of §45 it does not disturb the rig, the reach constraint or the force
+model.
+
+### 51a. Tested, and not confirmed
+
+The flexing-trunk hypothesis above was tested directly: trunk stack plus
+head, hip at the origin, de Leva masses, our own segment lengths, the
+same total shoulder excursion in both cases.
+
+| | trunk+head CoM travel about the hip |
+|---|---|
+| rigid link | 0.3376 m |
+| flexing spine | 0.3809 m |
+
+**The wrong way, by 13%.**  A curling spine moved the trunk's centre of
+mass *further*, not less.
+
+The sign turns entirely on the phase relationship between lower-back and
+upper-back flexion -- whether the spine curls with the pelvic rotation or
+against it -- and that distribution was **guessed**, not measured.  Taking
+it from Telfer requires resolving their angle conventions and reference
+poses, the same ambiguity that made the seat-travel reconstruction
+unusable.
+
+So §51's reasoning stands as motivation and its conclusion does not.  The
+trunk carries 50.4% of body mass including the head, so the lever is
+certainly large enough to matter -- a 13% change in its contribution
+moves crew centre-of-mass travel by 0.022 m either way -- but the model
+gets it right or wrong depending on a phasing this data cannot yet
+settle.
+
+**What would settle it:** the reference pose and sign convention for
+LowerBack and UpperBack in the Telfer set.  That is one question to the
+authors, and it is now the most specific item in `DATA_REQUESTS.md` --
+more answerable than "rower kinematics", and it unblocks the only
+remaining candidate that came from measured data.
+
+## 52. The spine curls, measurably, and it is worth most of the gap
+
+### The phasing, from the data
+
+§51a failed because the antiphase distribution between lower and upper
+back was guessed.  It can be measured.  For all 11 Telfer subjects at 26
+spm, Neutral condition:
+
+| | median | range |
+|---|---|---|
+| correlation, lower vs upper back | **-0.729** | -0.56 to -0.96 |
+| (range of the sum) / (sum of ranges) | **0.419** | 0.33 to 0.63 |
+
+**Every subject is negative.**  The segments oppose, and 58% of the
+flexion cancels in the sum: the spine *curls* rather than rotating as a
+unit.
+
+This is corroborated independently by the two datasets disagreeing about
+the hip.  Caplan & Gardner report thigh-to-**trunk** as 90.4 deg; Telfer
+report thigh-to-**pelvis** as 129.9 deg.  The 39.5 deg difference is what
+the spine contributes to the lumped angle -- against 64.6 deg of measured
+segment flexion.  A 39% cancellation, from a completely different route
+than the correlation above.
+
+### What it is worth
+
+Trunk stack plus head, hip at the origin, de Leva masses, our own segment
+lengths, and the shoulder excursion **held fixed** so the arms still
+reach the handle:
+
+| trunk model | CoM travel | change |
+|---|---|---|
+| rigid link (current) | 0.3376 m | -- |
+| curling, lower rotates *more*, 58% | 0.3889 | -15.2% |
+| **curling, lower rotates *less*, 58%** | **0.2911** | **+13.8%** |
+| curling, lower rotates less, 90% | 0.2680 | +20.6% |
+
+Trunk and head carry 62% of the crew's centre-of-mass travel, so 13.8%
+off that is **0.760 -> 0.695 m** against a target near 0.65.  About 60%
+of the outstanding gap, from one change motivated by measurement rather
+than by reasoning about the model.  A smaller crew -- the club 2x
+anthropometry is unknown, and 70 kg / 1.72 m gives 0.713 on its own --
+would account for much of the remainder.
+
+### The one thing still unresolved
+
+The data settles the **magnitude** of the cancellation.  It does not
+settle **which segment rotates more**, and the sign matters entirely:
+lower-rotates-less reduces the travel 13.8%, lower-rotates-more increases
+it 15.2%.  That turns on the reference pose and sign convention for
+`LowerBack` and `UpperBack`, which the paper does not state.
+
+So this is not yet implemented.  What it needs is one question to the
+authors, and it is now by far the most valuable item in
+`DATA_REQUESTS.md`: **not "rower kinematics", but the sign convention and
+neutral pose for those two channels.**  One sentence in reply decides
+whether a 62%-of-the-lever component of this model is right or wrong.
+
+### Method note
+
+Three attempts at this hypothesis failed on a guessed phasing (§51,
+§51a, and the first half of this section) before it occurred to check
+whether the phasing was in the data.  It was, in two independent forms.
+The lesson is the one `PROVENANCE.md` was written for: when a result
+turns on an assumption, find out whether the assumption is measurable
+before spending effort on either side of it.
+
+## 53. Marker data settles it: the crew kinematics are right
+
+`testtarget.txt` in the Telfer repository holds the **raw marker
+positions** the joint angles were derived from -- nine markers, 3D, 101
+normalised points: RTOE, RANK, RKNE, RCIS, T10, C7, RSHO, RELB, RWRB.  A
+complete sagittal chain, in positions rather than angles, so no
+convention question arises at all.
+
+### The trunk rotates as a rigid unit
+
+| segment | orientation range |
+|---|---|
+| hip -> T10 (lower trunk) | 61.8 deg |
+| T10 -> C7 (upper trunk) | 60.8 deg |
+| hip -> C7 (whole trunk) | 59.4 deg |
+| **correlation, lower vs upper** | **+0.995** |
+
+The three are the same angle to within two degrees, and the segments move
+together almost perfectly.  **The rigid hip-to-shoulder link is a good
+approximation**, and §51-52 were chasing a defect that is not there.
+
+**§52 is withdrawn.**  Its -0.729 correlation was measured on the
+`LowerBack` and `UpperBack` channels, which are **relative joint angles**
+-- T10 with respect to the pelvis, C7 with respect to T10.  Relative
+angles anticorrelate *precisely when* the segments rotate together, since
+one segment catching up shows as flexion in one joint and extension in
+the next.  A convention artefact was read as physics, twice, and the
+39% "corroboration" from the Caplan/Telfer hip difference is explained
+the same way: the two studies segment the trunk differently.
+
+### The crew centre of mass is right to 4.5%
+
+Computed straight from markers with de Leva mass fractions:
+
+| | crew CoM travel |
+|---|---|
+| **measured, markers** | **0.727 m** |
+| this model | 0.760 m |
+| "implied by the hull", §43 | ~0.65 m |
+
+Marker travel, fore-aft: ankle 0.023 m (the foot barely moves -- the heel
+lift of §51 is small), knee 0.459, hip 0.624, T10 0.739, C7 1.051,
+shoulder 1.154, elbow 1.438, wrist 1.518.
+
+Hip travel of 0.624 m against this model's 0.598 -- 4% -- and crew CoM
+0.727 against 0.760 -- 4.5%.  **The rower moves as the model says.**
+
+### What that means for the fluctuation
+
+The ~0.65 m figure was never a measurement.  It was inferred from
+momentum plus the measured hull acceleration, and inferences of that kind
+carry every assumption in the force path with them.  Measured directly,
+crew CoM travel is 0.727 m and the model is within 5%.
+
+So the outstanding fluctuation error is **not** in the crew's motion.
+Crew kinematics, joint angle shapes (r = 0.97), knee range (0.2%), drive
+fraction, hip travel and centre-of-mass travel are all now validated
+against measurement.  Whatever remains is in how the hull responds to
+that motion, not in the motion itself -- which is the opposite of where
+§29 through §52 were looking.
+
+Caveat: Telfer is ergometer data.  A boat runs under its crew and an
+ergometer does not, so on-water centre-of-mass travel could differ.  But
+it would have to differ by 15% in the right direction to rescue the old
+inference, and nothing suggests that.
+
+### Method note
+
+Two hypotheses died here, both from reading relative angles as if they
+were segment orientations.  The marker file was in the repository the
+whole time and was found only after the angle route had failed three
+times.  **Prefer positions to angles**: positions carry no convention.
+
+## 54. The residual is in the hull's response, and it is 26%
+
+With the crew kinematics validated against markers (§53), the
+fluctuation error can finally be attributed.
+
+### The crew that the club 2x hull implies
+
+| | value |
+|---|---|
+| measured hull velocity peak-to-peak | 1.425 m/s |
+| crew relative velocity swing, by momentum | 1.659 m/s |
+| **implied crew CoM travel** | **0.640 m** |
+| measured crew CoM travel (Telfer markers) | 0.727 m |
+| this model | 0.760 m |
+
+The club 2x crew moved about 12% less than Telfer's ergometer subjects.
+Different people on different equipment, so that is unremarkable, and it
+is *not* enough to explain the fluctuation gap by itself.
+
+### The 26% that is left
+
+Sweeping crew size, even an implausible 58 kg / 1.60 m rower gives 44.8%,
+not 37.3%.  The arithmetic underneath says why:
+
+* momentum **alone**, with the implied 0.640 m of travel, gives **36.9%**
+  -- which is the measured 37.3%;
+* the **simulation**, at 0.661 m of travel, gives **44.8%**, where
+  momentum for that crew predicts 35.6%.
+
+**The hull fluctuates about 26% more than momentum alone permits for the
+same crew motion.**  That excess is the force path -- thrust and hull
+drag -- and it matches §39 exactly, where the assembled model exceeded
+its own crew-only bound and the crew reaction correlated with blade
+thrust at +0.136 instead of opposing it.
+
+### Where the search now stands
+
+Validated against measurement:
+
+* joint waveform shapes, r = 0.97 (§50)
+* knee range, 0.2% across two independent datasets (§51)
+* drive fraction (§50), confirmed by the catch-at-57% figure
+* trunk as a rigid link, segment correlation +0.995 (§53)
+* hip travel 4%, crew CoM travel 4.5% (§53)
+* blade efficiency, unfitted, inside Kleshnev's band (§50)
+* propulsion, 4.10 m/s predicted against 3.82 measured (§47)
+
+Not validated, and now the whole of the residual:
+
+* **the surge force balance** -- how thrust and drag combine with the
+  crew reaction through the stroke.  Twenty-six percent too much
+  fluctuation for a crew that moves correctly.
+
+§29 through §52 searched the crew for an error that was never there.  The
+crew is right; the hull's response to it is not.  That is a much smaller
+target, it is where §31 and §39 pointed before the search wandered into
+kinematics, and unlike the crew it can be interrogated without any new
+measurement -- the momentum identity is exact and the excess is
+computable term by term over the stroke.
+
+## 55. The force path, decomposed
+
+With the crew validated (§53) and the residual attributed to the hull's
+response (§54), the surge terms can be separated.  2x at 24 spm, over one
+stroke:
+
+| term | mean | peak-to-peak | as acceleration | correlation with v |
+|---|---|---|---|---|
+| crew reaction | -0.9 N | 1144 N | **5.99 m/s^2** | +0.368 |
+| oar | 85.4 N | 432 N | 2.26 | -0.747 |
+| hull drag | -85.7 N | 91 N | **0.48** | -0.936 |
+
+### Drag cannot damp the fluctuation
+
+``d(drag)/dv = 2 k v`` gives 46.4 N per m/s, i.e. 0.243 per second on 191
+kg -- **0.607 time constants over a 2.5 s stroke**.  The within-stroke
+fluctuation therefore has almost no restoring force: it is set by the
+crew and the blade, and nothing opposes it.  That is correct physics, not
+a defect, and it means any error in the crew or blade terms survives the
+whole cycle undamped.
+
+### The acceleration amplitude is right; the shape is not
+
+| | model | measured |
+|---|---|---|
+| hull acceleration peak-to-peak | **8.05 m/s^2** | **8.88** |
+| intracycle velocity variation | **51.9%** | **37.3%** |
+
+The model's hull acceleration is *smaller* than the measured one, and its
+velocity fluctuation is half again as large.  Those can only both hold if
+the **shape** differs: a given acceleration amplitude integrates to more
+or less velocity swing depending on how it is distributed through the
+cycle.  Impulsive acceleration integrates to little; spread acceleration
+integrates to a lot.
+
+That is precisely the §40 catch-aligned comparison, which was set aside
+at the time because the crew was still the suspect:
+
+| | peak at phase | through the drive |
+|---|---|---|
+| measured | 0.74 (late recovery) | near zero, 0.71 m/s^2 mean abs |
+| model | 0.18 (early drive) | 3.46 |
+
+The real boat is close to equilibrium through the drive and gains its
+speed on the recovery.  The model drives hard through the drive and
+coasts.  Same amplitude, opposite distribution, and the distribution is
+what sets the velocity swing.
+
+### What this rules in and out
+
+* **Not the crew.**  Validated to 4.5% on centre-of-mass travel (§53).
+* **Not drag.**  Too small to matter either way, and correctly computed.
+* **Not the amplitude of anything** -- the acceleration peak-to-peak is
+  already slightly under the measurement.
+* **It is when the oar force is applied relative to the crew reaction.**
+  The oar term raises acceleration peak-to-peak from 5.99 to 8.08 and
+  moves the peak into the drive, where the measurement says the boat
+  should be near equilibrium.
+
+§38 moved the force peak from 50% to Kleshnev's 40% of the drive and
+gained 1.8 points, which was read as "not the answer".  With the crew now
+exonerated and drag ruled out, the force curve's *placement within the
+cycle* is what is left, and the target is no longer a fitted parameter
+but a measured hull acceleration profile with 162 catch-aligned cycles
+behind it.

@@ -139,12 +139,19 @@ def test_the_roll_disturbance_grows_with_the_split(eight):
 def test_a_modest_split_exhausts_the_recovery_balance_authority(eight):
     """The headline number, and it is uncomfortably small.
 
-    Around 65 ms of port/starboard split -- about 3.5% of a stroke at rate
-    32 -- produces a roll disturbance equal to everything the crew have
-    left once the blades leave the water.
+    A tenth of a second of port/starboard split -- about 5% of a
+    stroke at rate 32 -- produces a roll disturbance equal to
+    everything the crew have left once the blades leave the water.
+
+    The split needed was 0.080 s until the drive fraction was
+    corrected (SOURCES sec. 50).  A longer drive leaves a shorter
+    recovery, and the recovery balance authority rose from 84.1 to
+    93.1 N m with it, so slightly more mistiming is now needed to
+    exhaust it.  The conclusion is unchanged and the margin is still
+    uncomfortable.
     """
     authority = PhaseAuthority.from_boat(eight)
-    eight.phase_offsets = _split(eight, 0.080)
+    eight.phase_offsets = _split(eight, 0.100)
     disturbance = np.sqrt(np.mean(_oar_loads_over_a_stroke(eight)[0] ** 2))
     assert disturbance > authority.recovery, (disturbance, authority.recovery)
 

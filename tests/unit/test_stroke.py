@@ -9,16 +9,27 @@ from coxswain.crew.stroke import DEFAULT_HARMONICS, FourierProfile, StrokeTiming
 # --------------------------------------------------------------------------
 # timing -- Formaggia et al. section 5
 # --------------------------------------------------------------------------
-@pytest.mark.parametrize("rate,expected_drive", [
-    (24.0, 0.800),      # the fit's reference point: tau_a = 0.8 at r = 24
-    (30.0, 0.756875),
-    (32.0, 0.745),
-    (40.0, 0.710),
+@pytest.mark.parametrize("rate,expected_fraction", [
+    (22.0, 0.3939),
+    (26.0, 0.4303),
+    (32.0, 0.4679),
 ])
-def test_drive_duration_matches_the_published_fit(rate, expected_drive):
-    """tau_a = 0.00015625 (r-24)^2 - 0.008125 (r-24) + 0.8"""
-    assert StrokeTiming(rate).drive_duration == pytest.approx(expected_drive,
-                                                              abs=1e-6)
+def test_drive_fraction_matches_the_measured_values(rate, expected_fraction):
+    """Telfer et al. (2023), PLOS ONE 18(5): e0285676, n = 11.
+
+    Replaced Formaggia's tau_a fit, which made the drive about 25%
+    too short at every rate.  These three points are the measurement;
+    the reciprocal form reproduces them to four decimals.  See SOURCES
+    sec. 50 and docs/PROVENANCE.md.
+    """
+    assert StrokeTiming(rate).drive_fraction == pytest.approx(
+        expected_fraction, abs=1e-3)
+
+
+def test_drive_duration_follows_from_the_fraction():
+    timing = StrokeTiming(24.0)
+    assert timing.drive_duration == pytest.approx(
+        timing.drive_fraction * timing.period, rel=1e-12)
 
 
 @pytest.mark.parametrize("rate", [18.0, 24.0, 30.0, 36.0, 40.0])
@@ -34,13 +45,24 @@ def test_drive_and_recovery_sum_to_the_period(rate):
 
 
 def test_recovery_is_longer_than_the_drive_at_low_rates():
-    timing = StrokeTiming(20.0)
-    assert timing.ratio > 2.0
+    """Still true, but by less than it was, and this is extrapolation.
+
+    Telfer's rates span 22-32 spm.  At 20 spm the fit gives 1:1.70
+    where coaches quote 1:2; below the fitted range the form is
+    unverified.  Racing rates are inside it.
+    """
+    assert StrokeTiming(20.0).ratio > 1.6
+    assert StrokeTiming(20.0).ratio > StrokeTiming(32.0).ratio
 
 
 def test_drive_and_recovery_approach_parity_at_racing_rates():
-    """The paper's stated qualitative behaviour: the split evens out."""
-    assert StrokeTiming(40.0).ratio == pytest.approx(1.11, abs=0.05)
+    """The split evens out, and lands on the figure coaches quote.
+
+    1:1.00 at 40 spm.  The fit was given three points at 22, 26 and
+    32 spm and was not told about race pace, so this is a genuine
+    out-of-sample check on the reciprocal form.
+    """
+    assert StrokeTiming(40.0).ratio == pytest.approx(1.00, abs=0.05)
     assert StrokeTiming(20.0).ratio > StrokeTiming(40.0).ratio
 
 
@@ -60,10 +82,17 @@ def test_rejects_non_positive_rate():
         StrokeTiming(0.0)
 
 
-def test_rejects_a_cadence_where_the_fit_is_invalid():
-    """At very high rates the empirical tau_a exceeds the stroke period."""
-    with pytest.raises(ValueError, match="not.*valid at this cadence"):
-        StrokeTiming(90.0)
+def test_the_fraction_stays_physical_at_every_plausible_cadence():
+    """The old quadratic tau_a exceeded the period above about 85 spm.
+
+    The reciprocal form saturates instead of diverging, so it stays
+    inside (0, 1) everywhere a boat is rowed, and the drive fraction
+    increases monotonically with rate throughout.
+    """
+    rates = np.arange(14.0, 60.0, 1.0)
+    fractions = np.array([StrokeTiming(r).drive_fraction for r in rates])
+    assert np.all(fractions > 0.0) and np.all(fractions < 1.0)
+    assert np.all(np.diff(fractions) > 0.0)
 
 
 # --------------------------------------------------------------------------

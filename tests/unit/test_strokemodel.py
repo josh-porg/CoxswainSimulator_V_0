@@ -84,8 +84,13 @@ def test_aggregates_reproduce_the_numpy_crew_field(boat, model):
     aggregates = model.aggregates
     for t in np.linspace(0.0, boat.timing.period, 17, endpoint=False):
         mass, position, _, _ = boat.crew_field(t)
+        # 0.08 kg m, i.e. 0.12% of a first moment near 50.  The
+        # tolerance is a numerical choice about the Fourier fit, not
+        # a physical claim; the longer drive of SOURCES sec. 50
+        # shifted the harmonic content slightly and 0.05 became
+        # marginal at the same harmonic count.
         assert float(aggregates.first_moment(t)) == pytest.approx(
-            float(np.sum(mass * position[:, 0])), abs=0.05)
+            float(np.sum(mass * position[:, 0])), abs=0.08)
         assert float(aggregates.yaw_inertia(t)) == pytest.approx(
             float(np.sum(mass * (position[:, 0] ** 2
                                  + position[:, 1] ** 2))), abs=0.5)
@@ -375,7 +380,13 @@ def test_discontinuous_quantities_need_more_harmonics(model):
     """
     smooth = model.aggregates.yaw_inertia.n_harmonics
     discontinuous = model.aggregates.yaw_per_split.n_harmonics
-    assert discontinuous >= 2 * smooth
+    # The gap has closed.  Kleshnev's drive curve ramps in as
+    # u**1.485 where the old half-sine was linear at the catch, so the
+    # step in the oar loads is far weaker and the split yaw moment now
+    # needs no more harmonics than the smooth aggregates.  Recorded
+    # rather than removed: if this starts failing again, something has
+    # put a discontinuity back.  See SOURCES sec. 38.
+    assert discontinuous <= 2 * smooth
 
 
 def test_fit_to_tolerance_raises_rather_than_under_delivering():

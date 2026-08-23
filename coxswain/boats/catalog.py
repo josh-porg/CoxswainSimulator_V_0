@@ -101,8 +101,8 @@ SCULLING_ARC = OarAngleSweep(catch_angle=np.radians(65.0),
 #: et al. (2023): a longer drive means more blade-in impulse for the
 #: same peak, so every peak comes down.  Each value is bisected to
 #: put its class on its known speed.
-PEAK_OARLOCK_FORCE = {"8+": 1123.0, "4+": 1241.0, "1x": 899.0,
-                      "2x": 629.0}
+PEAK_OARLOCK_FORCE = {"8+": 971.0, "4+": 1073.0, "1x": 709.0,
+                      "2x": 485.0}
 
 
 def eight(rate: float = 32.0, rower_mass: float = 88.0,

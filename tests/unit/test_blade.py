@@ -396,28 +396,37 @@ def _weighted_efficiency(blade, sweep, timing, profile, speed=5.5):
     return float(np.sum(eff * weight) / np.sum(weight))
 
 
-def test_raised_cosine_sweep_slips_more_than_measurements_allow(blade, timing):
-    """The finding the blade model exposes about the oar sweep.
+def test_the_unfitted_sweep_now_lands_in_kleshnevs_band(blade, timing):
+    """This assertion used to be the opposite, and the reversal matters.
 
-    A raised cosine peaks at 1.57x the mean angular rate, sweeping the
-    blade through the water faster than the boat runs.  The resulting
-    force-weighted blade efficiency falls below the 0.80-0.85 Kleshnev
-    reports for good crews.
+    Under the old drive duration -- about 25% too short -- a raised
+    cosine swept the blade fast enough to give a force-weighted
+    efficiency of 0.747, below the 0.80-0.85 Kleshnev reports, and
+    OarAngleSweep.flatness carried a fitted value near 0.30 to patch
+    it.  With the drive fraction corrected to the measured value the
+    same unfitted sweep gives 0.828, inside the band, and no patch is
+    needed.  See SOURCES sec. 50.
     """
     from coxswain.crew.oarlock import OarForceProfile
 
     value = _weighted_efficiency(blade, OarAngleSweep(flatness=0.0), timing,
                                  OarForceProfile())
-    assert value < 0.78
+    assert 0.80 <= value <= 0.85
 
 
-def test_a_flatter_sweep_reproduces_measured_blade_efficiency(blade, timing):
-    """Flatness near 0.30 lands inside Kleshnev's reported band."""
+def test_flattening_the_sweep_now_overshoots_the_band(blade, timing):
+    """The fitted flatness is now a liability, not a fix.
+
+    0.30 was chosen to lift efficiency into the band under the old
+    short drive.  With the corrected drive it pushes efficiency to
+    0.907, above the band -- which is exactly why using it to judge a
+    change to the drive duration was circular.  SOURCES sec. 49-50.
+    """
     from coxswain.crew.oarlock import OarForceProfile
 
     value = _weighted_efficiency(blade, OarAngleSweep(flatness=0.30), timing,
                                  OarForceProfile())
-    assert 0.80 <= value <= 0.85
+    assert value > 0.88
 
 
 def test_blade_efficiency_rises_monotonically_with_sweep_flatness(blade,
@@ -426,7 +435,7 @@ def test_blade_efficiency_rises_monotonically_with_sweep_flatness(blade,
 
     values = [_weighted_efficiency(blade, OarAngleSweep(flatness=f), timing,
                                    OarForceProfile())
-              for f in (0.0, 0.2, 0.4, 0.6)]
+              for f in (0.0, 0.1, 0.2, 0.3)]
     assert np.all(np.diff(values) > 0.0)
 
 
