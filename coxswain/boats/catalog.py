@@ -67,8 +67,15 @@ def _rudder(x: float, span: float = 0.090, chord: float = 0.120,
 #: modelled resistance at the boat's known cruising speed.  These values
 #: are calibrated to do that: an eight at rate 32 settles at about
 #: 5.2 m/s, which is where an eight actually cruises at that rate.
-PEAK_OARLOCK_FORCE = {"8+": 950.0, "4+": 1050.0, "1x": 700.0,
-                      "2x": 490.0}
+#: Rescaled by 1.182 when the drive curve moved from a symmetric
+#: half-sine to Kleshnev's front-loaded shape (peak at 40% of the
+#: drive).  The new shape carries 0.5385 of peak as its mean against
+#: the half-sine's 2/pi, so the same *peak* would be 15% less
+#: impulse; scaling preserves mean thrust and hence every speed
+#: calibration below.  See :class:`~coxswain.crew.oarlock.
+#: OarForceProfile`.
+PEAK_OARLOCK_FORCE = {"8+": 1123.0, "4+": 1241.0, "1x": 827.0,
+                      "2x": 579.0}
 
 
 def eight(rate: float = 32.0, rower_mass: float = 88.0,

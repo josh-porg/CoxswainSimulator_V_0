@@ -70,6 +70,14 @@ class SixDofPlan:
     progress: float               # metres of course covered
     success: bool
     stats: dict
+    #: Raw scaled NLP solution vector.  Kept so a receding-horizon driver
+    #: can warm start the next block from this one: consecutive blocks
+    #: share a mesh shape, and the boat is doing much the same thing a
+    #: few strokes later, so the previous solution is a far better guess
+    #: than a fresh dynamics rollout.  Without it every block re-solved
+    #: from scratch, which is what made the corrected -- and correctly
+    #: harder to steer -- boat stall at the station-450 pinch.
+    solution: np.ndarray = None
 
     @property
     def position(self):
@@ -516,7 +524,7 @@ class SixDofTrajectory:
         return SixDofPlan(time=times, states=states, controls=controls,
                           mesh=mesh, progress=end_progress - start_progress,
                           success=bool(stats.get("success", False)),
-                          stats=stats)
+                          stats=stats, solution=values)
 
     def _initial_guess(self, start_state, times, n, n_states, n_controls,
                        guess, scaling=None):

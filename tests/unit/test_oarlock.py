@@ -37,14 +37,36 @@ def test_force_is_zero_at_the_finish(timing):
     assert magnitude == pytest.approx(0.0, abs=1e-12)
 
 
-def test_force_peaks_in_mid_drive(timing):
+def test_force_peaks_at_forty_percent_of_the_drive(timing):
+    """Kleshnev: peak force at 40% of the drive length, not the middle.
+
+    The profile used to be a symmetric half-sine, which peaks at 50%.
+    Real force curves are front-loaded.
+    """
     profile = OarForceProfile()
-    peak = profile.magnitude(timing.drive_duration / 2, timing)
-    assert peak == pytest.approx(1.0, rel=1e-9)
+    fractions = np.linspace(0.0, 1.0, 2001)
+    curve = np.array([profile.magnitude(f * timing.drive_duration, timing)
+                      for f in fractions])
+    assert fractions[curve.argmax()] == pytest.approx(0.40, abs=0.01)
+    assert curve.max() == pytest.approx(1.0, rel=1e-6)
 
 
-def test_force_follows_a_half_sine_over_the_drive(timing):
+def test_force_has_decayed_to_kleshnevs_value_by_sixty_percent(timing):
+    """The second constraint the curve is fitted to.
+
+    Kleshnev reports the force already down to 74% of peak at 60% of the
+    drive, where a half-sine is still at 95%.  Fitting both the peak
+    position and this decay is what fixes the exponents.
+    """
     profile = OarForceProfile()
+    at_sixty = profile.magnitude(0.60 * timing.drive_duration, timing)
+    assert at_sixty == pytest.approx(0.74, abs=0.01)
+    assert at_sixty < np.sin(np.pi * 0.60)      # strictly ahead of a half-sine
+
+
+def test_half_sine_remains_available_for_comparison(timing):
+    """Every catalogue speed calibration predates the change."""
+    profile = OarForceProfile(shape="half_sine")
     for fraction in (0.25, 0.5, 0.75):
         t = fraction * timing.drive_duration
         assert profile.magnitude(t, timing) == pytest.approx(
@@ -148,10 +170,11 @@ def test_horizontal_magnitude_follows_the_half_sine(timing):
 
 
 def test_vertical_force_uses_the_vertical_peak(timing):
+    """Sampled at the peak of the drive, which is now 40% not 50%."""
     profile = OarForceProfile(max_x=1000.0, max_z=150.0)
-    t = 0.5 * timing.drive_duration
+    t = 0.40 * timing.drive_duration
     force = oar_force(t, timing, PORT, profile)
-    assert force[2] == pytest.approx(150.0, rel=1e-9)
+    assert force[2] == pytest.approx(150.0, rel=1e-3)
 
 
 def test_no_force_at_all_during_the_recovery(timing):

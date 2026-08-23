@@ -3256,3 +3256,83 @@ the map from rudder to path**.  A boat that responds instantly to rudder
 gives the optimiser a stiff, twitchy control problem; one with realistic
 inertia gives it a better-conditioned one.  The physics being right and
 the numerics being easier are not a coincidence here.
+
+## 38. Chasing the fluctuation: one fix, one withdrawal, one failure
+
+### Kleshnev's force curve, and why it belongs
+
+`OarForceProfile` applied a **symmetric half-sine** over the drive, which
+peaks at 50% of the drive length.  Real force curves are front-loaded.
+Two of Kleshnev's published figures pin the shape:
+
+* peak force at **40% of the drive length**
+* force already down to **74% of peak at 60%** of the drive, where a
+  half-sine is still at 95%
+
+Fitting ``u**a (1-u)**b`` to both gives ``a = 1.4852, b = 2.2278`` and
+reproduces each to three figures.  The old shape is retained as
+``shape="half_sine"`` because every catalogue speed calibration predates
+the change.
+
+The new shape carries 0.5385 of its peak as its mean against the
+half-sine's ``2/pi``, so peak forces were rescaled by 1.182 to hold mean
+thrust -- and hence every calibrated speed -- fixed.  Speeds land within
+1.5% of where they were.
+
+**It is a small effect on the fluctuation**: 2x IVV 57.9% -> 56.1%.  It
+is in the model because it is right, not because it fixed anything.
+
+### A diagnosis I am withdrawing
+
+Differencing the boat-mounted and rower-mounted IMUs from the club 2x
+session appeared to give the crew's acceleration *relative to the hull*
+directly, and it produced a clean result across eight gated windows:
+
+| | measured | model |
+|---|---|---|
+| hull accel ptp | 8.88 m/s^2 | 11.70 |
+| crew-relative accel ptp | 11.31 | 9.90 |
+| hull / crew-relative | **0.785** | **1.18** |
+
+Read at face value that is a striking finding -- the model's crew moves
+*less* than the real crew while its hull moves more, so the coupling
+would have to be wrong, with thrust amplifying the crew reaction where it
+should partly cancel it.
+
+**It does not survive scrutiny.**  The pelvis phone rotates with the
+rower, whose trunk swings some 50 degrees through the stroke, so a
+device-frame axis is not a fixed direction in the boat frame and the
+"crew-relative" number is contaminated by that rotation.  Rotating both
+signals into the world frame with the logged attitude gives a hull
+acceleration of 1.28 m/s^2 -- against 8.88 in the device frame, and the
+device-frame figure is the one that is *independently validated*, since
+integrating it recovers the DGPS intracycle variation (35.3 / 37.8 / 35.8
+/ 35.7% across four windows against 37.3% from position).
+
+So the attitude correction is wrong somewhere, and until it reproduces
+the validated hull figure nothing built on the rotated data can be
+trusted.  **The measured hull acceleration stands; the crew-relative
+number does not, and the conclusion drawn from it is withdrawn.**
+
+What remains solid is narrower and worth stating plainly: the model's
+hull acceleration is 10.6-11.7 m/s^2 against a measured 8.88, and its
+intracycle velocity variation is 56% against a measured 37-41%.  *Why*
+is still open.
+
+### The leg run failed on the corrected physics
+
+With added mass, cross-flow damping and the Munk moment in the
+optimiser's dynamics, the receding-horizon leg **stalled at about 409 m**
+-- worse than the 476 m it reached on the old physics.  Blocks 19 and 23
+made negative progress, block 21 went infeasible with 6 m of clearance,
+and block 22 ran for over eight hours.
+
+This is not a surprise and it should not be papered over.  The boat is
+now correctly harder to turn and correctly directionally unstable, so the
+station-450 pinch is a genuinely harder control problem than the old
+over-manoeuvrable boat faced.  A three-stroke horizon that could
+previously bluff its way through a bend no longer can.
+
+The fix is horizon length and warm starting, not physics: the dynamics
+are better than they were, and the optimiser has to be made equal to
+them.
