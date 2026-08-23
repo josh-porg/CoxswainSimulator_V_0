@@ -34,9 +34,10 @@ matter here:
 * At small angles ``sin a cos a -> a`` and the second term vanishes as
   ``a^2``, so **every linearised stability derivative is unchanged**.
   The skeg in normal running sees under a degree and does not notice.
-* At a rudder's working angles it is worth having.  At 25 degrees the
-  cross-flow term adds about 38% to the rudder's lift, which is the
-  difference between a boat that will come round and one that will not.
+* At a rudder's working angles it is worth having.  Net of the ``cos``
+  the potential term picks up, the rudder gains 9% of its lift at 8
+  degrees and 15% at 25 -- so the *gain itself* grows with deflection,
+  which is what bends the response back towards linear.
 * ``sin a cos a`` peaks at 45 degrees and falls away after, so **stall is
   built in** rather than bolted on.  A low-aspect-ratio plate really does
   hold on until about 40 degrees, which is why a shell keeps steering at
@@ -48,10 +49,10 @@ exactly proportional to deflection -- 17.70 N m per degree, from 2 degrees
 right up to the 25 degree stop -- while the hull's cross-flow yaw damping
 grows as the *square* of yaw rate.  A linear driver against a quadratic
 damper gives a turn rate going as roughly the square root of helm, so five
-times the rudder bought only about 1.7 times the turn rate, against a
-coxswain's report of nearer three.  The error was never in the damping; it
-was that the rudder had been given the small-angle law and then asked to
-work at 25 degrees.
+times the rudder bought well under three times the turn rate, which is
+what a coxswain reports.  Giving the rudder the small-angle law and then
+asking it to work at 25 degrees is one half of that; see
+:mod:`coxswain.hydro.crossflow` for the other half.
 
 References
 ----------
