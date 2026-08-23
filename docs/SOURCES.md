@@ -3336,3 +3336,81 @@ previously bluff its way through a bend no longer can.
 The fix is horizon length and warm starting, not physics: the dynamics
 are better than they were, and the optimiser has to be made equal to
 them.
+
+## 39. The fluctuation gap: what it is not
+
+The intracycle velocity variation is the one physical quantity the model
+still gets wrong: **56% against a measured 37-41%**, and hull surge
+acceleration 10.6 m/s^2 against a measured 8.88.  This section records
+what has been eliminated, because the eliminations are most of the value.
+
+### The coupling is implemented correctly
+
+The momentum identity
+
+    a_hull = (F_ext - m_crew a_rel) / m_total
+
+holds in the assembled simulator to 0.24 m/s^2, correlation 0.9993, over
+a full cycle.  There is no bug in how crew motion drives the hull.  The
+decomposition:
+
+| term | peak-to-peak |
+|---|---|
+| crew reaction, ``-m_crew a_rel / m_total`` | 8.48 m/s^2 |
+| external, ``F_ext / m_total`` | 3.15 m/s^2 |
+| correlation between them | **+0.136** |
+| resulting hull acceleration | 10.58 m/s^2 |
+
+The crew term dominates by nearly three to one.  Anything that fixes this
+has to act on crew motion or on the phase of thrust against it.
+
+### Six candidates, eliminated
+
+1. **Segment sequencing** (§29-30).  Implemented as a within-phase warp;
+   worth about 2.7 points at best and only with a magnitude fitted to the
+   answer.
+2. **Traverse flatness** (§35).  Looked right on kinematics and makes the
+   6-DOF *worse* -- IVV 51.5 -> 54.5%, crew acceleration nearly doubling.
+   The hull responds to crew **acceleration**, and a flattened traverse
+   has corners.
+3. **Surge added mass** (§35).  3.3 kg on an eight, 0.4% of displacement.
+   A slender hull moving along its own axis entrains almost nothing.
+4. **Drive force-curve shape** (§38).  Moving the peak from 50% to
+   Kleshnev's 40% is correct and is kept, but it is worth 1.8 points.
+5. **Recovery retiming.**  ``recovery_arrival`` implements "slow into the
+   catch" after Kleshnev.  Scanned from 1.0 to 0.40: IVV moves 56.0 ->
+   56.3%, and the phase-averaged shape agreement gets *worse*, 0.325 ->
+   0.216.  It is not the missing piece.
+6. **An implementation bug in the coupling.**  Ruled out above.
+
+Individually, every crew kinematic quantity validates: trunk swing 54.5
+deg against Kleshnev's 50.8 and a pelvis IMU implying about 50; seat
+travel 0.597 m against a literature 0.60-0.70; segment masses matching de
+Leva exactly.
+
+### The one live lead, and why it is not yet evidence
+
+Phase-averaging the measured hull surge acceleration and the model's, each
+aligned on its own trough (the catch), gives a shape correlation of only
+**+0.325**:
+
+| | peak at phase | trough at phase |
+|---|---|---|
+| measured | **0.74** (late recovery) | 0.01 |
+| model | **0.18** (early drive) | 0.01 |
+
+If that is real it says the model gains its speed during the drive where
+the real boat gains it during the recovery, which would be a phasing
+error rather than an amplitude one, and would explain why a 19% error in
+acceleration amplitude produces a 40% error in velocity variation.
+
+**It is not yet evidence.**  The measured profile is averaged across
+eight windows with independently detected periods, and any period error
+smears the average -- preferentially destroying the sharp drive-phase
+features and flattening exactly the part of the curve the comparison
+turns on.  Establishing it needs per-stroke catch detection rather than
+spectral period estimation, so that strokes are aligned on an event
+rather than on an assumed frequency.
+
+That is the next thing to do, and until it is done the phasing claim
+stays a hypothesis.
