@@ -17,7 +17,7 @@ from typing import Sequence
 import numpy as np
 
 from ..crew.anthropometry import PORT, RowerAnthropometry
-from ..crew.oarlock import OarForceProfile
+from ..crew.oarlock import OarAngleSweep, OarForceProfile
 from ..crew.stroke import StrokeTiming
 from ..hydro.appendages import LiftingSurface
 from ..hydro.hull import parametric_offsets
@@ -58,6 +58,29 @@ def _rudder(x: float, span: float = 0.090, chord: float = 0.120,
                           position=np.array([x, 0.0, depth]),
                           controllable=True)
 
+
+#: Oar sweep by rig type.
+#:
+#: `OarAngleSweep` defaults to a 90 degree arc -- catch 55, finish -35 --
+#: and the catalogue never overrode it, so **sculling boats were rowing a
+#: sweep arc**.  They are not the same:
+#:
+#:   sweep     catch 53-58, finish 32-35, total  87-90 deg
+#:   sculling  catch 60-66, finish 42-50, total 104-110 deg
+#:
+#: A sculler holds two handles and swings them through a much wider arc
+#: than a sweep athlete swings one.  With the narrow arc the handle never
+#: reaches far enough at the catch, and the arms silently bend to absorb
+#: it: measured off the constrained rower, arm extension at the catch was
+#: 0.56 of arm length where a rower at the catch has straight arms.
+#:
+#: Independently, releasing the arms and letting the oar follow the hands
+#: produced a 110 degree arc -- the sculling figure -- which is what
+#: first pointed at this.  See SOURCES sec. 48.
+SWEEP_ARC = OarAngleSweep(catch_angle=np.radians(56.0),
+                          finish_angle=np.radians(-34.0))
+SCULLING_ARC = OarAngleSweep(catch_angle=np.radians(65.0),
+                             finish_angle=np.radians(-45.0))
 
 #: Peak longitudinal oarlock force per oar, by boat class.
 #:
@@ -100,6 +123,7 @@ def eight(rate: float = 32.0, rower_mass: float = 88.0,
     )
     return Boat(
         name="eight (8+)",
+        oar_sweep=SWEEP_ARC,
         offsets=offsets,
         rig=rig,
         hull_mass=hull_mass,
@@ -139,6 +163,7 @@ def coxed_four(rate: float = 32.0, rower_mass: float = 88.0,
     )
     return Boat(
         name="coxed four (4+)",
+        oar_sweep=SWEEP_ARC,
         offsets=offsets,
         rig=rig,
         hull_mass=hull_mass,
@@ -175,6 +200,7 @@ def single_scull(rate: float = 30.0, rower_mass: float = 85.0,
     inertia = np.diag([hull_mass * (0.5 * beam) ** 2 / 2.0, 66.0, 66.0])
     return Boat(
         name="single scull (1x)",
+        oar_sweep=SCULLING_ARC,
         offsets=offsets,
         rig=rig,
         hull_mass=hull_mass,
@@ -233,6 +259,7 @@ def double_scull(rate: float = 30.0, rower_mass: float = 82.0,
     inertia = _slender_inertia(hull_mass, length, beam, draft)
     return Boat(
         name="double scull (2x)",
+        oar_sweep=SCULLING_ARC,
         offsets=offsets,
         rig=rig,
         hull_mass=hull_mass,

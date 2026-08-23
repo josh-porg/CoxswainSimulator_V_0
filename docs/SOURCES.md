@@ -3731,3 +3731,264 @@ Both are testable against the same synchronised measurement, and the ask
 in `DATA_REQUESTS.md` should be stated in those terms: not "rower
 kinematics" in general, but **handle position and body position sampled
 together through the drive**, which is what fixes the relative phase.
+
+## 44. The causal chain is inverted
+
+§43 named two candidates for the reach failure that blocks retiming the
+crew relative to the blade: the arm posture table, or the oar sweep.
+
+### The arm posture is not it, and is not even active
+
+`DEFAULT_ARM_POSTURE` is consulted only when ``hand_targets is None``.
+Every boat built from the catalogue has a rig, so ``hand_targets`` is
+set, the arms are solved by inverse kinematics to reach the handle, and
+the posture table is bypassed entirely.  Three quite different postures
+-- default, early break, fully compliant -- give **bit-identical**
+results at every retiming amplitude tested.
+
+The reach failure is therefore pure geometry: retiming the body moves the
+shoulders further from the handle than the arm is long.  No posture
+choice can absorb it.
+
+### Which leaves the sweep, and the direction it points
+
+The model prescribes the oar sweep and requires the arms to reach
+whatever handle position that implies.  **Physically it is the other way
+round.**  The rower's legs, trunk and arms put their hands somewhere; the
+handle is in their hands; the oar angle is whatever that hand position
+makes it.  The hands do not chase the oar -- the oar follows the hands.
+
+That inversion is exactly what blocks the fix.  Retiming the body while
+the sweep is prescribed asks the arms to bridge a gap that has grown;
+retiming both together (§41) preserves the very phase relationship that
+§43 shows is wrong.  There is no third option while the sweep is an
+input, which is why the reach constraint appears unavoidable.  It is not
+unavoidable; it is an artefact of the arrow pointing the wrong way.
+
+With the oar following the hands, retiming the body retimes the blade
+automatically and consistently, reach cannot fail by construction, and
+the blade force follows from the blade's actual motion through the water
+rather than from a prescribed profile that was calibrated separately.
+
+### This makes Route C the main line, not a side branch
+
+`coxswain.crew.predictive` already does this -- "the oar angle *follows*
+from where those put the hands" -- and it was built as an experiment in
+solving for the stroke rather than prescribing it.  §43 says the
+prescribed chain cannot represent the measured timing at all, so the
+inversion is not an alternative formulation to compare against.  It is
+the correction.
+
+The work that remains is to carry the inversion into the main kinematic
+model rather than only the predictive one: hands from the body, oar angle
+from the hands, blade force from the oar's motion.  That is a structural
+change to `JointDrivenRower` and `OarAngleSweep`, and it should be
+planned rather than attempted piecemeal.
+
+### What is now known, end to end
+
+1. Crew acceleration **amplitude** is right to 7% (§43).
+2. Its **phase** relative to the blade force is wrong -- opposite signs
+   through the mid-drive.
+3. Six amplitude-based remedies failed because they addressed a quantity
+   that was already correct (§30, §35, §38, §40, §41, harmonic count).
+4. The phase cannot be corrected while the sweep is prescribed, because
+   the arms cannot bridge the gap and the posture table is inert.
+5. The fix is to invert the chain so the oar follows the hands.
+
+The measurement that would confirm it before the rewrite is the one
+`DATA_REQUESTS.md` asks for, now stated precisely: **handle position and
+body position sampled together through the drive.**
+
+## 45. The inversion is not a drop-in
+
+§44 concluded that the causal chain runs backwards -- the model
+prescribes the oar sweep and makes the arms reach for it, where
+physically the oar follows the hands -- and that inverting it would let
+the crew be retimed relative to the blade without the reach constraint
+failing.
+
+### The geometry works
+
+Released from `hand_targets`, the arms are placed by the (previously
+inert) posture table, and the body can be retimed all the way to a lead
+of -0.40 with **no reach failure** and travel preserved:
+
+| lead | CoM travel | CoM speed peak, % of drive | implied oar sweep |
+|---|---|---|---|
+| 0.00 | 0.757 | 36 | 110.7 deg |
+| -0.20 | 0.755 | 61 | 109.5 |
+| -0.40 | 0.753 | 73 | 109.2 |
+
+Reach cannot fail, by construction: the oar goes where the hands are.
+The implied sweep is a stable ~110 degrees, against the 90 that
+`OarAngleSweep` prescribes (catch 55, finish -35) -- worth noting on its
+own.
+
+### The dynamics do not
+
+Deriving the oar angle from the hands and feeding it to the existing
+force model makes the fluctuation **worse**:
+
+| lead | IVV | drive abs acc | speed |
+|---|---|---|---|
+| 0.00 | 62.9% | 3.58 | 3.499 |
+| -0.20 | 91.1% | 3.64 | 2.763 |
+| -0.40 | 172.2% | 5.32 | 2.134 |
+
+against 56.0% and 3.76 m/s for the prescribed chain.
+
+**Because only half the chain was inverted.**  The oar angle now follows
+the hands, but `OarForceProfile` still prescribes the blade loading as a
+function of *stroke phase*.  Retiming the body therefore moves the oar's
+actual motion while the force keeps its original clock, and the two are
+more inconsistent than before, not less.  The speed collapse is the same
+fault seen from the other side: thrust arriving when the blade is no
+longer where the profile assumes.
+
+### What the full change requires
+
+The chain has to be inverted end to end:
+
+    body -> hands -> oar angle -> blade slip -> blade force
+
+The last link is the one missing.  The blade force must come from the
+blade's motion through the water -- which `BladeModel` already computes,
+slip-based after Cabrera & Ruina, and which the simulator currently uses
+only to *rescale* a prescribed profile via `_blade_efficiency`.  Making
+it the source rather than a correction means `OarForceProfile` stops
+being an input, and with it goes the per-class peak-force calibration
+that currently makes each boat hit its known speed.
+
+That is a substantial rewrite touching `JointDrivenRower`,
+`OarAngleSweep`, `OarForceProfile` and the catalogue's calibration, and
+it removes the mechanism by which boat speed is currently made correct.
+`coxswain.crew.predictive` already implements this chain, which is why
+§44 called it the main line rather than a branch.
+
+### The honest state
+
+The diagnosis is complete and consistent: crew acceleration amplitude
+right to 7%, its phase relative to the blade wrong, unfixable while
+either the sweep or the force is prescribed by phase.  The fix is
+structural and is now scoped.  It should be done as a deliberate piece of
+work against the synchronised handle-and-body measurement that
+`DATA_REQUESTS.md` asks for, not by further probing -- half-inversions
+make things worse, and this section is the evidence.
+
+## 46. The rewrite is not justified yet
+
+§45 scoped the end-to-end inversion -- body, hands, oar angle, blade
+slip, blade force -- and noted it removes the per-class peak-force
+calibration, so boat speed stops being fitted and becomes predicted.
+That is better science, and it is also a test the current model has never
+had to pass.
+
+Rather than rewrite four modules to find out, the chain was assembled in
+a **one-degree-of-freedom surge model**: the same crew kinematics, the
+oar angle inverted from the hands, the blade force from slip after
+Cabrera & Ruina, hull drag from the same resistance model, and no
+prescribed force profile anywhere.
+
+| lead | predicted speed | IVV |
+|---|---|---|
+| 0.00 | **5.333 m/s** | 63.9% |
+| -0.10 | 5.504 | 51.0% |
+| -0.20 | 6.031 | 55.6% |
+| -0.40 | 7.732 | 84.9% |
+
+**The crew actually rowed 3.82 m/s.**  The inverted chain over-predicts
+by 40%, and the fluctuation does not improve.
+
+### What that means
+
+The rewrite would exchange a model whose speed is right because it was
+calibrated and whose fluctuation is wrong, for one whose speed is wrong
+by 40% *and* whose fluctuation is still wrong.  On this evidence it is
+not justified, and running it would have cost four modules and the
+catalogue calibration to arrive somewhere worse.
+
+It also says something the calibrated model was hiding.  Speed is
+currently correct by construction -- `PEAK_OARLOCK_FORCE` is fitted per
+class to make it so -- and that fitting has been absorbing an error
+somewhere else.  Given the same kinematics and a physical blade model,
+the boat goes far too fast, so either the blade is too effective at the
+slips these kinematics produce, or the kinematics move the handle too
+quickly.
+
+The second would be consistent with §43 in a way worth checking: the
+crew's *acceleration* amplitude is right to 7%, but that was measured
+against the constrained-arm rower.  With the arms released to the posture
+table the hand path is different, and hand speed is what sets slip.
+
+### Standing position
+
+Three structural candidates have now been tested and none is the fix:
+the force-loop double count (§42, does not exist), the drive retiming
+(§41, null when done consistently), and the causal inversion (§45-46,
+worse).  The diagnosis of §43 stands and is narrow -- amplitude right,
+phase wrong -- but every mechanism proposed for the phase error has
+failed on test.
+
+The next thing is not another mechanism.  It is the measurement:
+handle position and body position sampled together through the drive,
+which fixes the phase directly instead of inferring it from the hull and
+guessing at what would produce it.
+
+## 47. Correcting §46: the blade model is sound, the arm table is not
+
+§46 ran the inverted chain in one degree of freedom, predicted 5.33 m/s
+against a measured 3.82, and concluded the rewrite was not justified.
+The 40% error was real but **misattributed**.
+
+Repeating the experiment with the model's **own prescribed oar sweep**
+instead of one derived from free arms, everything else identical:
+
+| c2 scale | predicted speed | IVV |
+|---|---|---|
+| **1.00** | **4.102 m/s** | 64.6% |
+| 0.60 | 4.039 | 57.2% |
+| 0.40 | 3.882 | 55.2% |
+
+**4.10 m/s against a measured 3.82 -- 7% high, at full blade
+coefficient.**  That is a good first-principles prediction, and it is one
+the model has never before had to make: boat speed is normally correct by
+construction because `PEAK_OARLOCK_FORCE` is fitted per class to make it
+so.  Given the crew's kinematics, the oar's geometry, the slip-based
+blade of Cabrera & Ruina and the hull's own drag, the boat goes very
+nearly the right speed with nothing fitted.
+
+**The blade model passes.  The 40% was the hand path.**
+
+### What actually breaks the inversion
+
+| | sweep | hand / handle travel |
+|---|---|---|
+| prescribed `OarAngleSweep` | 90 deg | 1.226 m |
+| derived from free arms | 110 deg | 1.440 m |
+
+Released from the handle constraint, the arms carry the hands 17%
+further and correspondingly faster, which inflates blade slip and with it
+thrust.  The arm posture table is the cause -- and it is the input §29
+flagged as never having been measured, `DEFAULT_ARM_POSTURE`, which has
+sat inert in the code because every rigged boat overrides it with
+`hand_targets`.
+
+So §45's inversion did not fail because the causal chain is wrong.  It
+failed because inverting the chain makes the model depend, for the first
+time, on an arm posture that was never validated -- and it is wrong by
+17% in hand travel.
+
+### Where this leaves the rewrite
+
+The position of §46 is withdrawn.  The inversion is not disqualified; it
+is blocked on one specific unmeasured input, and the blade model behind
+it is now independently validated to 7% on a quantity it was not fitted
+to.
+
+That also sharpens the data request to something much smaller than
+"rower kinematics".  What is needed is **the hand path through the
+drive** -- where the handle is relative to the body, sampled through the
+stroke.  With that, `DEFAULT_ARM_POSTURE` becomes a measurement, the
+inversion becomes testable, and the phase question of §43 can be
+addressed rather than guessed at.
