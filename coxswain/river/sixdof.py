@@ -272,11 +272,27 @@ class SixDofModel:
 
     def __init__(self, boat, surrogate=None, crew=None, oars=None,
                  relative_tolerance: float = 0.01, gravity: float = 9.80665,
-                 water_level: float = 0.0, blade=None):
+                 water_level: float = 0.0, blade=None,
+                 added_mass=True, munk_factor: float = 0.35):
         from ..crew.balance import BalanceRig
+        from ..hydro.addedmass import AddedMass
+        from ..hydro.crossflow import CrossFlowHull
         from .hullsurrogate import HullSurrogate
 
         self.boat = boat
+        #: Hull added mass and the station table for cross-flow drag.
+        #: These must match what :class:`~coxswain.sim.simulator.
+        #: RowingSimulator` uses, or the optimiser is planning for a
+        #: different boat than the simulator verifies against.
+        if added_mass is True:
+            self.added_mass = AddedMass.from_offsets(
+                boat.offsets, rho=boat.water.density)
+        elif added_mass in (False, None):
+            self.added_mass = None
+        else:
+            self.added_mass = added_mass
+        self.munk_factor = float(munk_factor)
+        self._cross_flow = CrossFlowHull(boat.offsets)
         self.gravity = float(gravity)
         self.water_level = float(water_level)
         self.surrogate = (HullSurrogate.from_boat(boat) if surrogate is None
@@ -335,11 +351,27 @@ class SixDofModel:
         inertia_abs = hull_inertia_abs + crew_inertia_abs
 
         # -- generalised mass matrix, planar-free 6x6 ------------------
+        #
+        # Added mass belongs here and was missing.  The optimiser has its
+        # own dynamics, separate from `RowingSimulator`, and adding
+        # entrained water to one and not the other left two models of the
+        # same boat disagreeing about how hard it is to turn -- by a
+        # factor of 1.2 in yaw for an eight and 9 for a single.
+        # See :mod:`coxswain.hydro.addedmass` and SOURCES sec. 35.
         coupling = _skew(moment_abs, ca)
         mass_matrix = ca.blockcat([
             [self.total_mass * ca.DM.eye(3), -coupling],
             [coupling, inertia_abs],
         ])
+        if self.added_mass is not None:
+            a = ca.DM(self.added_mass.matrix)
+            trans = rotation @ a[0:3, 0:3] @ rotation.T
+            rot_blk = rotation @ a[3:6, 3:6] @ rotation.T
+            cross = rotation @ a[0:3, 3:6] @ rotation.T
+            mass_matrix = mass_matrix + ca.blockcat([
+                [trans, cross],
+                [cross.T, rot_blk],
+            ])
 
         # -- crew reaction: transport terms ----------------------------
         coriolis = 2.0 * ca.cross(omega, rate_abs)
@@ -435,10 +467,25 @@ class SixDofModel:
         balance_force = ca.vertcat(*balance_force_t)
         balance_moment = ca.vertcat(*balance_moment_t)
 
-        force_hull = (resistance + appendage_force + oar_force_hull
-                      + balance_force)
+        # Distributed cross-flow drag and the Munk moment.
+        #
+        # `resistance` above carries the lumped lateral force computed
+        # from sideslip alone, and contributes no yaw moment at all, so
+        # the hull did not damp its own rotation.  With the Munk moment
+        # present and nothing opposing it the boat broaches; with neither
+        # present it is far too directionally stable and losing the skeg
+        # barely registers.  Both belong.  See SOURCES sec. 36.
+        yaw_rate_hull = omega_hull[2]
+        cross_y, cross_n = self._cross_flow_casadi(v, yaw_rate_hull, ca)
+        munk_force, munk_moment = self._munk_casadi(velocity_hull,
+                                                    omega_hull, ca)
+        lateral_fix = ca.vertcat(0.0, cross_y - resistance[1], 0.0)
+        cross_moment = ca.vertcat(0.0, 0.0, cross_n)
+
+        force_hull = (resistance + lateral_fix + appendage_force
+                      + oar_force_hull + balance_force + munk_force)
         moment_hull_total = (appendage_moment + oar_moment_hull
-                             + balance_moment)
+                             + balance_moment + cross_moment + munk_moment)
 
         force = (rotation @ force_hull + buoyancy_force + weight
                  + crew_force)
@@ -471,7 +518,45 @@ class SixDofModel:
 
 # --------------------------------------------------------------------------
 # small symbolic helpers
-# --------------------------------------------------------------------------
+# --------------------------------------------------------------------------    # -- hull-frame hydrodynamic helpers ---------------------------------
+    def _cross_flow_casadi(self, sway, yaw_rate, ca):
+        """Distributed cross-flow drag: sway force and yaw moment.
+
+        Each station is charged the drag of its **local** lateral
+        velocity ``v + x r``.  At zero yaw rate this reduces exactly to
+        the lumped lateral force, so it is a strict extension; what it
+        adds is the yaw damping that holds a hull straight.
+        """
+        table = self._cross_flow
+        rho = self.boat.water.density
+        drag = self.boat.resistance.cross_flow_lateral
+        x = table.station
+        draft = table.draft
+        force = 0.0
+        moment = 0.0
+        for i in range(len(x) - 1):
+            for j in (i, i + 1):
+                local = sway + float(x[j]) * yaw_rate
+                strip = (-0.5 * rho * drag * float(draft[j])
+                         * ca.fabs(local) * local)
+                weight = 0.5 * float(x[i + 1] - x[i])
+                force = force + weight * strip
+                moment = moment + weight * float(x[j]) * strip
+        return force, moment
+
+    def _munk_casadi(self, velocity_hull, omega_hull, ca):
+        """Added-mass Coriolis load, the Munk moment among it."""
+        if self.added_mass is None or self.munk_factor == 0.0:
+            return ca.DM.zeros(3), ca.DM.zeros(3)
+        a = ca.DM(self.added_mass.matrix)
+        top = a[0:3, 0:3] @ velocity_hull + a[0:3, 3:6] @ omega_hull
+        bot = a[3:6, 0:3] @ velocity_hull + a[3:6, 3:6] @ omega_hull
+        force = self.munk_factor * ca.cross(top, omega_hull)
+        moment = self.munk_factor * (ca.cross(top, velocity_hull)
+                                     + ca.cross(bot, omega_hull))
+        return force, moment
+
+
 def _blade_efficiency(blade, oars, time, surge, depth, ca):
     """Instantaneous blade efficiency, symbolically.
 

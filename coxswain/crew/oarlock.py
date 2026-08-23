@@ -53,20 +53,63 @@ __all__ = [
            "oar_axis", "blade_position", "handle_position"]
 
 
+#: Exponents of the drive force curve, ``u**a (1-u)**b`` on the drive.
+#: Fitted to two of Kleshnev's published figures at once: peak force at
+#: **40% of the drive length**, and force already down to **74% of peak
+#: by 60%** of the drive.  Both are reproduced to three figures.
+DRIVE_SHAPE = (1.4852, 2.2278)
+
+#: Mean of that shape over the drive, against ``2/pi`` for a half-sine.
+#: The ratio is what keeps peak force and total impulse consistent when
+#: switching between them.
+DRIVE_SHAPE_MEAN = 0.53853
+
+
 @dataclass(frozen=True)
 class OarForceProfile:
-    """Peak oarlock loads for one athlete."""
+    """Peak oarlock loads for one athlete, and the shape of the drive.
 
-    max_x: float = 1200.0  # N, longitudinal
+    **Why the shape is not a half-sine.**  It was, and a half-sine peaks
+    at the middle of the drive.  Real force curves are front-loaded:
+    Kleshnev puts the peak at 40% of the drive length, and by 60% the
+    force has already fallen to 74% of peak, where a half-sine is still
+    at 95%.
+
+    That is not a cosmetic difference, and the way it showed up is worth
+    recording.  Differencing the boat-mounted and rower-mounted IMUs from
+    the club 2x session gives the crew's acceleration *relative to the
+    hull* directly.  Measured, the hull's acceleration swing is 0.785 of
+    the crew's -- **below** the crew mass fraction of 0.86, meaning the
+    blade thrust partly cancels the crew's reaction.  The model had that
+    ratio at 1.18, **above** the mass fraction: thrust was amplifying the
+    crew reaction instead of opposing it, because a symmetric half-sine
+    puts peak thrust at the same instant as the crew's own peak.
+
+    Moving the peak to where Kleshnev measures it is what fixes the
+    phasing.  See SOURCES sec. 38.
+    """
+
+    max_x: float = 1200.0  # N, longitudinal, at the peak of the drive
     max_z: float = 200.0   # N, vertical
+    #: ``"kleshnev"`` for the fitted front-loaded curve, ``"half_sine"``
+    #: for the previous symmetric one.  Kept switchable because every
+    #: speed calibration in the catalogue predates the change.
+    shape: str = "kleshnev"
 
     def magnitude(self, t, timing: StrokeTiming):
-        """Half-sine shape factor in ``[0, 1]``; zero during the recovery."""
+        """Shape factor in ``[0, 1]``; zero through the recovery."""
         t = np.asarray(t, dtype=float)
         phase_time = np.mod(t, timing.period)
         active = phase_time <= timing.drive_duration
-        shape = np.sin(np.pi * phase_time / timing.drive_duration)
-        return np.where(active, np.maximum(shape, 0.0), 0.0)
+        u = np.clip(phase_time / timing.drive_duration, 0.0, 1.0)
+        if self.shape == "half_sine":
+            curve = np.sin(np.pi * u)
+        else:
+            a, b = DRIVE_SHAPE
+            peak = a / (a + b)
+            norm = peak ** a * (1.0 - peak) ** b
+            curve = u ** a * (1.0 - u) ** b / norm
+        return np.where(active, np.maximum(curve, 0.0), 0.0)
 
 
 @dataclass(frozen=True)

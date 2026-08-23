@@ -3084,3 +3084,175 @@ is destabilising in yaw and is what makes a bare hull want to broach.
 The mass-matrix terms are implemented here; the Munk moment is not, and
 until it is, directional stability is set by the skeg and rudder alone.
 This is now the leading known gap in the steering model.
+
+## 36. Manoeuvring literature, and calibrating the Munk moment
+
+§35 implemented added mass and left the Munk moment off, on the grounds
+that at full strength it broaches an eight and "a model that broaches is
+worse than one that lacks a term".  **That was wrong**, and a coxswain's
+report is what showed it.
+
+### The evidence that settles it
+
+A racing shell that loses its skeg becomes uncontrollable.  The rudder is
+**mounted on the skeg**, so both go together -- a detail the first test
+got wrong by stripping the skeg and keeping the rudder, which is not a
+thing that can happen.  Reported behaviour: violent slewing, crews
+squaring blades on one side or dragging a hand to steer, and at ACRAs an
+eight that lost its skeg crossed into the adjacent lane and hit another
+crew inside 20-30 seconds.
+
+Run against that, `munk_factor = 0` fails outright:
+
+| factor | skeg + rudder fitted | both gone |
+|---|---|---|
+| 0.00 | holds (-2.6 deg) | **holds (-7 deg)** |
+| 0.25 | holds | slews, 32 deg / 25 s |
+| **0.35** | holds | **46 deg / 25 s, past 20 deg at 11.9 s** |
+| 1.00 | broaches (+61) | broaches (+79) |
+
+At zero the model says losing the skeg barely matters.  That is not a
+conservative choice, it is a wrong one, and switching the term off to
+avoid a bad behaviour hid a worse one.
+
+### Steering authority, from the crew
+
+Quantitative anchors for an eight at 24-30 spm, from the coxswain:
+
+* full rudder: heading takes 1-2 strokes to shift meaningfully, then
+  roughly **15 deg in 5 s, so about 3 deg/s at most**
+* a typical steering input: about **1 deg/s**
+* turns are planned well in advance; a full turn consumes a lot of water
+
+At `munk_factor = 0.35` the model gives 2.15 deg/s at full (25 deg)
+rudder and 1.2-1.4 deg/s at typical deflections -- the right order, and
+the bare-hull divergence matches the ACRAs account.
+
+**Known discrepancy, not resolved.**  The modelled turn rate is too
+*insensitive* to rudder angle: 1.23 deg/s at 5 deg against 2.15 at 25
+deg, a factor of 1.7 for five times the rudder, where the report implies
+about three.  Rudder authority is under-modelled relative to the
+instability, and the honest reading is that `munk_factor` is currently
+absorbing an error that belongs to the rudder.  Fixing the rudder would
+change the calibrated factor.
+
+### That the sign is negative is now a test
+
+`test_weathervane_is_stabilising` asserted ``yaw_from_sway > 0`` and now
+asserts the opposite.  The old assertion held only because the model had
+no Munk moment: a slender body in potential flow is *destabilised* by
+drift, the entrained water giving a moment that turns the hull broadside.
+The assembled boat is directionally unstable and is held straight by its
+appendages -- which is precisely why losing them is catastrophic, and why
+a coxswain steers continuously.
+
+### The literature this rests on
+
+**Added mass and slender-body theory**
+
+1. Munk, M. (1924) *The aerodynamic forces on airship hulls*, NACA
+   Rep. 184 -- the original destabilising moment.
+2. Lamb, H. (1932) *Hydrodynamics*, 6th ed., art. 71 -- ellipsoid added
+   mass; the source of the ``k1`` used for surge.
+3. Jones, R.T. (1946) *Properties of low-aspect-ratio pointed wings* --
+   the lift a slender hull generates in drift.
+4. Newman, J.N. (1977) *Marine Hydrodynamics*, sec. 4.13 -- strip theory
+   and the rigid-wall image.
+5. Korotkin, A.I. (2009) *Added Masses of Ship Structures*, Springer --
+   the standard compendium of sectional coefficients.
+6. Fossen, T.I. (2011) *Handbook of Marine Craft Hydrodynamics and Motion
+   Control*, Wiley, secs. 6.3-6.4 -- the added-mass Coriolis matrix used
+   here, and Hoerner cross-flow drag.
+7. Hoerner, S.F. (1965) *Fluid-Dynamic Drag*, ch. 3 -- cross-flow drag
+   coefficients.
+8. Lighthill, M.J. (1960) *Note on the swimming of slender fish* --
+   slender-body momentum reasoning, extended to moderate aspect ratio by
+   Candelier, Porez & Boyer (2011).
+9. Fuwa, T. et al. (1973) -- combines small-aspect-ratio wing theory with
+   slender-body theory including shed vorticity; the standard route to
+   **viscous correction of the potential Munk moment**, which is exactly
+   what a factor below one represents.
+10. Skejic, R. & Faltinsen, O.M. (2008) -- nonlinear slender-body
+    manoeuvring generalised to account for heel.
+
+**Skegs, rudders and course stability**
+
+11. MARIN, *Influence of Skeg on Ship Manoeuvrability at High and Low
+    Speeds* -- the classic result that directional stability trades
+    against manoeuvrability, and that if stability must be raised it is
+    better bought with **movable rudder area than fixed skeg area**.
+    Directly relevant to whether this model's skeg or rudder is mis-sized.
+12. Yasukawa & Yoshimura, *The influence of skegs on course stability of
+    a barge* (Ocean Eng., 2015).
+
+**Rowing-specific dynamics**
+
+13. Formaggia, L., Miglio, E., Mola, A. & Montano, A. (2009) *A model for
+    the dynamics of rowing boats* -- the 6-DOF formulation this simulator
+    is built on.
+14. Formaggia, L., Mola, A., Parolini, N. & Pischiutta, M. (2010) *A
+    three-dimensional model for the dynamics and hydrodynamics of rowing
+    boats*, Proc. IMechE Part P.
+15. Mola, A., Del Grosso, L., Formaggia, L. & Miglio, E. (2006)
+    *Performance prediction of olympic rowing boats accounting for full
+    dynamics*, Comm. SIMAI Congress 1.  **Structurally confirms the
+    approach taken here**: the hull load is split into "a component
+    proportional to the acceleration vector -- the mass matrix M -- and a
+    component proportional to the velocity vector -- the damping matrix
+    S", both from a potential-flow solve.  Same decomposition, reached by
+    potential flow rather than strip theory.  It is planar (surge, heave,
+    pitch) so it does not calibrate yaw.
+16. Day, A.H., Campbell, I., Clelland, D. & Cichowicz, J. -- experimental
+    unsteady hydrodynamics of a single scull; acceleration measurably
+    affects viscous drag.  Also the source of the observation that racing
+    boat velocity **fluctuates by roughly 20% about the mean**, which is
+    a third independent corroboration of the 37.3% peak-to-peak of §24.
+17. Robinson, M. et al. -- experimental drag coefficient of a men's 8+
+    racing shell (SpringerPlus 3:512, 2014).
+18. Sliasas, A. & Tullis, S. -- shell-velocity-coupled blade
+    hydrodynamics.
+19. Knarr, C., Kwoun, H. & Kleshnev, V. (2024/2026) *Using IMU sensors to
+    compare rowing ergometers with rowing on the water*, Proc. IMechE
+    Part P.
+20. Kleshnev, V. *Biomechanics of Rowing* -- segment power shares, trunk
+    swing, and the rate-dependence of boat velocity fluctuation.
+
+**A calibration datum still wanted.** Reported within-stroke attitude
+variation for racing shells is under 1 deg in pitch and under 5 deg in
+roll and yaw.  The model can be checked against that directly, and it is
+the cheapest remaining validation of the steering model.
+
+## 37. Two dynamics implementations, one boat
+
+The trajectory optimiser does not use `RowingSimulator`.  It has its own
+CasADi dynamics in `coxswain/river/sixdof.py`, because the optimiser
+needs expressions it can differentiate rather than a stepper.  That is a
+reasonable design and it carries an obvious hazard, which duly happened:
+§35 and §36 added entrained water, distributed cross-flow drag and the
+Munk moment to the **simulator only**.
+
+For an eight that left the two models disagreeing by a factor of 1.2 in
+yaw inertia; for a single, by a factor of 9.  The optimiser was planning
+lines for a boat several times more manoeuvrable than the one the
+simulator would have flown, and every trajectory result in §33 was
+computed on the old physics.
+
+`SixDofModel` now carries the same `AddedMass`, the same
+`CrossFlowHull` station table and the same `munk_factor` as the
+simulator, and a test asserts they match rather than trusting that they
+do.  A mismatch here is invisible in every other test: both models are
+individually self-consistent, both converge, and only the comparison
+catches it.
+
+### It made the solve easier, not harder
+
+The concern was that a boat which is harder to turn and directionally
+unstable would be harder to steer down a narrowing channel.  The opposite
+happened: blocks converge in 99-129 iterations against 155-168 before.
+
+That is worth a sentence of interpretation.  Added mass raises the yaw
+inertia, which lengthens the boat's yaw time constant, which **smooths
+the map from rudder to path**.  A boat that responds instantly to rudder
+gives the optimiser a stiff, twitchy control problem; one with realistic
+inertia gives it a better-conditioned one.  The physics being right and
+the numerics being easier are not a coincidence here.

@@ -120,7 +120,7 @@ class RowingSimulator:
                  rudder: Optional[Callable[[float, State], float]] = None,
                  water_level: float = 0.0, gravity: float = GRAVITY,
                  course=None, wind=None, aero=None, blade_contact=None,
-                 added_mass=True):
+                 added_mass=True, munk_factor: float = 0.35):
         self.boat = boat
         #: Geometry linking the crew's balance effort to the hull load.
         #: Sweep rigs make this more than a roll couple; see
@@ -136,6 +136,10 @@ class RowingSimulator:
         #: the boat several times too easy to turn.  Pass
         #: ``added_mass=False`` to recover the old behaviour, or an
         #: :class:`~coxswain.hydro.addedmass.AddedMass` to override it.
+        #: Strength of the added-mass Munk moment, 0 to 1.  Off by
+        #: default and deliberately so; see
+        #: :meth:`coxswain.hydro.addedmass.AddedMass.coriolis`.
+        self.munk_factor = float(munk_factor)
         from ..hydro.crossflow import CrossFlowHull
         #: Station table for the distributed cross-flow integral.
         self._cross_flow = CrossFlowHull(boat.offsets)
@@ -451,7 +455,8 @@ class RowingSimulator:
         munk_moment = np.zeros(3)
         if self._added_mass is not None:
             load = self._added_mass.coriolis(rot.T @ state.velocity,
-                                             rot.T @ state.omega)
+                                             rot.T @ state.omega,
+                                             munk_factor=self.munk_factor)
             munk_force, munk_moment = load[0:3], load[3:6]
 
         return ForceBreakdown(

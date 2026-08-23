@@ -68,7 +68,7 @@ def _rudder(x: float, span: float = 0.090, chord: float = 0.120,
 #: are calibrated to do that: an eight at rate 32 settles at about
 #: 5.2 m/s, which is where an eight actually cruises at that rate.
 PEAK_OARLOCK_FORCE = {"8+": 950.0, "4+": 1050.0, "1x": 700.0,
-                      "2x": 780.0}
+                      "2x": 490.0}
 
 
 def eight(rate: float = 32.0, rower_mass: float = 88.0,
@@ -198,10 +198,19 @@ def double_scull(rate: float = 30.0, rower_mass: float = 82.0,
     the length and waterline beam of a standard club 2x.  Seats 1.22 m
     apart as in every other class here, 0.80 m span as for the 1x.
 
-    Peak oarlock force is scaled from the 1x figure by the usual
-    observation that per-rower blade loading falls slightly as crew size
-    rises -- Kleshnev's tables put a 2x sculler a little above a 1x at the
-    same rate, which is where 780 N comes from.
+    Peak oarlock force is **calibrated against the measured session**,
+    not guessed.  The first value here was 780 N, reasoned from
+    "a 2x sculler sits a little above a 1x", and it made the model boat
+    do 4.87 m/s at 24 spm -- faster at a training rate than the
+    world-best double averages over a race.
+
+    The differential-GPS baseline logs from the club session in section
+    24 give that crew's actual speed: **3.82 m/s** (median of seven logs,
+    range 3.39-4.19).  490 N reproduces it.  Since that session is also
+    the source of the measured velocity fluctuation, calibrating the boat
+    to it makes the fluctuation comparison like for like in mean speed as
+    well as in boat class -- which matters, because IVV is a ratio and
+    the earlier 780 N flattered it.
     """
     length, beam, draft = 10.40, 0.345, 0.135
     hull_mass = 27.0

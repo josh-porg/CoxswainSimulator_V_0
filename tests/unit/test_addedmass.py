@@ -92,7 +92,11 @@ def test_added_mass_slows_the_yaw_response_to_rudder():
     def amplitude(added_mass, osc=4.0):
         cox = Coxswain(rudder_override=lambda t, s:
                        np.radians(5.0) * np.sin(2 * np.pi * t / osc))
-        sim = RowingSimulator(boat, coxswain=cox, added_mass=added_mass)
+        # munk_factor=0 isolates the inertia: the Munk moment is a
+        # *destabilising* term and would confound a test about how much
+        # inertia the boat swings.
+        sim = RowingSimulator(boat, coxswain=cox, added_mass=added_mass,
+                              munk_factor=0.0)
         res = sim.run(duration=max(4 * osc, 8 * period), dt=0.006,
                       surge_speed=4.5)
         t = res.time
@@ -109,3 +113,27 @@ def test_added_mass_can_be_switched_off():
     boat = catalog.double_scull()
     assert RowingSimulator(boat, added_mass=False)._added_mass is None
     assert RowingSimulator(boat)._added_mass is not None
+
+
+def test_optimiser_and_simulator_agree_about_added_mass():
+    """Two dynamics implementations, one boat.
+
+    The trajectory optimiser has its own CasADi dynamics, separate from
+    the simulator.  Adding entrained water to one and not the other left
+    them disagreeing about how hard the boat is to turn -- by a factor of
+    1.2 in yaw for an eight and 9 for a single -- which would have the
+    optimiser planning a line the simulator could not fly.
+    """
+    from coxswain.crew.oarlock import BladeModel
+    from coxswain.river.hullsurrogate import HullSurrogate
+    from coxswain.river.sixdof import SixDofModel
+
+    boat = catalog.eight(rate=32.0)
+    model = SixDofModel(boat, surrogate=HullSurrogate.from_boat(boat),
+                        blade=BladeModel.sweep())
+    reference = RowingSimulator(boat)
+
+    assert model.added_mass is not None
+    assert np.allclose(model.added_mass.matrix,
+                       reference._added_mass.matrix)
+    assert model.munk_factor == pytest.approx(reference.munk_factor)

@@ -166,11 +166,27 @@ def test_planar_mass_matrix_is_positive_definite():
 # --------------------------------------------------------------------------
 # hydrodynamic coefficients
 # --------------------------------------------------------------------------
-def test_weathervane_is_stabilising(boat):
-    """Positive N per (u v): crabbing to port turns the bow to port,
-    which reduces the sideslip.  Without this the model spins up."""
+def test_the_hull_is_directionally_unstable_in_sideslip(boat):
+    """``N`` per ``(u v)`` is **negative**, and that is the real behaviour.
+
+    This assertion used to be the opposite -- that the term was
+    stabilising -- and it held only because the model had no Munk moment.
+    A slender body in a potential flow is destabilised by drift: the
+    entrained water gives a moment that turns the hull *broadside*, and
+    for a rowing shell it is large.
+
+    The evidence that settles the sign is what happens when a shell loses
+    its skeg, which takes the rudder with it: the boat becomes
+    uncontrollable, slews violently, and crews resort to squaring blades
+    or dragging a hand to steer.  A hull whose sideslip term were
+    stabilising would simply weathervane straight, and it does not.
+
+    So the assembled boat is directionally unstable and is held straight
+    by the skeg and rudder, which is why losing them is catastrophic.
+    See SOURCES sec. 36.
+    """
     hydro = HydroCoefficients.from_boat(boat)
-    assert hydro.yaw_from_sway > 0.0
+    assert hydro.yaw_from_sway < 0.0
 
 
 def test_yaw_damping_opposes_rotation(boat):
@@ -187,15 +203,27 @@ def test_sway_damping_opposes_sideslip(boat):
 def test_weathervane_dominates_the_rudder(boat):
     """Why an eight turns badly.
 
-    Ignoring sideslip, full rudder implies about 3.5 deg/s; the measured
-    figure is 1.1.  The difference is the skeg weathervaning against the
-    turn, and it is the largest single term in the yaw balance.
+    Ignoring sideslip, full rudder implies more than the measured
+    1.1 deg/s.  The difference is the yaw damping the boat generates
+    against its own turn.
+
+    This bound used to be 2.5 deg/s, when the skeg weathervaning was the
+    *only* source of that damping: the hull's own yaw moment was set to
+    zero outright.  Distributed cross-flow drag now charges each station
+    the drag of its local lateral velocity ``v + x r``, so the hull damps
+    its own rotation too, and the naive estimate falls to about 1.5 --
+    much closer to the measured figure, which is the point.
+
+    See ``coxswain.hydro.crossflow`` and SOURCES sec. 36.
     """
     hydro = HydroCoefficients.from_boat(boat)
     speed = 5.2
     naive = abs(hydro.yaw_from_rudder * speed ** 2 * np.radians(12.0)
                 / (hydro.yaw_from_yaw * speed))
-    assert np.degrees(naive) > 2.5
+    assert 1.2 < np.degrees(naive) < 2.2
+    # and it must still exceed the measured turn rate, or there would be
+    # nothing for the weathervane to explain
+    assert np.degrees(naive) > 1.1
 
 
 # --------------------------------------------------------------------------
