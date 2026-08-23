@@ -4069,3 +4069,82 @@ made because it is right, and it does not close §43's phase gap.
 It does remove a confound that had been sitting under every experiment in
 §39-47: those were all run on a sculling boat whose oar arc was 18% too
 narrow and whose rower's arms were bent at the catch.
+
+## 49. Drive duration: the strongest lead, rejected on on-water evidence
+
+Re-orienting to validating the **rower** standalone rather than chasing
+the coupled output, the first thing to check is whether the rower's
+motion occupies the right amount of the stroke.
+
+### The literature says the drive is a quarter too short
+
+Telfer et al. (2023), *The effect of foot-stretcher position and stroke
+rate on ergometer rowing kinematics*, PLOS ONE 18(5): e0285676, n = 11
+collegiate rowers, report the catch as a fraction of the stroke cycle,
+which gives the drive fraction directly:
+
+| rate | Telfer | this model | error |
+|---|---|---|---|
+| 22 spm | 0.394 | 0.300 | -24% |
+| 26 spm | 0.430 | 0.340 | -21% |
+| 32 spm | 0.468 | 0.397 | -15% |
+
+### And it is a large lever
+
+Crew acceleration goes as ``1/t^2``, so a longer drive lowers it, and the
+hull's fluctuation follows crew acceleration.  Adopting Telfer's values:
+
+| | current | Telfer |
+|---|---|---|
+| drive fraction @ 24 spm | 0.320 | 0.414 |
+| **IVV** | 58.4% | **49.2%** |
+| mean abs hull acc through the drive | 3.54 | **2.52** |
+| crew CoM velocity swing | 2.406 | 2.205 |
+
+With boat speed recalibrated back onto its measured value the 2x lands at
+51.6%.  That is the largest single improvement found -- larger than
+sequencing, flatness, the force curve, the traverse warp and the causal
+inversion combined.
+
+A reciprocal form ``fraction = 0.63067 - 5.20991 / rate`` fits all three
+measured rates to four decimals and, unlike a straight line in duration,
+saturates rather than turning over above 40 spm.  It also lands on a
+1:1.00 ratio at 40 spm -- the race-pace figure coaches quote, which the
+fit was not given.
+
+### It is rejected anyway
+
+**Telfer is ergometer data**, and two independent *on-water* constraints
+reject it:
+
+1. **Blade efficiency.**  A longer drive sweeps the same arc more slowly,
+   so the blade slips less and force-weighted efficiency rises to 0.91
+   against the **0.80-0.85 Kleshnev measures on the water**.
+2. **Recovery ratio at low rates.**  1:1.70 at 20 spm, where the coaching
+   figure is 1:2 and above.
+
+A boat runs under its crew during the recovery in a way an ergometer does
+not, which lengthens the on-water recovery.  Accepting Telfer would trade
+two validated on-water behaviours for one ergometer measurement.
+
+So the change is reverted and the finding recorded in
+`StrokeTiming.drive_duration` itself.  The honest reading is that
+**Formaggia's fit is probably somewhat short and Telfer's is somewhat
+long for a boat**, that the truth lies between, and that settling it
+needs an on-water measurement of the drive fraction rather than a choice
+between two mismatched sources.
+
+An attempt to measure it directly from the club 2x -- the crew's own
+trunk reversal, timed against the catch -- put the trunk extreme at phase
+0.75, which cannot be a drive fraction and coincides with the hull's
+acceleration peak at 0.74.  The pelvis channel is picking up hull motion.
+That measurement is not usable and is not used.
+
+### Standing
+
+This is the first candidate that moves the fluctuation substantially in
+the right direction for a reason grounded in measured kinematics.  It is
+also the first that has had to be rejected on the strength of *competing*
+measurements rather than on its own failure.  The drive fraction stays
+the leading suspect, and the on-water drive fraction is now a named item
+in `DATA_REQUESTS.md`.

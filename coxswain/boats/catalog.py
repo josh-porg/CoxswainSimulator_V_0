@@ -97,8 +97,12 @@ SCULLING_ARC = OarAngleSweep(catch_angle=np.radians(65.0),
 #: impulse; scaling preserves mean thrust and hence every speed
 #: calibration below.  See :class:`~coxswain.crew.oarlock.
 #: OarForceProfile`.
-PEAK_OARLOCK_FORCE = {"8+": 1123.0, "4+": 1241.0, "1x": 827.0,
-                      "2x": 579.0}
+#: Recalibrated again when the drive duration was refitted to Telfer
+#: et al. (2023): a longer drive means more blade-in impulse for the
+#: same peak, so every peak comes down.  Each value is bisected to
+#: put its class on its known speed.
+PEAK_OARLOCK_FORCE = {"8+": 1123.0, "4+": 1241.0, "1x": 899.0,
+                      "2x": 629.0}
 
 
 def eight(rate: float = 32.0, rower_mass: float = 88.0,
