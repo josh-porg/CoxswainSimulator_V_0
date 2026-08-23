@@ -102,12 +102,14 @@ class Boat:
         #: Experimental reparameterisation of the crew's traverse towards
         #: constant rate.  **Off by default and not recommended above
         #: ~0.5.**  It does reduce the surge fluctuation, but not honestly:
-        #: the composed warp has to be clamped monotone to keep the hands
-        #: on the handle, and the clamping truncates the stroke -- centre
-        #: of mass travel falls from 0.794 m to 0.625 m as the blend goes
-        #: from 0 to 0.7.  A pure retiming would preserve travel exactly.
-        #: See SOURCES sec. 25: the fluctuation gap is real but this is not
-        #: the way to close it.
+        #: Blend towards a constant-rate crew traverse, 0 to 1.
+        #:
+        #: The hull's speed fluctuation is set almost entirely by the peak
+        #: of the crew's centre-of-mass velocity, and real crews sit close
+        #: to the constant-rate floor while a four-keyframe interpolant is
+        #: humped.  This was previously abandoned because it truncated the
+        #: stroke; that was a normalisation bug in the warp composition,
+        #: not a property of the method.  See SOURCES sec. 40.
         self.uniform_traverse = float(uniform_traverse)
         self.phase_warp = None
         self.stroke_dataset = stroke_dataset or default_dataset()
@@ -178,12 +180,40 @@ class Boat:
                 composed = step
             else:
                 composed = np.interp(step, phases, np.asarray(warp[1]))
-            # Composition can overshoot into postures the arms cannot
-            # reach, so keep it monotone and inside the cycle.  A warp that
-            # asks for a reach the athlete does not have is not a better
-            # model of their timing, it is a broken one.
-            composed = np.maximum.accumulate(
-                np.clip(composed, 0.0, 1.0 - 1e-9))
+            # Keep the composition monotone, then **renormalise each
+            # phase onto its own interval**.
+            #
+            # The previous version clipped to [0, 1) and took a running
+            # maximum.  That enforces monotonicity but destroys the thing
+            # a reparameterisation is for: a running maximum flattens any
+            # decreasing stretch into a plateau, and the clip pins
+            # everything past an overshoot at the endpoint, so the warp
+            # stops spanning its interval.  Postures near the catch and
+            # the finish then never get sampled at all, and crew
+            # centre-of-mass travel fell from 0.744 m to 0.499 m as the
+            # blend went to 0.9 -- which looks like a fix, because
+            # shrinking the crew's motion does reduce the hull's speed
+            # fluctuation, and is not one.
+            #
+            # A time reparameterisation traverses the *same path* at
+            # different rates, so travel is preserved exactly.  That
+            # requires the warp to be onto: the drive must still span
+            # [0, drive] and the recovery [drive, 1].  Renormalising each
+            # phase separately keeps the catch, the finish and the next
+            # catch fixed, which is also what leaves the force profile's
+            # clock alone.
+            composed = np.maximum.accumulate(composed)
+            head = phases < drive
+            tail = ~head
+            for mask, lo, hi in ((head, 0.0, drive), (tail, drive, 1.0)):
+                block = composed[mask]
+                span = block[-1] - block[0]
+                if span <= 1e-12:
+                    composed[mask] = np.linspace(lo, hi, mask.sum(),
+                                                 endpoint=False)
+                    continue
+                composed[mask] = lo + (block - block[0]) * (hi - lo) / span
+            composed = np.clip(composed, 0.0, 1.0 - 1e-9)
             warp = (tuple(phases.tolist()), tuple(composed.tolist()))
         return warp
 
