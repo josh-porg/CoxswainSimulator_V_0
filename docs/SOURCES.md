@@ -4662,3 +4662,106 @@ quasi-steady.
 
 That is the next thing to test, and it is the first candidate in twenty
 sections that is a *new term* rather than a re-tuning of an existing one.
+
+## 57. Getting to the bottom of it
+
+This section resolves the fluctuation investigation.  Parts of §40, §43,
+§55 and §56 are withdrawn, one measurement pipeline is condemned, one new
+validation passes at r = 0.92, and the residual is reduced to a single
+named input.
+
+### The accelerometer profile was corrupted, and everything built on it falls
+
+The catch-aligned hull *acceleration* profile of §40 (phone IMU, 162
+cycles) said the boat is near equilibrium through the drive and gains its
+speed in the late recovery.  Three independent checks now condemn it:
+
+1. **The pipeline itself is clean** -- pushed through its own machinery,
+   the model's signal comes back at r = 0.989, and stays above 0.85 even
+   under 6 m/s^2 of added noise.  The distortion is not in the averaging.
+2. **Model-free inversion gives an impossible force.**  Combining that
+   profile with the measured crew waveform through the exact momentum
+   identity implies +350 N of external force in mid-recovery (blades out
+   of the water) and -458 N in mid-drive, at every possible alignment.
+   No physical force curve is consistent with it.
+3. **The DGPS velocity waveform contradicts it.**  Position-differenced
+   velocity, 37 cycles aligned on per-stroke minima, shows the textbook
+   curve: minimum just after the catch, **rising through the drive**,
+   maximum at phase 0.39 (the drive ends at 0.41), then a smooth decay
+   through the recovery.  The boat gains its speed on the drive.
+
+The IMU channel integrates to the right IVV (which is why §24 validated
+it) but its within-stroke phase structure is wrong -- most plausibly the
+detector was locking onto an event that is not the catch, rotating the
+average.  `hull_profile.npz` is demoted to NOT USABLE in
+`PROVENANCE.md`; §43's "phase inversion", §55's "wrong distribution" and
+§56's "missing unsteady term" conclusions all rested on it and are
+**withdrawn**.
+
+### The model's velocity waveform is right
+
+Against the DGPS waveform, both aligned on their own minima:
+
+| | DGPS | model |
+|---|---|---|
+| velocity max phase | 0.39 | 0.47 |
+| **shape correlation** | | **+0.921** |
+
+With club-plausible inputs the correlation reaches 0.948.  The shape of
+the hull's response -- the thing twenty sections of remedies tried to fix
+-- was never wrong.
+
+### The amplitude, fully accounted
+
+Per-stroke IVV on 10 Hz DGPS is inflated by position noise: the model
+run through the exact pipeline at the receiver's 9 mm accuracy reads
+56.8% for a true 51.2%.  Correcting the measurement the same way,
+**true measured IVV is about 33.5%**, against a model prediction of
+51.4% with erg-standard inputs and 43.4% with club-plausible ones
+(lighter crew, boat weight with kit, 70 ms synchronisation offset).
+
+Every force-side candidate for the remaining ratio was tested and failed:
+
+* radiation damping -- barely moves IVV at implausible magnitudes,
+  destroys the shape;
+* reactive slip-based blade -- *raises* IVV to 54.9%, its slip^2
+  peakiness outweighing its feedback damping;
+* surge added mass, force-curve placement -- §56, previously.
+
+What remains, by elimination and by three independent signatures, is the
+**crew's kinematic amplitude**: the measured hull requires an on-water
+relative CoM velocity swing of 1.4-1.7 m/s, where static-ergometer
+kinematics -- both Telfer's measured subjects and this model's
+erg-validated crew -- give 2.16-2.37 m/s.  The signatures:
+
+1. the DGPS recovery decays at the pure-drag rate, with no visible
+   crew-reaction bump;
+2. the catch dip is 40% shallower than any erg-crew configuration
+   predicts;
+3. fitting the crew amplitude against the full waveform keeps improving
+   below any physical seat travel *unless* the waveform is also ~25%
+   smoother per metre -- i.e. the difference is in velocity shape as
+   well as travel.
+
+This is the documented static-erg-versus-water difference: a stationary
+ergometer forces the body to do all of the moving, with larger range of
+motion and faster body speeds -- it is the stated reason dynamic
+(slide-mounted) ergometers exist.  The club crew, paddling lightly at
+22-26 spm, sits at the gentle end.
+
+### The resolution
+
+**The model is structurally correct.**  Momentum coupling exact; force
+terms individually verified; hull response *shape* validated at
+r = 0.92-0.95; amplitude linear in the crew input, as momentum requires.
+Its fluctuation prediction is conditional on the crew waveform it is
+given, and with static-erg kinematics it predicts static-erg-scale
+fluctuation -- 51%, which is presumably what an erg-technique crew would
+produce on water.  Given the amplitude the measured hull implies, it
+reproduces the measurement by construction of momentum.
+
+The single unmeasured input is the **on-water crew relative velocity
+swing**.  It is now the only F-class quantity left in the fluctuation
+chain, it is boxed to 0.65-0.75 of the erg value for this crew, and the
+synchronised crew-plus-hull measurement in `DATA_REQUESTS.md` is the one
+observation that would pin it.
