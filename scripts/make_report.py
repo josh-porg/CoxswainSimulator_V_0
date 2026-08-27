@@ -12,7 +12,7 @@ The stages, in order, because each depends on the one before:
 
 1. verify the river: bridges against the federal survey, arches, widths
 2. optimise a racing line and score it against lines a crew would row
-3. price the arch strategies and break the race time into its causes
+3. price the arch strategies and break the race time into its causes``
 4. steer the full 6-DOF boat down the winning line, both controllers
 5. draw the charts, the lines, the losses and the animations
 6. assemble the page
@@ -139,6 +139,18 @@ def main(argv=None):
     parser.add_argument("--quick", action="store_true",
                         help="skip the animations, which dominate the runtime")
     parser.add_argument("--month", type=int, default=10)
+    parser.add_argument("--steer-leg", type=float, default=400.0,
+                        help="metres of racing to steer for the controller "
+                             "comparison. The 6-DOF boat integrates at "
+                             "100 Hz, so this is the slowest stage by far "
+                             "and 400 m is enough to separate the two "
+                             "controllers through the Weeks turn")
+    parser.add_argument("--no-steering", action="store_true",
+                        help="skip the controller comparison entirely")
+    parser.add_argument("--dt", type=float, default=0.02,
+                        help="simulation step for the controller runs; the "
+                             "boat's yaw time constant is 0.06 s so this "
+                             "still resolves the dynamics")
     args = parser.parse_args(argv)
 
     started = time.time()
@@ -218,13 +230,14 @@ def main(argv=None):
     overall.set_description("steering the 6-DOF boat down it"); overall.update(1)
     station = np.linspace(0.0, course.length, 4000)
     full_path = course.offset_position(station, route.offset_at(station))
-    leg = (station >= 1940) & (station <= 2800)
+    span = float(args.steer_leg)
+    leg = (station >= 2278 - 0.35 * span) & (station <= 2278 + 0.65 * span)
     boat = catalog.eight(rate=28.0)
     control_rows = []
-    for controller in progress(["reactive", "mpc"], desc="  controllers",
-                               unit="run"):
+    controllers = [] if args.no_steering else ["reactive", "mpc"]
+    for controller in progress(controllers, desc="  controllers", unit="run"):
         times, positions, errors, driver = steer(full_path[leg], controller,
-                                                 boat)
+                                                 boat, dt=args.dt)
         settled = errors[len(errors) // 5:]
         control_rows.append([
             "model predictive" if controller == "mpc" else "reactive (LOS)",
