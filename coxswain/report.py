@@ -69,10 +69,20 @@ class Figure:
     def data_uri(self) -> Optional[str]:
         if not os.path.isfile(self.path):
             return None
-        kind = "gif" if self.path.lower().endswith(".gif") else "png"
+        lower = self.path.lower()
+        if lower.endswith(".mp4"):
+            mime = "video/mp4"
+        elif lower.endswith(".gif"):
+            mime = "image/gif"
+        else:
+            mime = "image/png"
         with open(self.path, "rb") as handle:
             payload = base64.b64encode(handle.read()).decode("ascii")
-        return "data:image/%s;base64,%s" % (kind, payload)
+        return "data:%s;base64,%s" % (mime, payload)
+
+    @property
+    def is_video(self) -> bool:
+        return self.path.lower().endswith(".mp4")
 
 
 @dataclass
@@ -171,10 +181,13 @@ class Report:
                    % _escape(figure.reading) if figure.reading else "")
         caption = ('<p class="caption">%s</p>' % _escape(figure.caption)
                    if figure.caption else "")
-        return ('<section><h2>%s</h2><figure><img src="%s" alt="%s"/>'
-                '%s</figure>%s</section>'
-                % (_escape(figure.title), uri, _escape(figure.title),
-                   caption, reading))
+        if figure.is_video:
+            media = ('<video src="%s" controls loop muted playsinline>'
+                     '</video>' % uri)
+        else:
+            media = '<img src="%s" alt="%s"/>' % (uri, _escape(figure.title))
+        return ('<section><h2>%s</h2><figure>%s%s</figure>%s</section>'
+                % (_escape(figure.title), media, caption, reading))
 
 
 def _escape(text) -> str:
@@ -251,7 +264,7 @@ _HEAD = """<!doctype html>
    border-left:2px solid var(--rule);padding-left:.9rem}
  figure{margin:0;background:var(--card);border:1px solid var(--rule);
    border-radius:3px;padding:.7rem}
- img{width:100%;height:auto;display:block;border-radius:2px}
+ img,video{width:100%;height:auto;display:block;border-radius:2px}
  .caveats{border-top:1px solid var(--rule);margin-top:2rem}
  .caveats li{margin:0 0 .55rem;color:var(--muted)}
  .missing{color:var(--warn)}

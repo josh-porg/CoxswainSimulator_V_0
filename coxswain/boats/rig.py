@@ -25,7 +25,7 @@ import numpy as np
 
 from ..crew.anthropometry import PORT, STARBOARD
 
-__all__ = [
+__all__ = ["RIG_PATTERNS", 
     "Oar", "Oarlock", "Seat", "Rig", "SWEEP_OAR", "SCULLING_OAR",
     "build_sweep_rig", "build_sculling_rig",
 ]
@@ -208,22 +208,66 @@ class Rig:
                          for seat in self.seats for lock in seat.oarlocks])
 
 
+#: Named sweep seating patterns, written stern to bow from the stroke seat,
+#: ``+1`` port and ``-1`` starboard.  The names are the ones crews use, with
+#: the caveat that usage varies between countries -- the physics cares only
+#: about the side sequence, so the sequence is the definition here.
+#:
+#: What a pattern changes is the **stagger couple**: each oarlock sits a
+#: seat's fraction ahead of its rower, so summing ``side * station`` over
+#: the crew leaves a net yaw moment arm.  A standard alternating rig has
+#: the largest; rigs that pair same-side seats ("buckets") can cancel it
+#: almost exactly, which is the entire engineering argument for them.
+RIG_PATTERNS = {
+    # conventional alternating, port stroke -- what almost every club rows
+    "standard":         (+1, -1, +1, -1, +1, -1, +1, -1),
+    # the mirror, for a starboard-side stroke
+    "starboard stroke": (-1, +1, -1, +1, -1, +1, -1, +1),
+    # German (Ratzeburg): buckets at 5-4 and 3-2 -- the classic fix for the
+    # stagger couple, used by the 1960 Ratzeburg eight
+    "german":           (+1, -1, -1, +1, +1, -1, -1, +1),
+    # Italian: stern four standard, bow four its mirror image -- the
+    # arrangement the Moto Guzzi four made famous, extended to an eight
+    "italian":          (+1, -1, +1, -1, -1, +1, -1, +1),
+    # battleship, as the coxswain this model is built with rigs it: the
+    # stern pair and bow pair on port, the middle four all on starboard.
+    # Balanced in count, but the port oars sit at the ends of the boat and
+    # the starboard oars amidships, so the two sides have very different
+    # yaw leverage -- which is what makes it worth simulating rather than
+    # eyeballing.
+    "battleship":       (+1, +1, -1, -1, -1, -1, +1, +1),
+    # tandem-pair variant sometimes given the same name
+    "tandem":           (+1, -1, -1, +1, -1, +1, +1, -1),
+}
+
+
 def build_sweep_rig(n_seats: int, spacing: float, stern_station: float,
                     span: float, oarlock_height: float,
                     oar: Oar = SWEEP_OAR,
                     stroke_side: int = PORT,
                     coxswain_position=None,
-                    coxswain_mass: float = 0.0) -> Rig:
-    """Lay out a conventional alternating sweep rig.
+                    coxswain_mass: float = 0.0,
+                    sides=None) -> Rig:
+    """Lay out a sweep rig.
 
     Seats are numbered from the stern (seat 0 is stroke).  ``stroke_side``
     is the side stroke's oar is on -- port for a conventional rig, which
-    then alternates down the boat.
+    then alternates down the boat.  ``sides`` overrides the alternating
+    pattern entirely: a sequence of ``+1``/``-1`` from the stroke seat,
+    most usefully one of :data:`RIG_PATTERNS`.
     """
+    if sides is not None:
+        if len(sides) != n_seats:
+            raise ValueError("sides needs one entry per seat")
+        if abs(sum(sides)) > 0:
+            raise ValueError("a sweep rig needs equal port and starboard")
     seats: List[Seat] = []
     for index in range(n_seats):
         station_x = stern_station + index * spacing
-        side = stroke_side if index % 2 == 0 else -stroke_side
+        if sides is not None:
+            side = int(sides[index])
+        else:
+            side = stroke_side if index % 2 == 0 else -stroke_side
         # the oarlock sits slightly towards the bow of the rower's station
         lock = Oarlock(
             position=np.array([station_x + 0.30, side * span, oarlock_height]),

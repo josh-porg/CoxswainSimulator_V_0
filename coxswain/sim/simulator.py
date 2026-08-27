@@ -162,7 +162,16 @@ class RowingSimulator:
         #: Aerodynamic force model.  Calibrated from the boat when a wind
         #: field is supplied, so that aero drag is the published fraction
         #: of total resistance in still air (see coxswain.hydro.wind).
-        if aero is None and wind is not None:
+        # Aero always runs -- still air is not zero drag, it is drag at the
+        # boat's own speed, about 5% of the total for an eight.  It used to
+        # be built only when a wind field was attached, which meant the
+        # calibration silently absorbed still-air aero into the water
+        # resistance; the oarlock forces have been re-bisected with this
+        # on.  Pass ``aero=False`` to disable it, which the recalibration
+        # script does to measure the baseline.
+        if aero is False:
+            aero = None
+        elif aero is None:
             from ..hydro.wind import AeroModel
             aero = AeroModel.calibrate(boat)
         self.aero = aero
@@ -404,9 +413,12 @@ class RowingSimulator:
         # Five-sixths of aerodynamic drag is crew and oars, not hull, so it
         # acts above the waterline and outboard: a crosswind is a roll and
         # yaw moment as well as a drag.  See coxswain.hydro.wind.
-        if self.aero is not None and self.wind is not None:
-            true_wind = self.wind.at(float(state.position[0]),
-                                     float(state.position[1]), t)
+        if self.aero is not None:
+            if self.wind is not None:
+                true_wind = self.wind.at(float(state.position[0]),
+                                         float(state.position[1]), t)
+            else:
+                true_wind = np.zeros(3)
             wind_force, wind_moment = self.aero.loads(
                 true_wind, state.velocity, rot)
             appendage_force_hull = appendage_force_hull + wind_force
@@ -544,11 +556,21 @@ class RowingSimulator:
 
     def run(self, duration: float, initial_state: np.ndarray = None,
             dt: float = None, method: str = "rk4",
-            surge_speed: float = 4.5) -> SimulationResult:
+            surge_speed: float = 4.5, on_stroke=None) -> SimulationResult:
         """Integrate for ``duration`` seconds.
 
         ``method`` is ``"rk4"`` (fixed step, reproducible) or
         ``"adaptive"`` (``solve_ivp``).
+
+        ``on_stroke``, when given, is called as ``on_stroke(stroke_index,
+        boat)`` at the top of every stroke cycle, starting with stroke 0
+        before the first step.  Whatever it mutates on the boat -- power
+        scales, phase offsets, anything the force path reads -- takes
+        effect for that stroke.  This is the seam the stochastic crew
+        plugs into: a fresh draw of who is strong and who is early, every
+        stroke, which is what a real crew is.  Integration then proceeds
+        stroke by stroke, so the callback cost is one call per 2 s of
+        rowing, not per step.
         """
         if initial_state is None:
             initial_state = self.initial_state(surge_speed=surge_speed)
@@ -562,7 +584,26 @@ class RowingSimulator:
         if dt is None:
             dt = integrators.estimate_step(self.boat.timing.period)
 
-        if method == "rk4":
+        if on_stroke is not None:
+            if method != "rk4":
+                raise ValueError("on_stroke needs the fixed-step integrator")
+            period = float(self.boat.timing.period)
+            pieces_t, pieces_y = [], []
+            t0, y0 = 0.0, initial_state
+            stroke = 0
+            while t0 < duration - 1e-9:
+                on_stroke(stroke, self.boat)
+                t1 = min(t0 + period, duration)
+                times, states = integrators.rk4(self.derivative, (t0, t1),
+                                                y0, dt)
+                keep = slice(0, -1) if t1 < duration else slice(None)
+                pieces_t.append(times[keep])
+                pieces_y.append(states[:, keep])
+                t0, y0 = times[-1], states[:, -1]
+                stroke += 1
+            times = np.concatenate(pieces_t)
+            states = np.concatenate(pieces_y, axis=1)
+        elif method == "rk4":
             times, states = integrators.rk4(self.derivative, (0.0, duration),
                                             initial_state, dt)
         elif method == "adaptive":

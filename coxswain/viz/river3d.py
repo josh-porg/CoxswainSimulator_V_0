@@ -115,7 +115,18 @@ class RiverScene(BoatScene):
         grid_x, grid_y = np.meshgrid(east[ix], north[iy])
         wet = self.channel.water[np.ix_(iy, ix)]
         depth = np.array(self.channel.depth[np.ix_(iy, ix)], dtype=float)
-        height = np.where(wet, 0.0, 1.6)
+        # Bank heights from the federal elevation model where it covers,
+        # instead of an invented 1.6 m shelf: the Cambridge levee, the
+        # Storrow fill and the rise behind both banks are all real now.
+        # Capped so the odd building the lidar kept does not put a wall on
+        # the bank; the fallback shelf survives for anything off the DEM.
+        try:
+            from ..river.terrain import charles_terrain
+            bank = charles_terrain().height_above_water(
+                grid_x.ravel(), grid_y.ravel()).reshape(grid_x.shape)
+            height = np.where(wet, 0.0, np.clip(bank, 0.6, 16.0))
+        except Exception:
+            height = np.where(wet, 0.0, 1.6)
 
         points = np.column_stack([
             (grid_x - origin[0]).ravel(),

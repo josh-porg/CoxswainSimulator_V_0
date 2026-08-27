@@ -219,6 +219,17 @@ def write_animation(fig, update, frames, path, fps: int = 25):
     movie = animation.FuncAnimation(fig, update, frames=frames, blit=False,
                                     interval=1000.0 / fps)
     root, extension = os.path.splitext(path)
+    # matplotlib only finds ffmpeg on PATH, but imageio-ffmpeg ships the
+    # binary; point matplotlib at it so a full race becomes a few-MB mp4
+    # instead of a GIF carrying every frame whole.
+    if not animation.writers.is_available("ffmpeg"):
+        try:
+            import imageio_ffmpeg
+            import matplotlib
+            matplotlib.rcParams["animation.ffmpeg_path"] = (
+                imageio_ffmpeg.get_ffmpeg_exe())
+        except Exception:
+            pass
     if animation.writers.is_available("ffmpeg"):
         target = root + ".mp4"
         movie.save(target, writer=animation.FFMpegWriter(fps=fps, bitrate=2400))

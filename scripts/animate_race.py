@@ -93,6 +93,13 @@ def main(argv=None):
     # wants to watch, and it is not how a crew arrives at any point of a
     # race.  Rowing in from behind means the boat is already tracking when
     # the picture starts.
+    if args.full:
+        # The whole race: station 0 is the start line off DeWolfe and the
+        # course length is the finish.  A flag rather than remembering the
+        # numbers -- and it was accepted and silently ignored for one
+        # embarrassing pair of renders before this line existed.
+        args.start, args.finish = 0.0, float(course.length)
+        args.lead = 0.0                  # there is nothing before the start
     lead = max(float(args.lead), 0.0)
     inside = (station >= args.start - lead) & (station <= args.finish)
     path = full_path[inside]

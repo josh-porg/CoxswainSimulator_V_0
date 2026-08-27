@@ -23,7 +23,7 @@ from ..hydro.appendages import LiftingSurface
 from ..hydro.hull import parametric_offsets
 from ..hydro.resistance import FRESH_WATER, WaterProperties
 from .boat import Boat
-from .rig import SCULLING_OAR, SWEEP_OAR, build_sculling_rig, build_sweep_rig
+from .rig import RIG_PATTERNS, SCULLING_OAR, SWEEP_OAR, build_sculling_rig, build_sweep_rig
 
 __all__ = ["eight", "coxed_four", "single_scull", "CATALOG", "build"]
 
@@ -205,11 +205,21 @@ SCULLING_ARC = OarAngleSweep(catch_angle=np.radians(65.0),
 #: et al. (2023): a longer drive means more blade-in impulse for the
 #: same peak, so every peak comes down.  Each value is bisected to
 #: put its class on its known speed.
-PEAK_OARLOCK_FORCE = {"8+": 971.0, "4+": 1073.0, "1x": 709.0,
-                      "2x": 485.0}
+#: Re-bisected with the aerodynamic model switched on (scripts/
+#: recalibrate.py): still-air aero used to live silently inside the
+#: calibrated water resistance, and pulling it out into the aero model
+#: raised every class's required force by 13-15% -- more for the sculls,
+#: whose aero is a larger share of a smaller total.  The 8+ peak of
+#: ~1100 N now sits at the top of the published gate-force range rather
+#: than the middle, which is the honest price of no longer hiding air
+#: drag in the water: if it reads too high, the suspect is the aero
+#: model's frontal area, not this number.
+PEAK_OARLOCK_FORCE = {"8+": 1095.6, "4+": 1209.4, "1x": 814.9,
+                      "2x": 557.5}
 
 
 def eight(rate: float = 32.0, rower_mass: float = 88.0,
+          rig_pattern=None,
           rower_stature: float = 1.90, coxswain_mass: float = 55.0,
           water: WaterProperties = FRESH_WATER,
           crew_phase_offsets: Sequence[float] = None, **kwargs) -> Boat:
@@ -226,6 +236,8 @@ def eight(rate: float = 32.0, rower_mass: float = 88.0,
     rig = build_sweep_rig(
         n_seats=8, spacing=1.22, stern_station=-4.30, span=0.85,
         oarlock_height=0.38, oar=SWEEP_OAR, stroke_side=PORT,
+        sides=(RIG_PATTERNS[rig_pattern]
+               if isinstance(rig_pattern, str) else rig_pattern),
         coxswain_position=np.array([-6.10, 0.0, 0.10]),
         coxswain_mass=coxswain_mass,
     )

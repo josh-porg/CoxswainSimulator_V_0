@@ -419,15 +419,27 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
                "5 m/s. Line choice here is about distance and depth, not "
                "about hunting current."),
     ]
-    if not quick:
-        figures.extend([
-            Figure("out/animation/race_2100_2800_chase_mpc.gif",
-                   "The boat rowing the line",
-                   "Weeks to Anderson under model predictive control.",
-                   "The dashed line is the plan, the solid trail is what the "
-                   "boat did. It rows in from behind so it is already "
-                   "tracking when the picture starts."),
-        ])
+    # Animations are embedded whenever they exist on disk -- they are
+    # produced by scripts/animate_race.py and scripts/render3d.py, which
+    # are slow, so the report picks up the latest rather than re-rendering.
+    figures.extend([
+        Figure("out/animation/race_2100_2800_chase_mpc.gif",
+               "The boat rowing the line",
+               "Weeks to Anderson under model predictive control, 12x "
+               "real time.",
+               "The dashed line is the plan, the solid trail is what the "
+               "boat did. It rows in from behind so it is already "
+               "tracking when the picture starts."),
+        Figure("out/animation/race_2100_2800_chase.gif",
+               "The same leg under reactive steering",
+               "Line-of-sight guidance, for comparison with the MPC run "
+               "above.",
+               "Watch the trail through the Weeks turn: the reactive law "
+               "corrects error after it appears, so it runs wider than "
+               "the anticipating controller."),
+        Figure("out/render3d/mpc_2250_2560_cox.mp4",
+               "From the coxswain's seat", "", ""),
+    ])
     report.figures = figures
 
     report.caveats = [
