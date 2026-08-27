@@ -50,6 +50,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from .strokemodel import StrokePeriodicFit, _oar_load
+from ..hydro.addedmass import DEFAULT_MUNK_FACTOR
 
 __all__ = ["CrewTensorFit", "SixDofModel"]
 
@@ -273,7 +274,7 @@ class SixDofModel:
     def __init__(self, boat, surrogate=None, crew=None, oars=None,
                  relative_tolerance: float = 0.01, gravity: float = 9.80665,
                  water_level: float = 0.0, blade=None,
-                 added_mass=True, munk_factor: float = 0.35):
+                 added_mass=True, munk_factor: float = DEFAULT_MUNK_FACTOR):
         from ..crew.balance import BalanceRig
         from ..hydro.addedmass import AddedMass
         from ..hydro.crossflow import CrossFlowHull

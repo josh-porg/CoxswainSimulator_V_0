@@ -86,7 +86,30 @@ import numpy as np
 from .resistance import FRESH_WATER, WaterProperties
 
 __all__ = ["LiftingSurface", "SKEG_EIGHT", "RUDDER_EIGHT", "surface_load",
-           "lift_coefficient_at"]
+           "lift_coefficient_at", "flap_effectiveness_ratio",
+           "MAX_RUDDER_DEFLECTION",
+           "FLAP_VISCOUS_FACTOR"]
+
+
+#: Largest rudder deflection the coxswain can call for, radians.
+#:
+#: **45 degrees, reported from the boat.**  This was 25 degrees in the
+#: appendage model and 12 degrees in the router's reduced model -- two
+#: different wrong answers to the same question, in four different files,
+#: which is how a constant behaves when nothing owns it.  Both understated
+#: it, and the 12 degree figure was the reason the route optimiser thought
+#: an eight needed a pressure split for 134 strokes of a 4.8 km race: full
+#: helm there bought only 1.05 deg/s, so everything the course demanded
+#: above the median fell to the crew instead of the rudder.
+#:
+#: A rowing rudder is a small flap on a fixed fin with a wire linkage and
+#: no aerodynamic balance, so it can be pulled to angles an aircraft
+#: control surface never sees.  What it *does* at that angle is a separate
+#: question the lift model has to answer -- see
+#: :func:`flap_effectiveness_ratio` and the Whicker-Fehlner term in
+#: :func:`lift_coefficient_at`, which together decide whether the last ten
+#: degrees of helm buy anything or just drag.
+MAX_RUDDER_DEFLECTION = np.radians(45.0)
 
 
 @dataclass(frozen=True)
@@ -114,10 +137,35 @@ class LiftingSurface:
     chord: float
     position: np.ndarray
     sweep: float = 0.0
+    #: Tip chord over root chord.  ``1.0`` is rectangular and is the
+    #: default, so surfaces written before this existed are unaffected;
+    #: ``0.0`` is a triangle running to a point.
+    #:
+    #: This is not cosmetic.  A rowing fin is a swept delta, and a triangle
+    #: encloses **half** the area of the rectangle around it, so reading its
+    #: planform as ``span x chord`` overstates the area two-fold and
+    #: understates the aspect ratio by the same factor.  Aspect ratio is
+    #: what sets the lift-curve slope, and at the low values a fin lives at
+    #: the slope is very sensitive to it -- getting the shape wrong was
+    #: worth more than every dimension on the fin put together.
+    #:
+    #: When ``taper_ratio`` is given, ``chord`` is the **root** chord.
+    taper_ratio: float = 1.0
     oswald: float = 0.8
     controllable: bool = False
-    max_deflection: float = np.radians(25.0)
-    flap_effectiveness: float = 1.0
+    max_deflection: float = MAX_RUDDER_DEFLECTION
+    #: Explicit control effectiveness ``dalpha/ddelta``.  Leave at ``None``
+    #: to have it computed from :attr:`flap_chord_ratio`, which is what
+    #: should normally happen.  ``1.0`` means an all-moving surface and is
+    #: only correct when the whole thing pivots.
+    flap_effectiveness: Optional[float] = None
+    #: Flap chord as a fraction of the surface's total chord.  ``None`` or
+    #: ``1.0`` is an all-moving surface; a rudder hinged behind a fixed fin
+    #: is the fin-plus-flap chord it sits on.
+    flap_chord_ratio: Optional[float] = None
+    #: Flapped span as a fraction of the surface's span, for a flap that
+    #: does not run the full depth of the fin.
+    flap_span_ratio: float = 1.0
     #: Cross-flow drag coefficient of the section, feeding the non-linear
     #: lift term.  0.85 is Hoerner's figure for a rectangular plate and is
     #: in the middle of the range Whicker and Fehlner fit to their
@@ -132,12 +180,34 @@ class LiftingSurface:
             raise ValueError("position must be a length-3 vector")
 
     @property
+    def mean_chord(self) -> float:
+        """Mean geometric chord of a trapezoidal planform."""
+        return self.chord * 0.5 * (1.0 + float(self.taper_ratio))
+
+    @property
     def area(self) -> float:
-        return self.span * self.chord
+        return self.span * self.mean_chord
 
     @property
     def aspect_ratio(self) -> float:
         return self.span ** 2 / self.area
+
+    @property
+    def control_effectiveness(self) -> float:
+        """``dalpha/ddelta``: incidence change per unit deflection.
+
+        Deflecting a flap re-cambers the section instead of pitching it
+        bodily, so the surface behaves as though its incidence had moved
+        by only a fraction of the flap angle.  That fraction is what
+        :func:`flap_effectiveness_ratio` gives, discounted for viscosity
+        and for any part of the span the flap does not cover.
+        """
+        if self.flap_effectiveness is not None:
+            return float(self.flap_effectiveness)
+        if self.flap_chord_ratio is None:
+            return 1.0
+        return (flap_effectiveness_ratio(self.flap_chord_ratio)
+                * FLAP_VISCOUS_FACTOR * float(self.flap_span_ratio))
 
     @property
     def lift_curve_slope(self) -> float:
@@ -159,6 +229,66 @@ RUDDER_EIGHT = LiftingSurface(
     span=0.090, chord=0.120, position=np.array([-6.6, 0.0, -0.16]),
     controllable=True, flap_effectiveness=1.0,
 )
+
+
+def flap_effectiveness_ratio(chord_ratio: float) -> float:
+    """Control effectiveness ``tau`` of a plain flap, from thin-aerofoil theory.
+
+    ``tau = dalpha/ddelta`` -- the change in the **whole surface's**
+    effective angle of attack per unit flap deflection::
+
+        tau = 1 - (theta - sin theta) / pi,    theta = arccos(2 c_f/c - 1)
+
+    This is the standard preliminary-design result and it is tabulated in
+    every stability and control text; the values below are the ones those
+    tables carry:
+
+    =========  =====
+    c_f / c    tau
+    =========  =====
+    0.10       0.44
+    0.20       0.55
+    0.25       0.61
+    0.30       0.66
+    0.40       0.75
+    0.50       0.82
+    1.00       1.00
+    =========  =====
+
+    The ``c_f/c = 1`` limit is an **all-moving** surface, and that is the
+    only case in which ``tau = 1``.  A hinged flap can never reach it: a
+    quarter-chord flap moves the surface's effective incidence by only 61%
+    of its own deflection, because deflecting a flap re-cambers the section
+    rather than pitching it bodily.
+
+    Thin-aerofoil theory is inviscid and known to run high -- measured
+    effectiveness falls below it as the deflection grows and the flap
+    boundary layer thickens.  See :data:`FLAP_VISCOUS_FACTOR`.
+
+    References
+    ----------
+    [P49]  Perkins, C.D. and Hage, R.E. (1949). *Airplane Performance,
+           Stability and Control.* Wiley.
+    [E96]  Etkin, B. and Reid, L.D. (1996). *Dynamics of Flight: Stability
+           and Control*, 3rd ed. Wiley, sec. 2.5.
+    [N98]  Nelson, R.C. (1998). *Flight Stability and Automatic Control*,
+           2nd ed. McGraw-Hill -- carries the tabulated curve above.
+    [R85]  Roskam, J. (1985). *Airplane Design Part VI*, for the empirical
+           corrections to the inviscid value.
+    """
+    ratio = float(np.clip(chord_ratio, 1e-6, 1.0))
+    theta = np.arccos(2.0 * ratio - 1.0)
+    return float(1.0 - (theta - np.sin(theta)) / np.pi)
+
+
+#: Viscous knock-down on the inviscid ``tau``.
+#:
+#: Thin-aerofoil theory assumes attached flow over the flap.  Measured
+#: plain-flap effectiveness runs below it, by roughly 10-20% at the
+#: moderate deflections a control surface actually works at, and the gap
+#: widens as the flap approaches its own stall.  0.85 is the usual
+#: preliminary-design allowance.
+FLAP_VISCOUS_FACTOR = 0.85
 
 
 def lift_coefficient_at(surface: LiftingSurface, angle):
@@ -219,7 +349,7 @@ def surface_load(surface: LiftingSurface, velocity_hull: np.ndarray,
     if surface.controllable:
         limited = np.clip(deflection, -surface.max_deflection,
                           surface.max_deflection)
-        local_angle = local_angle - surface.flap_effectiveness * limited
+        local_angle = local_angle - surface.control_effectiveness * limited
 
     lift_coefficient = lift_coefficient_at(surface, local_angle)
     dynamic_pressure = 0.5 * water.density * speed ** 2

@@ -55,6 +55,7 @@ import numpy as np
 
 from .collocation import HermiteSimpson, phase_locked_mesh
 from .scaling import ProblemScaling
+from ..hydro.appendages import MAX_RUDDER_DEFLECTION
 
 __all__ = ["SixDofPlan", "SixDofTrajectory", "solve_sixdof_trajectory"]
 
@@ -236,7 +237,7 @@ class SixDofTrajectory:
     def solve(self, start_state, n_strokes: int = 6,
               drive_intervals: int = 6, recovery_intervals: int = 4,
               scheme=None, guess=None, max_iter: int = 400,
-              rudder_limit: float = np.radians(25.0),
+              rudder_limit: float = MAX_RUDDER_DEFLECTION,
               split_limit: float = 0.15,
               power_bounds=(0.70, 1.15), print_level: int = 0,
               exact_hessian: bool = False, scaling=None,

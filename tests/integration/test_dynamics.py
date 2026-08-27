@@ -59,10 +59,41 @@ def test_crew_increases_rotational_inertia(sim, trimmed):
     assert np.all(np.diag(with_crew) > np.diag(bare))
 
 
-def test_translational_block_is_the_total_mass(sim, trimmed):
+def test_translational_block_is_the_total_mass_plus_added_mass(sim, trimmed):
+    """The block is displacement **plus** added mass, and has been since
+    strip-theory added mass went in.
+
+    This test used to assert the bare total mass and had been failing ever
+    since, which is the wrong way round: the model moved on and the test
+    did not, so a correct change looked like a regression.  A hull cannot
+    accelerate sideways without accelerating the water beside it, and for
+    a slender shell that water weighs about as much as the boat.
+
+    The three axes are very different and that asymmetry is the physics:
+    surge barely disturbs the water, sway drags a whole hull-length of it,
+    heave has to push the free surface.
+    """
     matrix = sim.mass_matrix(0.0, trimmed)
+    block = np.diag(matrix[0:3, 0:3])
+    mass = sim.boat.total_mass
+
+    # never less than the displacement -- added mass only ever adds
+    assert np.all(block >= mass - 1e-6)
+
+    surge, sway, heave = block / mass
+    assert surge == pytest.approx(1.0, abs=0.05), "a fine bow barely adds any"
+    assert 1.4 < sway < 2.2, "sway added mass is comparable to displacement"
+    assert heave > sway, "heave has to lift the free surface as well"
+
+
+def test_added_mass_can_be_switched_off(sim, trimmed):
+    """With it off the block must fall back to the bare displacement,
+    which is what the old assertion was really testing."""
+    from coxswain.sim.simulator import RowingSimulator
+    bare = RowingSimulator(sim.boat, added_mass=False)
+    matrix = bare.mass_matrix(0.0, trimmed)
     np.testing.assert_allclose(np.diag(matrix[0:3, 0:3]),
-                               sim.boat.total_mass, rtol=1e-12)
+                               sim.boat.total_mass, rtol=1e-9)
 
 
 # --------------------------------------------------------------------------

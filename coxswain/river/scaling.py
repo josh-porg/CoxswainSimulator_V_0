@@ -47,6 +47,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
+from ..hydro.appendages import MAX_RUDDER_DEFLECTION
 
 __all__ = ["ProblemScaling"]
 
@@ -101,7 +102,7 @@ class ProblemScaling:
 
     @classmethod
     def for_six_dof(cls, model, leg_length: float = 500.0,
-                    speed: float = 5.0, rudder_limit: float = np.radians(25.0),
+                    speed: float = 5.0, rudder_limit: float = MAX_RUDDER_DEFLECTION,
                     split_limit: float = 0.15) -> "ProblemScaling":
         """Scales taken from the boat and the leg being flown.
 

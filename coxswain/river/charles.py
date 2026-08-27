@@ -79,12 +79,39 @@ __all__ = [
     "landmark_station",
     "test_section",
     "BRIDGES",
+    "LANDMARKS",
     "WEEKS_FOOTBRIDGE",
     "LARZ_ANDERSON_BRIDGE",
 ]
 
 #: Tangent-plane origin: roughly the middle of the surveyed reach.
 CHARLES_ORIGIN = (42.3625, -71.1200)
+
+#: Riverside landmarks a coxswain actually steers by, ``(lat, lon)``.
+#:
+#: From OpenStreetMap building footprints and named features over the
+#: racing reach.  These are what a crew sees: a coxswain does not navigate
+#: by station number, they navigate by "past Weld", "level with Eliot
+#: House", "the Cambridge Boat Club is on your riggers".
+#:
+#: .. note::
+#:
+#:    OpenStreetMap puts **DeWolfe Boathouse at 42.35323, -71.10776**,
+#:    about 124 m from the coordinate :data:`DEWOLFE_BOATHOUSE` carries.
+#:    Since the start line is placed off the front of DeWolfe, that
+#:    discrepancy moves the whole course.  The OSM figure is a surveyed
+#:    building footprint and ours was inferred, so OSM is more likely
+#:    right -- but changing it shifts every station in the model, so it is
+#:    recorded here and not yet acted on.
+LANDMARKS = (
+    ("DeWolfe Boathouse", (42.353229, -71.107758)),
+    ("Riverside Boat Club", (42.358056, -71.115959)),
+    ("Mather House", (42.368358, -71.115197)),
+    ("Leverett House", (42.369782, -71.117030)),
+    ("Eliot House", (42.370289, -71.121183)),
+    ("Weld Boathouse", (42.369379, -71.122124)),
+)
+
 
 #: Landmarks along the rowing reach, ``(latitude, longitude)``.
 #:

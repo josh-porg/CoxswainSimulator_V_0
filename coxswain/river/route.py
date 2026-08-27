@@ -124,6 +124,20 @@ class RouteEvaluation:
     #: is inflated wherever the line crosses unnavigable water.  Report
     #: this one as a time, and :attr:`elapsed` only as a ranking.
     elapsed_clean: float = 0.0
+    #: Steepest yaw rate the line asks for, deg/s.
+    peak_yaw_rate: float = 0.0
+    #: Bridges passed through a forbidden arch, or through a pier.
+    illegal_arches: int = 0
+    #: Largest port/starboard pressure split the line asks for -- the
+    #: value **wanted**, which may exceed what the crew can give.
+    peak_split: float = 0.0
+    #: Strokes over which the line asks for any split at all.
+    split_strokes: float = 0.0
+    #: Anaerobic reserve per rower at the finish, J.
+    w_prime_left: float = float("nan")
+    #: Lowest the reserve gets anywhere on the course, J.  Zero means the
+    #: crew ran out and the line is not rowable.
+    w_prime_low: float = float("nan")
 
     @property
     def mean_ground_speed(self) -> float:
@@ -141,6 +155,12 @@ class RouteEvaluation:
             "mean_depth": float(self.depth.mean()),
             "mean_current_along": float(self.current_along.mean()),
             "fraction_aground": self.fraction_aground,
+            "peak_yaw_rate": self.peak_yaw_rate,
+            "illegal_arches": self.illegal_arches,
+            "peak_split": self.peak_split,
+            "split_strokes": self.split_strokes,
+            "w_prime_left": self.w_prime_left,
+            "w_prime_low": self.w_prime_low,
         }
 
 
@@ -173,8 +193,132 @@ class RouteEvaluator:
         #: can find, since that is where the wave-resistance model is
         #: weakest and most easily exploited.
         self.minimum_depth = float(minimum_depth)
+        #: Fastest the boat can turn, deg/s, or ``None`` to ignore it.
+        #:
+        #: Without this the optimiser cuts corners for free.  It is not a
+        #: small effect: on the Charles the unconstrained line came back
+        #: demanding **5.75 deg/s** where the boat makes about 1.5 and the
+        #: centreline itself only asks 3.30 -- so "optimising" made the
+        #: line harder to steer than doing nothing, and the time it claimed
+        #: to save was time the boat could never have taken.
+        self.max_yaw_rate = None
+        #: Bridge gates from :mod:`coxswain.river.bridges`, or ``None``.
+        #: A line that saves ten seconds and takes a 60 second penalty at
+        #: three bridges is not a faster line, and the evaluator cannot
+        #: know that unless it is told where the arches are.
+        self.gates = None
+        #: Seconds charged for using an arch the rules forbid.
+        self.arch_penalty = 60.0
+        #: Channel raster the arches are read against; set with
+        #: :meth:`with_bridges`.
+        self._raster = None
+        #: A :class:`~coxswain.river.trajectory.ReducedModel`, once
+        #: :meth:`with_steering` has been called.  Supersedes
+        #: :attr:`max_yaw_rate`: instead of a hard cap on how fast the
+        #: boat may turn, the line is charged what steering it *costs*.
+        self.steering = None
+        #: Critical-power model for the crew, once :meth:`with_exertion`
+        #: has been called.  Without it a pressure split costs only drag,
+        #: which is the smaller half of what it really costs.
+        self.exertion = None
+        #: Power the crew holds relative to critical power.  A head race is
+        #: rowed a shade above CP -- high enough that W' drains slowly all
+        #: race, which is what makes a split expensive late.
+        self.race_intensity = 1.02
+        self.rowers = 8
+        #: Force the line through a named arch at named bridges, e.g.
+        #: ``{"Western Avenue": "Cambridge shore"}``.  The rules leave both
+        #: the centre and the Cambridge arch open at River Street, Western
+        #: Avenue and Weeks, and which to take is a real strategic choice:
+        #: the Cambridge arch is the wider opening at two of them, but it
+        #: puts the boat on the outside of what follows.  Pinning it lets
+        #: the two strategies be optimised separately and compared, instead
+        #: of the optimiser silently picking one.
+        self.required_arches = {}
+        #: Strokes of port/starboard split a crew can be asked for over a
+        #: race.  A coxswain calls pressure in bursts of 10-15 strokes and
+        #: 25 at the outside, so a line that needs it continuously is not a
+        #: line anyone can row, however good its arithmetic looks.
+        self.split_stroke_budget = 25.0
+        #: Stroke rate the budget is counted at.
+        self.stroke_rate = 32.0
         self._speed_table = None
         self._flow_grid = None
+
+    def with_steering(self, model, raster=None, gates=None):
+        """Score lines against both of the coxswain's controls.
+
+        A hard turn-rate cap is the wrong shape for this problem.  The
+        rudder is not the only way to turn an eight: the coxswain can call
+        for a **port/starboard pressure split**, and on a river that is
+        the decisive control -- full rudder alone holds a 259 m radius
+        where the tightest bends here demand 103-146 m, while rudder plus
+        a 30% split reaches 130 m.
+
+        So a bend is not forbidden, it is *expensive*.  What it costs is
+        speed, through two terms the reduced model already carries: drag
+        rising with the square of the yaw rate, and the thrust a split
+        crew spends on a couple instead of on going forwards.  The line
+        that wins is the one that balances distance against the steering
+        it has to buy, which is the trade a coxswain actually makes.
+
+        A line is only *infeasible* when rudder and split together at
+        their limits cannot hold it.
+        """
+        self.steering = model
+        if raster is not None:
+            self.with_bridges(raster, gates=gates)
+        return self
+
+    def with_exertion(self, model=None, race_intensity: float = None,
+                      rowers: int = 8):
+        """Charge a pressure split against the crew's anaerobic reserve.
+
+        A split is not free and it is not merely draggy.  Holding one side
+        above its critical power spends W', a reserve of about 11.4 kJ per
+        rower that refills over minutes, not seconds
+        (:mod:`coxswain.crew.exertion`).  That is the real reason a
+        coxswain calls for ten or fifteen strokes of pressure and not a
+        mile of it, and until this is in the objective the optimiser has no
+        reason to ration it.
+
+        It also makes the cost *positional*.  Weeks and Anderson are 433 m
+        apart, about 85 s at racing speed, well inside the recovery time
+        constant -- so pressure spent at Weeks is not back for Anderson,
+        and the model can now say so.
+        """
+        from ..crew.exertion import WPrimeBalance, optimal_pace
+        self.exertion = WPrimeBalance() if model is None else model
+        self.rowers = int(rowers)
+        if race_intensity is None:
+            # **Race power is not a free parameter.**  A fixed-distance
+            # effort is paced to spend the whole reserve and no more, so
+            # P = CP + W'/T with T the race duration; anything less and the
+            # crew crosses the line still holding work they could have
+            # used.  This was set by hand at 1.02 x CP and produced a crew
+            # finishing with 45% of W' intact, which is not a raced boat.
+            duration = self.course.length / max(self.reference_speed, 0.1)
+            power = optimal_pace(duration, self.exertion.critical_power,
+                                 self.exertion.capacity)
+            race_intensity = power / self.exertion.critical_power
+        self.race_intensity = float(race_intensity)
+        return self
+
+    def with_bridges(self, raster, gates=None, max_yaw_rate=None):
+        """Give the evaluator the arches and the boat's turning limit.
+
+        Both are off by default, which is why the first optimised line on
+        the Charles came back 16 s "faster" while demanding 5.75 deg/s of
+        a boat that makes 1.5, and passing three bridges through arches
+        that carry a 60 second penalty each.
+        """
+        from .charts import CourseGeometry
+        self._raster = raster
+        if gates is None:
+            gates = CourseGeometry(channel=raster).gates_on_course()
+        self.gates = gates
+        self.max_yaw_rate = max_yaw_rate
+        return self
 
     # -- physics ----------------------------------------------------------
     def speed_through_water(self, depth) -> np.ndarray:
@@ -326,9 +470,99 @@ class RouteEvaluator:
         inverse = 1.0 / speed_ground
         elapsed = float(np.sum(0.5 * (inverse[:-1] + inverse[1:]) * segment))
 
+        # -- can the boat actually steer this line, and at what cost? ----
+        # Always measured, so a line can never be quoted as fast without
+        # the turn rate it demands sitting next to the time.
+        required = self._required_yaw(points, speed_ground)
+        peak_turn = float(required.max())
+        excess_turn = 0.0
+        peak_split = 0.0
+        split_strokes = 0.0
+        w_prime_left = float("nan")
+        w_prime_low = float("nan")
+
+        if self.steering is not None:
+            model = self.steering
+            rate = np.radians(required)
+            moment = model.yaw_damping * speed_ground * rate
+            by_rudder = (model.yaw_control * speed_ground ** 2
+                         * model.rudder_limit)
+            wanted = (np.maximum(moment - by_rudder, 0.0)
+                      / model.split_control)
+            # Report what the line ASKS FOR, not what it is allowed.  The
+            # clipped value saturates at the limit wherever the line is
+            # infeasible and so reads the same for a line needing 31% as
+            # for one needing 81%, which is exactly the case that matters.
+            peak_split = float(wanted.max())
+            over_split = np.maximum(wanted - model.split_limit, 0.0)
+            split = np.minimum(wanted, model.split_limit)
+            excess_turn = float(over_split.mean()) + 4.0 * float(over_split.max())
+
+            # How long is the crew actually being asked to split?  A
+            # coxswain calls for pressure in bursts of 10-15 strokes, 25 at
+            # the outside -- not continuously for 4.8 km.  Counted at the
+            # stroke rate over the distance the split is on.
+            on = wanted > 0.05
+            if on.any():
+                metres_on = float(segment[on[:-1]].sum())
+                seconds_on = metres_on / max(float(speed_ground.mean()), 0.05)
+                split_strokes = seconds_on * self.stroke_rate / 60.0
+            else:
+                split_strokes = 0.0
+
+            # Steering costs thrust.  At fixed crew power P = R v with
+            # R ~ k v^2, an added constant drag dR slows the boat by
+            # dv/v = -dR / (3 R + dR).
+            added = (model.turn_drag * rate ** 2
+                     + model.split_drag * split ** 2)
+            base = model.critical_power / max(self.reference_speed, 1e-6)
+            speed_ground = speed_ground * (1.0 - added / (3.0 * base + added))
+            speed_ground = np.maximum(speed_ground, 0.05)
+            over_budget = max(split_strokes - self.split_stroke_budget, 0.0)
+            excess_turn += 0.02 * over_budget
+
+            # -- what the split costs the crew, not just the boat --------
+            if self.exertion is not None:
+                cp = self.exertion.critical_power
+                base = cp * self.race_intensity
+                # A balanced split lifts one side and eases the other, so
+                # the heavy side carries base * (1 + s).
+                heavy = base * (1.0 + split)
+                dt = np.concatenate([[0.0], segment / np.maximum(
+                    0.5 * (speed_ground[:-1] + speed_ground[1:]), 0.05)])
+                balance = self.exertion.integrate(heavy, dt)
+                w_prime_left = float(balance[-1])
+                w_prime_low = float(balance.min())
+                if w_prime_low <= 0.0:
+                    # The reserve ran out: the crew cannot hold this line,
+                    # whatever the stopwatch says about it.
+                    excess_turn += 2.0
+            inverse = 1.0 / speed_ground
+            elapsed = float(np.sum(0.5 * (inverse[:-1] + inverse[1:])
+                                   * segment))
+            elapsed_clean_steer = elapsed
+        elif self.max_yaw_rate is not None:
+            over = np.maximum(required - float(self.max_yaw_rate), 0.0)
+            # Charged on the **peak** as well as the mean.  A mean-only
+            # penalty is nearly free for a brief excursion -- 1200 samples
+            # dilute a short corner to nothing -- and the first version of
+            # this returned lines peaking at 4.89 deg/s against a stated
+            # limit of 1.50.  A line the boat cannot follow is infeasible,
+            # not slightly slow, so the peak has to dominate.
+            excess_turn = float(over.mean()) + 4.0 * float(over.max())
+
+        # -- is it legal at the bridges? ---------------------------------
+        illegal = self._arch_violations(points) if self.gates else 0
+
         aground = depth < self.minimum_depth
         fraction_aground = float(aground.mean())
         elapsed_clean = elapsed
+        elapsed += self.arch_penalty * illegal
+        if excess_turn > 0.0:
+            # Same shape as the grounding penalty: a gradient out of the
+            # infeasible region rather than a wall, and steep enough that
+            # no routing gain can pay for it.
+            elapsed *= 1.0 + 20.0 * excess_turn
         if fraction_aground > 0.0:
             # Penalise rather than reject: the optimiser needs a gradient
             # out of an infeasible region, not a wall.  Scaled so that any
@@ -340,7 +574,134 @@ class RouteEvaluator:
             elapsed=elapsed, depth=depth, current_along=current_along,
             speed_water=speed_water, speed_ground=speed_ground,
             fraction_aground=fraction_aground, elapsed_clean=elapsed_clean,
+            peak_yaw_rate=peak_turn, illegal_arches=illegal,
+            peak_split=peak_split, split_strokes=split_strokes,
+            w_prime_left=w_prime_left, w_prime_low=w_prime_low,
         )
+
+    @staticmethod
+    def _required_yaw(points, speed_ground, smooth: int = 9):
+        """Yaw rate the line demands, deg/s, from its own curvature."""
+        kernel = np.ones(smooth) / smooth
+        x = np.convolve(points[:, 0], kernel, mode="same")
+        y = np.convolve(points[:, 1], kernel, mode="same")
+        ds = np.hypot(np.gradient(x), np.gradient(y))
+        ds = np.maximum(ds, 1e-9)
+        dx, dy = np.gradient(x) / ds, np.gradient(y) / ds
+        ddx, ddy = np.gradient(dx) / ds, np.gradient(dy) / ds
+        curvature = np.abs(dx * ddy - dy * ddx)
+        edge = smooth * 3
+        curvature[:edge] = curvature[edge]
+        curvature[-edge:] = curvature[-edge - 1]
+        return np.degrees(curvature * np.asarray(speed_ground))
+
+    def _arch_violations(self, points) -> int:
+        """How many bridges this line passes on the wrong side of.
+
+        The crossing is found where the path actually **crosses the gate
+        line** -- the point at which the gate's signed distance changes
+        sign -- and not by matching station numbers.  Station matching
+        looks equivalent and is not: the course centreline is resampled
+        when the :class:`~coxswain.river.course.Course` is built, so a
+        gate's station and the route's station drift apart by a few
+        metres, which at the Grand Junction trestle is the difference
+        between an arch and a pier.  That drift had two lines reported
+        illegal here while a direct check said they were fine.
+        """
+        from . import bridges as _bridges
+        count = 0
+        for gate, _metres in self.gates:
+            offsets = (points - gate.start) @ gate.normal
+            sign = np.sign(offsets)
+            crossings = np.nonzero(np.diff(sign) != 0)[0]
+            if len(crossings) == 0:
+                count += 1                      # never crosses: not a route
+                continue
+            # A gate is a finite span, but its *line* runs on forever, and
+            # a river that bends back on itself crosses that line more than
+            # once -- the Charles crosses some of these gate lines a
+            # kilometre from the bridge they belong to.  Taking the first
+            # sign change therefore scored the wrong crossing and reported
+            # every line illegal.  Take the crossing nearest the bridge.
+            middle = 0.5 * (gate.start + gate.end)
+            i = int(min(crossings,
+                        key=lambda j: np.linalg.norm(points[j] - middle)))
+            if np.linalg.norm(points[i] - middle) > gate.span:
+                count += 1                      # never reaches this bridge
+                continue
+            a, b = offsets[i], offsets[i + 1]
+            t = 0.0 if b == a else float(-a / (b - a))
+            point = points[i] + t * (points[i + 1] - points[i])
+            where = gate.station_of(point)
+            arches = _bridges.bridge_arches(gate, self._raster)
+            inside = [arch for arch in arches
+                      if arch.interval[0] <= where <= arch.interval[1]]
+            if not inside or not inside[0].legal:
+                count += 1
+                continue
+            wanted = self.required_arches.get(gate.name)
+            if wanted is not None and inside[0].label != wanted:
+                count += 1
+        return count
+
+
+    def loss_breakdown(self, route, reference_length=None) -> dict:
+        """Where the seconds go on this line, in an additive account.
+
+        A single race time says which line is quicker and nothing about
+        why.  This peels the effects off one at a time, each difference
+        being the cost of adding that effect to the one before:
+
+        ``distance``
+            Rowing further than the shortest line under comparison.  The
+            only term that is purely geometric.
+        ``depth``
+            Shallow water raising resistance.  The inside of a bend is
+            where it shoals, so this often opposes ``distance``.
+        ``current``
+            Slack on this river in October -- a few tenths of a second
+            over the whole course -- but it belongs in the account so its
+            smallness is visible rather than assumed.
+        ``steering``
+            Drag from turning: yaw rate squared, plus the thrust a split
+            crew spends on a couple instead of on going forwards.
+        ``penalty``
+            Sixty seconds per forbidden arch.
+
+        The terms sum to the race time by construction, so nothing hides
+        in a residual.
+        """
+        result = self.evaluate(route)
+        station = result.station
+        offset = route.offset_at(station)
+        points = self.course.offset_position(station, offset)
+        segment = np.hypot(*np.diff(points, axis=0).T)
+        length = float(segment.sum())
+
+        reference = length if reference_length is None else float(reference_length)
+        ideal = reference / self.reference_speed
+
+        def travel(speed):
+            inverse = 1.0 / np.maximum(speed, 0.05)
+            return float(np.sum(0.5 * (inverse[:-1] + inverse[1:]) * segment))
+
+        flat = travel(np.full_like(station, self.reference_speed))
+        with_depth = travel(result.speed_water)
+        with_current = travel(np.maximum(result.speed_water
+                                         + result.current_along, 0.05))
+        with_steering = result.elapsed_clean
+        race = with_steering + self.arch_penalty * result.illegal_arches
+
+        return {
+            "ideal": ideal,
+            "distance": flat - ideal,
+            "depth": with_depth - flat,
+            "current": with_current - with_depth,
+            "steering": with_steering - with_current,
+            "penalty": race - with_steering,
+            "race": race,
+            "path_length": length,
+        }
 
     def compare(self, routes: Sequence[Route]):
         """Score several routes, fastest first."""

@@ -61,6 +61,7 @@ from ..hydro.appendages import surface_load
 from ..hydro.resistance import hull_resistance
 from .control import Coxswain
 from .results import SimulationResult
+from ..hydro.addedmass import DEFAULT_MUNK_FACTOR
 
 __all__ = ["RowingSimulator", "ForceBreakdown", "GRAVITY"]
 
@@ -120,7 +121,7 @@ class RowingSimulator:
                  rudder: Optional[Callable[[float, State], float]] = None,
                  water_level: float = 0.0, gravity: float = GRAVITY,
                  course=None, wind=None, aero=None, blade_contact=None,
-                 added_mass=True, munk_factor: float = 0.35):
+                 added_mass=True, munk_factor: float = DEFAULT_MUNK_FACTOR):
         self.boat = boat
         #: Geometry linking the crew's balance effort to the hull load.
         #: Sweep rigs make this more than a roll couple; see

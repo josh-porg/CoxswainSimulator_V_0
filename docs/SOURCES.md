@@ -4967,3 +4967,172 @@ Charles course "begins at the downstream corner of the BU balcony" and that
 crews line up at least 50 m below the boathouse. §58 had moved the start to
 the DeWolfe Boathouse from published regatta material; this is a second,
 independent source saying the same thing.
+
+## 60. The rudder was innocent: an eight that turns with no helm
+
+The standing complaint was that turn rate scaled only about 1.7x for five
+times the rudder where a coxswain reports nearer three, and that
+`munk_factor = 0.35` was absorbing an error belonging to the rudder.
+Both halves of that turned out to be wrong.
+
+### What the measurements actually said
+
+Decomposing the yaw balance statically, at 5 m/s:
+
+* **Rudder moment is exactly linear** in deflection -- 17.70 N m per
+  degree, unchanged from 2 degrees to the 25 degree stop.
+* **Hull cross-flow yaw damping is quadratic** in yaw rate, quadrupling
+  per doubling: -29.8 N m at 1 deg/s, -119 at 2, -268 at 3.
+* Appendage damping is linear, -63.4 N m per deg/s.
+
+A linear driver against a quadratic damper does give a square-root
+response, so this looked like the whole story. It was not.
+
+### The first fix was right physics and the wrong bug
+
+Low-aspect-ratio surfaces carry non-linear lift from the vortices off
+their side edges, and the model had none: it gave the rudder the
+small-angle law and then asked it to work at 25 degrees. Whicker and
+Fehlner (1958), which is what ship rudders are designed to, splits lift
+into a potential and a cross-flow part::
+
+    C_L = C_L_alpha sin(a)cos(a) + C_Dc sin(a)|sin(a)|cos(a)
+
+This is worth having and is now in: it reduces to `C_L_alpha * a` as the
+angle goes to zero so **no linearised derivative in the model moves**, it
+adds 9% of the rudder's lift at 8 degrees and 15% at 25 -- a gain that
+grows with deflection -- and it makes the surface stall near 45 degrees
+instead of lifting for ever, which matters for a skeg in a broach.
+
+**It changed the dynamic answer by under 4%.** Full rudder went 2.263 to
+2.251 deg/s. Whatever was flattening the response, this was not it. A
+static equilibrium solve had suggested otherwise and was reported as a fix
+before the dynamic run finished; that was premature, and the dynamic run
+is the model.
+
+### The actual defect: the boat turns with the rudder centred
+
+Sweeping the rudder through zero exposed it at once:
+
+    rudder    yaw rate     minus the bias   ratio
+      0 deg   -0.970          --              --
+      5 deg   -1.303         0.333          1.00x
+     10 deg   -1.561         0.591          1.77x
+     25 deg   -2.200         1.231          3.69x
+
+The antisymmetry check is the giveaway: +5 degrees gives 1.303 deg/s and
+-5 degrees only 0.729. Not a mirror image, so there is a constant
+underneath. **Take it out and the rudder scales 3.69x for five times the
+helm**, which is the coxswain's report. Measured inside the turn, the
+appendage yaw moment scales 3.01x for 5x helm and the boat loses 3% of
+its speed. The rudder was behaving correctly throughout.
+
+### Where the bias comes from, and it is the rig
+
+An eight rigged the standard alternating way carries its oarlocks:
+
+    port  (stroke, 6, 4, 2)   mean x = -0.340 m
+    stbd  (7, 5, 3, bow)      mean x = +0.880 m
+    stagger                          1.220 m  -- one seat spacing
+
+The lateral force of a sweep stroke therefore acts through a 1.22 m
+couple. Net sway force from the eight oars is **identically zero** at
+every instant, as it should be, so what survives is a pure couple: peak
++152 / -643 N m, **cycle mean -81.6 N m** with the boat straight, the
+rudder centred and both sides pulling equally. Against 63.4 N m per deg/s
+of appendage damping that is about 1.3 deg/s, which the hull's cross-flow
+damping trims to the 0.97 observed.
+
+The mean is non-zero because the sweep arc is not symmetric -- catch +56
+degrees, finish -34 -- so with the force peaking at 40% of the drive the
+blade is still at +20 degrees when it is working hardest, and more of the
+impulse lands on one side of the perpendicular than the other.
+
+### What this invalidated
+
+`validate.py` measured the **total** turn rate under helm and called it
+rudder authority. It is not: it is the rig bias plus the rudder's own
+contribution. That flattered small deflections, made the response look
+badly sub-linear, and `munk_factor` was calibrated against the
+contaminated number. Rudder authority is a **difference**, and the checks
+now measure it as one, with a fourth check on the bias itself.
+
+Twenty of twenty checks pass, including a new one on the response ratio at
+**3.695x**.
+
+### Still unvalidated, and it is now the top question
+
+The mechanism is real and correctly derived from the rig. **The magnitude
+is not validated.** Nothing in the model or the literature to hand says
+whether a straight-rowing eight with the rudder centred really walks off
+at about a degree a second. It is a falsifiable prediction and a coxswain
+can settle it from the seat.
+
+## 61. The river says the rudder is half the size it should be
+
+With the Munk moment set honestly (SOURCES 60) the eight makes about
+**1.50 deg/s** at full helm. The coxswain reports **3**. Rather than argue
+about which is right, ask the river.
+
+### What the course demands
+
+Curvature of the racing centreline, smoothed over 75 m, converted to the
+yaw rate needed to follow it at 5 m/s:
+
+| | deg/s |
+|---|---|
+| median | 0.53 |
+| 90th percentile | 1.50 |
+| **maximum** | **2.80** (radius 102 m) |
+
+And then:
+
+* At the reported 3.0 deg/s, **0% of the course** needs more than full
+  rudder. The margin over the tightest point is 7%.
+* At the model's 1.50 deg/s, **10.1% of the course** needs more than full
+  rudder -- the boat physically cannot follow its own centreline.
+
+A number that clears the hardest corner on the course by a few percent is
+what a real boat looks like. A number that fails a tenth of the course is
+not. **The report is right and the model is wrong.**
+
+### It explains the failed trajectory solves
+
+The tightest stretches, in order:
+
+    3860 m   2.80 deg/s   radius 102 m   119 m below Eliot
+     765 m   2.59 deg/s   radius 111 m
+    4255 m   2.32 deg/s   radius 123 m   above Eliot
+    2660 m   1.91 deg/s   radius 150 m   at Anderson
+    2330 m   1.71 deg/s   radius 168 m   at Weeks
+
+The worst is the Cambridge Boat Club bend below Eliot -- the same place
+the channel narrows to 50 m (SOURCES 59) and the same place the earlier
+trajectory optimisation kept stalling. **That was never an optimiser
+bug.** The boat model could not make the turn, so no feasible trajectory
+existed there, and the solver was correctly reporting that.
+
+### What would fix it
+
+Neither rudder configuration closes the gap. Modelling the rudder properly
+as a flap on the fin -- thin-aerofoil ``tau = 0.726``, viscous 0.85, span
+ratio 0.698, so an effective 0.430 -- gives 1.60 deg/s against the
+separate blade's 1.50. Larger area but the aspect ratio falls from 0.75 to
+0.40 and the lift-curve slope with it, and the two nearly cancel.
+
+From the linearised balance, the levers are:
+
+| | rudder x1 | x2 | x3 | x4 |
+|---|---|---|---|---|
+| skeg x1.00 | 2.52 | 2.99 | 3.51 | 4.04 |
+| skeg x0.75 | 4.50 | 3.57 | 3.84 | 4.26 |
+
+(These run high: the linear balance ignores the quadratic cross-flow
+damping, and the same geometry that reads 2.52 here measures 1.50 in the
+full nonlinear model. Read them as ratios, not absolutes.)
+
+**The skeg is the stronger lever, because the weathervane moment largely
+cancels the rudder moment.** Shrinking it costs directional stability,
+which is exactly the trade the Munk factor was mis-set to dodge. The
+honest resolution needs the real boat: fin and rudder dimensions, and
+whether the rudder is a flap on the fin or a separate blade.

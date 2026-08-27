@@ -40,6 +40,7 @@ import numpy as np
 
 from ..core.frames import wrap_to_pi
 from ..core.state import State
+from ..hydro.appendages import MAX_RUDDER_DEFLECTION
 
 __all__ = ["BalanceController", "HeadingController", "Coxswain"]
 
@@ -104,7 +105,7 @@ class HeadingController:
     target: object = 0.0
     gain: float = 2.5             # rad rudder per rad heading error
     rate_gain: float = 1.2        # rad rudder per rad/s yaw rate
-    max_deflection: float = np.radians(25.0)
+    max_deflection: float = MAX_RUDDER_DEFLECTION
     enabled: bool = True
 
     def target_heading(self, t: float) -> float:

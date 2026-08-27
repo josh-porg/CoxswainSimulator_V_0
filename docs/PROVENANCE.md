@@ -50,15 +50,114 @@ believed.**
   drive fraction partly because blade efficiency left the band — using a
   flatness fitted against the *old* drive. Circular. Corrected in §50.
 
-### `munk_factor = 0.35`
-*Calibrated against a coxswain's reported turn rates and a witnessed
-skeg failure.*
+### `FIN_SPAN = 0.1471 m` — **assumed, one pixel above the measurement**
+
+*The most load-bearing unmeasured number in the model. Read this before
+quoting any absolute turn rate.*
+
+The fin was measured off a scale drawing at **7 px** where the 17.3 m hull
+spans 941 — 128.7 mm. The model uses **8 px**, 147.1 mm. That is not a
+measurement and it is not a fit to data; it is a choice forced by a
+physical criterion, and the reason is the sensitivity:
+
+| px | depth | Nv | C (1e6) | behaviour |
+|---|---|---|---|---|
+| 6 | 110.3 mm | −161 | −0.90 | unstable |
+| **7 (measured)** | **128.7 mm** | **−58** | **−0.06** | **neutral** |
+| 8 (used) | 147.1 mm | +60 | +0.90 | stable |
+| 9 | 165.5 mm | +193 | +1.99 | stable |
+
+**The choice is narrower than it first looked, and this entry has
+overstated it twice.** What the runs actually show, with `munk_factor` at
+0.15:
+
+| px | depth | C (1e6) | turn deg/s | bistable? |
+|---|---|---|---|---|
+| **7 (measured)** | 128.7 mm | −0.06 | **1.598** | no |
+| 8 (used) | 147.1 mm | +0.90 | 1.531 | no |
+| 9 | 165.5 mm | +1.99 | 1.456 | no |
+
+- At 7 px the boat is **marginally unstable by the linear criterion** and
+  wants continuous correction.
+- It is **not bistable** there. The hull's quadratic cross-flow damping
+  bounds the divergence. The bistability documented in SOURCES §60
+  belonged to `munk_factor = 0.35` and was cured by lowering it — **not by
+  the fin**. An earlier version of this entry attributed it to fin depth.
+- Deeper is monotonically more stable and monotonically **worse at
+  turning**. The measured 7 px gives the best steering on the table.
+
+So 8 px rests on one argument: a shell with its skeg tracks, and losing
+the skeg is a catastrophe *because* the skeg normally provides a margin.
+Neutral stability sits badly with both. That is worth something; it is not
+worth much, and it does not survive a measurement disagreeing with it.
+
+**Depends on:** nothing upstream — it is geometry. **Everything downstream
+depends on it**: directional stability, rudder authority, whether a
+trajectory through the Eliot bend is feasible at all, and hence any
+optimised racing line.
+
+**Sensitivity is one-sided and steep.** Deeper is stable and progressively
+less manoeuvrable (turn rate falls from 3.80 to 1.44 deg/s between 8 and
+12 px); shallower is unstable. Note *span* is the sensitive dimension, not
+chord — lengthening chord drops the aspect ratio faster than it adds area.
+
+**To retire this entry:** measure the real boat — fin depth below the
+hull, fore-and-aft length, and how far the rudder hangs below the fin.
+One measurement settles three separate failures.
+
+### `munk_factor = 0.15` — **no longer fitted** (was 0.35)
+
+*Bounded by a physical stability criterion. Moved out of the F class.*
 
 - **Depends on:** added-mass matrix, cross-flow drag, skeg and rudder
   geometry and lift model.
-- **Known weakness:** turn rate scales 1.7× for 5× rudder where the
-  report implies ~3×, so this is absorbing an error that belongs to the
-  rudder. Fixing the rudder changes this value.
+- **Lives in** `hydro/addedmass.DEFAULT_MUNK_FACTOR`, referenced by both
+  `sim/simulator.py` and `river/sixdof.py`, which have silently diverged
+  before.
+
+**Why it changed.** The old 0.35 was calibrated against a coxswain's
+reported turn rates — but the simulated turn rate it was matched to
+*silently included the sweep rig's own ~1 deg/s yaw bias* (SOURCES §60),
+so the fit was made against a contaminated quantity and came out roughly
+twice too high.
+
+**What that cost.** At 0.35 the Munk moment ran about **1.8× the combined
+weathervane moment of skeg and rudder**. The weathervane derivative `Nv`
+measured **−464 N·m/(m/s)** where `strokemodel.HydroCoefficients` has
+always documented that it must be positive, the straight-line criterion
+`C = Yv·Nr − Nv·(Yr − mU)` went negative, and the boat had **no
+straight-line equilibrium**. Yaw settled into one of two attractors near
+±0.55 deg/s depending only on where the transient started, with a jump
+discontinuity between them sitting exactly where a coxswain holds the boat
+straight. Seeding the yaw rate from −3, 0 and +3 deg/s gave a spread of
+1.16 deg/s at 0.35 and 0.011 at 0.15.
+
+**The bounds are now physical, not fitted:**
+
+| quantity | turns positive below |
+|---|---|
+| `Nv` (weathervane) | ≈ 0.196 |
+| `C` (straight-line criterion) | ≈ 0.227 |
+
+0.15 sits clear of both. The change costs **~3% of real rudder
+authority** (1.238 → 1.201 deg/s at 25°) because the old value was never
+buying steering — it was buying wander, which the old validation checks
+miscounted as steering.
+
+**The skeg-loss anchor does not pin this value.** Drift over 25 s with the
+appendages removed is non-monotonic in the factor — 22.2° at 0.15, 15.8°
+at 0.20, 22.8° at 0.25 — because a bare hull is *itself* directionally
+unstable, so a single run is path-dependent. It is satisfied across
+0.10–0.50 and cannot discriminate. Treat it as a sanity check, not a fit
+target.
+
+- **Remaining weakness, now isolated:** with the Munk moment set honestly
+  the model gives **1.66 deg/s total** at full rudder against a reported
+  ~3. That deficit belongs to the **rudder**, not the hull. Closing it
+  needs roughly 4× the blade area (9×12 cm → about 18×24 cm), so either
+  the modelled rudder is too small or `flap_effectiveness = 1.0` is wrong
+  for a rudder hinged on the skeg rather than all-moving. Needs the real
+  boat's dimensions.
 
 ### `2x PEAK_OARLOCK_FORCE = 485 N`
 *Fitted to the club session's own measured 3.82 m/s.*
@@ -323,3 +422,70 @@ on every entry so this never gets mistaken for a survey.
    bridges" — which leaves four once BU is counted. BU is modelled from the
    Charles River Rowing Committee pattern instead, which puts upstream
    traffic through the second arch from the Cambridge shore.
+
+---
+
+## OPEN CONFLICT: the stroke timing is ergometer timing (found 2026-08-23)
+
+`StrokeTiming.drive_fraction = 0.63067 - 5.20991 / rate` is fitted to
+**Telfer et al. (2023), "The effect of foot-stretcher position and stroke
+rate on *ergometer* rowing kinematics"**, n = 11 collegiate rowers.
+
+The model simulates a boat. There is on-water data, and it disagrees
+systematically. Hill & Fahrig (2009), *Scand J Med Sci Sports* -- elite
+coxless **pairs on water**, stepped rates -- implies:
+
+| rate | on-water | model (erg) | error | drive:recovery on water | model |
+|---|---|---|---|---|---|
+| 20.6 | 0.296 | 0.378 | **+27.6%** | 1:2.38 | 1:1.65 |
+| 24.2 | 0.327 | 0.415 | **+27.1%** | 1:2.06 | 1:1.41 |
+| 27.7 | 0.360 | 0.443 | **+23.1%** | 1:1.78 | 1:1.26 |
+| 31.5 | 0.395 | 0.465 | **+17.9%** | 1:1.53 | 1:1.15 |
+
+A near-constant +0.08 offset in drive fraction. On water at 31.5 spm the
+fraction equals the erg value at 22 spm -- a shift of roughly ten rates.
+This is the expected direction: on water the boat runs during the
+recovery, so the recovery takes more of the cycle than it does on a
+machine whose flywheel is decaying.
+
+**This is squarely in the operating range.** A Masters eight races the
+Head of the Charles at 28-30 spm, where the drive is about 25% too long.
+
+The same reciprocal form fits the on-water data well:
+`0.57391 - 5.82413 / rate`, RMS residual 0.0054.
+
+### Why it has not simply been swapped
+
+The change would not be free, and the reasons the erg fit was adopted are
+real and are recorded above:
+
+* Force-weighted blade efficiency comes out **0.828** under the erg
+  fraction, inside Kleshnev's on-water band of 0.80-0.85. Under the
+  shorter on-water drive it falls to **0.747**, below the band -- which is
+  exactly what `OarAngleSweep.flatness` used to be fitted to patch.
+* The erg fit extrapolates to a 1:1.00 drive:recovery ratio at 40 spm,
+  the race-pace figure coaches quote. The on-water fit extrapolates to
+  1:1.33, though that is well outside the data it was fitted to.
+
+So two on-water sources disagree: Hill & Fahrig's measured drive times
+say the drive is short, and Kleshnev's measured blade efficiency says a
+short drive cannot be right. **This is a stacked-solution case.** Fixing
+the drive fraction alone fails the blade-efficiency check; the honest
+reading is that the drive fraction and something in the blade model are
+both wrong, and neither can be validated while the other is held fixed.
+
+### What would settle it
+
+1. A definitional check on Hill & Fahrig: is their "drive" catch-to-finish
+   of handle motion, or force onset to offset? A 20% gap can hide in that.
+2. On-water drive fractions for an **eight** rather than a pair.
+3. Blade efficiency recomputed from a source that does not depend on the
+   drive duration.
+
+### What it already explains
+
+The intracycle velocity work (SOURCES 57) concluded the model gives "the
+erg-scale answer for an erg-scale input", with the crew's relative
+velocity swing as the one unmeasured quantity. The drive fraction is a
+**second erg-scale input pushing the same way**, and it was not counted at
+the time.

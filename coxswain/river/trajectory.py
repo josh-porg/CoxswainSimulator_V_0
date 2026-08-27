@@ -109,6 +109,7 @@ from dataclasses import dataclass
 from typing import Optional, Tuple
 
 import numpy as np
+from ..hydro.appendages import MAX_RUDDER_DEFLECTION
 
 __all__ = [
     "ReducedModel",
@@ -139,8 +140,11 @@ class ReducedModel:
     #: Extra drag per unit yaw rate squared, N s2/rad2.  Turning costs
     #: speed; without this the optimiser steers for free.
     turn_drag: float = 8000.0
-    #: Maximum usable rudder angle, radians.
-    rudder_limit: float = np.radians(12.0)
+    #: Maximum usable rudder angle, radians.  See
+    #: :data:`~coxswain.hydro.appendages.MAX_RUDDER_DEFLECTION`; this was
+    #: 12 degrees, which is not what the boat has and cost the optimiser
+    #: most of its steering.
+    rudder_limit: float = MAX_RUDDER_DEFLECTION
     #: Yaw moment per unit port/starboard pressure split, N m.  The
     #: coxswain's second control, and on a river the decisive one.
     #: Measured against the extracted Charles channel: full rudder alone
@@ -245,10 +249,24 @@ def fit_reduced_model(boat=None, reference_speed: float = 5.2,
         # actually sees
         return float(np.mean(result.omega[2][result.last_cycles(3)]))
 
+    # An eight yaws about 0.4 deg/s with the rudder centred and both sides
+    # pulling equally: the standard alternating rig carries its port and
+    # starboard oarlocks a seat apart in x, so a sweep stroke's lateral
+    # force acts through a 1.22 m couple (SOURCES 60).  Control authority
+    # is what the control buys **over and above** that, so the neutral rate
+    # has to come out of both fits.
+    #
+    # Leaving it in was how `munk_factor` came to be calibrated against a
+    # contaminated quantity and ended up twice too large, taking the boat's
+    # directional stability with it.  The same arithmetic here would have
+    # told the optimiser the rudder was worth roughly twice what it is, and
+    # an optimised line is only as good as the authority it assumes.
+    neutral = steady_rate()
+
     # Steady rudder turn: N_delta u^2 delta == N_r u r.
     ratios = []
     for deflection in (np.radians(4.0), np.radians(8.0)):
-        rate = steady_rate(rudder=deflection)
+        rate = steady_rate(rudder=deflection) - neutral
         if np.isfinite(rate) and abs(rate) > 0:
             ratios.append(abs(rate) / (reference_speed * deflection))
     if ratios:
@@ -257,7 +275,7 @@ def fit_reduced_model(boat=None, reference_speed: float = 5.2,
     # Steady split turn: N_split s == N_r u r.
     split_ratios = []
     for split in (0.15, 0.30):
-        rate = steady_rate(split=split)
+        rate = steady_rate(split=split) - neutral
         if np.isfinite(rate) and abs(rate) > 0:
             split_ratios.append(abs(rate) * reference_speed / split)
     if split_ratios:

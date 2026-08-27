@@ -201,12 +201,23 @@ def test_no_induced_drag_at_zero_incidence():
     assert force[0] == pytest.approx(0.0, abs=1e-12)
 
 
-def test_induced_drag_is_quadratic_in_incidence():
+def test_induced_drag_is_quadratic_in_lift():
+    """``C_D_i = C_L^2 / (pi AR e)`` -- quadratic in *lift*, which is the
+    physics.  It used to be asserted as quadratic in *incidence*, which was
+    the same statement only while lift was linear in incidence.  Once the
+    Whicker-Fehlner cross-flow term went in, doubling the angle stopped
+    exactly doubling the lift, and this test failed for a correct model.
+    Written against lift, it holds either way."""
+    from coxswain.hydro.appendages import lift_coefficient_at
     small, _ = surface_load(SKEG_EIGHT, flow_at_sideslip(5.0, 2.0), 0.0, 0.0,
                             FRESH_WATER)
     large, _ = surface_load(SKEG_EIGHT, flow_at_sideslip(5.0, 4.0), 0.0, 0.0,
                             FRESH_WATER)
-    assert large[0] == pytest.approx(4.0 * small[0], rel=0.02)
+    ratio = (lift_coefficient_at(SKEG_EIGHT, np.radians(4.0))
+             / lift_coefficient_at(SKEG_EIGHT, np.radians(2.0))) ** 2
+    assert large[0] == pytest.approx(ratio * small[0], rel=0.02)
+    # and it is still very nearly quadratic in incidence at these angles
+    assert 3.9 < large[0] / small[0] < 4.4
 
 
 def test_induced_drag_is_small_compared_with_hull_resistance():
@@ -245,3 +256,72 @@ def test_a_deep_surface_also_produces_a_roll_moment():
                                  0.0, FRESH_WATER)
     assert abs(moment[0]) > 0.0
     assert np.sign(moment[0]) == np.sign(-SKEG_EIGHT.position[2] * force[1])
+
+
+# --------------------------------------------------------------------------
+# non-linear lift (Whicker-Fehlner)
+# --------------------------------------------------------------------------
+def test_small_angles_still_follow_the_lift_curve_slope():
+    """The whole point of adding the non-linear term is that it changes
+    nothing in the linear regime, so every stability derivative already
+    validated stays put."""
+    from coxswain.hydro.appendages import RUDDER_EIGHT, lift_coefficient_at
+    # the cross-flow term is O(angle) relative to the linear one, so the
+    # departure shrinks with the angle rather than sitting at some fixed
+    # tolerance -- check that it does, which is the real claim.
+    previous = None
+    for degrees in (0.5, 0.25, 0.1, 0.05):
+        angle = np.radians(degrees)
+        linear = RUDDER_EIGHT.lift_curve_slope * angle
+        departure = abs(lift_coefficient_at(RUDDER_EIGHT, angle) / linear - 1.0)
+        assert departure < 0.01
+        if previous is not None:
+            assert departure < previous
+        previous = departure
+    assert previous < 1e-3
+
+
+def test_lift_is_odd_in_the_angle():
+    from coxswain.hydro.appendages import RUDDER_EIGHT, lift_coefficient_at
+    for degrees in (3.0, 12.0, 25.0, 40.0):
+        angle = np.radians(degrees)
+        assert lift_coefficient_at(RUDDER_EIGHT, -angle) == pytest.approx(
+            -lift_coefficient_at(RUDDER_EIGHT, angle))
+
+
+def test_a_working_rudder_makes_more_lift_than_the_linear_law():
+    """At 25 degrees the side-edge vortices are worth about 15%, and the
+    gain grows with deflection -- which is what pulls the turn-rate
+    response back towards proportional."""
+    from coxswain.hydro.appendages import RUDDER_EIGHT, lift_coefficient_at
+    gains = []
+    for degrees in (8.0, 25.0):
+        angle = np.radians(degrees)
+        linear = RUDDER_EIGHT.lift_curve_slope * angle
+        gains.append(lift_coefficient_at(RUDDER_EIGHT, angle) / linear - 1.0)
+    assert 0.05 < gains[0] < 0.13
+    assert 0.10 < gains[1] < 0.22
+    assert gains[1] > gains[0]
+
+
+def test_the_surface_stalls_instead_of_lifting_for_ever():
+    """A low-aspect-ratio plate holds on to about 40 degrees and then
+    gives up.  The old linear law would have gone on for ever, which
+    matters for a skeg during a broach, not just for the rudder."""
+    from coxswain.hydro.appendages import SKEG_EIGHT, lift_coefficient_at
+    angles = np.radians(np.arange(5.0, 90.0, 1.0))
+    lift = np.array([lift_coefficient_at(SKEG_EIGHT, a) for a in angles])
+    peak = np.degrees(angles[int(np.argmax(lift))])
+    # flat-plate data for aspect ratio near 0.6 peaks around 45-50 degrees
+    assert 38.0 < peak < 55.0
+    assert lift_coefficient_at(SKEG_EIGHT, np.radians(80.0)) < lift.max()
+
+
+def test_zero_crossflow_coefficient_recovers_the_old_linear_surface():
+    """The switch that lets the change be isolated in any later test."""
+    import dataclasses
+    from coxswain.hydro.appendages import RUDDER_EIGHT, lift_coefficient_at
+    linearised = dataclasses.replace(RUDDER_EIGHT, crossflow_coefficient=0.0)
+    angle = np.radians(20.0)
+    expected = linearised.lift_curve_slope * np.sin(angle) * np.cos(angle)
+    assert lift_coefficient_at(linearised, angle) == pytest.approx(expected)

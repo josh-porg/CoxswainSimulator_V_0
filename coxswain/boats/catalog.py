@@ -52,6 +52,110 @@ def _skeg(x: float, span: float = 0.129, chord: float = 0.202,
                           sweep=np.radians(5.0))
 
 
+#: Shape of the fin, read off a photograph of the real boat.
+#:
+#: These three are **proportions**, so the photograph fixes them exactly
+#: without needing anything of known size in the frame.  That matters more
+#: than it sounds: aspect ratio, taper and sweep are what set the
+#: lift-curve slope, and the size only scales the area afterwards.
+#:
+#: ======================  =========  ==============
+#: quantity                model had  photographed
+#: ======================  =========  ==============
+#: span / root chord       --         1.118
+#: taper, tip / root       1.0        **0.027**
+#: leading-edge sweep      5 deg      **39 deg**
+#: aspect ratio            0.457      **2.177**
+#: C_L_alpha, per rad      0.708      **2.514**
+#: ======================  =========  ==============
+#:
+#: The fin is a swept delta running very nearly to a point, and the model
+#: had been treating it as a low-aspect rectangle with almost no sweep.
+#: Two errors that hid each other: a rectangle encloses twice a triangle's
+#: area, so the area came out 3x too big while the lift-curve slope came
+#: out 3.5x too small, and the side force -- the one number anybody
+#: checks -- landed about right.  Everything else about the surface was
+#: wrong: when it stalls, how much induced drag it makes, and how its
+#: authority scales with speed.
+FIN_SPAN_OVER_ROOT = 1.118
+FIN_TAPER = 0.027
+FIN_SWEEP = np.radians(39.0)
+
+#: Depth of the fin below the hull, m.  **The one dimension still
+#: unmeasured**, and now the only thing standing between the shape above
+#: and a fully specified surface.
+#:
+#: 0.300 is scaled off the spanner in the photograph.  A combination
+#: spanner for 10 mm bolts has a jaw opening of exactly 10.0 mm and a head
+#: about 21 mm across, and those two readings agree with each other
+#: (ratio 2.00 read against 2.10 true) at 0.29 mm/px.  A third reading off
+#: the ring end disagreed and was discarded as a bad pick -- it implied a
+#: ring/jaw ratio of 2.57 where the tool fixes it at 1.75.
+#:
+#: Two things support it beyond the spanner.  At 0.29 mm/px the frame
+#: spans about 560 mm and the hull fills it, which is an eight's beam.  And
+#: at 300 mm the boat reaches the reported turn rate at the standard Munk
+#: discount while staying comfortably directionally stable, which it does
+#: not at 190 or 240 mm.
+#:
+#: If the spanner was held nearer the camera than the fin, this is an
+#: **under**-estimate.
+#:
+#: A tape measure on the fin retires this.  Depth below the hull is what
+#: to measure; the root chord follows from
+#: :data:`FIN_SPAN_OVER_ROOT`.
+FIN_DEPTH = 0.300
+
+#: Rudder proportions, reported from the boat.
+#:
+#: The rudder covers a third to a half of the fin's depth and roughly two
+#: thirds of its chord.  An earlier version of this file assumed the
+#: rudder ran the fin's **full** depth, which was wrong and was worth 1.6x
+#: on control effectiveness in the wrong direction.
+RUDDER_CHORD_OVER_FIN = 0.625
+RUDDER_SPAN_OVER_FIN = 0.42
+
+
+def _fin_with_rudder(x: float, depth: float = FIN_DEPTH,
+                     rudder_chord_frac: float = RUDDER_CHORD_OVER_FIN,
+                     rudder_span_frac: float = RUDDER_SPAN_OVER_FIN,
+                     draft: float = -0.20) -> LiftingSurface:
+    """Fin and its hinged rudder, as the one swept delta they are.
+
+    A shell's rudder is a flap on the back of the fin, not a separate
+    blade: the legacy 3-DOF model wrote it that way too, adding the
+    deflection straight into the fin's own lift coefficient
+    (``C_y_skeg = C_Y_beta * beta + C_Y_delta_f * delta_f``) and naming
+    the control ``delta_f`` for flap.
+
+    Shape comes from a photograph of the boat and is exact up to scale --
+    see :data:`FIN_TAPER` and :data:`FIN_SWEEP`.  Size comes from
+    :data:`FIN_DEPTH`, which is still an estimate.  Rudder proportions are
+    as reported by the coxswain: a third to a half of the fin's depth,
+    about two thirds of its chord.
+
+    The combined surface is what deflects: pulling the rudder over
+    re-cambers the whole fin, so the lift acts on the fin's area with the
+    fin's lift-curve slope, reduced by the flap effectiveness of
+    :func:`~coxswain.hydro.appendages.flap_effectiveness_ratio`.
+    """
+    root_chord = depth / FIN_SPAN_OVER_ROOT
+    rudder_chord = root_chord * float(rudder_chord_frac)
+    total_root = root_chord + rudder_chord
+    tip_chord = root_chord * FIN_TAPER          # no rudder out at the tip
+
+    # Aerodynamic centre sits near the quarter chord of the mean chord.
+    mean_chord = 0.5 * total_root * (1.0 + tip_chord / total_root)
+    return LiftingSurface(
+        span=depth, chord=total_root,
+        position=np.array([x - 0.25 * mean_chord, 0.0, draft]),
+        sweep=FIN_SWEEP, taper_ratio=tip_chord / total_root,
+        controllable=True,
+        flap_chord_ratio=rudder_chord / total_root,
+        flap_span_ratio=float(rudder_span_frac),
+    )
+
+
 def _rudder(x: float, span: float = 0.090, chord: float = 0.120,
             depth: float = -0.16) -> LiftingSurface:
     return LiftingSurface(span=span, chord=chord,
@@ -133,7 +237,7 @@ def eight(rate: float = 32.0, rower_mass: float = 88.0,
         hull_mass=hull_mass,
         hull_inertia=_slender_inertia(hull_mass, length, beam, draft),
         timing=StrokeTiming(rate),
-        appendages=(_skeg(-6.0), _rudder(-6.6)),
+        appendages=(_fin_with_rudder(-6.0),),
         water=water,
         crew_phase_offsets=crew_phase_offsets,
         default_anthropometry=RowerAnthropometry(mass=rower_mass,

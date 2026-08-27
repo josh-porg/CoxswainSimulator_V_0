@@ -67,8 +67,53 @@ from dataclasses import dataclass
 
 import numpy as np
 
-__all__ = ["AddedMass", "sectional_sway", "sectional_heave",
+__all__ = ["DEFAULT_MUNK_FACTOR", "AddedMass", "sectional_sway", "sectional_heave",
            "surge_coefficient"]
+
+
+#: Viscous reduction applied to the ideal-flow Munk moment.
+#:
+#: A slender body in ideal flow is directionally **unstable**: the
+#: added-mass asymmetry gives a moment that grows the sideslip rather than
+#: killing it.  That is classical and real, but the ideal value overstates
+#: it, because the boundary layer and separated wake never let the full
+#: potential-flow pressure distribution establish.  This is the standard
+#: viscous discount, and 1.0 would be ideal flow.
+#:
+#: **0.50 -- the value slender-body practice uses, and no longer fitted to
+#: anything.**  It has been 0.35, then 0.15, and both were wrong for
+#: instructive reasons:
+#:
+#: * **0.35** was calibrated against a coxswain's reported turn rate
+#:   compared to a simulated one that silently included the sweep rig's own
+#:   yaw bias (SOURCES 60).  Fitted to a contaminated quantity.
+#: * **0.15** was picked to clear the straight-line stability criterion --
+#:   but that criterion was evaluated against a fin modelled as a
+#:   low-aspect rectangle with 5 degrees of sweep, when the real fin is a
+#:   swept delta with four times the aspect ratio.  Fitted to a geometry
+#:   error, which is the same mistake in a new coat.
+#:
+#: With the fin taken from a photograph of the boat, the bound moved and
+#: the suppression stopped being necessary.  Turn rate at 45 degrees of
+#: helm, and the criterion C, against fin depth:
+#:
+#: =========  ============  ============  ============  ============
+#: fin depth  munk 0.15     munk 0.35     munk 0.55     munk 0.75
+#: =========  ============  ============  ============  ============
+#: 190 mm     1.85 / +2.8   2.57 / -1.1   3.39 / -5.1   4.20 / -9.1
+#: 240 mm     1.99 / +6.4   2.63 / +2.8   3.35 / -0.9   4.08 / -4.6
+#: **300 mm** 2.12 / +11.9  2.68 / +8.6   **3.30/+5.4** 3.95 / +2.1
+#: =========  ============  ============  ============  ============
+#:
+#: At the photographed fin the boat is stable across the whole range, and
+#: 0.5 lands on the coxswain's reported ~3 deg/s with margin to spare.
+#:
+#: What makes this different from the two values before it: **the turn rate
+#: is not what set it.**  0.5 is the literature figure, the fin is from a
+#: photograph, and the agreement with the boat is a *check that passed* --
+#: three quantities from three unrelated sources meeting, rather than one
+#: tuned until it matched another.
+DEFAULT_MUNK_FACTOR = 0.50
 
 
 def surge_coefficient(length: float, beam: float) -> float:

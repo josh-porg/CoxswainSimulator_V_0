@@ -123,21 +123,120 @@ check("added mass", "8+ sway added / mass",
       "strip theory; comparable to displacement for a slender hull")
 
 # -- steering ---------------------------------------------------------------
-def turn_rate(boat, rudder_deg, cycles=6):
+# Rudder authority is a DIFFERENCE, and measuring it as a total was wrong.
+#
+# An eight rigged the standard way carries its port and starboard oarlocks
+# one seat apart in x -- port average -0.34 m, starboard +0.88 m -- so the
+# lateral force of a sweep stroke acts through a 1.22 m couple and leaves a
+# cycle-mean yaw moment of about -82 N m even with the boat straight, the
+# rudder centred and both sides pulling equally.  Against the appendages'
+# 63 N m per deg/s that is a **steady yaw of about 1 deg/s with no helm at
+# all**.
+#
+# These checks used to report the total turn rate under helm, which is that
+# bias plus the rudder's own contribution, and called the sum "rudder
+# authority".  It is not: it flattered small deflections, and it made the
+# response look badly sub-linear -- 1.7x for 5x the rudder -- when the
+# rudder's own contribution actually scales 3.7x, which is what a coxswain
+# reports.  `munk_factor` was calibrated against the contaminated number.
+#
+# Subtracting the zero-helm rate is what makes the quantity mean what its
+# name says, and what makes it comparable with a coxswain putting the
+# rudder on and watching the bow come round.
+def turn_rate(boat, rudder_deg, cycles=12, settle=6):
     cox = Coxswain(rudder_override=lambda tt, s: np.radians(rudder_deg))
     sim = RowingSimulator(boat, coxswain=cox)
     res = sim.run(duration=cycles * boat.timing.period, dt=0.008,
                   surge_speed=5.0)
     tt = res.time
     yaw = np.degrees(np.unwrap(np.asarray(res.attitude)[2]))
-    keep = tt >= 3 * boat.timing.period
-    return abs(float(np.polyfit(tt[keep], yaw[keep], 1)[0]))
+    keep = tt >= settle * boat.timing.period
+    return float(np.polyfit(tt[keep], yaw[keep], 1)[0])
+
 
 e28 = catalog.eight(rate=28.0)
-check("steering", "8+ full rudder, deg/s", turn_rate(e28, 25.0), 2.0, 4.0,
-      "coxswain: ~15 deg in 5 s, so about 3 deg/s at most")
-check("steering", "8+ typical rudder, deg/s", turn_rate(e28, 8.0), 0.7, 1.6,
-      "coxswain: about 1 deg/s")
+_neutral = turn_rate(e28, 0.0)
+
+
+def rudder_authority(boat, rudder_deg, neutral=None):
+    """Turn rate the rudder itself buys, over and above the rig's own bias."""
+    base = _neutral if neutral is None else neutral
+    return abs(turn_rate(boat, rudder_deg) - base)
+
+
+# "Full rudder" has to mean the rudder's actual stop, not a number left
+# over from when the model thought it was 25 degrees.  The boat pulls to
+# 45, and the band is the coxswain's reported ~3 deg/s: about 15 degrees
+# of heading in 5 seconds, over and above the boat's own swing.
+FULL_HELM = float(np.degrees(e28.appendages[0].max_deflection))
+check("steering", "8+ full rudder (%.0f deg), deg/s" % FULL_HELM,
+      rudder_authority(e28, FULL_HELM),
+      2.20, 4.00, "coxswain: ~15 deg in 5 s over the boat's own swing")
+check("steering", "8+ typical rudder, deg/s", rudder_authority(e28, 5.0),
+      0.15, 0.75, "should be a small fraction of full rudder")
+check("steering", "8+ rudder response, %.0f deg / 5 deg" % FULL_HELM,
+      rudder_authority(e28, FULL_HELM) / max(rudder_authority(e28, 5.0), 1e-9),
+      3.00, 9.00, "sub-linear: the fin sheds lift as sideslip builds")
+check("steering", "8+ zero-helm yaw, deg/s", abs(_neutral), 0.0, 1.5,
+      "UNVALIDATED: sweep rig stagger; needs a coxswain to say what a "
+      "straight-rowing eight really does with the rudder centred")
+
+# -- directional stability -------------------------------------------------
+# The check that would have caught the bistability.
+#
+# A boat holds a straight line only if the classic Routh criterion on the
+# coupled sway-yaw system is positive:
+#
+#     C = Yv Nr - Nv (Yr - m U)  >  0
+#
+# `Nv` is the weathervane: crab a boat sideways and an aft fin swings the
+# bow back.  It has to be **positive**, which `strokemodel.HydroCoefficients`
+# has always said in as many words.  It was measured at -464 N m/(m/s),
+# because the hull's Munk moment was running about 1.8x the combined
+# weathervane of skeg and rudder, and the boat had no stable straight-line
+# state at all -- it fell to one side or the other and settled into one of
+# two attractors at about +/-0.55 deg/s, with a jump discontinuity between
+# them exactly where a coxswain would be trying to hold the boat straight.
+#
+# Nothing in the suite tested for this, because every steering check
+# measured a *rate* and both attractors give a perfectly plausible rate.
+def _directional_stability(boat, speed=5.0, munk=None):
+    from coxswain.core.frames import abs_to_hull, attitude_from_components
+    from coxswain.core.state import State
+    from coxswain.hydro.addedmass import AddedMass
+    from coxswain.sim.control import BalanceController
+
+    kwargs = {} if munk is None else {"munk_factor": munk}
+    sim = RowingSimulator(boat, **kwargs)
+    sim.coxswain.balance = BalanceController(enabled=False)
+    sim.coxswain.rudder_override = lambda _t, _s: 0.0
+
+    def loads(sway=0.0, yaw_rate=0.0):
+        state = State.create(attitude=attitude_from_components(roll=0.0),
+                             velocity=(speed, sway, 0.0),
+                             omega=(0.0, 0.0, yaw_rate))
+        parts = sim.breakdown(0.35, state)
+        rot = abs_to_hull(state.attitude)
+        force = rot @ (parts.resistance_force + parts.appendage_force)
+        moment = rot @ (parts.resistance_moment + parts.appendage_moment)
+        return float(force[1]), float(moment[2])
+
+    y0, n0 = loads()
+    yv, nv = loads(sway=0.05)
+    yr, nr = loads(yaw_rate=0.01)
+    Yv, Nv = (yv - y0) / 0.05, (nv - n0) / 0.05
+    Yr, Nr = (yr - y0) / 0.01, (nr - n0) / 0.01
+    added = AddedMass.from_offsets(boat.offsets, rho=boat.water.density)
+    mass = boat.total_mass + float(added.matrix[1, 1])
+    return Nv, Yv * Nr - Nv * (Yr - mass * speed)
+
+
+_nv, _crit = _directional_stability(e28)
+check("stability", "8+ weathervane Nv, N m/(m/s)", _nv, 1.0, 4000.0,
+      "must be positive: an aft skeg swings the bow back into the flow")
+check("stability", "8+ straight-line criterion C", _crit / 1e6, 0.0, 100.0,
+      "Yv Nr - Nv (Yr - m U) > 0, in millions; negative means the boat "
+      "has no straight-line equilibrium and yaw goes bistable")
 
 import copy
 bare = copy.copy(e28)
