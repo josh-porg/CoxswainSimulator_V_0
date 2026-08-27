@@ -10,8 +10,34 @@ published motion capture rather than invented. Every empirical number is
 traced in **[docs/SOURCES.md](docs/SOURCES.md)**, which also records what
 each source does *not* settle.
 
-Long-term aim: trajectory optimisation over the Charles, using real depth
-and centreline data — which is why the shallow-water term matters.
+It now races. The Charles is modelled from surveyed bathymetry, the seven
+bridges are placed against the federal bridge inventory with their arches
+and piers, and a racing line is optimised down it under the regatta's own
+rules and the crew's anaerobic budget — then steered by the full 6-DOF
+boat to check the line is one anybody could actually row.
+
+## The report
+
+One command runs every analysis and writes a single self-contained page:
+
+```bash
+python scripts/make_report.py            # everything, ~20 minutes
+python scripts/make_report.py --quick    # skip the animations, ~6 minutes
+```
+
+Produces **`out/report/hocr_report.html`** — figures embedded, nothing
+transcribed, every number carrying where it came from and how far it
+should be trusted. Hand it to a coach.
+
+Individual pieces, if you want them on their own:
+
+```bash
+python scripts/charts.py --summary       # river charts and the arch table
+python scripts/racing_line.py --strategies   # arch strategy and loss breakdown
+python scripts/animate_race.py --from 2100 --to 2800   # 2-D, top-down
+python scripts/render3d.py --view cox    # 3-D from the coxswain's seat
+python scripts/validate.py               # the whole validation harness
+```
 
 ## Quick start
 
@@ -44,7 +70,8 @@ python -m coxswain.viz --boat 8+ --rate 32 --show-3d
 | `coxswain/boats` | hull offsets, rigs, and the boat catalog |
 | `coxswain/sim` | the simulator, steering, results |
 | `coxswain/viz` | 2-D diagnostic charts and the 3-D scene |
-| `coxswain/river` | placeholder for Charles course data |
+| `coxswain/river` | the Charles: bathymetry, bridges, arches, routing, charts |
+| `coxswain/report.py` | assembles the findings, tables and figures into a page |
 | `legacy/` | the original 3-DOF and 6-DOF scripts, kept for reference |
 
 Swapping boats is the point of the `boats` package: an eight and a coxed
@@ -102,3 +129,37 @@ Known gaps are listed in [docs/SOURCES.md §8](docs/SOURCES.md#8-open-questions)
 The largest: boat speed fluctuation comes out around 1.7× the measured
 value, traced to crew centre-of-mass velocity amplitude but not yet
 explained.
+
+
+## The river
+
+The course model is built from data rather than sketched:
+
+| what | source |
+|---|---|
+| depth and banks | surveyed isobaths |
+| bridge positions | FHWA National Bridge Inventory 2024 |
+| arch spans and clearances | the same, plus pier polygons from OpenStreetMap |
+| pier thickness | measured, 3.32 m, from the Grand Junction trestle |
+| discharge | USGS Waltham gauge, monthly medians |
+| arch rules and traffic pattern | the regatta's rules; Charles River Rowing Committee |
+| crew critical power and W' | published ergometer studies |
+
+All five road bridges sit within 7.4 m of the federal survey **and** within
+6.5 m of a channel centreline extracted from bathymetry alone, which knows
+nothing about bridges — three independent sources agreeing.
+
+## Conventions that bite, part two
+
+Two more that have each cost real time:
+
+**Velocity and omega are stored in the absolute frame.** Setting a boat's
+heading without rotating its velocity to match leaves it crabbing at the
+heading angle from the first step. This looked exactly like a controller
+oscillation and was not one.
+
+**Positive rudder yaws to starboard**, which is a *negative* yaw rate.
+Written the physically natural way round — `+k·rudder` — a controller
+steers the wrong way, the tracking error diverges, and the optimiser
+inside an MPC starts failing to converge. The solver failures are a
+symptom; the sign is the disease.

@@ -506,7 +506,10 @@ class BoatScene:
         else:
             plotter.open_movie(path, framerate=framerate)
 
-        for t in np.linspace(t_start, t_end, n_frames):
+        from ..progress import progress
+        for t in progress(np.linspace(t_start, t_end, n_frames),
+                          total=n_frames, desc="  rendering frames",
+                          unit="frame"):
             plotter.clear()
             self._build(plotter, float(t), show_forces, simulator)
             self._camera(plotter, view, zoom)

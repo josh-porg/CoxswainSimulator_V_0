@@ -107,7 +107,9 @@ class Report:
     # -- rendering --------------------------------------------------------
     def _render(self) -> str:
         stamp = _dt.datetime.now().strftime("%d %B %Y")
-        parts = [_HEAD % {"title": _escape(self.title)}]
+        # The stylesheet is full of per-cent signs, so %-formatting
+        # cannot be used on it.
+        parts = [_HEAD.replace("{{TITLE}}", _escape(self.title))]
         parts.append('<header><h1>%s</h1><p class="sub">%s</p>'
                      '<p class="stamp">generated %s</p></header>'
                      % (_escape(self.title), _escape(self.subtitle), stamp))
@@ -183,7 +185,7 @@ def _escape(text) -> str:
 _HEAD = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>%(title)s</title>
+<title>{{TITLE}}</title>
 <style>
  :root{
    --ink:#16211f; --muted:#5c6968; --rule:#dce2e0; --page:#fbfaf7;

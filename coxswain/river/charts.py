@@ -645,11 +645,16 @@ def write_all(directory: str = ".", month: int = 10,
     names = list(BUILDERS) if which is None else list(which)
     if not os.path.isdir(directory):
         os.makedirs(directory)
+    from ..progress import progress
     written = []
-    for name in names:
+    bar = progress(names, desc="  drawing charts", unit="chart")
+    for name in bar:
         if name not in BUILDERS:
             raise ValueError("unknown chart %r; choose from %s"
                              % (name, ", ".join(BUILDERS)))
+        setter = getattr(bar, "set_postfix_str", None)
+        if setter is not None:
+            setter(name)
         written.append(BUILDERS[name](geometry, directory))
     return written
 

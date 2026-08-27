@@ -731,7 +731,10 @@ def optimise_route(evaluator: RouteEvaluator, n_control: int = 9,
     best = evaluator.evaluate(Route(stations, offsets, name="optimised"))
     step = float(np.median(limits)) * 0.6
 
-    for _ in range(iterations):
+    from ..progress import progress
+    sweeps = progress(range(iterations), desc="  optimising the line",
+                      unit="sweep")
+    for _ in sweeps:
         improved = False
         for index in range(n_control):
             for direction in (+1.0, -1.0):

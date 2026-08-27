@@ -33,6 +33,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from coxswain.boats import catalog                        # noqa: E402
+from coxswain.progress import progress, stage            # noqa: E402
 from coxswain.report import Figure, Finding, Report, Table  # noqa: E402
 from coxswain.river import bridges as B                   # noqa: E402
 from coxswain.river import charles, charts, lines         # noqa: E402
@@ -141,12 +142,13 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     started = time.time()
+    overall = progress(total=6, desc="report", unit="stage")
     figures_dir = os.path.join(args.out, "figures")
     for directory in (args.out, figures_dir):
         if not os.path.isdir(directory):
             os.makedirs(directory)
 
-    print("[1/6] river and bridges ...")
+    overall.set_description("river and bridges"); overall.update(1)
     raster, course, flow, gates = build_course(args.month)
     bridge_rows = []
     for name, nbi in NBI.items():
@@ -163,7 +165,7 @@ def main(argv=None):
                           "%.1f" % (racing.width if racing else float("nan")),
                           "%.1f" % (racing.fits() if racing else float("nan"))])
 
-    print("[2/6] optimising the racing line ...")
+    overall.set_description("optimising the racing line"); overall.update(1)
     ev = evaluator(course, flow, raster, gates)
     best = optimise_route(ev, n_control=13, iterations=70, seed=0)
     route = Route(best.route.stations, best.route.offsets, name="optimised")
@@ -184,10 +186,11 @@ def main(argv=None):
         race = result.elapsed_clean + 60.0 * result.illegal_arches
         row.append("%+.1f" % (race - reference) if reference else "-")
 
-    print("[3/6] arch strategies and the loss breakdown ...")
+    overall.set_description("arch strategies and the loss breakdown"); overall.update(1)
     from scripts.racing_line import STRATEGIES  # noqa: E402
     strategy_rows, loss_rows, strategy_scored = [], [], []
-    for name, pins in STRATEGIES.items():
+    for name, pins in progress(list(STRATEGIES.items()),
+                               desc="  arch strategies", unit="strategy"):
         sev = evaluator(course, flow, raster, gates, pins)
         start = lines.pinned_arch_route(course, raster, gates, pins,
                                         margin=4.0, name=name)
@@ -212,13 +215,14 @@ def main(argv=None):
                           "%+.1f" % b["depth"], "%+.2f" % b["current"],
                           "%+.1f" % b["steering"], "%+.1f" % b["penalty"]])
 
-    print("[4/6] steering the 6-DOF boat down it ...")
+    overall.set_description("steering the 6-DOF boat down it"); overall.update(1)
     station = np.linspace(0.0, course.length, 4000)
     full_path = course.offset_position(station, route.offset_at(station))
     leg = (station >= 1940) & (station <= 2800)
     boat = catalog.eight(rate=28.0)
     control_rows = []
-    for controller in ("reactive", "mpc"):
+    for controller in progress(["reactive", "mpc"], desc="  controllers",
+                               unit="run"):
         times, positions, errors, driver = steer(full_path[leg], controller,
                                                  boat)
         settled = errors[len(errors) // 5:]
@@ -231,7 +235,7 @@ def main(argv=None):
                          getattr(driver, "solves", 0))
             if controller == "mpc" else "-"])
 
-    print("[5/6] figures ...")
+    overall.set_description("figures"); overall.update(1)
     written = charts.write_all(figures_dir, month=args.month)
     from scripts.racing_line import loss_chart, plot as line_plot
     loss_png = loss_chart(strategy_scored, shortest,
@@ -240,11 +244,12 @@ def main(argv=None):
                           ReducedModel(),
                           os.path.join(figures_dir, "racing_lines.png"))
 
-    print("[6/6] assembling ...")
+    overall.set_description("assembling"); overall.update(1)
     report = build_report(bridge_rows, arch_rows, line_rows, strategy_rows,
                           loss_rows, control_rows, written, loss_png,
                           lines_png, figures_dir, args.quick)
     path = report.write(os.path.join(args.out, "hocr_report.html"))
+    overall.close()
     print()
     print("wrote %s  (%.0f s)" % (path, time.time() - started))
     return 0
