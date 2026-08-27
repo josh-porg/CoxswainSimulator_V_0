@@ -31,9 +31,11 @@ from coxswain.river import animate, charles             # noqa: E402
 from coxswain.river.charts import CourseGeometry        # noqa: E402
 from coxswain.river.route import (Route, RouteEvaluator,  # noqa: E402
                                   optimise_route)
-from coxswain.river.trajectory import ReducedModel      # noqa: E402
+from coxswain.river.trajectory import (ReducedModel,  # noqa: E402
+                                       fit_reduced_model)
 from coxswain.sim.control import Coxswain               # noqa: E402
 from coxswain.sim.guidance import PathFollower          # noqa: E402
+from coxswain.sim.mpc import PathMPC                    # noqa: E402
 from coxswain.sim.simulator import RowingSimulator      # noqa: E402
 
 
@@ -51,6 +53,14 @@ def main(argv=None):
     parser.add_argument("--speed", type=float, default=8.0,
                         help="playback speed against real time")
     parser.add_argument("--dt", type=float, default=0.01)
+    parser.add_argument("--lead-in", dest="lead", type=float, default=140.0,
+                        help="metres of run-up simulated before the "
+                             "animated stretch, so the boat is already "
+                             "tracking when it starts (default 140)")
+    parser.add_argument("--controller", default="mpc",
+                        choices=("mpc", "reactive"),
+                        help="model predictive (anticipates the bend) or "
+                             "reactive line-of-sight (corrects after)")
     parser.add_argument("--out", default="out/animation")
     args = parser.parse_args(argv)
 
@@ -72,8 +82,17 @@ def main(argv=None):
 
     station = np.linspace(0.0, course.length, 4000)
     full_path = course.offset_position(station, route.offset_at(station))
-    inside = (station >= args.start) & (station <= args.finish)
+    # Simulate a run-up before the stretch being shown.  Dropping the boat
+    # onto the line at rest, pointed along a chord, leaves the controller a
+    # transient to settle -- which is real behaviour but not what anyone
+    # wants to watch, and it is not how a crew arrives at any point of a
+    # race.  Rowing in from behind means the boat is already tracking when
+    # the picture starts.
+    lead = max(float(args.lead), 0.0)
+    inside = (station >= args.start - lead) & (station <= args.finish)
     path = full_path[inside]
+    shown_from = float(np.searchsorted(
+        station[inside], args.start, side="left")) if lead else 0.0
     if len(path) < 10:
         raise SystemExit("that stretch is too short to animate")
 
@@ -82,19 +101,42 @@ def main(argv=None):
     duration = 1.15 * leg / 4.6
 
     boat = catalog.eight(rate=28.0)
-    follower = PathFollower(path, boundary_layer=25.0, gain=2.5,
-                            rate_gain=1.2)
+    if args.controller == "mpc":
+        # Fit the controller's internal model to the boat it is steering.
+        steering = fit_reduced_model(catalog.eight(rate=28.0),
+                                     reference_speed=4.7)
+        follower = PathMPC(path, model=steering, horizon=6.0, steps=12,
+                           interval=0.20)
+    else:
+        follower = PathFollower(path, boundary_layer=25.0, gain=2.5,
+                                rate_gain=1.2)
     sim = RowingSimulator(boat, coxswain=Coxswain(rudder_override=follower))
-    heading = float(np.arctan2(path[8, 1] - path[0, 1],
-                               path[8, 0] - path[0, 0]))
+    # The path tangent at the first point, not a chord across eight of
+    # them: over a bend those differ by a degree or two, which is an
+    # initial heading error the controller then has to work off.
+    heading = float(np.arctan2(path[1, 1] - path[0, 1],
+                               path[1, 0] - path[0, 0]))
+    # ``initial_state`` sets the velocity in the **absolute** frame, so
+    # ``surge_speed`` alone points the boat's motion due east regardless of
+    # where it is heading.  Setting yaw without rotating the velocity to
+    # match leaves the boat crabbing at the heading angle from the first
+    # step -- 2.6 m of sideways displacement in the first second here,
+    # which the controller then spends the whole run chasing.  It looked
+    # like a controller oscillation and was an inconsistent initial state.
     state = sim.initial_state(surge_speed=4.7)
     state[0], state[1] = path[0]
     state[5] = heading
+    state[6] = 4.7 * np.cos(heading)
+    state[7] = 4.7 * np.sin(heading)
 
-    print("simulating %.0f m of racing (%.0f s) ..." % (leg, duration))
+    print("simulating %.0f m of racing (%.0f s) under %s ..."
+          % (leg, duration, args.controller))
     clock = time.time()
     result = sim.run(duration=duration, dt=args.dt, initial_state=state)
     print("   %.0f s of wall clock" % (time.time() - clock))
+    if hasattr(follower, "solves"):
+        print("   %d MPC solves, %d fell back"
+              % (follower.solves, follower.failures))
 
     positions = np.asarray(result.position)[:2].T
     headings = np.unwrap(np.asarray(result.attitude)[2])
@@ -112,6 +154,19 @@ def main(argv=None):
         cut = int(arrived[0]) + 1
         positions, headings, times = positions[:cut], headings[:cut], times[:cut]
         print("   reached the end of the leg at %.0f s" % times[-1])
+
+    # Drop the run-up from the picture: it was simulated so the boat would
+    # be settled, not so anyone would watch it.
+    if lead > 0.0:
+        gate = path[int(shown_from)] if shown_from < len(path) else path[0]
+        reached = np.nonzero(np.linalg.norm(positions - gate, axis=1) < 8.0)[0]
+        if len(reached):
+            begin = int(reached[0])
+            print("   settled over the %.0f m run-up; showing from %.0f s"
+                  % (lead, times[begin]))
+            positions = positions[begin:]
+            headings = headings[begin:]
+            times = times[begin:] - times[begin]
 
     # cross-track, recomputed so the caption can show it
     check = PathFollower(path)
@@ -133,8 +188,9 @@ def main(argv=None):
 
     if not os.path.isdir(args.out):
         os.makedirs(args.out)
-    target = os.path.join(args.out, "race_%04d_%04d_%s"
-                          % (args.start, args.finish, args.view))
+    target = os.path.join(args.out, "race_%04d_%04d_%s_%s"
+                          % (args.start, args.finish, args.view,
+                             args.controller))
     print("writing %d frames ..." % frames)
     written = animate.write_animation(figure, update, frames, target,
                                       fps=args.fps)

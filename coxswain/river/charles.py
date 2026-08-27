@@ -155,7 +155,17 @@ LARZ_ANDERSON_BRIDGE = (42.36890, -71.12320)
 WEEKS_FOOTBRIDGE = (42.36853, -71.11807)
 WESTERN_AVE_BRIDGE = (42.36422, -71.11690)
 RIVER_ST_BRIDGE = (42.36123, -71.11670)
-BU_BRIDGE = (42.35238, -71.11066)
+#: Corrected to the National Bridge Inventory position.  The previous
+#: coordinate sat 26.8 m away and 29.9 m off the extracted channel -- by
+#: far the worst of the six, where the other five now agree with the
+#: federal survey to under 8 m.  NBI lists this structure as Brookline
+#: Street over "COMB SOL FLD RD & RIV", 1 main span of 51.8 m plus six
+#: approach spans, built 1928, which is the BU Bridge and nothing else.
+#:
+#: Safe to move: the start line is placed off :data:`DEWOLFE_BOATHOUSE`,
+#: not off this bridge, so correcting it shifts the landmark and its arch
+#: geometry without moving the course.
+BU_BRIDGE = (42.35262, -71.11064)
 
 #: Boston University's DeWolfe Boathouse, at the foot of the BU Bridge.
 #: The Head of the Charles start line lies just off its front, about 160 m
