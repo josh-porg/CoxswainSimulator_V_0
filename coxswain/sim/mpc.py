@@ -96,6 +96,7 @@ class PathMPC:
     station: float = field(default=0.0, init=False)
     solves: int = field(default=0, init=False)
     failures: int = field(default=0, init=False)
+    last_error: str = field(default="", init=False)
 
     def __post_init__(self) -> None:
         from ..river.trajectory import ReducedModel
@@ -106,6 +107,23 @@ class PathMPC:
         heading = np.arctan2(np.gradient(self.path[:, 1]),
                              np.gradient(self.path[:, 0]))
         self.heading = np.unwrap(heading)
+
+        # Curvature, smoothed to boat scale and clipped to what a shell
+        # can do.  Raw two-point differences on a path sampled every
+        # metre turn the route's piecewise-linear knots into spikes of
+        # 0.057 1/m -- a 17 m radius, a 15 deg/s demand -- and feeding
+        # that to the solver as feedforward hands it a constraint no
+        # rudder satisfies: two thirds of all solves died at maximum
+        # iterations, on every real path and never on a synthetic
+        # straight.  A 17.3 m hull cannot respond to curvature structure
+        # shorter than itself, so smoothing over two boat lengths loses
+        # nothing that was ever steerable.
+        raw = np.gradient(self.heading, np.maximum(self.distance, 1e-9))
+        window = max(int(round(35.0 / max(np.median(np.diff(
+            self.distance)), 1e-6))), 1)
+        kernel = np.ones(window) / window
+        smooth = np.convolve(raw, kernel, mode="same")
+        self.curvature = np.clip(smooth, -0.015, 0.015)
         if self.model is None:
             self.model = ReducedModel()
         if self.max_rudder is None:
@@ -138,6 +156,8 @@ class PathMPC:
 
         opti.subject_to(state[:, 0] == start)
 
+        decay = ca.exp(-dt * model.yaw_damping * speed
+                       / model.yaw_inertia)
         cost = 0.0
         for k in range(n):
             error, psi, r = state[0, k], state[1, k], state[2, k]
@@ -155,14 +175,30 @@ class PathMPC:
             # badly conditioned and the solver starts failing, which holds
             # the last command and makes it worse.  84% of solves failed
             # and the boat ended 691 m off the line.
-            moment = (-model.yaw_control * speed ** 2 * rudder[0, k]
-                      - model.split_control * split[0, k]
-                      - model.yaw_damping * speed * r)
-            dr = moment / model.yaw_inertia
+            control_moment = (-model.yaw_control * speed ** 2
+                              * rudder[0, k]
+                              - model.split_control * split[0, k])
 
             opti.subject_to(state[0, k + 1] == error + dt * derror)
             opti.subject_to(state[1, k + 1] == psi + dt * dpsi)
-            opti.subject_to(state[2, k + 1] == r + dt * dr)
+            # The yaw-rate dynamics are discretised EXACTLY, not by Euler.
+            # Their time constant is I/(N_r u) -- about 0.06 s -- against a
+            # 0.5 s transcription step, so forward Euler's amplification
+            # factor is 1 - dt/tau = roughly MINUS EIGHT: the transcribed
+            # recursion explodes even though the boat it describes is the
+            # most docile system imaginable.  On a straight line the
+            # unstable recursion carries zero forcing and the trivial
+            # solution hides the defect; the first real curvature excites
+            # it, the horizon blows up, and IPOPT dies at max iterations --
+            # two thirds of all solves, on every real path, surviving four
+            # wrong hypotheses (path length, aero, dt, warm starts) before
+            # this one.  The dynamics are linear in r with the control
+            # constant over the step, so the zero-order-hold solution
+            #     r+ = phi r + (1 - phi) M / (N_r u),  phi = exp(-dt/tau)
+            # is exact and unconditionally stable at any step length.
+            opti.subject_to(state[2, k + 1] == decay * r
+                            + (1.0 - decay) * control_moment
+                            / (model.yaw_damping * speed))
 
             previous_rudder = previous if k == 0 else rudder[0, k - 1]
             cost += (self.weight_cross * error ** 2
@@ -181,8 +217,8 @@ class PathMPC:
         opti.subject_to(opti.bounded(-self.max_split, split, self.max_split))
         opti.minimize(cost)
         opti.solver("ipopt", {"print_time": False},
-                    {"print_level": 0, "max_iter": 120, "sb": "yes",
-                     "acceptable_tol": 1e-4, "acceptable_iter": 8})
+                    {"print_level": 0, "max_iter": 600, "sb": "yes",
+                     "acceptable_tol": 1e-3, "acceptable_iter": 4})
 
         self._opti = opti
         self._vars = (state, rudder, split)
@@ -198,16 +234,19 @@ class PathMPC:
         return self._last
 
     def _line_curvature(self, index, speed) -> np.ndarray:
-        """Curvature of the line at each horizon step, ahead of the boat."""
+        """Curvature of the line at each horizon step, ahead of the boat.
+
+        Sampled from the precomputed smoothed-and-clipped array; see
+        ``__post_init__`` for why the raw differences must never reach
+        the solver.
+        """
         dt = self.horizon / self.steps
         out = np.zeros(self.steps)
         for k in range(self.steps):
             ahead = self.distance[index] + speed * dt * k
-            j = int(np.searchsorted(self.distance, ahead))
-            j = int(np.clip(j, 1, len(self.path) - 2))
-            span = self.distance[j + 1] - self.distance[j - 1]
-            if span > 1e-6:
-                out[k] = (self.heading[j + 1] - self.heading[j - 1]) / span
+            j = int(np.clip(np.searchsorted(self.distance, ahead),
+                            0, len(self.curvature) - 1))
+            out[k] = self.curvature[j]
         return out
 
     # -- the control law --------------------------------------------------
@@ -266,16 +305,46 @@ class PathMPC:
         # Warm start from a forward roll of the model.  Without a guess
         # IPOPT begins at zero, which violates every dynamics equality at
         # once; with one it converges in about a dozen iterations.
+        # The guess must satisfy the SAME dynamics the constraints impose,
+        # from the SAME initial state.  This one started from the raw yaw
+        # rate while the constraint started from the filtered one, and it
+        # propagated heading without the curvature feedforward the
+        # constraint contains -- so the guess violated the k=0 equality by
+        # construction and misjudged every curved horizon.
+        curvature_values = self._line_curvature(index, speed)
         guess = np.zeros((3, self.steps + 1))
-        guess[:, 0] = [self.cross_track, error, float(state.omega_hull[2])]
+        guess[:, 0] = [self.cross_track, error, self._filtered_rate]
         step = self.horizon / self.steps
         for k in range(self.steps):
             e_k, psi_k, r_k = guess[:, k]
             guess[0, k + 1] = e_k + step * speed * np.sin(psi_k)
-            guess[1, k + 1] = psi_k + step * r_k
+            guess[1, k + 1] = psi_k + step * (r_k - speed
+                                              * curvature_values[k])
             guess[2, k + 1] = r_k - step * (self.model.yaw_damping * speed
                                             * r_k) / self.model.yaw_inertia
         opti.set_initial(self._vars[0], guess)
+
+        # Controls must be warm-started too, and from something sane.
+        # ``set_initial`` was only ever given the states, so rudder and
+        # split began each solve wherever the PREVIOUS solve's last
+        # iterate left them -- after a clean solve that is a good start,
+        # but after a failed one it is the failed solve's garbage, and the
+        # next solve inherits it.  One bad solve then seeds the next,
+        # which is how a controller ends up failing every other time and
+        # calling it fifty per cent.  The receding-horizon warm start is
+        # the previous plan shifted by the time that has passed, padded
+        # with its own tail.
+        if self._plan is not None and len(self._plan) == self.steps:
+            shift = max(int(round((t - self._plan_time)
+                                  / (self.horizon / self.steps))), 0)
+            rolled = np.concatenate([
+                self._plan[shift:],
+                np.full(min(shift, self.steps), self._plan[-1])])
+            opti.set_initial(self._vars[1], rolled[:self.steps][None, :])
+        else:
+            opti.set_initial(self._vars[1],
+                             np.full((1, self.steps), self._held))
+        opti.set_initial(self._vars[2], np.zeros((1, self.steps)))
 
         try:
             solution = opti.solve()
@@ -286,7 +355,8 @@ class PathMPC:
             self._held = float(plan[0])
             self.split = float(np.atleast_1d(solution.value(split)).ravel()[0])
             self.solves += 1
-        except RuntimeError:
+        except RuntimeError as error:
+            self.last_error = str(error)[:600]
             # Keep flying the last plan rather than freezing: it was
             # optimal a fifth of a second ago and still nearly is.  This
             # is a fallback, not a mode of operation -- if it fires more

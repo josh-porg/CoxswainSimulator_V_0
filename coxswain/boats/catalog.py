@@ -214,8 +214,14 @@ SCULLING_ARC = OarAngleSweep(catch_angle=np.radians(65.0),
 #: than the middle, which is the honest price of no longer hiding air
 #: drag in the water: if it reads too high, the suspect is the aero
 #: model's frontal area, not this number.
-PEAK_OARLOCK_FORCE = {"8+": 1095.6, "4+": 1209.4, "1x": 814.9,
-                      "2x": 557.5}
+#: The sculls' scales (1.36, 1.23) dwarf the crewed boats' (1.13)
+#: because one rower's windage rides on one rower's power; they were
+#: also the values a too-narrow bisection bracket silently capped at
+#: 1.15 on the first pass, which validation caught as a slow single.
+#: If the single's force reads implausibly high against instrumented
+#: gates, audit the aero model's sculling frontal areas first.
+PEAK_OARLOCK_FORCE = {"8+": 1095.2, "4+": 1209.3, "1x": 966.7,
+                      "2x": 596.0}
 
 
 def eight(rate: float = 32.0, rower_mass: float = 88.0,

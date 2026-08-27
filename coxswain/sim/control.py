@@ -135,7 +135,11 @@ class Coxswain:
     #: Port/starboard pressure split, in ``[-1, 1]``.  Positive means the
     #: port side pulls harder, which yaws the bow to starboard.  Either a
     #: constant or a callable ``(t, state) -> float``.
-    pressure_split: object = 0.0
+    #: ``None`` means "defer to the steering law's own pressure call, if
+    #: it makes one" -- the old default of ``0.0`` was indistinguishable
+    #: from an explicit instruction to row even, which is why the
+    #: deferral branch below never fired on its first outing.
+    pressure_split: object = None
 
     def __post_init__(self) -> None:
         if self.balance is None:
@@ -165,6 +169,17 @@ class Coxswain:
         dead and the other at full pressure.
         """
         value = self.pressure_split
+        # A steering law plugged in through ``rudder_override`` may carry
+        # its own pressure call -- both the line-of-sight follower and the
+        # MPC set ``.split`` on themselves.  Until this branch existed
+        # nothing read it: the MPC solved for two controls every fifth of
+        # a second and the boat quietly executed one of them.  The plan
+        # said "rudder plus pressure through the bend"; the crew never
+        # heard the call.
+        if value is None and self.rudder_override is not None:
+            value = getattr(self.rudder_override, "split", None)
+        if value is None:
+            value = 0.0
         if callable(value):
             value = value(t, state)
         return float(np.clip(value, -1.0, 1.0))
