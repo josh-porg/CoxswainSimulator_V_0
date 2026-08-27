@@ -157,6 +157,29 @@ class ChannelRaster:
     # -- centreline -------------------------------------------------------
     def centreline(self, smooth: int = 9, clearance_weight: float = 1.0,
                    start=None, end=None) -> np.ndarray:
+        """Cached wrapper; see :meth:`_extract_centreline` for the method.
+
+        The path is a least-cost search over a raster that never changes,
+        and it was being recomputed once per bridge per route evaluation --
+        seven times for every candidate line, thousands of times in an
+        optimisation.  It came to 94% of the cost of scoring a route and
+        turned a two-minute optimisation into an hour.
+        """
+        key = (int(smooth), float(clearance_weight),
+               None if start is None else tuple(np.ravel(start)),
+               None if end is None else tuple(np.ravel(end)))
+        cache = getattr(self, "_centreline_cache", None)
+        if cache is None:
+            cache = self._centreline_cache = {}
+        if key not in cache:
+            cache[key] = self._extract_centreline(
+                smooth=smooth, clearance_weight=clearance_weight,
+                start=start, end=end)
+        return cache[key]
+
+    def _extract_centreline(self, smooth: int = 9,
+                            clearance_weight: float = 1.0,
+                            start=None, end=None) -> np.ndarray:
         """Path of greatest clearance between the two ends of the reach.
 
         Found as a least-cost path on the navigable mask, with edge cost

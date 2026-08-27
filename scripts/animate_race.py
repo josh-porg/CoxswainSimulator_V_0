@@ -52,7 +52,12 @@ def main(argv=None):
     parser.add_argument("--fps", type=int, default=20)
     parser.add_argument("--speed", type=float, default=8.0,
                         help="playback speed against real time")
-    parser.add_argument("--dt", type=float, default=0.01)
+    parser.add_argument("--dt", type=float, default=0.01,
+                        help="simulation step; 0.02 halves the cost of a "
+                             "full-course pass and the boat's yaw time "
+                             "constant is 0.06 s, so it is still resolved")
+    parser.add_argument("--full", action="store_true",
+                        help="the whole race, start line to finish")
     parser.add_argument("--lead-in", dest="lead", type=float, default=140.0,
                         help="metres of run-up simulated before the "
                              "animated stretch, so the boat is already "

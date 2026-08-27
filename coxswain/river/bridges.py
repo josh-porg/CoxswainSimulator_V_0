@@ -496,6 +496,18 @@ class Arch:
 
 def waterway(gate: BridgeGate, raster, min_depth: float = 0.6,
              samples: int = 400) -> Tuple[float, float]:
+    """Cached; see :func:`_waterway`."""
+    cache = getattr(gate, "_waterway_cache", None)
+    if cache is None:
+        cache = gate._waterway_cache = {}
+    key = (id(raster), float(min_depth), int(samples))
+    if key not in cache:
+        cache[key] = _waterway(gate, raster, min_depth, samples)
+    return cache[key]
+
+
+def _waterway(gate: BridgeGate, raster, min_depth: float = 0.6,
+              samples: int = 400) -> Tuple[float, float]:
     """The wet part of the span, before any pier is taken out of it.
 
     This is what the arches have to be laid out inside, so it has to be
@@ -576,6 +588,22 @@ def derive_piers(gate: BridgeGate, raster, min_depth: float = 0.6):
 
 
 def bridge_arches(gate: BridgeGate, raster, min_depth: float = 0.6):
+    """Cached; see :func:`_bridge_arches` for the computation.
+
+    A gate's arches depend only on the gate and the raster, neither of
+    which moves during an optimisation, so computing them per candidate
+    line was pure repetition.
+    """
+    cache = getattr(gate, "_arch_cache", None)
+    if cache is None:
+        cache = gate._arch_cache = {}
+    key = (id(raster), float(min_depth))
+    if key not in cache:
+        cache[key] = _bridge_arches(gate, raster, min_depth)
+    return cache[key]
+
+
+def _bridge_arches(gate: BridgeGate, raster, min_depth: float = 0.6):
     """Every opening under ``gate``, numbered from the Boston shore.
 
     Openings narrower than a rowed eight are dropped: an arch a boat

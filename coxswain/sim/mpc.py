@@ -251,8 +251,12 @@ class PathMPC:
         # either; they feel the average.
         raw = float(state.omega_hull[2])
         # Short enough to take the within-stroke swing off without adding
-        # phase lag the loop then has to fight.
-        blend = np.exp(-self.interval / 0.25)
+        # phase lag the loop then has to fight -- but not so short that the
+        # stroke's own yaw swing reaches the solver, which at 0.25 s put
+        # the failure rate above 50%.  The plan is re-solved five times a
+        # second; it does not need to chase a signal that oscillates twice
+        # that fast.
+        blend = np.exp(-self.interval / 0.45)
         self._filtered_rate = blend * self._filtered_rate + (1 - blend) * raw
         opti.set_value(start, [self.cross_track, error, self._filtered_rate])
         opti.set_value(speed_p, speed)
@@ -284,7 +288,10 @@ class PathMPC:
             self.solves += 1
         except RuntimeError:
             # Keep flying the last plan rather than freezing: it was
-            # optimal a quarter of a second ago and still nearly is.
+            # optimal a fifth of a second ago and still nearly is.  This
+            # is a fallback, not a mode of operation -- if it fires more
+            # than a few per cent of the time the problem is conditioned
+            # badly and the controller is no longer doing what it says.
             # A failed solve is not a crisis: hold the last command.  It
             # was optimal a quarter of a second ago and the boat has not
             # moved far since.
