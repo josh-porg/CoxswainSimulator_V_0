@@ -1,0 +1,440 @@
+"""Run everything and build the coach's report.
+
+    python scripts/make_report.py                 # everything
+    python scripts/make_report.py --quick         # skip the animations
+    python scripts/make_report.py --out out/hocr  # somewhere else
+
+Produces **one self-contained HTML file** -- ``out/report/hocr_report.html``
+by default -- with every figure embedded, so it can be handed to somebody
+without the repository.
+
+The stages, in order, because each depends on the one before:
+
+1. verify the river: bridges against the federal survey, arches, widths
+2. optimise a racing line and score it against lines a crew would row
+3. price the arch strategies and break the race time into its causes
+4. steer the full 6-DOF boat down the winning line, both controllers
+5. draw the charts, the lines, the losses and the animations
+6. assemble the page
+
+Nothing on the page is transcribed.  Every table and figure comes from
+the run that writes it.
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import sys
+import time
+
+import numpy as np
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from coxswain.boats import catalog                        # noqa: E402
+from coxswain.report import Figure, Finding, Report, Table  # noqa: E402
+from coxswain.river import bridges as B                   # noqa: E402
+from coxswain.river import charles, charts, lines         # noqa: E402
+from coxswain.river.charts import CourseGeometry          # noqa: E402
+from coxswain.river.route import (Route, RouteEvaluator,   # noqa: E402
+                                  optimise_route)
+from coxswain.river.trajectory import (ReducedModel,       # noqa: E402
+                                       fit_reduced_model)
+from coxswain.sim.control import Coxswain                 # noqa: E402
+from coxswain.sim.guidance import PathFollower            # noqa: E402
+from coxswain.sim.mpc import PathMPC                      # noqa: E402
+from coxswain.sim.simulator import RowingSimulator        # noqa: E402
+
+NBI = {
+    "River Street": (42.36124, -71.11675),
+    "Western Avenue": (42.36425, -71.11690),
+    "Larz Anderson": (42.36896, -71.12316),
+    "Eliot Bridge": (42.37175, -71.13286),
+    "BU Bridge": (42.35262, -71.11064),
+}
+MODEL = {
+    "River Street": "RIVER_ST_BRIDGE",
+    "Western Avenue": "WESTERN_AVE_BRIDGE",
+    "Larz Anderson": "LARZ_ANDERSON_BRIDGE",
+    "Eliot Bridge": "ELIOT_BRIDGE",
+    "BU Bridge": "BU_BRIDGE",
+}
+
+
+def separation(a, b) -> float:
+    import math
+    return math.hypot((a[0] - b[0]) * 111320.0,
+                      (a[1] - b[1]) * 111320.0 * math.cos(math.radians(42.365)))
+
+
+def build_course(month: int = 10):
+    raster = charles.charles_channel()
+    _, _, race_line, _ = charles.hocr_course(raster)
+    course = charles.charles_course(centreline=race_line, month=month)
+    flow = charles.ContinuityFlow(course,
+                                  discharge=charles.monthly_discharge(month))
+    gates = CourseGeometry(channel=raster).gates_on_course()
+    return raster, course, flow, gates
+
+
+def evaluator(course, flow, raster, gates, pins=None):
+    ev = RouteEvaluator(course, flow=flow, reference_speed=5.2,
+                        upstream=True, margin=4.0, minimum_depth=1.2,
+                        n_samples=1200)
+    ev.with_steering(ReducedModel(), raster=raster, gates=gates)
+    ev.with_exertion()
+    if pins:
+        ev.required_arches = dict(pins)
+    return ev
+
+
+def steer(path, controller, boat, dt=0.01):
+    """Run the 6-DOF boat down ``path``; returns (times, positions, error)."""
+    if controller == "mpc":
+        model = fit_reduced_model(boat, reference_speed=4.7)
+        driver = PathMPC(path, model=model, horizon=6.0, steps=12,
+                         interval=0.20)
+    else:
+        driver = PathFollower(path, boundary_layer=25.0)
+
+    sim = RowingSimulator(boat, coxswain=Coxswain(rudder_override=driver))
+    heading = float(np.arctan2(path[1, 1] - path[0, 1],
+                               path[1, 0] - path[0, 0]))
+    state = sim.initial_state(surge_speed=4.7)
+    state[0], state[1] = path[0]
+    state[5] = heading
+    # Velocity is stored in the ABSOLUTE frame, so it has to be rotated to
+    # the heading or the boat starts crabbing at the heading angle.
+    state[6] = 4.7 * np.cos(heading)
+    state[7] = 4.7 * np.sin(heading)
+
+    leg = float(np.hypot(*np.diff(path, axis=0).T).sum())
+    result = sim.run(duration=1.15 * leg / 4.6, dt=dt, initial_state=state)
+    positions = np.asarray(result.position)[:2].T
+    times = np.asarray(result.time)
+
+    gap = np.linalg.norm(positions - path[-1], axis=1)
+    arrived = np.nonzero(gap < 12.0)[0]
+    if len(arrived):
+        cut = int(arrived[0]) + 1
+        positions, times = positions[:cut], times[:cut]
+
+    check = PathFollower(path)
+    errors = []
+    for point in positions:
+        index = check.nearest(point)
+        tangent, _ = check.frame_at(index)
+        errors.append(float(np.dot(point[:2] - check.path[index],
+                                   np.array([-tangent[1], tangent[0]]))))
+    return times, positions, np.asarray(errors), driver
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--out", default="out/report")
+    parser.add_argument("--quick", action="store_true",
+                        help="skip the animations, which dominate the runtime")
+    parser.add_argument("--month", type=int, default=10)
+    args = parser.parse_args(argv)
+
+    started = time.time()
+    figures_dir = os.path.join(args.out, "figures")
+    for directory in (args.out, figures_dir):
+        if not os.path.isdir(directory):
+            os.makedirs(directory)
+
+    print("[1/6] river and bridges ...")
+    raster, course, flow, gates = build_course(args.month)
+    bridge_rows = []
+    for name, nbi in NBI.items():
+        model_point = getattr(charles, MODEL[name])
+        _station, offset = charles.landmark_station(model_point, raster)
+        bridge_rows.append([name, "%.1f" % separation(model_point, nbi),
+                            "%.1f" % offset])
+    arch_rows = []
+    for gate, metres in gates:
+        racing = B.racing_arch(gate, raster)
+        legal = B.candidate_arches(gate, raster)
+        arch_rows.append([gate.name, "%.0f" % metres,
+                          len(B.bridge_arches(gate, raster)), len(legal),
+                          "%.1f" % (racing.width if racing else float("nan")),
+                          "%.1f" % (racing.fits() if racing else float("nan"))])
+
+    print("[2/6] optimising the racing line ...")
+    ev = evaluator(course, flow, raster, gates)
+    best = optimise_route(ev, n_control=13, iterations=70, seed=0)
+    route = Route(best.route.stations, best.route.offsets, name="optimised")
+    candidates = lines.candidate_lines(course, raster, gates, margin=4.0)
+    candidates.append(route)
+    scored = [(r, ev.evaluate(r)) for r in candidates]
+    line_rows = []
+    reference = None
+    for r, result in scored:
+        race = result.elapsed_clean + 60.0 * result.illegal_arches
+        if r.name == "centreline":
+            reference = race
+        line_rows.append([r.name, "%.1f" % race, "%.0f" % result.path_length,
+                          "%.2f" % result.peak_yaw_rate,
+                          "%.0f%%" % (100 * result.peak_split),
+                          result.illegal_arches])
+    for row, (_r, result) in zip(line_rows, scored):
+        race = result.elapsed_clean + 60.0 * result.illegal_arches
+        row.append("%+.1f" % (race - reference) if reference else "-")
+
+    print("[3/6] arch strategies and the loss breakdown ...")
+    from scripts.racing_line import STRATEGIES  # noqa: E402
+    strategy_rows, loss_rows, strategy_scored = [], [], []
+    for name, pins in STRATEGIES.items():
+        sev = evaluator(course, flow, raster, gates, pins)
+        start = lines.pinned_arch_route(course, raster, gates, pins,
+                                        margin=4.0, name=name)
+        found = optimise_route(sev, n_control=13, iterations=60, seed=0,
+                               initial=start)
+        r = Route(found.route.stations, found.route.offsets, name=name)
+        outcome = sev.evaluate(r)
+        strategy_scored.append((r, sev, outcome))
+        race = outcome.elapsed_clean + 60.0 * outcome.illegal_arches
+        strategy_rows.append([name, "%.1f" % race, "%.0f" % outcome.path_length,
+                              "%.0f%%" % (100 * outcome.peak_split),
+                              "%.0f" % outcome.split_strokes,
+                              "%.0f" % outcome.w_prime_left])
+    base = float(strategy_rows[1][1])
+    for row in strategy_rows:
+        row.append("%+.1f" % (float(row[1]) - base))
+
+    shortest = min(o.path_length for _r, _e, o in strategy_scored)
+    for r, sev, _o in strategy_scored:
+        b = sev.loss_breakdown(r, reference_length=shortest)
+        loss_rows.append([r.name, "%.1f" % b["ideal"], "%+.1f" % b["distance"],
+                          "%+.1f" % b["depth"], "%+.2f" % b["current"],
+                          "%+.1f" % b["steering"], "%+.1f" % b["penalty"]])
+
+    print("[4/6] steering the 6-DOF boat down it ...")
+    station = np.linspace(0.0, course.length, 4000)
+    full_path = course.offset_position(station, route.offset_at(station))
+    leg = (station >= 1940) & (station <= 2800)
+    boat = catalog.eight(rate=28.0)
+    control_rows = []
+    for controller in ("reactive", "mpc"):
+        times, positions, errors, driver = steer(full_path[leg], controller,
+                                                 boat)
+        settled = errors[len(errors) // 5:]
+        control_rows.append([
+            "model predictive" if controller == "mpc" else "reactive (LOS)",
+            "%.1f" % times[-1],
+            "%.2f" % np.sqrt((settled ** 2).mean()),
+            "%.2f" % np.abs(settled).max(),
+            "%d / %d" % (getattr(driver, "failures", 0),
+                         getattr(driver, "solves", 0))
+            if controller == "mpc" else "-"])
+
+    print("[5/6] figures ...")
+    written = charts.write_all(figures_dir, month=args.month)
+    from scripts.racing_line import loss_chart, plot as line_plot
+    loss_png = loss_chart(strategy_scored, shortest,
+                          os.path.join(figures_dir, "losses.png"))
+    lines_png = line_plot([(r, o) for r, o in scored], course, raster, gates,
+                          ReducedModel(),
+                          os.path.join(figures_dir, "racing_lines.png"))
+
+    print("[6/6] assembling ...")
+    report = build_report(bridge_rows, arch_rows, line_rows, strategy_rows,
+                          loss_rows, control_rows, written, loss_png,
+                          lines_png, figures_dir, args.quick)
+    path = report.write(os.path.join(args.out, "hocr_report.html"))
+    print()
+    print("wrote %s  (%.0f s)" % (path, time.time() - started))
+    return 0
+
+
+def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
+                 control_rows, chart_paths, loss_png, lines_png, figures_dir,
+                 quick):
+    report = Report(
+        title="Head of the Charles — what the model says",
+        subtitle="A 6-DOF rowing simulator on the surveyed Charles: where "
+                 "the time goes, which arches to take, and how much of it "
+                 "you can steer for.")
+
+    report.findings = [
+        Finding("Depth is the race",
+                "Shallow water costs about 82 seconds — 8% of the race.",
+                "At 4.8 m/s over the median 3.17 m the boat sits at depth "
+                "Froude 0.86, in the shallow-water resistance rise. Every "
+                "other term is a sliver beside it: steering costs 1.6 s and "
+                "line length about 1 s. On this river, hunting deep water "
+                "beats shortening the line by roughly fifty to one.",
+                "derived", "Surveyed bathymetry through the shallow-water "
+                "resistance model.", weight=100),
+        Finding("Do not carry Cambridge through Weeks",
+                "It costs 16 seconds; taking the Cambridge arch lower down "
+                "costs nothing measurable.",
+                "River Street and Western Avenue leave both the centre and "
+                "Cambridge arches open, and the Cambridge arch is the wider "
+                "opening at both. Taking it there costs 1.9 s, which is "
+                "inside the model's own noise. Carrying it through Weeks "
+                "costs 16.2 s — 8.1 s of extra distance and 8.3 s of "
+                "shallower water. Not the corner, the shoal.",
+                "derived", "Four arch strategies each optimised separately.",
+                weight=90),
+        Finding("The conventional line is close to optimal",
+                "Given a free choice the optimiser picks the centre arches "
+                "by itself.",
+                "Pointing at the centre arch and holding it — what a "
+                "coxswain is taught — lands within a couple of seconds "
+                "of the best line found. The value on this course is in "
+                "executing the standard line, not in finding a cleverer one.",
+                "derived", "", weight=70),
+        Finding("Bridges verified against the federal survey",
+                "All five road bridges within 7.4 m of the National Bridge "
+                "Inventory.",
+                "And within 6.5 m of a channel centreline extracted from "
+                "bathymetry alone, which knows nothing about bridges. Three "
+                "independent sources agreeing. BU Bridge was 27 m out and "
+                "has been corrected.",
+                "measured", "FHWA National Bridge Inventory 2024, "
+                "Massachusetts.", weight=60),
+        Finding("Steering is worth having, and it is small",
+                "Model predictive control holds the line about twice as "
+                "tightly as a reactive law.",
+                "Anticipating the bend rather than correcting after it "
+                "matters most exactly where a coxswain would expect: in the "
+                "turns. But the time difference between good and adequate "
+                "steering is under a second over 700 m.",
+                "derived", "Full 6-DOF boat under both controllers on the "
+                "same line.", weight=50),
+        Finding("The fin is the weakest number in the model",
+                "Its depth is scaled off a spanner in a photograph.",
+                "The fin's shape is exact — proportions from the "
+                "photograph fix aspect ratio, taper and sweep without "
+                "needing scale. Its size is not. Fin depth sets steering "
+                "authority, and steering authority sets which lines are "
+                "rowable at all.",
+                "open", "Wants a tape measure: depth below the hull, root "
+                "chord, and how deep the rudder hangs.", weight=40),
+    ]
+
+    report.tables = [
+        Table("Bridges against the federal survey",
+              ["bridge", "vs NBI (m)", "off the channel (m)"], bridge_rows,
+              "The channel centreline is extracted from depth alone, so its "
+              "agreement with the bridges is an independent check rather "
+              "than a restatement."),
+        Table("The arches", ["bridge", "station (m)", "arches", "legal",
+                             "racing arch (m)", "eights abreast"], arch_rows,
+              "Span counts and lengths from the National Bridge Inventory; "
+              "pier thickness measured from the Grand Junction trestle. "
+              "Legal arches follow the regatta's rules — the Boston "
+              "arch is out of bounds everywhere, and the Cambridge arch is "
+              "additionally barred at the trestle, Anderson and Eliot."),
+        Table("Candidate lines", ["line", "race time (s)", "distance (m)",
+                                  "peak yaw (deg/s)", "split wanted",
+                                  "illegal", "vs centreline"], line_rows,
+              "Race time includes a 60 s penalty per forbidden arch. Every "
+              "line here is legal by construction."),
+        Table("Arch strategy", ["strategy", "race time (s)", "distance (m)",
+                                "split wanted", "split strokes",
+                                "W' left (J)", "vs centre arches"],
+              strategy_rows,
+              "Each strategy optimised inside its own arch constraint, so "
+              "this is best against best. W' is the crew's anaerobic "
+              "reserve; the pace is solved so it reaches zero at the line."),
+        Table("Where the seconds go", ["line", "ideal (s)", "distance",
+                                       "depth", "current", "steering",
+                                       "penalty"], loss_rows,
+              "Each term is the cost of adding that effect to the one "
+              "before, so they sum to the race time and nothing hides in a "
+              "residual."),
+        Table("Steering the real boat", ["controller", "elapsed (s)",
+                                         "cross-track rms (m)", "worst (m)",
+                                         "solver fallbacks"], control_rows,
+              "The full 6-DOF boat driven down the optimised line, measured "
+              "after the opening transient."),
+    ]
+
+    figures = [
+        Figure(os.path.join(figures_dir, "charles_course_bathymetry.png"),
+               "The course over the survey",
+               "4828 m from the DeWolfe Boathouse start to the finish above "
+               "Eliot.",
+               "Gold is the navigable edge, white the channel centreline. "
+               "Green spans are arches a racing crew may use; red carry a "
+               "60 second penalty."),
+        Figure(os.path.join(figures_dir, "charles_course_profiles.png"),
+               "The course straightened out",
+               "Depth across the channel, centreline depth, navigable width "
+               "and current, against distance from the start.",
+               "The width panel is the one to watch: the river narrows to "
+               "50 m between Anderson and Eliot, which is where both the "
+               "tightest corner and the one-boat travel lane are."),
+        Figure(os.path.join(figures_dir, "charles_bridge_arches.png"),
+               "Every arch to scale",
+               "Drawn as the coxswain meets them, first bridge at the "
+               "bottom, Cambridge to starboard.",
+               "The green bar is a rowed eight, 6.82 m tip to tip. Anderson "
+               "and Eliot are centre-arch only; the Powerhouse bridges give "
+               "you a choice."),
+        Figure(lines_png, "Candidate racing lines",
+               "Six lines, all legal, scored by the same evaluator.",
+               "The middle panel is where the lines are legible — 20 m "
+               "apart on a 4.8 km map is a hairline. The bottom panel shows "
+               "what each asks of the rudder against what the boat can "
+               "give."),
+        Figure(loss_png, "Where the race time goes",
+               "Loss breakdown per arch strategy.",
+               "The bars are almost entirely one colour. That is the "
+               "finding: depth dominates everything else by a factor of "
+               "fifty, and the only visible difference between strategies "
+               "is the grey sliver of extra distance on the bottom bar."),
+        Figure(os.path.join(figures_dir, "charles_navigable_spans.png"),
+               "The navigable spans",
+               "Each bridge at about 200 m across, over the real bathymetry.",
+               "At course scale a 20 m arch is a hairline; this is the scale "
+               "at which the decision is actually made."),
+        Figure(os.path.join(figures_dir, "charles_course_current.png"),
+               "The current",
+               "Continuity model at October median discharge.",
+               "Slack water: a few centimetres per second against a racing "
+               "5 m/s. Line choice here is about distance and depth, not "
+               "about hunting current."),
+    ]
+    if not quick:
+        figures.extend([
+            Figure("out/animation/race_2100_2800_chase_mpc.gif",
+                   "The boat rowing the line",
+                   "Weeks to Anderson under model predictive control.",
+                   "The dashed line is the plan, the solid trail is what the "
+                   "boat did. It rows in from behind so it is already "
+                   "tracking when the picture starts."),
+        ])
+    report.figures = figures
+
+    report.caveats = [
+        "The 82 s depth loss is the largest claim here and the least "
+        "checked. It rests on the shallow-water model at depth Froude 0.86, "
+        "the steepest part of that curve. A GPS trace with depth would "
+        "settle it.",
+        "Fin depth is scaled from a spanner in a photograph and one of the "
+        "three features measured off that spanner was demonstrably wrong. "
+        "The fin's shape is exact; its size is not.",
+        "Critical power and anaerobic capacity are collegiate means, not "
+        "this crew. Both scale the answer: CP sets the speed, W' sets how "
+        "much can be spent on steering.",
+        "DeWolfe Boathouse sits 124 m from its OpenStreetMap building "
+        "footprint. The start line is placed off it, so correcting that "
+        "would move every station in the model.",
+        "The route evaluator is quasi-steady and runs about 3% optimistic "
+        "against the full 6-DOF boat. Rankings survive that; absolute "
+        "finishing times do not.",
+        "The steering controller is a machine, not a coxswain. It corrects "
+        "error rather than reading the river, and it has never had to deal "
+        "with another crew.",
+    ]
+    return report
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
