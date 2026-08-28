@@ -70,6 +70,47 @@ def trim_rudder(boat, duration):
     return c_deg, c_rate, speed2, roll2
 
 
+def crew_sweep(args):
+    """How the rig advantage varies with the crew's size.
+
+    Two knobs, deliberately separable.  **Stature** changes how far the
+    crew slides and how long their levers are, so it scales the forces
+    the stagger couple acts through.  **Mass** changes what the hull
+    carries and how much momentum shifts each stroke, without changing
+    any lever.  Sweeping them apart says which one the rig advice is
+    actually sensitive to -- a coach with a heavy short crew and a coach
+    with a light tall one are asking different questions.
+
+    ``--statures`` scales mass with height on the usual squad allometry
+    (about ``stature^2``); ``--masses`` holds height fixed.
+    """
+    if args.statures:
+        cases = [("stature", h, 88.0 * (h / 1.90) ** 2, h)
+                 for h in args.statures]
+        header = "rig advantage against crew height (mass scales with it)"
+    else:
+        cases = [("mass", m, m, 1.90) for m in args.masses]
+        header = "rig advantage against crew mass (height fixed at 1.90 m)"
+
+    print(header)
+    print("  %-9s %-18s %9s %10s %9s %10s"
+          % (cases[0][0], "pattern", "helm", "speed", "roll pp", "vs bucket"))
+    for _kind, shown, mass, stature in cases:
+        results = {}
+        for name in ("standard", "german"):
+            boat = catalog.eight(rate=args.rate, rig_pattern=name,
+                                 rower_mass=mass, rower_stature=stature)
+            helm, residual, speed, roll = trim_rudder(boat, args.duration)
+            results[name] = (helm, speed, roll)
+        bucket_speed = results["german"][1]
+        for name in ("standard", "german"):
+            helm, speed, roll = results[name]
+            delta = RACE_LENGTH / speed - RACE_LENGTH / bucket_speed
+            print("  %-9.2f %-18s %+8.1f %9.4f %8.2f %+9.2f s"
+                  % (shown, name, helm, speed, roll, delta))
+    return 0
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description=__doc__,
@@ -80,7 +121,21 @@ def main(argv=None):
                         help="seconds of settling per measurement; three "
                              "measurements per pattern")
     parser.add_argument("--rate", type=float, default=28.0)
+    parser.add_argument("--masses", type=float, nargs="+", default=None,
+                        help="rower masses in kg to sweep at fixed height, "
+                             "which separates inertia from reach: mass "
+                             "changes what the boat carries, stature "
+                             "changes how far the crew slides")
+    parser.add_argument("--statures", type=float, nargs="+", default=None,
+                        help="rower heights in metres to sweep, e.g. "
+                             "1.70 1.80 1.90. The stagger couple is a "
+                             "geometric quantity, but the force that acts "
+                             "through it is not, so the rig advantage need "
+                             "not be height-independent")
     args = parser.parse_args(argv)
+
+    if args.statures or args.masses:
+        return crew_sweep(args)
 
     rows = []
     bar = progress(total=len(args.patterns), desc="rig patterns", unit="rig")
