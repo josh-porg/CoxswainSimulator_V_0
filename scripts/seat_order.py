@@ -70,6 +70,46 @@ def run(boat, duration, dt=0.01):
     }
 
 
+def deficit_sweep(args):
+    """Cost against how weak the weak rower is, at the best and worst seat.
+
+    Two seats only, because the seat experiment already showed which they
+    are, and the question here is the shape of the curve rather than the
+    ranking.
+    """
+    reference = catalog.eight(rate=args.rate, rig_pattern=args.rig)
+    labels = [seat.label for seat in reference.rig.seats]
+    sides = [seat.rigged_side for seat in reference.rig.seats]
+    base = run(reference, args.duration)
+    port = next(i for i, s in enumerate(sides) if s > 0)
+    stbd = next(i for i, s in enumerate(sides) if s < 0)
+
+    print("even crew, %s rig: %.4f m/s" % (args.rig, base["speed"]))
+    print()
+    print("  %-9s %-10s %10s %10s %10s"
+          % ("deficit", "seat", "speed", "cost (s)", "yaw"))
+    bar = progress(total=2 * len(args.sweep), desc="deficits", unit="run")
+    for deficit in args.sweep:
+        for index in (port, stbd):
+            boat = catalog.eight(rate=args.rate, rig_pattern=args.rig)
+            scales = np.ones(boat.n_seats)
+            scales[index] = 1.0 - deficit
+            boat.power_scales = scales
+            outcome = run(boat, args.duration)
+            cost = RACE_LENGTH / outcome["speed"] - RACE_LENGTH / base["speed"]
+            print("  %-9.0f%% %-10s %10.4f %+10.2f %+10.3f"
+                  % (100 * deficit,
+                     "%s (%s)" % (labels[index],
+                                  "port" if sides[index] > 0 else "stbd"),
+                     outcome["speed"], cost, outcome["yaw_rate"]))
+            bar.update(1)
+    bar.close()
+    print()
+    print("if cost were linear in the deficit, doubling the deficit would")
+    print("double the cost; departures are the yaw channel showing up.")
+    return 0
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description=__doc__,
@@ -79,7 +119,18 @@ def main(argv=None):
     parser.add_argument("--duration", type=float, default=24.0)
     parser.add_argument("--rate", type=float, default=28.0)
     parser.add_argument("--rig", default="standard")
+    parser.add_argument("--sweep", type=float, nargs="+", default=None,
+                        help="sweep the deficit instead of the seat, e.g. "
+                             "0.05 0.10 0.20 0.30. Answers whether the cost "
+                             "of a weak rower is linear in how weak they "
+                             "are, which it need not be: thrust enters "
+                             "speed through a cube root, but the yaw "
+                             "imbalance it creates enters through turning "
+                             "drag, which is quadratic")
     args = parser.parse_args(argv)
+
+    if args.sweep:
+        return deficit_sweep(args)
 
     reference = catalog.eight(rate=args.rate, rig_pattern=args.rig)
     labels = [seat.label for seat in reference.rig.seats]
