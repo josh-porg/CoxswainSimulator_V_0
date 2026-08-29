@@ -324,6 +324,79 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
                 "steering is under a second over 700 m.",
                 "derived", "Full 6-DOF boat under both controllers on the "
                 "same line.", weight=50),
+        Finding("Fitness outranks every tactical decision, together",
+                "About 5 seconds per 1% of crew power. A 2% gain beats the "
+                "line, the rig and the seating combined.",
+                "Measured: -5% costs 26.6 s, +5% saves 25.6 s, +10% saves "
+                "50.0 s. The whole tactical stack on this page -- racing "
+                "line, arch strategy, rigging, seat order -- comes to about "
+                "20 s, which a 4% squad improvement matches on its own. "
+                "That is not an argument against the tactics, which are "
+                "free where fitness is expensive and cannot be acquired on "
+                "race morning. It is an argument about where training time "
+                "goes. Two caveats: this is power at fixed rate, meaning "
+                "more force per stroke rather than rowing harder in a way "
+                "that wrecks the ratio; and the crew has to hold it for "
+                "sixteen minutes, which is a critical-power question, not a "
+                "peak-force one.",
+                "derived", "Crew power scaled uniformly, full 6-DOF, race "
+                "time at the resulting steady speed.", weight=99),
+        Finding("Wind moves the race more than anything a crew decides",
+                "A 4 m/s headwind costs 86 seconds; 8 m/s costs 232.",
+                "And it is asymmetric: the same wind behind you gives back "
+                "only 48 s, because apparent wind rises with boat speed "
+                "into it. Crosswind is cheap in time (4-29 s) but real in "
+                "trim, standing 0.2 deg/s of yaw and half a degree of heel "
+                "on the crew. At a head race, wind drift between flights is "
+                "larger than any tactical choice available to a coxswain.",
+                "derived", "Uniform wind over the reach, aerodynamic model "
+                "calibrated from the boat's own frontal area.", weight=95),
+        Finding("A bucket rig is worth 3 to 4 seconds",
+                "And it does not matter which bucket rig.",
+                "A standard alternating rig carries a 4.88 m stagger arm, "
+                "which needs 2 to 2.5 degrees of standing rudder to hold a "
+                "line -- and standing rudder is drag for 4.8 km. German, "
+                "Italian, battleship and tandem all cancel that arm to zero "
+                "and are identical to three decimals. The advantage is "
+                "independent of crew height (3.6-4.4 s across 1.70-1.90 m) "
+                "and of crew mass (2.1-3.8 s across 70-90 kg), so the "
+                "advice transfers to any crew.",
+                "derived", "Six seating patterns, full 6-DOF, rudder "
+                "trimmed to hold a straight line.", weight=80),
+        Finding("Which side a weak rower sits, not which seat",
+                "Side is worth 0.74 s; seat position is worth 0.03 s.",
+                "Conventional wisdom says put the weak rower amidships. On "
+                "a standard rig the physics says something else: a weak "
+                "PORT rower partially cancels the rig's own stagger bias "
+                "and costs 0.74 s less than the same rower on starboard, "
+                "while moving them stroke-to-bow along the port side is "
+                "worth 0.03 s. On a bucket rig, with no bias to cancel, "
+                "that reverses -- side shrinks to 0.24 s and position "
+                "emerges at 0.51 s. Cost scales linearly at about 0.65 s "
+                "per 1% one rower is down.",
+                "derived", "Every seat, both rigs, deficits from 5% to 30%.",
+                weight=75),
+        Finding("Crew consistency outranks the racing line",
+                "Crew-to-crew scatter alone spreads race time by 9 to 20 "
+                "seconds.",
+                "Elite 9.0 s, club 14.2 s, junior 20.3 s, drawn from "
+                "measured force and timing variability. That is the error "
+                "bar under every other number here, and it is larger than "
+                "the racing line is worth. It is also the one on this list "
+                "that training moves.",
+                "measured", "Kleshnev force-variability series, drawn per "
+                "crew and rowed in the full model.", weight=85),
+        Finding("Do not reseat the crew for this river",
+                "The Charles turns 40% to port and 33% to starboard: the "
+                "bends cancel.",
+                "Scoring the racing line by how long it spends turning each "
+                "way gives a time-weighted mean demand of +0.06 deg/s -- "
+                "for practical purposes, a straight course. A crew's "
+                "standing bias can only cancel the mean, never the swing, "
+                "and the swing here has no net direction. Seat for the "
+                "straight; the turns take care of themselves.",
+                "derived", "Curvature of the optimised line, weighted by "
+                "time spent at each demand.", weight=65),
         Finding("The fin is the weakest number in the model",
                 "Its depth is scaled off a spanner in a photograph.",
                 "The fin's shape is exact — proportions from the "
@@ -336,6 +409,24 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
     ]
 
     report.tables = [
+        Table("What each thing is worth",
+              ["lever", "seconds", "who controls it"],
+              [["crew power, per 1%", "5.0", "training"],
+               ["crew consistency, junior to elite", "11.3", "training"],
+               ["Weeks arch decision", "16.2", "the coxswain, once"],
+               ["racing line vs centreline", "14.3", "the coxswain"],
+               ["bucket rig vs standard", "3.6", "the rigger, once"],
+               ["weak rower on port not starboard", "0.74", "the coach, free"],
+               ["seat order along one side", "0.03", "nobody, it does not matter"],
+               ["--- not controllable ---", "", ""],
+               ["headwind at 4 m/s", "85.8", "the weather"],
+               ["headwind at 8 m/s", "232.0", "the weather"],
+               ["shallow water over the course", "82.4", "the river"]],
+              "Everything above the divider is a coaching decision; "
+              "everything below is the day you drew. The two largest "
+              "numbers on the page are in the second group, which is "
+              "worth knowing before comparing crews across flights.",
+              highlight=0),
         Table("Bridges against the federal survey",
               ["bridge", "vs NBI (m)", "off the channel (m)"], bridge_rows,
               "The channel centreline is extracted from depth alone, so its "
@@ -437,8 +528,27 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
                "Watch the trail through the Weeks turn: the reactive law "
                "corrects error after it appears, so it runs wider than "
                "the anticipating controller."),
+        Figure("out/animation/race_0000_4821_course_mpc.mp4",
+               "The whole race, from above",
+               "All 4822 m from the DeWolfe start to the finish above "
+               "Eliot, at 24x real time.",
+               "The boat is the moving mark; the dashed line is the "
+               "optimised route. This is the quick reference for where the "
+               "line sits on the river."),
+        Figure("out/animation/race_0000_4821_chase_mpc.mp4",
+               "The whole race, following the boat",
+               "The same run at boat scale, blades working.",
+               "Watch the bridges arrive: the trestle and BU inside the "
+               "first 200 m, then the long Powerhouse straight, Weeks, "
+               "Anderson, and the Cambridge Boat Club bend before Eliot."),
         Figure("out/render3d/mpc_2250_2560_cox.mp4",
-               "From the coxswain's seat", "", ""),
+               "From the coxswain's seat",
+               "Weeks to Anderson, camera at the cox's own seat 0.80 m "
+               "above the water.",
+               "The only view that answers whether a line is steerable. An "
+               "arch 300 m off is a slot near the horizon, and the far bank "
+               "hides behind the near one -- geometry every plan view "
+               "flatters."),
     ])
     report.figures = figures
 
@@ -459,6 +569,17 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
         "The route evaluator is quasi-steady and runs about 3% optimistic "
         "against the full 6-DOF boat. Rankings survive that; absolute "
         "finishing times do not.",
+        "The model predictive controller falls back to its previous plan "
+        "on about a fifth of its solves. It steers well when it converges "
+        "and the fallback covers the rest, but it is not healthy, and its "
+        "cross-track figures should be read as a lower bound.",
+        "Seating advice is at the edge of the model's resolution: the fast "
+        "surrogate carries a 0.04 deg/s bias against the full simulation, "
+        "and the whole Charles asks for 0.06 deg/s. Rankings survive that; "
+        "absolute targets do not.",
+        "Nothing here models rhythm, confidence, or whether a rower can "
+        "follow the person in front of them -- which is most of what seat "
+        "selection is actually about.",
         "The steering controller is a machine, not a coxswain. It corrects "
         "error rather than reading the river, and it has never had to deal "
         "with another crew.",

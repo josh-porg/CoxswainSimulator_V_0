@@ -100,27 +100,49 @@ def calibrate(stations, duration):
     real boat, so the fast score is anchored to the 6-DOF rather than to
     an assumed lever.
     """
+    # The probes must EXCITE both couples or the fit cannot see them.
+    # An earlier set used three balanced four-and-four rigs at equal power,
+    # every one of which has a side couple of exactly zero -- so the
+    # regression had no variation to fit and returned a side coefficient
+    # of 0.0000, and the optimiser then ranked seatings on the stagger
+    # term alone while believing it had both.  A degenerate design matrix
+    # does not announce itself; it just answers confidently.
+    even = np.ones(8)
+    lopsided = np.array([0.80, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+    other = np.array([1.0, 0.80, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
     probes = [
-        [PORT, STARBOARD] * 4,                       # standard
-        [PORT, STARBOARD, STARBOARD, PORT] * 2,      # german
-        [PORT] * 4 + [STARBOARD] * 4,                # ends-loaded
+        ([PORT, STARBOARD] * 4, even),                    # standard
+        ([PORT, STARBOARD, STARBOARD, PORT] * 2, even),   # german
+        ([PORT] * 4 + [STARBOARD] * 4, even),             # ends-loaded
+        ([PORT, STARBOARD] * 4, lopsided),                # weak port
+        ([PORT, STARBOARD] * 4, other),                   # weak starboard
     ]
     rows, yaws = [], []
     bar = progress(total=len(probes), desc="calibrating", unit="probe")
-    for sides in probes:
+    for sides, powers in probes:
         boat = catalog.eight(rate=28.0)
+        boat.power_scales = powers
         for seat, side in zip(boat.rig.seats, sides):
             for lock in seat.oarlocks:
                 lock.position[1] = abs(lock.position[1]) * side
                 object.__setattr__(lock, "side", side)
         _speed, yaw = trial(boat, duration)
-        side_c, stagger_c = couples(sides, np.ones(len(sides)), stations)
+        side_c, stagger_c = couples(sides, powers, stations)
         rows.append([side_c, stagger_c, 1.0])
         yaws.append(yaw)
         bar.update(1)
     bar.close()
-    coefficients, *_ = np.linalg.lstsq(np.array(rows), np.array(yaws),
-                                       rcond=None)
+
+    design = np.array(rows)
+    spread = np.ptp(design[:, :2], axis=0)
+    if np.any(spread < 1e-9):
+        raise RuntimeError(
+            "calibration probes do not excite both couples (spread %s); "
+            "the fit would be degenerate" % spread)
+    coefficients, residual, rank, _sv = np.linalg.lstsq(
+        design, np.array(yaws), rcond=None)
+    if rank < 3:
+        raise RuntimeError("calibration is rank deficient (rank %d)" % rank)
     return coefficients
 
 
@@ -160,6 +182,78 @@ def enumerate_seatings(crew, stations, coefficients, target, limit=8):
     return best[:limit]
 
 
+def course_demand(month=10, speed=4.7, smooth=35.0):
+    """The yaw rate the racing line asks for, and how long it asks for it.
+
+    Returns ``(demand, weight)``: signed yaw rate in deg/s at each sample
+    of the optimised line, positive to port, and the time spent at each.
+
+    This is what turns a course into a single number.  If the coxswain
+    must supply whatever the crew's standing bias does not, and rudder
+    drag grows with the square of that correction, then the cost of a
+    seating with bias ``b`` is ``sum w (r - b)^2`` -- minimised at the
+    **time-weighted mean of the demand**.  A course therefore scores as
+    one target yaw, and the best crew is the one whose own bias sits on
+    it.
+
+    Curvature is smoothed over two boat lengths for the same reason it is
+    everywhere else in this model: a 17.3 m hull cannot answer structure
+    shorter than itself, and the raw differences of a sampled polyline are
+    dominated by its own knots.
+    """
+    from coxswain.river import charles
+    from coxswain.river.charts import CourseGeometry
+    from coxswain.river.route import Route, RouteEvaluator, optimise_route
+    from coxswain.river.trajectory import ReducedModel
+
+    raster = charles.charles_channel()
+    _, _, race_line, _ = charles.hocr_course(raster)
+    course = charles.charles_course(centreline=race_line, month=month)
+    flow = charles.ContinuityFlow(course,
+                                  discharge=charles.monthly_discharge(month))
+    gates = CourseGeometry(channel=raster).gates_on_course()
+    evaluator = RouteEvaluator(course, flow=flow, reference_speed=5.2,
+                               upstream=True, margin=4.0, minimum_depth=1.2,
+                               n_samples=1200)
+    evaluator.with_steering(ReducedModel(), raster=raster, gates=gates)
+    evaluator.with_exertion()
+    best = optimise_route(evaluator, n_control=13, iterations=40, seed=0)
+    route = Route(best.route.stations, best.route.offsets, name="optimised")
+
+    station = np.linspace(0.0, course.length, 3000)
+    points = course.offset_position(station, route.offset_at(station))
+    step = np.hypot(*np.diff(points, axis=0).T)
+    distance = np.concatenate([[0.0], np.cumsum(step)])
+    heading = np.unwrap(np.arctan2(np.gradient(points[:, 1]),
+                                   np.gradient(points[:, 0])))
+    window = max(int(round(smooth / max(np.median(step), 1e-6))), 1)
+    smoothed = np.convolve(heading, np.ones(window) / window, mode="same")
+    edge = window * 2
+    curvature = np.gradient(smoothed, np.maximum(distance, 1e-9))
+    curvature[:edge] = curvature[edge]
+    curvature[-edge:] = curvature[-edge - 1]
+
+    demand = np.degrees(curvature * speed)
+    weight = np.concatenate([[step[0]], step]) / speed      # seconds
+    return demand, weight
+
+
+def score_course(demand, weight, threshold=0.25):
+    """Break a course into port, straight and starboard, and weight it."""
+    total = float(weight.sum())
+    port = float(weight[demand > threshold].sum())
+    starboard = float(weight[demand < -threshold].sum())
+    straight = total - port - starboard
+    mean = float(np.sum(demand * weight) / total)
+    return {
+        "seconds": total,
+        "port": port / total, "straight": straight / total,
+        "starboard": starboard / total,
+        "target": mean,
+        "rms": float(np.sqrt(np.sum(demand ** 2 * weight) / total)),
+    }
+
+
 def parse_crew(values, stroke_capable, sides):
     crew = []
     for index, power in enumerate(values):
@@ -189,6 +283,11 @@ def main(argv=None):
                         help="per rower: 1 port only, -1 starboard only, "
                              "0 either. Default: all bisidal")
     parser.add_argument("--duration", type=float, default=20.0)
+    parser.add_argument("--course", action="store_true",
+                        help="score the real Head of the Charles racing "
+                             "line and optimise for its weighted mix of "
+                             "port, starboard and straight, instead of the "
+                             "three idealised scenarios")
     parser.add_argument("--verify", type=int, default=2,
                         help="how many finalists to check with the 6-DOF")
     args = parser.parse_args(argv)
@@ -211,7 +310,21 @@ def main(argv=None):
           % tuple(coefficients))
     print()
 
-    for scenario, target in SCENARIOS.items():
+    scenarios = dict(SCENARIOS)
+    if args.course:
+        demand, weight = course_demand()
+        summary = score_course(demand, weight)
+        print("Head of the Charles, %.0f s of racing:" % summary["seconds"])
+        print("  %.0f%% turning to port, %.0f%% straight, %.0f%% to starboard"
+              % (100 * summary["port"], 100 * summary["straight"],
+                 100 * summary["starboard"]))
+        print("  demand rms %.2f deg/s; time-weighted mean %+.3f deg/s"
+              % (summary["rms"], summary["target"]))
+        print("  -- that mean is the bias the best-seated crew should carry.")
+        print()
+        scenarios = {"the Charles, weighted": summary["target"]}
+
+    for scenario, target in scenarios.items():
         finalists = enumerate_seatings(crew, stations, coefficients, target)
         print("%s (target yaw %+.2f deg/s)" % (scenario, target))
         print("  %-26s %-26s %9s" % ("stern -> bow", "sides", "yaw"))
