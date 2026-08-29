@@ -304,6 +304,103 @@ class RouteEvaluator:
         self.race_intensity = float(race_intensity)
         return self
 
+    def with_wind(self, field, boat=None, drag_area: float = None,
+                  height: float = 0.43):
+        """Charge the line for the wind it actually meets.
+
+        Until now wind was a scenario the whole race shared: a headwind
+        cost 86 s and there was nothing a coxswain could do about it.
+        With a spatially varying field there *is* something to do -- the
+        sheltered side of a 150 m river carries about 80% of the wind the
+        open side does -- and pricing it is what lets the optimiser trade
+        a longer line for a quieter one.
+
+        ``drag_area`` is the crew's total ``C_d A``; left out, it is
+        calibrated off ``boat`` the same way
+        :class:`~coxswain.hydro.wind.AeroModel` does, so this shares the
+        13%-of-resistance calibration rather than inventing a second one.
+
+        ``height`` is the area-weighted height of the aerodynamic
+        components, 0.43 m, **not** 10 m and not the 1.5 m a rower's chest
+        sits at.  The field must therefore be built to report wind at that
+        height; asking a 10 m field and then applying a log profile as
+        well is the double-correction this signature exists to prevent.
+        """
+        from ..hydro.wind import AeroModel
+
+        self.wind = field
+        if drag_area is None:
+            if boat is None:
+                boat = self.boat
+            if boat is None:
+                raise ValueError("with_wind needs a boat or a drag_area")
+            drag_area = AeroModel.calibrate(
+                boat, reference_speed=self.reference_speed).total_area
+        self.wind_area = float(drag_area)
+        self.wind_height = float(height)
+        return self
+
+    #: Wind field, or ``None`` for still air.  Set by :meth:`with_wind`.
+    wind = None
+    wind_area = 0.66
+    wind_height = 0.43
+    #: Air density, kg/m^3.
+    air_density = 1.225
+
+    def wind_penalty(self, points, tangent, speed_ground):
+        """Fractional speed change from the wind along this line.
+
+        The relative wind is the true wind minus the boat's own velocity,
+        so a headwind is charged the square of the *sum* and a tailwind
+        the square of the difference -- which is where the published
+        asymmetry (12.2% lost to a 5 m/s headwind, 5.1% gained from the
+        same tailwind) comes from without being put in by hand.
+
+        Applied through the same relation steering drag uses: at fixed
+        crew power an added drag ``dR`` slows the boat by
+        ``dv/v = -dR / (3R + dR)``.
+        """
+        if self.wind is None:
+            return np.zeros(len(points))
+        vectors = np.array([self.wind.at(px, py)[:2] for px, py in points])
+        relative = vectors - speed_ground[:, None] * tangent
+        along = np.einsum("ij,ij->i", relative, tangent)
+        magnitude = np.hypot(relative[:, 0], relative[:, 1])
+        # ``along`` is the component of the relative wind along the boat's
+        # own heading, so a headwind makes it negative and the force it
+        # produces is negative too -- a resistance.  The added resistance
+        # is therefore minus that force, and the sign has to survive into
+        # the speed change or the model helpfully rows the crew home in a
+        # gale: the first version dropped one negation and reported a
+        # 6 m/s headwind as 77 seconds FASTER than still air.
+        force = 0.5 * self.air_density * self.wind_area * magnitude * along
+        # **Relative to still air, not to a vacuum.**  The reference speed
+        # already includes the aerodynamic drag of rowing through calm air
+        # -- that is 13% of a shell's resistance and it is inside the
+        # calibration.  Charging the full windy force on top of it
+        # double-counts the still-air part, which made a 3.6 m/s tailwind
+        # come out as a small *loss* instead of a gain and a headwind come
+        # out a third too expensive.
+        still = -0.5 * self.air_density * self.wind_area * speed_ground ** 2
+        added = -(force - still)
+        base = self.hydrodynamic_drag(speed_ground)
+        return -added / np.maximum(3.0 * base + added, 0.2 * base)
+
+    def hydrodynamic_drag(self, speed) -> np.ndarray:
+        """Water resistance at these speeds, N -- the base for a drag ratio.
+
+        Taken from the steering model's critical power where one is
+        attached, so the two added-drag terms are charged against the same
+        denominator rather than against two different ideas of how hard
+        the crew is working.
+        """
+        speed = np.maximum(np.asarray(speed, dtype=float), 0.05)
+        if self.steering is not None:
+            return np.full_like(
+                speed, self.steering.critical_power
+                / max(self.reference_speed, 1e-6))
+        return np.full_like(speed, 260.0)
+
     def with_bridges(self, raster, gates=None, max_yaw_rate=None):
         """Give the evaluator the arches and the boat's turning limit.
 
@@ -465,6 +562,20 @@ class RouteEvaluator:
         speed_water = self.speed_through_water(depth)
         current_along = self.current_along_path(station, offset)
         speed_ground = np.maximum(speed_water + current_along, 0.05)
+
+        # -- wind, before the clock starts --------------------------------
+        # One fixed-point pass: the relative wind depends on boat speed,
+        # which the wind then changes.  A second pass moves the answer by
+        # under a millisecond per kilometre, which is well inside the
+        # field's own uncertainty.
+        if self.wind is not None:
+            step_full = np.vstack([step, step[-1:]])
+            length = np.hypot(step_full[:, 0], step_full[:, 1])
+            tangent = step_full / np.maximum(length, 1e-9)[:, None]
+            for _ in range(2):
+                speed_ground = np.maximum(
+                    speed_ground * (1.0 + self.wind_penalty(
+                        points, tangent, speed_ground)), 0.05)
 
         # trapezoidal integration of dt = ds / v
         inverse = 1.0 / speed_ground
