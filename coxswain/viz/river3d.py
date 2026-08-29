@@ -46,6 +46,9 @@ _PENALTY = "#a2382a"
 _LINE = "#6b3fa0"
 _SKY_TOP = "#20344a"
 _SKY_HORIZON = "#9fb8c8"
+_WALL = "#8a8079"
+_ROOF = "#5f5a55"
+_CANOPY = "#4a6b45"
 
 
 class RiverScene(BoatScene):
@@ -66,8 +69,10 @@ class RiverScene(BoatScene):
     PLAN_ALTITUDE = 260.0
 
     def __init__(self, boat, result=None, channel=None, gates=(),
-                 path=None, window: float = 420.0, **kwargs):
+                 path=None, window: float = 420.0,
+                 show_structures: bool = True, **kwargs):
         super().__init__(boat, result=result, **kwargs)
+        self.show_structures = bool(show_structures)
         self.channel = channel
         self.gates = tuple(gates)
         self.path = None if path is None else np.asarray(path, float)[:, :2]
@@ -192,6 +197,98 @@ class RiverScene(BoatScene):
                             name="arch-%s-%d%s" % (gate.name, arch.index,
                                                    side))
 
+    def structure_polydata(self, t: float):
+        """Buildings and tree canopy within sight, as one merged mesh.
+
+        The DEM is bare earth, so without this the coxswain view shows a
+        river running through empty fields -- which is not what steering
+        the Charles looks like and, more to the point, hides the only
+        landmarks a crew has between bridges.
+
+        Everything is merged into a single mesh rather than added as one
+        actor per building.  Forty separate actors per frame is what
+        turned a render of the Powerhouse Stretch into a slideshow.
+        """
+        pv = require_pyvista()
+        state = self.state_at(t)
+        origin = self._origin(state)
+        centre = np.asarray(state.position, dtype=float)[:2]
+        key = (round(centre[0] / 60.0), round(centre[1] / 60.0))
+        if self._structure_key == key and self._structure_mesh is not None:
+            return self._structure_mesh, origin
+
+        try:
+            from ..river.structures import charles_structures
+            from ..river.terrain import charles_terrain
+            structures = charles_structures()
+            terrain = charles_terrain()
+        except Exception:
+            self._structure_key, self._structure_mesh = key, None
+            return None, origin
+
+        reach = self.window * 1.4
+        parts = []
+        for index in structures.near(centre[0], centre[1], reach):
+            ring = structures.polygons[index]
+            if len(ring) < 4:
+                continue
+            base = float(terrain.at(*ring.mean(axis=0))[0])
+            points = np.column_stack([ring[:, 0], ring[:, 1],
+                                      np.full(len(ring), base)])
+            face = np.concatenate([[len(points)], np.arange(len(points))])
+            try:
+                solid = pv.PolyData(points, faces=face).extrude(
+                    (0.0, 0.0, float(structures.heights[index])),
+                    capping=True)
+            except Exception:
+                continue
+            parts.append(solid)
+        if not parts:
+            self._structure_key, self._structure_mesh = key, None
+            return None, origin
+        merged = parts[0].merge(parts[1:]) if len(parts) > 1 else parts[0]
+        self._structure_key, self._structure_mesh = key, merged
+        return merged, origin
+
+    def canopy_polydata(self, t: float):
+        """Mapped trees within sight, as crowns on the bank.
+
+        Individual OSM trees only -- the park polygons are the better
+        record of where canopy *is*, but they say nothing about where the
+        trunks are, and a park drawn as a solid green slab looks worse
+        than no trees at all.
+        """
+        pv = require_pyvista()
+        state = self.state_at(t)
+        centre = np.asarray(state.position, dtype=float)[:2]
+        try:
+            from ..river.structures import charles_structures
+            from ..river.terrain import charles_terrain
+            structures = charles_structures()
+            terrain = charles_terrain()
+        except Exception:
+            return None
+        if not len(structures.trees):
+            return None
+        offset = structures.trees - centre
+        within = np.nonzero(np.einsum("ij,ij->i", offset, offset)
+                            < (self.window * 1.2) ** 2)[0]
+        crowns = []
+        for index in within[:220]:
+            east, north = structures.trees[index]
+            height = float(structures.tree_heights[index])
+            base = float(terrain.at(east, north)[0])
+            crowns.append(pv.Sphere(radius=0.30 * height,
+                                    center=(east, north,
+                                            base + 0.72 * height),
+                                    theta_resolution=10, phi_resolution=8))
+        if not crowns:
+            return None
+        return crowns[0].merge(crowns[1:]) if len(crowns) > 1 else crowns[0]
+
+    _structure_key = None
+    _structure_mesh = None
+
     def path_polydata(self, t: float):
         """The planned line, drawn on the water ahead."""
         pv = require_pyvista()
@@ -297,6 +394,21 @@ class RiverScene(BoatScene):
                              show_scalar_bar=False, name="terrain",
                              smooth_shading=True, opacity=1.0,
                              ambient=0.35, diffuse=0.75, specular=0.05)
+        if self.show_structures:
+            solids, origin = self.structure_polydata(t)
+            if solids is not None:
+                shifted = solids.copy()
+                shifted.points = shifted.points - np.array(
+                    [origin[0], origin[1], 0.0])
+                plotter.add_mesh(shifted, color=_WALL, name="buildings",
+                                 ambient=0.30, diffuse=0.80, specular=0.02)
+            crowns = self.canopy_polydata(t)
+            if crowns is not None:
+                shifted = crowns.copy()
+                shifted.points = shifted.points - np.array(
+                    [origin[0], origin[1], 0.0])
+                plotter.add_mesh(shifted, color=_CANOPY, name="trees",
+                                 ambient=0.35, diffuse=0.70, specular=0.0)
         self.bridge_actors(plotter, t)
         line = self.path_polydata(t)
         if line is not None:

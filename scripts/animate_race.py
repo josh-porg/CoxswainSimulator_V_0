@@ -4,7 +4,7 @@
     python scripts/animate_race.py --from 3600 --to 4200 --view course
 
 Optimises a racing line, hands it to the full 6-DOF boat under
-line-of-sight guidance, and draws the result as a video: the hull to
+line-of-sight guidance, and draws]2=][3qq2 the result as a video: the hull to
 scale with its blades working, against the surveyed bank, the arches and
 piers, and the boathouses a crew steers by.
 

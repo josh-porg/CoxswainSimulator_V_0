@@ -115,9 +115,26 @@ class CrewVariability:
         # would eventually produce one.
         return np.maximum(power, 0.0), timing
 
-    def apply(self, boat) -> None:
-        """Draw one stroke's worth of variation and set it on ``boat``."""
+    def apply(self, boat, base=None) -> None:
+        """Draw one stroke's worth of variation and set it on ``boat``.
+
+        ``base`` is a per-seat multiplier the draw is applied *on top of*
+        -- a crew that is not at the model's reference power, or one with
+        a deliberately weakened seat.  It matters because this method
+        **assigns** ``power_scales`` rather than scaling them, so without
+        it a caller that set the crew to 66% of reference power and then
+        applied scatter silently got a full-power crew back.  That is not
+        hypothetical: it made a masters eight row at 5.41 m/s instead of
+        4.21 and turned the whole consistency comparison into a
+        comparison between two different crews.
+
+        Assignment is still the right default, because the per-stroke
+        hook calls this every stroke and multiplying into the previous
+        draw would compound the scatter without limit.
+        """
         power, timing = self.draw(boat.n_seats)
+        if base is not None:
+            power = power * np.asarray(base, dtype=float)
         boat.power_scales = power
         boat.phase_offsets = timing / boat.timing.period
 
