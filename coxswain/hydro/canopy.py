@@ -295,3 +295,99 @@ def open_water_equivalent(height, reference_speed: float,
     aloft = regional_speed(reference_speed, reference_height, blending)
     height = np.maximum(np.asarray(height, dtype=float), 1.05 * z0_water)
     return aloft * np.log(height / z0_water) / np.log(blending / z0_water)
+
+
+class ShelteredWind:
+    """A wind field over the reach, from the banks either side of it.
+
+    Implements the :class:`~coxswain.hydro.wind.WindField` interface, so
+    it drops into :class:`~coxswain.hydro.wind.AeroModel` in place of
+    :class:`~coxswain.hydro.wind.UniformWind` without the force model
+    knowing anything changed.
+
+    Three things vary with position, and all three are the point:
+
+    **The upwind bank.**  Frontal area index is computed over the upwind
+    half-sector only, so the same buildings give a different roughness
+    for a westerly and a northerly.
+
+    **The fetch.**  Distance from the boat to the upwind shoreline,
+    marched over the channel raster.  This is what makes the near bank
+    genuinely sheltered and mid-channel much less so.
+
+    **The height.**  Everything is evaluated at the crew's chest, not at
+    an anemometer's 10 m, because those are different air.
+
+    Speeds are cached on a grid.  The simulator asks for the wind at every
+    derivative evaluation, and re-marching a fetch and re-summing forty
+    footprints per call makes the field unusable inside an optimiser.
+    """
+
+    #: Side of the cache cell, m.  Wind varies over hundreds of metres
+    #: here, so 25 m is finer than the field itself.
+    CACHE = 25.0
+    #: Stop marching upwind after this far; beyond it the boat is not
+    #: sheltered by anything and the open-water profile applies.
+    MAX_FETCH = 500.0
+
+    def __init__(self, structures, channel, reference_speed: float,
+                 wind_from: float, radius: float = 250.0,
+                 height: float = 1.5, reference_height: float = 10.0):
+        self.structures = structures
+        self.channel = channel
+        self.reference_speed = float(reference_speed)
+        #: Meteorological bearing the wind comes *from*, degrees.
+        self.wind_from = float(wind_from)
+        self.radius = float(radius)
+        self.height = float(height)
+        self.reference_height = float(reference_height)
+        # Direction the wind blows *towards*, in the model's maths frame.
+        self.bearing = np.radians(90.0 - (self.wind_from + 180.0))
+        self._towards = np.array([np.cos(self.bearing), np.sin(self.bearing)])
+        self._cache = {}
+
+    # -- geometry ---------------------------------------------------------
+    def fetch(self, east: float, north: float) -> float:
+        """Metres of open water upwind of a point."""
+        step = max(self.channel.resolution, 2.0)
+        here = np.array([east, north], dtype=float)
+        travelled = 0.0
+        while travelled < self.MAX_FETCH:
+            here = here - self._towards * step
+            travelled += step
+            row, column = self.channel.index_of(here[0], here[1])
+            if not bool(self.channel.water[row, column]):
+                break
+        return travelled
+
+    def roughness(self, east: float, north: float) -> Roughness:
+        """Raupach roughness of the upwind bank seen from a point."""
+        index = self.structures.near(east, north, self.radius)
+        if not len(index):
+            return Roughness(z0=Z0_OPEN, d=0.0, height=1.0,
+                             frontal_index=1e-6)
+        centres = self.structures.centres[index] - np.array([east, north])
+        upwind = np.einsum("ij,j->i", centres, -self._towards) > 0.0
+        index = index[upwind] if upwind.any() else index
+        frontal = float(sum(self.structures.frontal_width(i, self.bearing)
+                            * self.structures.heights[i] for i in index))
+        ground = 0.5 * np.pi * self.radius ** 2
+        mean_height = float(np.average(self.structures.heights[index]))
+        return raupach_roughness(frontal / ground, mean_height)
+
+    # -- the interface ----------------------------------------------------
+    def speed_at(self, east: float, north: float) -> float:
+        key = (int(east // self.CACHE), int(north // self.CACHE))
+        hit = self._cache.get(key)
+        if hit is None:
+            bank = self.roughness(east, north)
+            hit = float(sheltered_speed(self.height, self.fetch(east, north),
+                                        self.reference_speed, bank,
+                                        reference_height=self.reference_height))
+            self._cache[key] = hit
+        return hit
+
+    def at(self, x, y, t=0.0):
+        return np.array([self.speed_at(float(x), float(y)) * self._towards[0],
+                         self.speed_at(float(x), float(y)) * self._towards[1],
+                         0.0])
