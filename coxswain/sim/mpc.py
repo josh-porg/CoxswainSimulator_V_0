@@ -90,6 +90,32 @@ class PathMPC:
     max_rudder: Optional[float] = None
     max_split: float = 0.30
 
+    #: ``"qp"`` linearises the one nonlinearity and solves an exact
+    #: quadratic program; ``"nlp"`` is the original IPOPT formulation,
+    #: kept so the two can be compared rather than asserted.
+    #:
+    #: Everything in this problem is already linear-quadratic except
+    #: ``de/dt = u sin(psi)``.  Linearising *that* about the measured
+    #: heading error -- not about zero, so it stays accurate at large
+    #: errors -- turns a nonconvex program solved by an interior-point
+    #: method with an iteration limit into a convex one solved exactly.
+    #: An active-set QP either returns the optimum or reports genuine
+    #: infeasibility; it cannot quietly run out of iterations, which is
+    #: what the fallback path was absorbing.
+    solver: str = "qp"
+
+    #: Estimate the unmodelled yaw moment and feed it forward.
+    #:
+    #: The reduced model has no rig bias, no crosswind weathercocking and
+    #: no current shear, and the boat has all three -- a standard-rigged
+    #: eight carries a standing yaw of about 0.19 deg/s with the rudder
+    #: centred.  Without an estimate the controller can only ever chase
+    #: that with cross-track feedback, which means living with a steady
+    #: offset.  A one-state disturbance observer lets it hold a standing
+    #: rudder instead, which is what a coxswain does without thinking.
+    estimate_bias: bool = True
+    bias_gain: float = 0.25
+
     # -- state carried between calls --------------------------------------
     split: float = field(default=0.0, init=False)
     cross_track: float = field(default=0.0, init=False)
@@ -97,6 +123,10 @@ class PathMPC:
     solves: int = field(default=0, init=False)
     failures: int = field(default=0, init=False)
     last_error: str = field(default="", init=False)
+    #: Estimated unmodelled yaw moment, N m.  Diagnostic as well as
+    #: control: a large steady value means the boat has a bias the model
+    #: does not, which is a rigging or a wind finding, not a controller one.
+    bias: float = field(default=0.0, init=False)
 
     def __post_init__(self) -> None:
         from ..river.trajectory import ReducedModel
@@ -131,14 +161,53 @@ class PathMPC:
         self._last = 0
         self._held = 0.0
         self._plan = None
+        self._split_plan = None
         self._plan_time = 0.0
+        self._prev_time = None
+        self._prev_rate = 0.0
+        self._prev_moment = 0.0
+        self.terminal_weight = None
         self._next_solve = -1.0
         self._filtered_rate = 0.0
         self._build()
 
     # -- the optimal control problem --------------------------------------
+    def _terminal_weight(self, speed: float, decay: float, dt: float):
+        """Terminal cost from the infinite-horizon solution, not a guess.
+
+        The original terminal term was ``4x`` the running weights, chosen
+        because a horizon that simply stops mid-correction lets the
+        optimiser park the boat off the line at step N and pay nothing
+        for it.  Four is a reasonable guess; the Riccati solution is the
+        right answer.  Weight the terminal state by ``P`` from the
+        discrete algebraic Riccati equation and the finite horizon
+        inherits the stability of the infinite one.
+
+        Returns ``None`` if the DARE will not solve, and the caller falls
+        back to the old heuristic.
+        """
+        import numpy as np
+
+        try:
+            from scipy.linalg import solve_discrete_are
+        except Exception:                                # noqa: BLE001
+            return None
+        model = self.model
+        gain = ((1.0 - decay) * model.yaw_control * speed ** 2
+                / (model.yaw_damping * speed))
+        a = np.array([[1.0, dt * speed, 0.0],
+                      [0.0, 1.0, dt],
+                      [0.0, 0.0, decay]])
+        b = np.array([[0.0], [0.0], [-gain]])
+        q = np.diag([self.weight_cross, self.weight_heading, 0.0])
+        r = np.array([[self.weight_rudder + self.weight_rudder_rate]])
+        try:
+            return solve_discrete_are(a, b, q, r)
+        except Exception:                                # noqa: BLE001
+            return None
+
     def _build(self) -> None:
-        """Assemble the CasADi problem once; re-solved with new parameters."""
+        """Assemble the problem once; re-solved with new parameters."""
         import casadi as ca
 
         n, dt = self.steps, self.horizon / self.steps
@@ -153,18 +222,33 @@ class PathMPC:
         speed = opti.parameter()
         curvature = opti.parameter(n)        # of the line, over the horizon
         previous = opti.parameter()          # last rudder, for the rate term
+        # Linearisation point for the one nonlinear term, and the
+        # estimated unmodelled yaw moment.  Both are parameters, so the
+        # program stays quadratic and is re-linearised every solve.
+        psi_ref = opti.parameter()
+        bias = opti.parameter()
 
         opti.subject_to(state[:, 0] == start)
 
-        decay = ca.exp(-dt * model.yaw_damping * speed
-                       / model.yaw_inertia)
+        decay = ca.exp(-dt * model.yaw_damping * speed / model.yaw_inertia)
         cost = 0.0
         for k in range(n):
             error, psi, r = state[0, k], state[1, k], state[2, k]
             # Frenet kinematics along the line: the boat drifts off at the
-            # rate its heading differs from the line's, and the heading
-            # error grows with yaw rate less the line's own turning.
-            derror = speed * ca.sin(psi)
+            # rate its heading differs from the line, and the heading error
+            # grows with yaw rate less the line own turning.
+            #
+            # ``sin(psi)`` is the ONLY nonlinearity in the whole problem.
+            # In "qp" mode it is replaced by its tangent at the measured
+            # heading error -- not at zero, which would be a small-angle
+            # approximation good only near the line, but at wherever the
+            # boat actually is.  The program becomes convex and exactly
+            # solvable while staying accurate at large errors.
+            if self.solver == "qp":
+                derror = speed * (ca.sin(psi_ref)
+                                  + ca.cos(psi_ref) * (psi - psi_ref))
+            else:
+                derror = speed * ca.sin(psi)
             dpsi = r - speed * curvature[k]
             # **Positive rudder yaws to starboard**, which is a *negative*
             # yaw rate in this frame -- the convention
@@ -175,25 +259,19 @@ class PathMPC:
             # badly conditioned and the solver starts failing, which holds
             # the last command and makes it worse.  84% of solves failed
             # and the boat ended 691 m off the line.
-            control_moment = (-model.yaw_control * speed ** 2
-                              * rudder[0, k]
-                              - model.split_control * split[0, k])
+            control_moment = (-model.yaw_control * speed ** 2 * rudder[0, k]
+                              - model.split_control * split[0, k]
+                              + bias)
 
             opti.subject_to(state[0, k + 1] == error + dt * derror)
             opti.subject_to(state[1, k + 1] == psi + dt * dpsi)
             # The yaw-rate dynamics are discretised EXACTLY, not by Euler.
             # Their time constant is I/(N_r u) -- about 0.06 s -- against a
-            # 0.5 s transcription step, so forward Euler's amplification
-            # factor is 1 - dt/tau = roughly MINUS EIGHT: the transcribed
-            # recursion explodes even though the boat it describes is the
-            # most docile system imaginable.  On a straight line the
-            # unstable recursion carries zero forcing and the trivial
-            # solution hides the defect; the first real curvature excites
-            # it, the horizon blows up, and IPOPT dies at max iterations --
-            # two thirds of all solves, on every real path, surviving four
-            # wrong hypotheses (path length, aero, dt, warm starts) before
-            # this one.  The dynamics are linear in r with the control
-            # constant over the step, so the zero-order-hold solution
+            # 0.5 s transcription step, so forward Euler amplification is
+            # 1 - dt/tau = roughly MINUS EIGHT: the transcribed recursion
+            # explodes even though the boat it describes is the most docile
+            # system imaginable.  The dynamics are linear in r with the
+            # control constant over the step, so the zero-order-hold form
             #     r+ = phi r + (1 - phi) M / (N_r u),  phi = exp(-dt/tau)
             # is exact and unconditionally stable at any step length.
             opti.subject_to(state[2, k + 1] == decay * r
@@ -208,21 +286,44 @@ class PathMPC:
                      * (rudder[0, k] - previous_rudder) ** 2
                      + self.weight_split * split[0, k] ** 2)
 
-        # a terminal term, so the horizon does not end mid-correction
-        cost += 4.0 * self.weight_cross * state[0, n] ** 2
-        cost += 4.0 * self.weight_heading * state[1, n] ** 2
+        # A terminal term, so the horizon does not end mid-correction.
+        reference = float(getattr(self.model, "reference_speed", 0.0) or 4.5)
+        phi = float(np.exp(-dt * model.yaw_damping * reference
+                           / model.yaw_inertia))
+        terminal = self._terminal_weight(reference, phi, dt)
+        if terminal is None:
+            cost += 4.0 * self.weight_cross * state[0, n] ** 2
+            cost += 4.0 * self.weight_heading * state[1, n] ** 2
+        else:
+            final = state[:, n]
+            cost += ca.mtimes([final.T, ca.DM(terminal), final])
+        self.terminal_weight = terminal
 
         opti.subject_to(opti.bounded(-self.max_rudder, rudder,
                                      self.max_rudder))
         opti.subject_to(opti.bounded(-self.max_split, split, self.max_split))
         opti.minimize(cost)
-        opti.solver("ipopt", {"print_time": False},
-                    {"print_level": 0, "max_iter": 600, "sb": "yes",
-                     "acceptable_tol": 1e-3, "acceptable_iter": 4})
+        if self.solver == "qp":
+            # One SQP step on a problem that is already quadratic IS the
+            # exact solution, so this is a QP solve wearing an SQP hat.
+            # An active-set method returns the optimum or reports genuine
+            # infeasibility; it has no iteration limit to quietly hit,
+            # which is what the fallback path was absorbing.
+            opti.solver("sqpmethod",
+                        {"print_time": False, "qpsol": "qrqp",
+                         "print_iteration": False, "print_header": False,
+                         "print_status": False, "max_iter": 1,
+                         "qpsol_options": {"print_iter": False,
+                                           "print_header": False,
+                                           "error_on_fail": False}})
+        else:
+            opti.solver("ipopt", {"print_time": False},
+                        {"print_level": 0, "max_iter": 600, "sb": "yes",
+                         "acceptable_tol": 1e-3, "acceptable_iter": 4})
 
         self._opti = opti
         self._vars = (state, rudder, split)
-        self._params = (start, speed, curvature, previous)
+        self._params = (start, speed, curvature, previous, psi_ref, bias)
 
     # -- geometry ---------------------------------------------------------
     def nearest(self, point) -> int:
@@ -283,7 +384,8 @@ class PathMPC:
         self._next_solve = t + self.interval
 
         opti = self._opti
-        start, speed_p, curvature_p, previous_p = self._params
+        (start, speed_p, curvature_p, previous_p, psi_ref_p,
+         bias_p) = self._params
         # Yaw rate swings hard within each stroke -- the rig's own couple
         # and the roll coupling -- so the raw value makes the plan jump
         # every solve.  A coxswain does not react to within-stroke wobble
@@ -297,10 +399,48 @@ class PathMPC:
         # that fast.
         blend = np.exp(-self.interval / 0.45)
         self._filtered_rate = blend * self._filtered_rate + (1 - blend) * raw
+
+        # -- what the model did not predict, fed back as a moment --------
+        # A one-state disturbance observer.  Roll the model forward from
+        # the last solve under the control that was actually applied, and
+        # charge the difference between that and the measured yaw rate to
+        # an unmodelled moment.  It picks up the rig couple, a crosswind
+        # weathervane and current shear -- none of which the reduced model
+        # contains and all of which the boat has.
+        #
+        # Without it the only way to hold a line against a standing yaw
+        # bias is a standing cross-track error, because cross-track
+        # feedback is the sole path to a non-zero rudder.  With it the
+        # controller carries the trim on the feedforward, which is what a
+        # coxswain does with a thumb on the strings and no thought at all.
+        if self.estimate_bias and self._prev_time is not None:
+            elapsed = max(t - self._prev_time, 1e-3)
+            tau = self.model.yaw_inertia / max(
+                self.model.yaw_damping * speed, 1e-6)
+            phi = float(np.exp(-elapsed / tau))
+            steady = ((self._prev_moment + self.bias)
+                      / max(self.model.yaw_damping * speed, 1e-6))
+            predicted = phi * self._prev_rate + (1.0 - phi) * steady
+            innovation = self._filtered_rate - predicted
+            self.bias += (self.bias_gain * innovation
+                          * self.model.yaw_damping * speed)
+            # Never let the estimate exceed what the rudder could trim; a
+            # bias beyond that is not a bias the controller can use, and
+            # an unbounded integrator is how observers turn a transient
+            # into a runaway.
+            authority = (self.model.yaw_control * speed ** 2
+                         * self.max_rudder)
+            self.bias = float(np.clip(self.bias, -authority, authority))
+
         opti.set_value(start, [self.cross_track, error, self._filtered_rate])
         opti.set_value(speed_p, speed)
         opti.set_value(curvature_p, self._line_curvature(index, speed))
         opti.set_value(previous_p, self._held)
+        # Linearise the one nonlinear term about where the boat actually
+        # is, so the quadratic program stays faithful at large heading
+        # errors instead of only near the line.
+        opti.set_value(psi_ref_p, error if self.solver == "qp" else 0.0)
+        opti.set_value(bias_p, self.bias if self.estimate_bias else 0.0)
 
         # Warm start from a forward roll of the model.  Without a guess
         # IPOPT begins at zero, which violates every dynamics equality at
@@ -344,7 +484,18 @@ class PathMPC:
         else:
             opti.set_initial(self._vars[1],
                              np.full((1, self.steps), self._held))
-        opti.set_initial(self._vars[2], np.zeros((1, self.steps)))
+        # The split was warm-started from zeros every single solve, which
+        # threw away a perfectly good previous answer and asked the solver
+        # to rediscover it.  Shift it the same way the rudder is shifted.
+        if self._split_plan is not None and len(self._split_plan) == self.steps:
+            shift = max(int(round((t - self._plan_time)
+                                  / (self.horizon / self.steps))), 0)
+            rolled = np.concatenate([
+                self._split_plan[shift:],
+                np.full(min(shift, self.steps), self._split_plan[-1])])
+            opti.set_initial(self._vars[2], rolled[:self.steps][None, :])
+        else:
+            opti.set_initial(self._vars[2], np.zeros((1, self.steps)))
 
         try:
             solution = opti.solve()
@@ -353,7 +504,9 @@ class PathMPC:
             self._plan = plan
             self._plan_time = t
             self._held = float(plan[0])
-            self.split = float(np.atleast_1d(solution.value(split)).ravel()[0])
+            split_plan = np.atleast_1d(solution.value(split)).ravel()
+            self._split_plan = split_plan
+            self.split = float(split_plan[0])
             self.solves += 1
         except RuntimeError as error:
             self.last_error = str(error)[:600]
@@ -366,4 +519,10 @@ class PathMPC:
             # was optimal a quarter of a second ago and the boat has not
             # moved far since.
             self.failures += 1
+        # Whatever happened above, this is the command the boat will now
+        # fly, so this is the moment the observer must predict from.
+        self._prev_time = t
+        self._prev_rate = self._filtered_rate
+        self._prev_moment = (-self.model.yaw_control * speed ** 2 * self._held
+                             - self.model.split_control * self.split)
         return float(np.clip(self._held, -self.max_rudder, self.max_rudder))

@@ -1,47 +1,64 @@
-r"""Vortex generators on a rowing blade: right physics, wrong sign.
+r"""Vortex generators on a rowing blade, with the lift term where it belongs.
 
     python scripts/blade_devices.py
 
-The trip-tape question died on Reynolds number.  **This one does not** --
-and that is the interesting part.  Water's kinematic viscosity is fifteen
-times lower than air's, so a blade of the same size moving at a similar
-speed sits two orders of magnitude higher up the Reynolds scale than an
-oar shaft in air.  The blade is squarely in the regime where vortex
-generators are used on wind turbines and aircraft.
+A first version of this script treated the blade as a drag plate through
+the whole stroke, took the absolute value of the flow's chordwise
+component, and so hid the two things that actually decide the question:
+**the blade generates a large share of its force by lift, and the flow
+reverses across the face at the perpendicular.**  Both are corrected here.
 
-So the idea cannot be dismissed the way the tape could.  It fails for two
-other reasons, both of which this script measures rather than asserts.
+What the blade is really doing
+------------------------------
+The flow the blade meets has two components: one normal to the face --
+the model's slip -- and one along the chord, ``v_b sin(theta)``.  That
+second one carries the sign of the oar angle, so it points one way from
+the catch to the perpendicular and **the other way from the perpendicular
+to the finish**.  The leading edge and the trailing edge swap places
+halfway through the drive.
 
-One: the separation is fixed by the geometry, not the boundary layer
---------------------------------------------------------------------
-A vortex generator re-energises a boundary layer so that it stays
-attached further round a curved surface.  That requires the separation
-point to be *free* to move.  On a thin, sharp-edged plate at a large
-angle to the flow, it is not: the flow leaves at the edge because there is
-nowhere else for it to go, at any Reynolds number and with any amount of
-mixing.  The script reports the flow angle to the blade face through the
-drive so it is clear how much of the stroke is spent in that condition.
+Between those, the angle of attack sweeps from about 30 degrees at the
+catch, through 70-plus at the perpendicular, and back down at the finish.
+Low angles are a lifting regime; the perpendicular is a drag regime.  The
+blade is both devices at different moments, which is what makes it
+interesting and what a ``C2 * slip^2`` model cannot express.
 
-Two: for most of the drive, more attached flow means LESS force
----------------------------------------------------------------
-This is the one that turns the idea around.  An aircraft wing wants lift
-and hates pressure drag.  **A rowing blade is a drag device** -- at
-mid-drive it is a plate held broadside to the water, and the propulsive
-reaction *is* its pressure drag.  A device that narrows the wake and
-delays separation reduces exactly the force the crew is trying to make.
-Near the catch, where the blade slices at a shallow angle and behaves
-more like a foil, the sign flips and the device would help.  So the
-question is which phase carries the impulse, which is measurable.
+The measurement that settles the device question
+------------------------------------------------
+Caplan and Gardner [CG07]_ towed scaled Big Blade and Macon blades in a
+water flume across the whole sweep range and fitted
 
-Where the tip devices come in
------------------------------
-Calling them a glorified tip protector is a little unfair.  A rowing
-blade is a very low aspect ratio surface, and low aspect ratio surfaces
-lose a large share of their force to flow spilling round the ends.  A
-fence there is an end plate: it raises the pressure difference across the
-blade and therefore raises the force, in the direction the crew wants.
-**The tip is the one place on a blade where a device has both the right
-mechanism and the right sign.**
+.. math::
+
+    C_L = A_L \sin(2\alpha), \qquad C_D = A_D \sin^2(\alpha)
+
+and reported **no significant stall at any angle of attack**.
+
+That sentence is the answer.  Those are the coefficients of a *fully
+separated* plate -- the flat-plate crossflow form -- and a surface that
+never stalls is a surface whose flow was never attached.  A vortex
+generator exists to postpone stall by re-energising an attached boundary
+layer.  On a blade there is no attached boundary layer to re-energise and
+no stall to postpone, at **any** angle of attack, which is a stronger
+statement than anything about Reynolds number.
+
+And the reversal makes the placement self-defeating
+---------------------------------------------------
+Even granting a mechanism: a generator a quarter chord back from one edge
+is three quarters of a chord back from the other, and the two edges trade
+roles at the perpendicular.  Whatever it did for the first half of the
+drive it would be badly placed to do for the second.
+
+References
+----------
+.. [CG07] Caplan, N. and Gardner, T. N. (2007) *A fluid dynamic
+   investigation of the Big Blade and Macon oar blade designs in rowing
+   propulsion*, Journal of Sports Sciences 25(6), 643-650.  Quasi-static
+   water-flume tests over the full sweep range; the sine fits and the
+   no-stall finding are theirs.
+.. [CG10] Coppel, A., Gardner, T., Caplan, N. and Hargreaves, D. (2010)
+   *Simulating the fluid dynamic behaviour of oar blades in competition
+   rowing*, Proc. IMechE Part P.
 """
 
 from __future__ import annotations
@@ -59,41 +76,57 @@ from coxswain.crew.oarlock import BladeModel            # noqa: E402
 
 RACE_LENGTH = 4822.0
 SPEED_EXPONENT = 0.498
-WATER_VISCOSITY = 1.0e-6          # m^2/s, fifteen times below air's
+WATER_DENSITY = 1000.0
+WATER_VISCOSITY = 1.0e-6
 
-#: Chord of the blade in the flow direction, m.  A big blade is about
-#: 0.25 m across the face; this is the streamwise dimension that sets the
-#: Reynolds number.
-BLADE_CHORD = 0.25
+#: Caplan and Gardner's amplitudes for a Big Blade, representative.
+#: ``C_L = A_L sin(2a)``, ``C_D = A_D sin^2(a)``.
+A_LIFT = 1.00
+A_DRAG = 1.20
 
-#: Beyond this angle from the blade's face normal the flow is shallow
-#: enough that the blade behaves like a foil rather than a plate, and a
-#: separation-delaying device would work with the crew rather than
-#: against them.
-FOIL_ANGLE = np.radians(45.0)
+#: Big Blade: about 0.55 m along the shaft (the chord the flow crosses)
+#: by 0.25 m of vertical extent (the span).
+BLADE_CHORD = 0.55
+BLADE_AREA = 0.1100
 
 
-def drive_profile(boat, boat_speed, samples=400):
-    """Flow angle, Reynolds number and impulse through the drive."""
-    blade = BladeModel.sweep(outboard=boat.rig.seats[0].oarlocks[0].oar.length
-                             - boat.rig.seats[0].oarlocks[0].oar.inboard)
+def stroke(boat, boat_speed, samples=600):
+    """Signed flow geometry and the lift/drag split through the drive."""
+    oar = boat.rig.seats[0].oarlocks[0].oar
+    outboard = oar.length - oar.inboard
+    blade = BladeModel.sweep(outboard=outboard)
     timing = boat.timing
     times = np.linspace(0.0, timing.drive_duration, samples)
-    angle = np.asarray(boat.oar_sweep(times, timing), dtype=float)
+    theta = np.asarray(boat.oar_sweep(times, timing), dtype=float)
     rate = np.asarray(boat.oar_sweep.rate(times, timing), dtype=float)
 
-    # Blade velocity through the water, resolved on the blade's own axes:
-    # normal to the face (this is the model's slip) and along the shaft.
-    normal = np.abs(blade.slip_velocity(angle, rate, boat_speed))
-    along = np.abs(boat_speed * np.sin(angle))
-    speed = np.hypot(normal, along)
+    # Flow relative to the blade, on the blade's own axes.  ``normal`` is
+    # the model's slip; ``chordwise`` carries the sign of the oar angle
+    # and is the component that reverses at the perpendicular.
+    normal = -blade.slip_velocity(theta, rate, boat_speed)
+    chordwise = -boat_speed * np.sin(theta)
+    speed = np.hypot(normal, chordwise)
 
-    # Angle of the oncoming flow measured from the face normal.  Zero is
-    # square-on and bluff; ninety is edgewise and foil-like.
-    flow_angle = np.arctan2(along, np.maximum(normal, 1e-6))
+    # Angle of attack from the chord line, signed by which edge leads.
+    alpha = np.arctan2(normal, chordwise)
+    lift_coefficient = A_LIFT * np.sin(2.0 * alpha)
+    drag_coefficient = A_DRAG * np.sin(alpha) ** 2
+    dynamic = 0.5 * WATER_DENSITY * BLADE_AREA * speed ** 2
+
+    # Drag acts along the flow; lift perpendicular to it.  Resolve both
+    # onto the boat's x axis to get what each actually contributes.
+    flow_x = -(normal * np.cos(theta) + chordwise * np.sin(theta))
+    flow_y = -(-normal * np.sin(theta) + chordwise * np.cos(theta))
+    magnitude = np.maximum(np.hypot(flow_x, flow_y), 1e-9)
+    drag_x = dynamic * drag_coefficient * flow_x / magnitude
+    lift_x = dynamic * lift_coefficient * (-flow_y) / magnitude
+
     reynolds = speed * BLADE_CHORD / WATER_VISCOSITY
-    force = np.abs(blade.normal_force(angle, rate, boat_speed))
-    return times, angle, flow_angle, reynolds, force
+    return dict(times=times, theta=theta, alpha=alpha, chordwise=chordwise,
+                normal=normal, speed=speed, reynolds=reynolds,
+                lift_x=lift_x, drag_x=drag_x,
+                lift_coefficient=lift_coefficient,
+                drag_coefficient=drag_coefficient)
 
 
 def main(argv=None):
@@ -105,99 +138,93 @@ def main(argv=None):
 
     boat = catalog.eight(rate=28.0, rower_mass=72.0, rower_stature=1.72)
     speed = RACE_LENGTH / args.race_time
-    times, angle, flow_angle, reynolds, force = drive_profile(boat, speed)
+    s = stroke(boat, speed)
 
-    print("the blade is NOT ruled out by Reynolds number, unlike the shaft")
-    print("  water is %.0fx less viscous than air, so the same size and speed"
-          % (1.5e-5 / WATER_VISCOSITY))
-    print("  sit two decades higher up the scale.")
-    print("  blade Reynolds number over the drive: %.1e to %.1e"
-          % (reynolds.min(), reynolds.max()))
-    print("  force-weighted mean: %.1e"
-          % float(np.average(reynolds, weights=force)))
-    print("  (an oar shaft in air managed 2e4.  This is the regime where")
-    print("   vortex generators are actually used.)")
+    print("the flow reverses across the face at the perpendicular")
+    print("  %-14s %7s %8s %9s %8s %8s %8s"
+          % ("phase", "oar", "alpha", "chordwise", "C_L", "C_D", "Re"))
+    for label, fraction in (("catch", 0.03), ("early", 0.22),
+                            ("perpendicular", 0.50), ("late", 0.74),
+                            ("finish", 0.97)):
+        i = int(fraction * (len(s["times"]) - 1))
+        print("  %-14s %6.0f %7.0f %8.2f %9.2f %8.2f %8.1e"
+              % (label, np.degrees(s["theta"][i]),
+                 np.degrees(s["alpha"][i]), s["chordwise"][i],
+                 s["lift_coefficient"][i], s["drag_coefficient"][i],
+                 s["reynolds"][i]))
+    crossings = int(np.sum(np.diff(np.sign(s["chordwise"])) != 0))
+    print("  'chordwise' is the flow along the blade's chord, in m/s.  It")
+    print("  changes sign %d time(s) in the drive: the leading edge and the"
+          % crossings)
+    print("  trailing edge trade places at the perpendicular.")
     print()
 
-    print("but what is the flow doing?  angle from the blade's face normal")
-    print("  %-16s %8s %10s %12s %10s"
-          % ("phase", "oar deg", "flow deg", "Re", "force N"))
-    for label, fraction in (("catch", 0.02), ("early drive", 0.20),
-                            ("mid-drive", 0.50), ("late drive", 0.80),
-                            ("finish", 0.98)):
-        i = int(fraction * (len(times) - 1))
-        print("  %-16s %8.0f %10.0f %12.1e %10.0f"
-              % (label, np.degrees(angle[i]), np.degrees(flow_angle[i]),
-                 reynolds[i], force[i]))
-    print("  0 deg of flow angle is square-on to the face -- a bluff plate,")
-    print("  separating at its own sharp edges.  90 would be edgewise.")
+    integral = np.trapezoid if hasattr(np, "trapezoid") else np.trapz
+    lift_impulse = float(integral(np.abs(s["lift_x"]), s["times"]))
+    drag_impulse = float(integral(np.abs(s["drag_x"]), s["times"]))
+    share = 100.0 * lift_impulse / (lift_impulse + drag_impulse)
+    print("how the propulsive impulse splits")
+    print("  lift  %6.1f N s   %4.1f%%" % (lift_impulse, share))
+    print("  drag  %6.1f N s   %4.1f%%" % (drag_impulse, 100 - share))
+    print("  So it is genuinely both, and the earlier claim that this is a")
+    print("  drag device with a lifting fringe was wrong.")
     print()
 
-    impulse = np.trapezoid(force, times) if hasattr(np, "trapezoid") \
-        else np.trapz(force, times)
-    foil_like = force * (flow_angle > FOIL_ANGLE)
-    foil_impulse = (np.trapezoid(foil_like, times) if hasattr(np, "trapezoid")
-                    else np.trapz(foil_like, times))
-    share = 100.0 * foil_impulse / impulse
-    print("how much of the stroke could a separation-delaying device help?")
-    print("  impulse generated at flow angles above %.0f deg (foil-like):"
-          % np.degrees(FOIL_ANGLE))
-    print("      %.0f%% of the drive's impulse" % share)
-    print("  the other %.0f%% is made with the blade close to broadside,"
-          % (100 - share))
-    print("  where the propulsive force IS the pressure drag and delaying")
-    print("  separation would reduce it.  A device at quarter chord would")
-    print("  be working against the crew for that majority of the stroke.")
+    print("what that does NOT rescue")
+    print("  Caplan and Gardner measured C_L = %.2f sin(2a) and"
+          % A_LIFT)
+    print("  C_D = %.2f sin^2(a) with NO SIGNIFICANT STALL at any angle."
+          % A_DRAG)
+    print("  Those are the coefficients of a fully separated plate.  A")
+    print("  surface that never stalls is one whose flow was never")
+    print("  attached, and a vortex generator's whole job is to postpone")
+    print("  stall on an attached boundary layer.")
     print()
-    print("  And at quarter chord specifically: that placement assumes the")
-    print("  flow is still attached over the leading quarter.  On a thin")
-    print("  spooned blade meeting the water at %.0f-%.0f degrees off its"
-          % (np.degrees(flow_angle.min()), np.degrees(flow_angle.max())))
-    print("  face normal, it separates at the edge before it ever reaches")
-    print("  the generators.")
+    peak = int(np.argmax(np.abs(s["lift_coefficient"])))
+    # Fold onto 0-90: an angle of attack of 135 degrees is 45 degrees
+    # measured from the other edge, which is the same flow.
+    folded = np.degrees(np.abs(s["alpha"][peak])) % 180.0
+    folded = min(folded, 180.0 - folded)
+    print("  peak |C_L| in the drive: %.2f, at alpha = %.0f degrees"
+          % (np.abs(s["lift_coefficient"]).max(), folded))
+    print("  A thin attached foil would peak near alpha = 12-15 degrees and")
+    print("  then drop off a cliff.  This peaks at 45 and comes down as a")
+    print("  sine -- that is separated-flow lift, from the pressure")
+    print("  difference across a wake, not from circulation a generator")
+    print("  could thicken.")
+    print()
+    print("  And the placement defeats itself independently: quarter chord")
+    print("  from one edge is three quarters from the other, and the edges")
+    print("  swap at the perpendicular.")
     print()
 
-    immersion(boat, speed, args)
+    immersion(args)
     return 0
 
 
-def immersion(boat, boat_speed, args):
-    """What actually moves blade force, on the same basis as everything else.
-
-    Deliberately restricted to covers a racing crew actually rows at.  The
-    first version of this table swept down to 25 mm and reported 335
-    seconds, which is arithmetically what a 63% force loss does to a race
-    and is not a number about rowing: no crew rows 4.8 km with the blades
-    barely in.  A model will answer any question it is asked, including a
-    silly one.
-    """
+def immersion(args):
+    """What does move blade force, on the same basis as everything else."""
     blade = BladeModel.sweep()
     optimum = blade.immersion_factor(0.125)
-    print("what does move the number, measured with the same model")
+    print("what does move the number")
     print("  %-30s %10s %11s" % ("blade cover", "force kept", "over a race"))
     for label, cover in (("light, 90 mm -- a tired crew", 0.090),
                          ("good, 110 mm", 0.110),
                          ("Kleshnev optimum, 125 mm", 0.125)):
         factor = blade.immersion_factor(cover)
-        seconds = args.race_time * SPEED_EXPONENT * (1.0 - factor / optimum)
-        print("  %-30s %9.3f %10.1f s" % (label, factor, seconds))
+        print("  %-30s %9.3f %10.1f s"
+              % (label, factor,
+                 args.race_time * SPEED_EXPONENT * (1.0 - factor / optimum)))
     print()
-    print("  So 35 mm of cover -- one third of a blade width, a difference")
-    print("  a coach can see from the launch -- is worth more than every")
-    print("  aerodynamic device in this project put together.")
+    print("  Ventilation -- air drawn down the back of a blade that is not")
+    print("  buried -- is the real blade-surface problem, and no device")
+    print("  fixes it.  Depth does.")
     print()
-    print("  Two things this model will not tell you, so do not ask it:")
-    print("  it has no penalty for burying the blade too deep (extraction")
-    print("  and the drag of getting it in and out), so its advice runs")
-    print("  monotonically deeper and should be ignored past the optimum;")
-    print("  and it assumes the crew holds the same handle force whatever")
-    print("  the blade is doing, which is why sweeping it to absurd covers")
-    print("  produces absurd numbers.")
-    print()
-    print("  The tip fences are the exception worth keeping: a blade this")
-    print("  low in aspect ratio spills a lot of flow round its ends, and")
-    print("  an end plate raises the pressure difference rather than")
-    print("  lowering it.  Right mechanism, right sign, small effect.")
+    print("  The tip fences remain the exception: a blade this low in")
+    print("  aspect ratio spills a lot round its ends, and an end plate")
+    print("  raises the pressure difference rather than lowering it.")
+    print("  That mechanism does not need attached flow, which is exactly")
+    print("  why it is the one that survives.")
 
 
 if __name__ == "__main__":
