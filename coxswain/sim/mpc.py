@@ -30,9 +30,25 @@ could run.  The mismatch between the two is then a *feature of the
 experiment*: if MPC on a five-state model steers the full boat well, that
 says the reduced model captures what matters for steering.
 
-The cost
---------
-Four terms, and the weights are the whole design:
+The cost, and what the weights are actually for
+-----------------------------------------------
+Four terms.  The weights were tuned for a long time against cross-track
+error, which is the wrong objective and was quietly deciding things:
+scored on tracking, tighter is always better, so the tuning pressure runs
+one way and never stops.
+
+Scored on the clock -- ``scripts/mpc_tune.py`` times the boat between two
+fixed gates on the water -- **it runs the other way.**  Over the Weeks
+turn, raising ``weight_cross`` from 2 to 120 improves tracking from 1.41 m
+to 1.05 m rms and costs **1.96 seconds**, which over a full course is
+about 12.7 s.  The distance column is what makes that legible: the tightly
+tracked boat travels *one metre less* and still loses two seconds, so
+every bit of the loss is rudder and yaw drag bought with helm.
+
+A controller that holds the line beautifully is not the goal.  The line is
+already the fast way round; holding it to the last centimetre costs more
+than the centimetres are worth.  The weights below are therefore a
+compromise the clock chose, not the tightest tracking available.
 
 ``cross-track``
     Distance from the line.  The thing being asked for.
@@ -304,15 +320,20 @@ class PathMPC:
         opti.subject_to(opti.bounded(-self.max_split, split, self.max_split))
         opti.minimize(cost)
         if self.solver == "qp":
-            # One SQP step on a problem that is already quadratic IS the
-            # exact solution, so this is a QP solve wearing an SQP hat.
+            # A problem that is already quadratic converges in two SQP
+            # steps -- one to the optimum, one to notice the step is zero
+            # -- so the iteration budget exists only to let it *say* so.
+            # Set to 1 it solved the problem correctly every time and
+            # reported Maximum_Iterations_Exceeded anyway, which the
+            # caller counted as a failure: 99.6% "failures" that were
+            # each holding a perfectly good answer at arm's length.
             # An active-set method returns the optimum or reports genuine
             # infeasibility; it has no iteration limit to quietly hit,
             # which is what the fallback path was absorbing.
             opti.solver("sqpmethod",
                         {"print_time": False, "qpsol": "qrqp",
                          "print_iteration": False, "print_header": False,
-                         "print_status": False, "max_iter": 1,
+                         "print_status": False, "max_iter": 12,
                          "qpsol_options": {"print_iter": False,
                                            "print_header": False,
                                            "error_on_fail": False}})

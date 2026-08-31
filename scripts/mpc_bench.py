@@ -71,9 +71,11 @@ def build_path(start, finish, reference_speed, iterations=35):
     return full[inside]
 
 
-def run(path, steering, label, duration, speed, dt=0.02, **kwargs):
+def run(path, steering, label, duration, speed, dt=0.02, horizon=6.0,
+        steps=12, **kwargs):
     boat = catalog.eight(rate=28.0, rower_mass=72.0, rower_stature=1.72)
-    mpc = PathMPC(path, model=steering, horizon=6.0, steps=12,
+    boat.power_scales = np.full(boat.n_seats, MASTERS_POWER)
+    mpc = PathMPC(path, model=steering, horizon=horizon, steps=steps,
                   interval=0.20, **kwargs)
     sim = RowingSimulator(boat, coxswain=Coxswain(rudder_override=mpc))
     heading = float(np.arctan2(path[1, 1] - path[0, 1],
@@ -114,6 +116,19 @@ def main(argv=None):
     parser.add_argument("--to", dest="finish", type=float, default=2900.0)
     parser.add_argument("--duration", type=float, default=210.0)
     parser.add_argument("--race-time", type=float, default=1140.0)
+    parser.add_argument("--horizons", type=float, nargs="+", default=None,
+                        help="sweep the look-ahead instead of comparing "
+                             "controllers.  Now that a solve is a QP, a "
+                             "longer horizon is affordable in a way it was "
+                             "not before, and 6 s at racing speed is only "
+                             "25 m of river -- less than a boat and a half.")
+    parser.add_argument("--weights", type=float, nargs="+", default=None,
+                        help="sweep the cross-track weight.  The horizon "
+                             "turned out not to bind and the line is "
+                             "comfortably steerable, so what is left is "
+                             "whether the controller is choosing its "
+                             "tracking error rather than being limited to "
+                             "it.")
     args = parser.parse_args(argv)
 
     speed = 4822.0 / args.race_time
@@ -128,6 +143,43 @@ def main(argv=None):
           % (steering.yaw_inertia, steering.yaw_damping,
              steering.yaw_control, np.degrees(steering.rudder_limit)))
     print()
+
+    if args.horizons:
+        print("  %-14s %6s %8s %8s %8s %8s %9s"
+              % ("horizon", "steps", "look m", "rms m", "worst", "fail %",
+                 "x real"))
+        for horizon in args.horizons:
+            steps = max(int(round(horizon / 0.5)), 6)
+            row = run(path, steering, "%.0f s" % horizon, args.duration,
+                      speed, horizon=horizon, steps=steps,
+                      solver="qp", estimate_bias=True)
+            print("  %-14.0f %6d %8.0f %8.2f %8.2f %8.1f %9.1f"
+                  % (horizon, steps, horizon * speed, row["rms"],
+                     row["worst"], row["fail"], row["real_time"]))
+        print()
+        print("  The transcription step is held at 0.5 s throughout, so a")
+        print("  longer horizon means more variables rather than a coarser")
+        print("  plan -- which is the comparison worth making.")
+        return 0
+
+    if args.weights:
+        print("  %-12s %8s %8s %10s" % ("w_cross", "rms m", "worst",
+                                          "vs default"))
+        base = None
+        for weight in args.weights:
+            row = run(path, steering, "%.0f" % weight, args.duration, speed,
+                      solver="qp", estimate_bias=True, weight_cross=weight)
+            base = row["rms"] if base is None else base
+            print("  %-12.1f %8.2f %8.2f %9.0f%%"
+                  % (weight, row["rms"], row["worst"],
+                     100 * (row["rms"] / base - 1.0)))
+        print()
+        print("  Falling rms means the controller was CHOOSING its error,")
+        print("  not limited to it.  The price is rudder, and rudder is")
+        print("  drag -- which this script does not measure, so a tighter")
+        print("  weight is not adopted as a default on the strength of a")
+        print("  tracking number alone.")
+        return 0
 
     trials = (("NLP, as it was", dict(solver="nlp", estimate_bias=False)),
               ("QP", dict(solver="qp", estimate_bias=False)),
