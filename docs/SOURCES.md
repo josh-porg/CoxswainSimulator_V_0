@@ -5136,3 +5136,117 @@ cancels the rudder moment.** Shrinking it costs directional stability,
 which is exactly the trade the Munk factor was mis-set to dodge. The
 honest resolution needs the real boat: fin and rudder dimensions, and
 whether the rudder is a flap on the fin or a separate blade.
+
+## 62. Young (2009), redone with a hull that has real wave drag
+
+`Effects of Various Inefficiencies in Rowing on Shell Speed`, Stephen F.
+Young Jr, BSc thesis, MIT, 2009. A Simulink model of a heavyweight men's
+8+ adapted from van Holst, used to rank seven sources of inefficiency by
+how much speed each costs.
+
+His ranking, greatest first: **stroke rating, coefficient of friction,
+wetted surface area, stroke length, static weight, dynamic weight, slide
+acceleration.**
+
+### The assumption the whole thesis rests on
+
+Every scaling law in it descends from one equation. His §Model, on the
+external force:
+
+> the wave-making drag is absorbed into the coefficient of friction used
+> to determine the friction drag
+
+so `R = C_tot v² S` with a single constant, `P = C_tot v³ S`, and
+therefore `v ∝ P^(1/3)` (eq. 19), `v ∝ S^(-1/3)`, `v ∝ W^(-1/9)` (eq. 24
+via `S ∝ W^(1/3)`), `v ∝ φ^(1/3)` for stroke length (eq. 29) and
+`v ∝ SR^(1/3)` for rate at constant work per stroke (eq. 33).
+
+**That is exactly the assumption §61 and the Michell work removed.** So
+every exponent can be measured here rather than assumed, which is what
+`coxswain/sim/performance.py` does and `scripts/young_replication.py`
+reports. The exponent is `n = d ln R / d ln v`, and `d ln v/d ln P =
+1/(1+n)`; Young needs `n = 2` exactly.
+
+### What the measurement says
+
+| v m/s | n Young | n constant-C | n Michell |
+|---|---|---|---|
+| 3.50 | 2.0 | 1.891 | 1.823 |
+| **4.23** | 2.0 | 1.893 | **1.640** |
+| 5.00 | 2.0 | 1.896 | 1.845 |
+| 5.50 | 2.0 | 1.897 | 1.911 |
+| 6.00 | 2.0 | 1.898 | 1.875 |
+
+A constant wave coefficient cannot make `n` move with speed — it varies
+by 0.007 across the whole range. Michell's varies by 0.27, and **the dip
+is at masters racing speed**, which is the wave-drag hollow arriving in a
+quantity nobody put it into.
+
+Exponents at 4.23 m/s:
+
+| | Young | constant-C | Michell | vs Young |
+|---|---|---|---|---|
+| power `d ln v/d ln P` | 0.3333 | 0.3456 | **0.3788** | **+14%** |
+| wetted area `d ln v/d ln S` | −0.3333 | −0.2462 | −0.3292 | −1% |
+| weight `d ln v/d ln W` | −0.1111 | −0.1304 | **−0.1289** | **+16%** |
+| area from weight `d ln S/d ln W` | 0.3333 | 0.3663 | 0.3663 | +10% |
+
+**Power is worth 14% more than the cube-root law says**, and the reason is
+the hollow: at racing speed wave drag is falling relative to `v²`, total
+resistance rises more slowly, and a percent of power buys more speed than
+it would anywhere else on the curve. This is a result a constant
+coefficient is structurally incapable of producing.
+
+**Weight costs 16% more than the ninth-root law says**, for a reason
+Young's algebra has no term for. His route from weight to speed runs
+entirely through wetted area. But sinking a shell grows its midship
+*transverse* area much faster than its wetted area — wetted area is
+dominated by a length that does not change — and the shape drag that
+feeds is **about a third of the total weight penalty**. Composing his two
+steps gives −0.090 against the measured −0.130; the missing 31% is that
+channel. Pinned by
+`test_weight_hurts_through_transverse_area_as_well_as_wetted`.
+
+### The rate result, which changes the story
+
+Young ranks stroke rating **first of seven**. But eq. (33) holds work per
+stroke constant, so power rises with rate: *his rating lever is the power
+lever wearing a different hat*, and ranking it beside wetted area — a
+genuinely independent parameter — compares unlike things.
+
+That matters here beyond bookkeeping. This model returns **+0.00% per spm**
+when rate is varied at constant power, against Holt's measured +0.6 to
++1.1%, and that was logged as a defect. Young's eq. (33) over Holt's own
+range of rates:
+
+| | %/spm at 32.8 | %/spm at 38.1 |
+|---|---|---|
+| Young eq. (33), `1/(3·SR)` | 1.016 | 0.875 |
+| this model, measured exponent | 1.155 | 0.994 |
+| **Holt, measured, power-adjusted** | **0.600** | **1.100** |
+
+**Young's pure power channel already reproduces what Holt measured after
+adjusting for power.** Either their adjustment left it standing, or two
+different mechanisms agree to three significant figures.
+
+So the +0.00% may be correct and the target wrong. This is not settled —
+but it is no longer a debt to be paid by bolting a rate effect onto the
+model until the number matches, which was the plan before reading Young.
+`coxswain/crew/muscle.py` says its docstring asserts Hill's relation as
+Holt's explanation; that assertion is now in question and the module
+should not be wired into the simulator on the strength of it.
+
+### What is quasi-static about this
+
+The exponents differentiate resistance at fixed speed, with no surge
+oscillation. The full unsteady simulator measures **5.6 s per 1% of power**
+against the **4.3 s** this calculation gives — a 30% gap that is the
+oscillation, and a bound on what the scaling laws can claim.
+
+### Still not replicated
+
+Young's slide-acceleration and recovery-profile comparison (his figs. 4-5,
+three recovery velocity profiles) is a genuinely dynamic result his
+Simulink model was well suited to and these algebraic exponents cannot
+touch. It needs the 6-DOF simulator with the recovery profile varied, and
+is the obvious next replication.
