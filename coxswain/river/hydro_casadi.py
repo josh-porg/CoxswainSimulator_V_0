@@ -163,7 +163,13 @@ def surface_load(surface, u, v, yaw_rate, deflection=0.0,
     if surface.controllable:
         limited = ca.fmax(ca.fmin(deflection, surface.max_deflection),
                           -surface.max_deflection)
-        local_angle = local_angle - surface.flap_effectiveness * limited
+        # ``control_effectiveness``, not the raw ``flap_effectiveness``
+        # field: the field is None for a surface that derives its
+        # effectiveness from the flap chord ratio instead of stating it,
+        # and the NumPy path has always gone through the property.  Using
+        # the field here made the two implementations disagree wherever it
+        # was set, and raise TypeError wherever it was not.
+        local_angle = local_angle - surface.control_effectiveness * limited
 
     lift_coefficient = surface.lift_curve_slope * local_angle
     dynamic_pressure = 0.5 * density * speed ** 2

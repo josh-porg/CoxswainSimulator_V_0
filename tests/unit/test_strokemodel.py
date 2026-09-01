@@ -5,6 +5,7 @@ import pytest
 
 from coxswain.boats import catalog
 from coxswain.core.rigid_body import assemble_mass_matrix
+from coxswain.sim.simulator import DEFAULT_MUNK_FACTOR
 from coxswain.river.strokemodel import (HydroCoefficients, StrokeAggregates,
                                         StrokePeriodicFit,
                                         StrokeResolvedModel,
@@ -171,27 +172,70 @@ def test_planar_mass_matrix_is_positive_definite():
 # --------------------------------------------------------------------------
 # hydrodynamic coefficients
 # --------------------------------------------------------------------------
-def test_the_hull_is_directionally_unstable_in_sideslip(boat):
-    """``N`` per ``(u v)`` is **negative**, and that is the real behaviour.
+def _sideslip_yaw_slope(boat, munk_factor, speed=5.2, sway=0.30,
+                        sample_time=0.35):
+    """``N`` per ``(u v)`` from the appendage channel, at a given Munk factor.
 
-    This assertion used to be the opposite -- that the term was
-    stabilising -- and it held only because the model had no Munk moment.
-    A slender body in a potential flow is destabilised by drift: the
-    entrained water gives a moment that turns the hull *broadside*, and
-    for a rowing shell it is large.
-
-    The evidence that settles the sign is what happens when a shell loses
-    its skeg, which takes the rudder with it: the boat becomes
-    uncontrollable, slews violently, and crews resort to squaring blades
-    or dragging a hand to steer.  A hull whose sideslip term were
-    stabilising would simply weathervane straight, and it does not.
-
-    So the assembled boat is directionally unstable and is held straight
-    by the skeg and rudder, which is why losing them is catastrophic.
-    See SOURCES sec. 36.
+    The simulator adds the Munk moment into ``appendage_moment`` rather
+    than ``resistance_moment`` (see ``simulator.py``), so the hull's
+    destabilising term and the skeg's stabilising one arrive summed.
+    Running the same perturbation with the Munk moment switched off is
+    what separates them.
     """
-    hydro = HydroCoefficients.from_boat(boat)
-    assert hydro.yaw_from_sway < 0.0
+    from coxswain.core.frames import abs_to_hull, attitude_from_components
+    from coxswain.core.state import State
+    from coxswain.sim.control import BalanceController
+    from coxswain.sim.simulator import RowingSimulator
+
+    simulator = RowingSimulator(boat, munk_factor=munk_factor)
+    simulator.coxswain.balance = BalanceController(enabled=False)
+    simulator.coxswain.rudder_override = lambda _t, _s: 0.0
+
+    def moment(drift):
+        state = State.create(attitude=attitude_from_components(roll=0.0),
+                             velocity=(speed, drift, 0.0),
+                             omega=(0.0, 0.0, 0.0))
+        breakdown = simulator.breakdown(sample_time, state)
+        rotation = abs_to_hull(state.attitude)
+        return float((rotation @ breakdown.appendage_moment)[2])
+
+    return (moment(sway) - moment(0.0)) / (speed * sway)
+
+
+def test_the_munk_moment_is_destabilising_in_sideslip(boat):
+    """The Munk contribution to ``N`` per ``(u v)`` is **negative**.
+
+    A slender body in potential flow is destabilised by drift: the
+    entrained water gives a moment that turns the hull *broadside*, and
+    for a rowing shell it is large.  This assertion used to be the
+    opposite, and it held only because the model had no Munk moment at
+    all.  See SOURCES sec. 36.
+    """
+    with_munk = _sideslip_yaw_slope(boat, DEFAULT_MUNK_FACTOR)
+    without = _sideslip_yaw_slope(boat, 0.0)
+    assert with_munk - without < 0.0
+
+
+def test_the_skeg_more_than_recovers_the_munk_instability(boat):
+    """Assembled, the term is **positive** -- and both facts are needed.
+
+    This test previously asserted that the assembled boat was unstable,
+    which contradicted :class:`HydroCoefficients`' own docstring and began
+    failing once appendages entered the perturbation.  The docstring has
+    the physics right: the skeg weathervanes hard enough to outweigh the
+    Munk moment, which is why a shell tracks straight at all.
+
+    The evidence usually cited for instability -- that losing the skeg
+    makes a shell uncontrollable -- is evidence about what the skeg is
+    holding off, not about the assembled boat.  Both halves are pinned
+    here so the two claims cannot be confused for each other again.
+    """
+    with_munk = _sideslip_yaw_slope(boat, DEFAULT_MUNK_FACTOR)
+    without = _sideslip_yaw_slope(boat, 0.0)
+    assert without > 0.0                      # the skeg alone
+    assert with_munk > 0.0                     # and it wins
+    assert with_munk < without                 # but pays for the win
+    assert HydroCoefficients.from_boat(boat).yaw_from_sway > 0.0
 
 
 def test_yaw_damping_opposes_rotation(boat):
