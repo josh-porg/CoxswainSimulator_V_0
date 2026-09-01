@@ -691,8 +691,31 @@ class RouteEvaluator:
         )
 
     @staticmethod
-    def _required_yaw(points, speed_ground, smooth: int = 9):
-        """Yaw rate the line demands, deg/s, from its own curvature."""
+    def _required_yaw(points, speed_ground, smooth_metres: float = 17.3):
+        """Yaw rate the line demands, deg/s, from its own curvature.
+
+        The smoothing length is in **metres**, not in samples, and that
+        distinction was a real bug rather than a tidiness point.  Fixed at
+        nine samples, the window scaled with ``n_samples``: at the 900
+        samples this evaluator uses over 4822 m it smoothed curvature over
+        **48 m**, and reported a peak demand of 4.2 deg/s on a line the
+        boat actually meets at **10.4 deg/s** -- twice what full rudder
+        gives.  A knot narrower than the window is invisible to the
+        penalty, so the optimiser was free to emit one, and did: 0.120 per
+        metre at the Magazine Beach bend, an 8 m radius.  The controller
+        then missed the corner and took 500 m to recover, which read as a
+        controller failure for three separate experiments.
+
+        One boat length is the right window and it is the same argument
+        :class:`~coxswain.sim.mpc.PathMPC` already makes for itself: a
+        17.3 m hull cannot respond to curvature structure shorter than
+        itself, so smoothing over its own length discards nothing that was
+        ever steerable -- while smoothing over three lengths discards the
+        evidence that the line is unsteerable.
+        """
+        points = np.asarray(points, dtype=float)
+        spacing = float(np.median(np.hypot(*np.diff(points, axis=0).T)))
+        smooth = max(int(round(float(smooth_metres) / max(spacing, 1e-6))), 3)
         kernel = np.ones(smooth) / smooth
         x = np.convolve(points[:, 0], kernel, mode="same")
         y = np.convolve(points[:, 1], kernel, mode="same")

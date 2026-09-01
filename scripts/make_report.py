@@ -341,6 +341,176 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
                 "peak-force one.",
                 "derived", "Crew power scaled uniformly, full 6-DOF, race "
                 "time at the resulting steady speed.", weight=99),
+        Finding("Wind is the largest term and the reach is not uniform",
+                "A 6 m/s forecast becomes 3.9 to 6.6 m/s at chest height "
+                "along the course, and 23% across the channel.",
+                "The aerodynamic force model was calibrated and validated "
+                "long ago; what it never had was a wind FIELD. It has one "
+                "now: OpenStreetMap building footprints and tree canopy "
+                "give a Raupach (1994) roughness for whichever bank the "
+                "wind crosses, and an internal-boundary-layer model brings "
+                "that down onto the water. The roughness model reproduces "
+                "the Davenport classes 7 out of 7 and Raupach's own "
+                "displacement curve exactly before it is pointed at the "
+                "river. The counter-intuitive part is the sign: shelter is "
+                "a SHORT-FETCH effect and near-surface wind INCREASES with "
+                "distance from a lee bank, because the retarding surface "
+                "has fallen away. At 5 m of fetch a crew sits in 43% of the "
+                "open wind; at 150 m, 91%.",
+                "derived",
+                "scripts/canopy.py validates on published roughness classes, "
+                "then applies the model to 9463 OSM footprints; "
+                "coxswain/river/stations.py converts a KBOS reading into "
+                "the reference wind it needs.", weight=97),
+        Finding("Take the Cambridge arch on the Powerhouse Stretch",
+                "It costs 0.7 s of line and buys clean water worth about "
+                "2.5 s. Break-even is 29% of the stretch in traffic.",
+                "The line cost is seven metres -- small enough that the "
+                "decision should not be made on distance at all. Against "
+                "that, being in another crew's water costs about 1.0% of "
+                "speed a length astern, split between blades in their "
+                "puddles, hull in their turbulence, and a partial offset "
+                "from their hull wake. Over the 1050 m stretch that is "
+                "2.5 s. You need to be in somebody's water for only 300 m "
+                "of it to be ahead, and in a masters flight you will be. "
+                "The model does not even price the things that make the "
+                "case stronger: clean air, no risk of being forced wide, "
+                "and rowing your own rhythm.",
+                "derived",
+                "scripts/powerhouse.py optimises inside each arch choice "
+                "at masters speed and prices the wake separately.",
+                weight=88),
+        Finding("Sit two to five metres across, never directly astern",
+                "Your blades reach 3.15 m out. Directly astern they land "
+                "on both of their puddle tracks at once.",
+                "A 2-D vortex method -- every blade sheds a dipole, the "
+                "dipoles advect one another, the hull sheds a "
+                "momentum-cancelling wake on the centreline -- resolves "
+                "where the disturbance actually is. Three features, not "
+                "one: their hull wake on the centreline running WITH them, "
+                "and two puddle lines at plus and minus 3.15 m running "
+                "against. On their line, your blades lose 0.106 m/s of "
+                "grip while your hull gains. Three metres across it "
+                "inverts. One and a half or four and a half metres is the "
+                "quiet water. Six point three metres is the trap -- that "
+                "is one blade span across, and it puts your inside blades "
+                "straight back on their far puddle line.",
+                "derived",
+                "coxswain/hydro/vortex.py; the momentumless wake of a "
+                "self-propelled body falls out to a residual of 2e-8, "
+                "which is a check the model was not fitted to.",
+                weight=72),
+        Finding("Nothing on this boat is near a drag crisis",
+                "Textured kit, trip tape and blade vortex generators all "
+                "fail, each for a different reason.",
+                "Rowers' limbs sit a factor of five below the cylinder "
+                "drag crisis and oar shafts a factor of ten, so cycling's "
+                "textured fabric has no transition to trip. The hull is "
+                "already turbulent over 99.3% of its length, so a trip "
+                "strip can only end the 12 cm of cheap laminar run early. "
+                "Riblets WOULD work -- 113 micrometre grooves, worth 28.6 s "
+                "-- and World Rowing bans them by name. Blade vortex "
+                "generators are the interesting failure: the Reynolds "
+                "number is fine, but Caplan and Gardner measured NO STALL "
+                "at any angle of attack, which is the signature of flow "
+                "that was never attached, and 70% of the drive's impulse "
+                "is made with the blade broadside where delaying "
+                "separation would REDUCE the force. The tip fence is the "
+                "one device with the right mechanism and the right sign.",
+                "derived",
+                "scripts/clothing.py, scripts/oar_aero.py, "
+                "scripts/surfaces.py, scripts/blade_devices.py.",
+                weight=45),
+        Finding("Take the jacket off, and tuck into a headwind",
+                "6.6 s for fitted kit and 3.4 s for a flat tuck, in an "
+                "8 m/s headwind. Both free.",
+                "The aerodynamic split is oars 50%, bodies 35%, hull and "
+                "riggers 15% -- the largest aerodynamic object in a rowing "
+                "eight is not a person. Of what is left, loose clothing is "
+                "5% of the crew's effective drag area and a jacket left on "
+                "for a cold start is the whole of that number. The "
+                "coxswain sits ninth in a line of nine and is the most "
+                "sheltered person in the boat, so a fairing there is worth "
+                "2 to 3 s and carries a rules risk; leaning forward is "
+                "worth as much, costs nothing when the wind is behind, and "
+                "can be decided on the warm-up.",
+                "derived",
+                "scripts/clothing.py and scripts/cox_fairing.py at 1.73 m "
+                "and 68 kg.", weight=52),
+        Finding("The controller no longer fails, and tracking was the "
+                "wrong thing to tune it on",
+                "Solve failures 28.7% to zero, 2.9x faster, and tighter "
+                "tracking is SLOWER on the clock.",
+                "Everything in the MPC transcription was linear-quadratic "
+                "except one sine. Linearising it about the measured "
+                "heading error -- not about zero -- makes the program "
+                "convex, and an active-set QP has no iteration limit to "
+                "hit quietly. A disturbance observer then carries the "
+                "rig's standing yaw couple on feedforward, 5.8 degrees of "
+                "held rudder through the Weeks turn, instead of paying for "
+                "it in a permanent cross-track offset. But the important "
+                "finding is the objective: scored on cross-track error, "
+                "tighter is always better and the tuning runs one way "
+                "forever. Scored gate-to-gate on the clock it reverses -- "
+                "raising the cross-track weight from 2 to 120 improves "
+                "tracking to 1.05 m and costs 2.0 s, while travelling one "
+                "metre LESS. All of it is helm drag.",
+                "derived",
+                "scripts/mpc_bench.py switches each change independently; "
+                "scripts/mpc_tune.py times between fixed gates.",
+                weight=60),
+        Finding("The line has a corner the boat cannot turn",
+                "Median tracking error 0.78 m over the whole course, and "
+                "4.1% of it over 10 m off -- all in one kilometre.",
+                "Station-resolved error shows the controller holding under "
+                "a metre nearly everywhere and losing the line badly "
+                "between 500 and 1500 m, where the optimised route reaches "
+                "a curvature of 0.120 per metre against 0.04 to 0.06 "
+                "everywhere else. That is an 8 m radius, far tighter than "
+                "a 17.3 m hull can turn. The MPC already defends itself by "
+                "clipping curvature before the solver sees it; the route "
+                "optimiser has no such limit and emitted the knot. The fix "
+                "is in RouteEvaluator, not in the controller.",
+                "open",
+                "scripts/mpc_tune.py --full plus a station-resolved error "
+                "profile.", weight=58),
+        Finding("Running the boat smoothly is worth about seven seconds",
+                "Velocity fluctuation costs through the nonlinearity of "
+                "resistance, not through added mass.",
+                "Two things get called unsteady and only one costs. Added "
+                "mass is in quadrature with velocity, so around a closed "
+                "cycle it does exactly zero net work -- it sets how big "
+                "the swing is, not what it costs. The cost is that the "
+                "mean of a power is not the power of the mean: with the "
+                "measured local exponent of 1.89, the penalty is quadratic "
+                "in the swing. CAVEAT: the simulator's surge swing is "
+                "about twice the published figure for an eight, and the "
+                "penalty goes as its square, so the honest number is 7.4 s "
+                "rather than the 33 s the raw trace gives. One outing with "
+                "a logger would settle it.",
+                "open",
+                "scripts/unsteady.py; added mass from the panel solver, "
+                "validated against a circle to 0.34%.", weight=55),
+        Finding("A following boat does not need its own flow solved",
+                "The wake's steering disturbance is 0.5 N m against "
+                "2600 N m of rudder authority.",
+                "The question was whether wake-hull interference needs the "
+                "follower's own fluid mechanics simulated. It does not, "
+                "for two separate reasons. A body's own potential field "
+                "exerts no net force on itself, so interference enters "
+                "only through distortion of the incident field, which is "
+                "second order in a ratio of about 4%. And the 6-DOF "
+                "perturbation the wake actually applies is tiny: sampled "
+                "along a follower's seventeen metres, the lateral gradient "
+                "integrates to a yaw moment four orders of magnitude below "
+                "what the rudder makes. The wake is a DRAG and GRIP "
+                "effect, not a steering one. What is needed instead is "
+                "cheap: sample the existing wake field at each hull strip "
+                "rather than at one point, and the 6-DOF already carries "
+                "distributed cross-flow drag to turn that into forces.",
+                "derived",
+                "coxswain/hydro/vortex.py sampled along a follower hull; "
+                "strip-integrated side force and yaw moment.", weight=50),
         Finding("Wind moves the race more than anything a crew decides",
                 "A 4 m/s headwind costs 86 seconds; 8 m/s costs 232.",
                 "And it is asymmetric: the same wind behind you gives back "
@@ -427,6 +597,45 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
               "numbers on the page are in the second group, which is "
               "worth knowing before comparing crews across flights.",
               highlight=0),
+        Table("Every lever, one list",
+              ["lever", "seconds", "who decides", "confidence"],
+              [["crew power, per 1%", "5.6", "training", "measured"],
+               ["riblets on the hull", "28.6", "ILLEGAL", "measured"],
+               ["shallow water over the course", "82.4", "the river", "measured"],
+               ["headwind at 8 m/s", "232.0", "the weather", "measured"],
+               ["blade cover, 90 mm vs optimum", "57.1", "the crew", "measured"],
+               ["lose 3 kg per rower", "8.4", "training", "displacement only"],
+               ["running the boat smoothly", "7.4", "the crew", "swing unvalidated"],
+               ["fitted kit, no jacket (8 m/s)", "6.6", "free", "measured"],
+               ["coxswain tuck (8 m/s)", "3.4", "free", "estimated"],
+               ["thinner oar shafts", "3.3", "the supplier", "estimated"],
+               ["cox fairing (8 m/s)", "2-3", "rules risk", "wide band"],
+               ["Cambridge arch, Powerhouse", "1.8", "the coxswain", "derived"],
+               ["crew consistency, club to elite", "0.4", "training", "not measurable"],
+               ["bucket rig", "0.5", "the rigger", "sign unresolved"],
+               ["weak rower to port", "0.9", "free", "measured"],
+               ["re-steering for the wind", "0.4", "the coxswain", "measured"],
+               ["seat order along one side", "0.03", "nobody", "measured"],
+               ["trip tape on the shafts", "-1.0", "do not", "measured"]],
+              "Everything this project has priced, on one scale, with an "
+              "honest confidence column. Two of the three largest numbers "
+              "are not available to you: one is banned and two are the "
+              "weather and the river. The largest that is available is "
+              "blade depth, and it is a technique call a coach can see "
+              "from the launch.", highlight=0),
+        Table("Where a device idea goes to die",
+              ["idea", "regime", "why not"],
+              [["textured kit", "Re 4e4, 5x below crisis", "no transition to trip"],
+               ["trip tape on shafts", "Re 2e4, 10x below", "roughness on the flat curve"],
+               ["trip strip on the hull", "Re 7e7, already turbulent", "ends the laminar run early"],
+               ["riblets", "correct, 113 um spacing", "banned by name"],
+               ["blade vortex generators", "Re 7e5, correct", "never attached; wrong sign"],
+               ["trailing-edge Gurney", "correct", "edges swap at the perpendicular"],
+               ["perimeter flange", "correct", "already fitted, called a spoon"],
+               ["tip fence", "correct", "works; already fitted"]],
+              "Four different failure modes, and none of them is the one "
+              "people expect. Checking rather than assuming is what "
+              "separates them."),
         Table("Bridges against the federal survey",
               ["bridge", "vs NBI (m)", "off the channel (m)"], bridge_rows,
               "The channel centreline is extracted from depth alone, so its "
@@ -498,11 +707,61 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
                "finding: depth dominates everything else by a factor of "
                "fifty, and the only visible difference between strategies "
                "is the grey sliver of extra distance on the bottom bar."),
+        Figure("out/wake2d/wake2d.png",
+               "The wake as a vortex field",
+               "Red is water travelling with the boat ahead, blue against "
+               "it. The centreline jet is the hull wake; the two blue "
+               "tracks are the blade puddles at 3.15 m. The lower panel "
+               "is the answer to where to sit -- note the trap at 6.3 m, "
+               "one blade span across, where your inside blades land back "
+               "on their far puddle line."),
+        Figure("out/hull/hull_potential.png",
+               "Potential flow around the real waterline",
+               "Hess-Smith source panels on the boat's own offsets, "
+               "validated against a cylinder to 1e-15. Stagnation at both "
+               "ends, Cp about -0.1 over the middle, peak overspeed 8.4%. "
+               "A shell is fine enough that the water barely notices it."),
+        Figure("out/budget/time_budget.png",
+               "Finding sixty seconds",
+               "The waterfall that started the tactical work, at the "
+               "masters operating point rather than a collegiate one."),
         Figure(os.path.join(figures_dir, "charles_navigable_spans.png"),
                "The navigable spans",
                "Each bridge at about 200 m across, over the real bathymetry.",
                "At course scale a 20 m arch is a hairline; this is the scale "
                "at which the decision is actually made."),
+        Figure("out/wind/wind_corridor.png",
+               "The ground the wind crosses",
+               "Bare-earth elevation from USGS 3DEP, with the 9463 "
+               "OpenStreetMap building footprints, 216 canopy polygons and "
+               "2156 mapped trees that 3DEP deliberately strips out drawn "
+               "back on. This is the picture that makes the wind model "
+               "plausible or not: if the footprints are in the wrong "
+               "place, so is every roughness length downstream of them, "
+               "and no amount of Raupach fixes that. Note how little of "
+               "the reach is open -- three storeys of Cambridge to the "
+               "north, Boston to the south, and a tree line on both banks."),
+        Figure("out/wind/wind_field.png",
+               "Wind reaching a rower's chest, by direction",
+               "The same 6 m/s forecast, resolved to 1.5 m above the water "
+               "for four wind directions. Open water at that height would "
+               "be 5.64 m/s; the reach delivers 3.5 to 5.7 depending on "
+               "where you are and which way the wind comes from. The "
+               "gradient ACROSS the channel is the tactical content and it "
+               "does not survive being averaged into a single number -- at "
+               "station 2400 in a westerly the sheltered side carries "
+               "4.58 m/s against 5.64 on the open side, a 23% difference "
+               "across 100 m of river."),
+        Figure("out/wind/wind_profile.png",
+               "Wind and bank roughness, station by station",
+               "What a crew actually meets down the course. The upper "
+               "panel is wind at chest height for four directions against "
+               "the open-water reference; the lower is the Raupach "
+               "roughness length of whichever bank is upwind, on a log "
+               "scale spanning three decades from open water to city. The "
+               "spiky stretch around 400 to 800 m is real rather than "
+               "numerical: that is where the upwind sector alternates "
+               "between built bank and open park as the river turns."),
         Figure(os.path.join(figures_dir, "charles_course_current.png"),
                "The current",
                "Continuity model at October median discharge.",

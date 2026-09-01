@@ -132,6 +132,33 @@ class PathMPC:
     estimate_bias: bool = True
     bias_gain: float = 0.25
 
+    #: Reward for progress ALONG the course, per metre per second.
+    #:
+    #: Zero makes this a pure path follower: the only thing it wants is to
+    #: be on the line, and the line is an instruction rather than a
+    #: suggestion.  That is the wrong objective and the tuning sweeps
+    #: showed it -- scored on the clock, holding the line tighter is
+    #: slower, because the line was optimised by a surrogate and the boat
+    #: is not obliged to agree with it.
+    #:
+    #: Non-zero turns this into model predictive CONTOURING control
+    #: [LDM15]_: the position error is split into a contouring part
+    #: (across the line) and a lag part (along it), and progress is paid
+    #: for.  The controller may then decide that being two metres wide
+    #: through a bend and straightening early beats rejoining, which is
+    #: what a coxswain does and what a tracking cost forbids by
+    #: construction.
+    #:
+    #: The mechanism is in the exact Frenet kinematics rather than in the
+    #: weights: ``ds/dt = u cos(psi) / (1 - kappa e)``.  On the inside of
+    #: a bend the denominator is less than one and the boat covers course
+    #: faster than it covers water.  The old transcription used
+    #: ``ds/dt = u``, which throws exactly that away.
+    progress_weight: float = 0.0
+    #: Hard bound on cross-track, m.  Progress with no corridor is a
+    #: controller that leaves the river.
+    corridor: float = 12.0
+
     # -- state carried between calls --------------------------------------
     split: float = field(default=0.0, init=False)
     cross_track: float = field(default=0.0, init=False)
@@ -222,6 +249,29 @@ class PathMPC:
         except Exception:                                # noqa: BLE001
             return None
 
+    @staticmethod
+    def _progress(cos_ref, sin_ref, psi, error, psi_ref, error_ref,
+                  curvature, speed):
+        """Frenet progress rate, linearised about the measured state.
+
+        ``ds/dt = u cos(psi) / (1 - kappa e)``, expanded to first order in
+        both arguments about ``(psi_ref, error_ref)`` so the program stays
+        quadratic:
+
+            f0 + (df/dpsi)(psi - psi_ref) + (df/de)(e - error_ref)
+
+        The ``de`` derivative carries the whole corner-cutting effect and
+        it is the term a pure tracking cost cannot express, because a
+        tracking cost has no notion of the line being a means rather than
+        an end.
+        """
+        denominator = 1.0 - curvature * error_ref
+        base = speed * cos_ref / denominator
+        d_psi = -speed * sin_ref / denominator
+        d_error = speed * cos_ref * curvature / denominator ** 2
+        return (base + d_psi * (psi - psi_ref)
+                + d_error * (error - error_ref))
+
     def _build(self) -> None:
         """Assemble the problem once; re-solved with new parameters."""
         import casadi as ca
@@ -243,6 +293,7 @@ class PathMPC:
         # program stays quadratic and is re-linearised every solve.
         psi_ref = opti.parameter()
         bias = opti.parameter()
+        error_ref = opti.parameter()
 
         opti.subject_to(state[:, 0] == start)
 
@@ -265,7 +316,17 @@ class PathMPC:
                                   + ca.cos(psi_ref) * (psi - psi_ref))
             else:
                 derror = speed * ca.sin(psi)
-            dpsi = r - speed * curvature[k]
+            # Exact Frenet heading rate: the line's own turning is
+            # subtracted at the rate the boat is actually covering the
+            # line, not at ``u``.  With the progress term below this is
+            # what lets the optimiser see that the inside of a bend is
+            # shorter.
+            if self.progress_weight > 0.0:
+                dpsi = r - curvature[k] * self._progress(
+                    ca.cos(psi_ref), ca.sin(psi_ref), psi, error,
+                    psi_ref, error_ref, curvature[k], speed)
+            else:
+                dpsi = r - speed * curvature[k]
             # **Positive rudder yaws to starboard**, which is a *negative*
             # yaw rate in this frame -- the convention
             # :class:`~coxswain.sim.control.HeadingController` uses and the
@@ -294,6 +355,15 @@ class PathMPC:
                             + (1.0 - decay) * control_moment
                             / (model.yaw_damping * speed))
 
+            if self.progress_weight > 0.0:
+                # Pay for course covered.  Negative because the solver
+                # minimises, and scaled by dt so the weight means
+                # "seconds of racing per metre off the line".
+                cost -= (self.progress_weight * dt
+                         * self._progress(ca.cos(psi_ref), ca.sin(psi_ref),
+                                          psi, error, psi_ref, error_ref,
+                                          curvature[k], speed))
+
             previous_rudder = previous if k == 0 else rudder[0, k - 1]
             cost += (self.weight_cross * error ** 2
                      + self.weight_heading * psi ** 2
@@ -315,6 +385,11 @@ class PathMPC:
             cost += ca.mtimes([final.T, ca.DM(terminal), final])
         self.terminal_weight = terminal
 
+        if self.progress_weight > 0.0:
+            # Without this the reward is unbounded: the fastest way along
+            # a bend is to leave the river on the inside and come back.
+            opti.subject_to(opti.bounded(-self.corridor, state[0, :],
+                                         self.corridor))
         opti.subject_to(opti.bounded(-self.max_rudder, rudder,
                                      self.max_rudder))
         opti.subject_to(opti.bounded(-self.max_split, split, self.max_split))
@@ -344,7 +419,8 @@ class PathMPC:
 
         self._opti = opti
         self._vars = (state, rudder, split)
-        self._params = (start, speed, curvature, previous, psi_ref, bias)
+        self._params = (start, speed, curvature, previous, psi_ref, bias,
+                        error_ref)
 
     # -- geometry ---------------------------------------------------------
     def nearest(self, point) -> int:
@@ -406,7 +482,7 @@ class PathMPC:
 
         opti = self._opti
         (start, speed_p, curvature_p, previous_p, psi_ref_p,
-         bias_p) = self._params
+         bias_p, error_ref_p) = self._params
         # Yaw rate swings hard within each stroke -- the rig's own couple
         # and the roll coupling -- so the raw value makes the plan jump
         # every solve.  A coxswain does not react to within-stroke wobble
@@ -462,6 +538,7 @@ class PathMPC:
         # errors instead of only near the line.
         opti.set_value(psi_ref_p, error if self.solver == "qp" else 0.0)
         opti.set_value(bias_p, self.bias if self.estimate_bias else 0.0)
+        opti.set_value(error_ref_p, self.cross_track)
 
         # Warm start from a forward roll of the model.  Without a guess
         # IPOPT begins at zero, which violates every dynamics equality at

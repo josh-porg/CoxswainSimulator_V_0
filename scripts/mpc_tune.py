@@ -185,6 +185,8 @@ def run(path, raster, steering, speed, duration, dt=0.02, horizon=6.0,
 
 
 SWEEPS = {
+    "progress": ("progress_weight", [0.0, 0.5, 2.0, 8.0, 30.0]),
+    "corridor": ("corridor", [3.0, 6.0, 12.0, 25.0]),
     "cross": ("weight_cross", [2.0, 4.0, 12.0, 40.0, 120.0]),
     "heading": ("weight_heading", [3.0, 12.0, 40.0, 120.0]),
     "rudder": ("weight_rudder", [0.1, 0.4, 0.8, 3.0, 12.0]),
@@ -201,7 +203,8 @@ def main(argv=None):
     parser.add_argument("--to", dest="finish", type=float, default=2900.0)
     parser.add_argument("--duration", type=float, default=230.0)
     parser.add_argument("--race-time", type=float, default=1140.0)
-    parser.add_argument("--sweep", choices=sorted(SWEEPS), default="cross")
+    parser.add_argument("--sweep", choices=sorted(SWEEPS),
+                        default="progress")
     parser.add_argument("--values", type=float, nargs="+", default=None)
     parser.add_argument("--full", action="store_true",
                         help="time the WHOLE course instead of a stretch.  "
@@ -233,8 +236,10 @@ def main(argv=None):
           % (name, "time s", "vs best", "distance", "rms m", "worst", "legal"))
     rows = []
     for value in values:
-        row = run(path, raster, steering, speed, args.duration,
-                  **{name: value})
+        extra = {name: value}
+        if name == "corridor":
+            extra.setdefault("progress_weight", 2.0)
+        row = run(path, raster, steering, speed, args.duration, **extra)
         if row is None:
             print("  %-10.3g   did not reach the finish gate" % value)
             continue

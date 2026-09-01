@@ -189,6 +189,13 @@ class PuddleWake2D:
     track: float = 3.15
     #: Longitudinal spacing of the seats, m.
     seat_spacing: float = 1.22
+    #: How often the hull sheds, s.  A hull sheds continuously and a blade
+    #: does not, so this should be well under a stroke period -- but every
+    #: timestep is not free: the field advects itself at O(N^2), and at
+    #: dt = 0.05 s a 240 m run reached 2500 blobs and stopped being a
+    #: calculation anybody would wait for.  0.4 s is five instalments per
+    #: stroke, which resolves a wake that has no structure of its own.
+    hull_shed_interval: float = 0.4
     #: Separation of the shed vortex pair, m.  The blade width: the pair
     #: is the two edges of the blade, which is where the vorticity is.
     pair_separation: float = 0.25
@@ -274,10 +281,18 @@ class PuddleWake2D:
         return (self.drag * self.period) / (
             self.density * self.hull_pair * self.depth)
 
-    def shed_hull(self, x: float) -> None:
-        """One stroke period of hull wake, on the centreline."""
+    def shed_hull(self, x: float, fraction: float = 1.0) -> None:
+        """Hull wake on the centreline, ``fraction`` of a stroke's worth.
+
+        A hull sheds CONTINUOUSLY -- it is dragging water along the whole
+        time -- while a blade sheds once per stroke.  Modelling both the
+        same way put the hull's entire momentum into one dipole every 9 m,
+        which is not a smoother version of the truth, it is fake
+        structure: a follower directly astern sampled 2.0 m/s peaks as it
+        passed through the cores of blobs that should not have existed.
+        """
         half = 0.5 * self.hull_pair
-        gamma = self.hull_circulation
+        gamma = self.hull_circulation * float(fraction)
         # Opposite orientation to a puddle, so this water moves FORWARD.
         # Written with the same circulation ORDER as the puddles it was
         # supposed to cancel, it doubled the wake instead: the impulse
@@ -336,12 +351,15 @@ class PuddleWake2D:
         # returning an empty field that every downstream number then
         # reported as "no wake".
         next_shed = -distance
+        travelled, next_hull = 0.0, 0.0
         for k in range(steps):
+            travelled = dt * k
             x = -distance + self.speed * dt * k
+            if self.hull_wake and travelled >= next_hull - 1e-9:
+                self.shed_hull(x, self.hull_shed_interval / self.period)
+                next_hull = travelled + self.hull_shed_interval
             if x >= next_shed - 1e-9:
                 self.shed(x)
-                if self.hull_wake:
-                    self.shed_hull(x)
                 next_shed = x + self.speed * self.period
             self.field.step(dt)
         return self.field
