@@ -201,6 +201,15 @@ class PuddleWake2D:
     density: float = WATER_DENSITY
     #: The leader's waterline offsets, for the potential-flow hull.
     offsets: object = None
+    #: Solve the hull's potential flow with source panels rather than
+    #: thin-body theory.  The two agree to about 10% in the far field
+    #: (:mod:`scripts.hull_potential`), so this is not bought for
+    #: accuracy where a follower sits -- it is bought because the panel
+    #: solution actually enforces the boundary condition and can be
+    #: validated against a case with an exact answer, and the thin-body
+    #: version could not, which is how its sign error survived.
+    panel_hull: bool = True
+    hull_panels: int = 200
 
     def __post_init__(self):
         self.field = VortexField(eddy_viscosity=self.eddy_viscosity)
@@ -310,7 +319,16 @@ class PuddleWake2D:
         that negative ``x`` is astern and the follower's gap is a
         positive number measured backwards.
         """
-        self.body = ThinBody.from_offsets(self.offsets, self.speed)             if self.offsets is not None else None
+        if self.offsets is None:
+            self.body = None
+        elif self.panel_hull:
+            from .panels import SourcePanelBody, waterline_from_offsets
+            self.body = SourcePanelBody(
+                waterline_from_offsets(self.offsets,
+                                       panels=self.hull_panels)
+            ).solve(self.speed)
+        else:
+            self.body = ThinBody.from_offsets(self.offsets, self.speed)
         steps = int(round(distance / max(self.speed * dt, 1e-9)))
         # Shed from the first step, not from x = 0.  Initialised to zero
         # this loop compared a station that starts at -distance against a
@@ -362,8 +380,16 @@ class ThinBody:
         half_beam = 0.5 * np.asarray(offsets.beam, dtype=float)
         fine = np.linspace(x.min(), x.max(), stations)
         beam = np.interp(fine, x, half_beam)
+        # NEGATIVE 2 U db/dx with this station convention.  Thin-body
+        # theory is written for a stream running in +x; here the boat
+        # moves in +x, so in the body frame the stream runs the other
+        # way, and the sign goes with it.  Written the textbook way round
+        # the bow came out a sink and the stern a source, which puts the
+        # displacement flow exactly backwards -- caught only by solving
+        # the same hull properly with panels and finding every sample
+        # agreed in magnitude and disagreed in sign.
         return cls(station=fine,
-                   strength=2.0 * float(speed) * np.gradient(beam, fine))
+                   strength=-2.0 * float(speed) * np.gradient(beam, fine))
 
     def velocity_at(self, points) -> np.ndarray:
         """Velocity induced by the hull's displacement flow."""

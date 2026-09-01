@@ -14,9 +14,7 @@ coxswain's head, 0.7 m above the water in the stern, looking forward over
 eight backs -- the only viewpoint from which the question "is this line
 steerable?" means anything.  A plan view shows a coxswain geometry they
 cannot see.
-"""
-
-from __future__ import annotations
+"""oi0oom __future__ import annotations
 
 import argparse
 import os

@@ -234,3 +234,64 @@ class SourcePanelBody:
     def pressure_coefficient(self) -> np.ndarray:
         """``1 - (q/U)^2`` along the surface."""
         return 1.0 - (self.surface_speed() / max(self.speed, 1e-9)) ** 2
+
+
+    # -- the unsteady part ------------------------------------------------
+    def _potential_influence(self, points) -> np.ndarray:
+        """Velocity potential at ``points`` per unit source strength.
+
+        Katz and Plotkin eq. 10.19, in each panel's own frame::
+
+            phi = 1/(4 pi) [ x ln r1^2 - (x - L) ln r2^2
+                             + 2 z (theta2 - theta1) ]
+
+        Needed because the *steady* solve only ever wanted velocities.
+        Added mass lives in ``d(phi)/dt``, so an unsteady problem needs
+        the potential itself and there is no way round it.
+        """
+        points = np.atleast_2d(np.asarray(points, dtype=float))
+        start = self.nodes[:-1]
+        cos, sin = np.cos(self.angle), np.sin(self.angle)
+        offset = points[:, None, :] - start[None, :, :]
+        x = offset[:, :, 0] * cos[None, :] + offset[:, :, 1] * sin[None, :]
+        z = -offset[:, :, 0] * sin[None, :] + offset[:, :, 1] * cos[None, :]
+        length = self.length[None, :]
+
+        r1 = np.maximum(x ** 2 + z ** 2, 1e-300)
+        r2 = np.maximum((x - length) ** 2 + z ** 2, 1e-300)
+        theta1 = np.arctan2(z, x)
+        theta2 = np.arctan2(z, x - length)
+        return (x * np.log(r1) - (x - length) * np.log(r2)
+                + 2.0 * z * (theta2 - theta1)) / (4.0 * np.pi)
+
+    def added_mass(self) -> np.ndarray:
+        r"""Added mass per unit depth for unit motion in x and y, kg/m.
+
+        Solve ``d(phi)/dn = n_i`` on the surface -- which is what
+        :meth:`solve` already does, with the stream standing in for unit
+        body motion -- and then
+
+        .. math::
+
+            m_{ij} = -ho \oint \phi_i \, n_j \, dS
+
+        This is the classical result [L32]_ and it is worth having from
+        the panels rather than from a formula, because it can be checked:
+        a circle of radius ``a`` must return ``rho pi a^2`` in both
+        directions, and anything that fails that test is wrong in a way
+        no amount of staring at a hull will reveal.
+        """
+        density = 1000.0
+        out = np.zeros((2, 2))
+        for i, direction in enumerate(((1.0, 0.0), (0.0, 1.0))):
+            rhs = self.normal @ np.array(direction)
+            influence = self._influence(self.control)
+            matrix = np.einsum("ijk,ik->ij", influence, self.normal)
+            np.fill_diagonal(matrix, 0.5)
+            strength = np.linalg.solve(matrix, rhs)
+            phi = self._potential_influence(self.control) @ strength
+            for j, other in enumerate(((1.0, 0.0), (0.0, 1.0))):
+                out[i, j] = -density * float(
+                    np.sum(phi * (self.normal @ np.array(other))
+                           * self.length))
+        return out
