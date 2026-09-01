@@ -265,10 +265,32 @@ def monthly_discharge(month: int, statistic: str = "median") -> float:
 
 
 def charles_depth_field(origin: Tuple[float, float] = CHARLES_ORIGIN,
-                        minimum: float = 0.5) -> DepthField:
-    """A :class:`DepthField` built from the surveyed isobaths."""
+                        minimum: float = 0.5,
+                        level_offset: float = 0.0) -> DepthField:
+    """A :class:`DepthField` built from the surveyed isobaths.
+
+    ``level_offset`` shifts the whole survey vertically, in metres, and is
+    **negative for a drier year**.  The 2016-17 survey is referenced to
+    the basin's normal pool, which the New Charles River Dam holds nearly
+    constant -- but "nearly" is doing work in a dry autumn, and crews
+    report the river low often enough that a scenario knob is worth more
+    than an assumption.
+
+    It is a rigid shift, not a re-survey: the bed shape is what it is and
+    only the water on top of it moves.  That is right for a dammed basin
+    and would be wrong for a free-flowing river, where a lower stage also
+    narrows the wetted section in a way the contours cannot be shifted to
+    represent.
+    """
     points, depths = load_isobaths(origin)
-    return DepthField(points=points, depths=depths, minimum=minimum,
+    # Contours near the bank sit in under half a metre, so a drawdown of
+    # 0.6 m drives them negative -- and DepthField rejects that outright,
+    # correctly, because a negative depth is not shallow water, it is
+    # ground.  Clip to a token positive: the cells concerned are excluded
+    # from the navigable mask by the depth threshold anyway, so this
+    # controls where the water ISN'T rather than pretending it is there.
+    shifted = np.maximum(depths + float(level_offset), 0.05)
+    return DepthField(points=points, depths=shifted, minimum=minimum,
                       is_survey=True)
 
 
@@ -546,7 +568,8 @@ _CHANNEL_CACHE = {}
 
 
 def charles_channel(origin: Tuple[float, float] = CHARLES_ORIGIN,
-                    resolution: float = 6.0, **kwargs):
+                    resolution: float = 6.0, level_offset: float = 0.0,
+                    **kwargs):
     """The navigable channel raster, extracted from the depth contours.
 
     Cached: the extraction triangulates 12k vertices and runs a distance
@@ -558,11 +581,18 @@ def charles_channel(origin: Tuple[float, float] = CHARLES_ORIGIN,
     """
     from .channel import build_channel
 
-    key = (origin, resolution, tuple(sorted(kwargs.items())))
+    key = (origin, resolution, float(level_offset),
+           tuple(sorted(kwargs.items())))
     if key not in _CHANNEL_CACHE:
         points, depths = load_isobaths(origin)
-        _CHANNEL_CACHE[key] = build_channel(points, depths,
-                                            resolution=resolution, **kwargs)
+        # A lower pool does not merely make the water shallower: it moves
+        # the navigable boundary inwards, because the channel is extracted
+        # by thresholding depth.  Shifting the contours before extraction
+        # is what makes a dry-year scenario change the LINE and not just
+        # the drag.
+        _CHANNEL_CACHE[key] = build_channel(
+            points, np.maximum(depths + float(level_offset), 0.05),
+            resolution=resolution, **kwargs)
     return _CHANNEL_CACHE[key]
 
 
@@ -655,7 +685,8 @@ def hocr_course(channel=None, origin: Tuple[float, float] = CHARLES_ORIGIN,
 def charles_course(centreline: np.ndarray = None,
                    half_width: float = None,
                    month: int = 10, statistic: str = "median",
-                   origin: Tuple[float, float] = CHARLES_ORIGIN) -> Course:
+                   origin: Tuple[float, float] = CHARLES_ORIGIN,
+                   level_offset: float = 0.0) -> Course:
     """The surveyed Charles reach, with a continuity-derived current.
 
     Unlike :func:`~coxswain.river.course.charles_river_sketch` this is
@@ -668,14 +699,14 @@ def charles_course(centreline: np.ndarray = None,
     refers to the **bathymetry**; a caller wanting a specific race line
     should pass its own centreline.
     """
-    depth = charles_depth_field(origin)
+    depth = charles_depth_field(origin, level_offset=level_offset)
 
     if centreline is None or half_width is None:
         # Derive both from the survey rather than assuming either.  The
         # contours are the only statement in the data about where the water
         # is; a centreline and a width invented independently of them is how
         # a "channel" ends up 26% aground.
-        raster = charles_channel(origin)
+        raster = charles_channel(origin, level_offset=level_offset)
         line = raster.centreline()
         if centreline is None:
             centreline = line
