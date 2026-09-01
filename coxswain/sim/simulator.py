@@ -369,6 +369,12 @@ class RowingSimulator:
         resistance_hull, detail = hull_resistance(
             velocity_hull, submerged, boat.length, boat.water,
             boat.resistance, shallow,
+            # Michell's integral, tabulated once, if the boat carries one.
+            # Without this the flag reached the bookkeeping and not the
+            # boat: a validation could match a Michell-computed power
+            # against a constant-coefficient simulation and report the
+            # comparison as though both halves had used the same physics.
+            wave_table=getattr(boat, "wave_table", None),
         )
         # Distributed cross-flow drag.
         #

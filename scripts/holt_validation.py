@@ -61,6 +61,22 @@ HOLT = (
 )
 
 
+#: Michell wave tables, one per hull, built lazily and cached: the
+#: integral is a tenth of a second and the bisection asks for the same
+#: hull twenty times.
+_TABLES = {}
+
+
+def wave_table(boat, kind):
+    from coxswain.hydro.michell import MichellWave, elliptical_offsets
+    if kind not in _TABLES:
+        x, z, half = elliptical_offsets(boat.offsets, stations=641,
+                                        levels=81)
+        _TABLES[kind] = MichellWave(station=x, level=z,
+                                    half_beam=half).tabulate()
+    return _TABLES[kind]
+
+
 def build(kind, rate, mass, scale):
     if kind == "1x":
         boat = catalog.single_scull(rate=rate, rower_mass=mass)
@@ -83,17 +99,19 @@ def steady(boat, guess, duration=30.0, dt=0.005):
     return float(v.mean()), float(v.max() - v.min())
 
 
-def delivered_power(boat, speed):
+def delivered_power(boat, speed, table=None):
     submerged = boat.mesh.submerged(
         np.array([0.0, 0.0, boat.equilibrium_heave()]), np.zeros(3),
         rho=boat.water.density, gravity=9.80665, water_level=0.0)
     force, _ = hull_resistance(np.array([float(speed), 0.0, 0.0]), submerged,
                                mean_wetted_length=boat.length,
-                               water=boat.water, coefficients=boat.resistance)
+                               water=boat.water, coefficients=boat.resistance,
+                               wave_table=table)
     return abs(float(force[0])) * float(speed)
 
 
-def match_power(kind, rate, mass, target, guess, limit=18, tol=1.5):
+def match_power(kind, rate, mass, target, guess, limit=18, tol=1.5,
+                michell=False):
     """Scale oar force until the boat delivers ``target`` watts to the water.
 
     Holt's power is measured at the gate, and not all of it reaches the
@@ -107,8 +125,11 @@ def match_power(kind, rate, mass, target, guess, limit=18, tol=1.5):
     for _ in range(limit):
         scale = 0.5 * (low + high)
         boat = build(kind, rate, mass, scale)
+        table = wave_table(boat, kind) if michell else None
+        if michell:
+            boat.resistance_wave_table = table
         speed, swing = steady(boat, guess)
-        power = delivered_power(boat, speed)
+        power = delivered_power(boat, speed, table)
         if abs(power - target) < tol:
             break
         if power < target:
@@ -122,6 +143,9 @@ def main(argv=None):
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--michell", action="store_true",
+                        help="use Michell's integral for wave resistance "
+                             "instead of the constant coefficient")
     parser.add_argument("--efficiency", type=float, default=0.80,
                         help="fraction of gate power that reaches the water")
     args = parser.parse_args(argv)
@@ -139,7 +163,7 @@ def main(argv=None):
         measured = per_stroke * rate / 60.0
         target = args.efficiency * power * rowers
         _scale, speed, swing, _delivered = match_power(
-            kind, rate, mass, target, measured)
+            kind, rate, mass, target, measured, michell=args.michell)
         model_per_stroke = speed * 60.0 / rate
         note = "" if kind == "1x" else "  (2x vs their 2-)"
         print("  %-6s %-4s %8.2f %9.2f %8.2f %9.2f %8.2f %9.2f%s"
@@ -157,7 +181,8 @@ def main(argv=None):
         measured = per_stroke * rate / 60.0
         target = args.efficiency * power * rowers
         _scale, speed, swing, _d = match_power(kind, rate, mass, target,
-                                               measured)
+                                               measured,
+                                               michell=args.michell)
         print("  %-6s %9.0f%% %9.0f%% %10.2f"
               % (name, 100 * span / measured, 100 * swing / speed,
                  (swing / speed) / (span / measured)))

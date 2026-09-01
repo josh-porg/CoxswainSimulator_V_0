@@ -130,6 +130,44 @@ class ResistanceCoefficients:
 #: data.  See ``docs/validation.md``.
 PAPER_LITERAL = ResistanceCoefficients(wave=0.02, wave_reference="plan")
 
+#: Wave coefficient reduced to what the rowing literature supports.
+#:
+#: The default ``0.00084`` was calibrated against a stated "measured total
+#: resistance of roughly 450 N for an eight at 5.5 m/s".  Two independent
+#: sources now disagree with the consequence of that calibration, which
+#: makes wave drag **28% of total** at 6 m/s:
+#:
+#: * Pulman, *The Physics of Rowing*, eq. 13: a VIII at racing speed sits
+#:   at Froude 0.35, which his figure 8 puts at a **local minimum** of the
+#:   wave-drag curve -- "although wave drag is certainly present, it is
+#:   not significant for a racing boat".  A hull 30 times longer than it
+#:   is wide is shaped precisely to achieve that.
+#: * Buckmann and Harris (2014) coast-down an 8+ and get a drag constant
+#:   of 10.5 kg/m, 95% interval 9.6-11.4, against this model's 16.1.
+#:
+#: Their number cannot be taken at face value either: at 6 m/s it implies
+#: 378 N total, which is **below** the ITTC skin friction (354 N) plus air
+#: drag (67 N) computed from the model's own geometry -- and that geometry
+#: reproduces the measured displacement to 0.1% and sits inside the
+#: published wetted-area band.  A measurement below the friction floor is
+#: measuring something other than steady drag; a coast-down neglects added
+#: mass and starts at the instant the crew stops moving, both of which
+#: bias the deceleration low.
+#:
+#: So this set takes the direction both sources agree on without adopting
+#: either magnitude: wave drag reduced to about a tenth of total at racing
+#: Froude number, which puts the model just above its own physical floor
+#: rather than a third above it.  ``scripts/validate_drag.py`` is the test.
+#:
+#: **The structural fix is not this.**  A constant coefficient makes wave
+#: drag a fixed fraction of a ``v^2`` law, so it can never have the hollow
+#: Pulman's figure 8 shows and the hull is designed around.  Getting that
+#: right needs Michell's integral over a distributed source -- a real
+#: piece of work, and the two-point bow/stern interference factor is not a
+#: shortcut to it: taken literally it oscillates a hundredfold with speed
+#: and puts a masters eight on a hump.
+LOW_WAVE = ResistanceCoefficients(wave=0.00022, wave_reference="wetted")
+
 
 def friction_coefficient(reynolds: float,
                          friction_zero: float = 0.075) -> float:
@@ -152,7 +190,8 @@ def hull_resistance(velocity_hull: np.ndarray,
                     mean_wetted_length: float,
                     water: WaterProperties = FRESH_WATER,
                     coefficients: ResistanceCoefficients = None,
-                    shallow: ShallowWaterModel = None):
+                    shallow: ShallowWaterModel = None,
+                    wave_table=None):
     """Resistance force on the hull, in the hull frame.
 
     Parameters
@@ -188,8 +227,16 @@ def hull_resistance(velocity_hull: np.ndarray,
                * coefficients.form_factor)
     shallow = shallow or DEEP_WATER
     depth_factor = float(shallow.factor(u))
-    wave = (dynamic_pressure * coefficients.wave_area(properties)
-            * coefficients.wave * depth_factor)
+    if wave_table is not None:
+        # Michell's integral, precomputed against speed.  This replaces the
+        # constant coefficient entirely: there is no fitted wave number
+        # left, only the hull's own offsets.  The shallow-water factor
+        # still multiplies it, because finite depth changes the wave
+        # system and Michell as written here assumes deep water.
+        wave = float(np.abs(wave_table(abs(u)))) * depth_factor
+    else:
+        wave = (dynamic_pressure * coefficients.wave_area(properties)
+                * coefficients.wave * depth_factor)
 
     total_longitudinal = shape + viscous + wave
     # resistance always opposes the motion

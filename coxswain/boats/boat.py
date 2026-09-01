@@ -61,6 +61,14 @@ class CrewMember:
 class Boat:
     """Hull + rig + crew + appendages, ready to simulate."""
 
+    #: Optional tabulated wave resistance, ``N`` against speed in m/s,
+    #: from :meth:`coxswain.hydro.michell.MichellWave.tabulate`.  When
+    #: present it REPLACES the constant wave coefficient entirely, so the
+    #: hull's wave drag comes from its own offsets rather than from a
+    #: number.  Left ``None`` the old coefficient applies, which keeps
+    #: every previously published figure reproducible.
+    wave_table = None
+
     def __init__(self, name: str, offsets: HullOffsets, rig: Rig,
                  hull_mass: float, hull_inertia: np.ndarray,
                  timing: StrokeTiming,
