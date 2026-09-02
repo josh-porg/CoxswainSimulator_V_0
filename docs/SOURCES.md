@@ -5836,3 +5836,166 @@ could not be built at all — the tab grouping had been added without the
 script once being run. Fixed by moving each `group=` to the end of its
 call, located by paren matching rather than by line, since the calls span
 up to thirty lines each.
+
+## 72. Xia (2025): evenness wins a lane, and what scatter costs
+
+*Tactical Analysis of Elite International Women's Eight Rowing*, Keke Xia,
+J. Human Movement Science 6(1):16-23. 179 Final A races from the World
+Championships, World Cup and Europeans, 2010-2019, with 500 m splits and
+50 m GPS. The largest tactical dataset on this boat class, and the boat
+class this project is for.
+
+### What he found
+
+* **"1-4-2-3"** is the dominant pacing model: first 500 fastest, then the
+  fourth, then the second, third slowest. Nearly every crew was "1-x-x-x".
+* **Winners pace more evenly.** First place showed a balanced distribution
+  across all four segments *while still holding the fastest first 500*;
+  sixth place fluctuated far more. Ranks 1-3 were consistently more stable
+  than 4-6.
+* Bimodal speed: peak at **150-300 m**, second surge in the **final 100 m**.
+* Stroke rate: peak in the first 200 m, decline, tactical lift at 500 m,
+  sprint from 1750 m.
+* A **450 m decision point** -- leading by 450 m strongly predicts winning.
+* The **speed coefficient**: segment mean speed over whole-race mean speed.
+  Dimensionless and self-referenced, so it strips out wind, water and the
+  crew's absolute standard and leaves only the distribution.
+
+### What transfers to a head race, and what does not
+
+**Does not.** "1-4-2-3", the 450 m point and the finishing sprint are
+artefacts of a *side-by-side 2 km in lanes*: position is tactically
+decisive, the water is uniform, and a standing start rewards an opening
+burst. The Charles is a 4.8 km staggered time trial over water that varies
+in depth, current and shelter. Copying "1-4-2-3" onto it would be
+importing the answer to a different question, and the physics in this
+module says so -- see §66-67, where the schedule is set by `e·k`.
+
+**Does.** Two things.
+
+First, the **speed coefficient** is the right way to compare two pieces
+rowed on different days, and it is now `PacingPlan.speed_coefficient()`,
+with `pacing_scatter()` for its spread. `test_the_coefficient_is_blind_to_conditions`
+pins the property that earns it: the same schedule rowed into a 4 m/s
+headwind is genuinely slower but has the *same* coefficient profile.
+
+Second, **"winners pace evenly" is a claim this model can check**, and it
+agrees: in uniform conditions `optimise()` returns amplitude exactly zero.
+Xia's lanes have no gradient to exploit, so evenness is not merely tidy,
+it is optimal. On a varying course it stops being optimal -- which is not
+a contradiction but the same physics reading a different course.
+
+### Pricing it: `CoursePacing.price_scatter`
+
+Xia reports the evenness difference as a pattern, never as a time. Over a
+2 km at masters intensity:
+
+| power sd | speed-coefficient sd | seconds lost |
+|---|---|---|
+| 2% | 0.005 | 0.03 |
+| 5% | 0.013 | 0.19 |
+| 10% | 0.026 | 0.78 |
+| 15% | 0.040 | 1.80 |
+| 20% | 0.053 | 3.25 |
+
+Validated against theory rather than fitted: for `t = L/v` with `v ~ P^e`
+the second-order loss at fixed mean power is `0.5 T e(e+1) var(P)/P²`, and
+the measured values match to within 10% once the realised variance of `n`
+mean-centred draws is accounted for (`(n-1)/n`, i.e. three quarters for
+four segments). Missing that factor makes the model look 25% wrong when it
+is exact.
+
+### A confound that had to be removed first
+
+The first version balanced each scattered schedule to **spend the reserve
+exactly**, as `optimise` does. That made the numbers meaningless. With a
+300 s W' recovery constant against 120 s segments, a segment below CP
+recovers a large fraction of the gap -- and because recovery is
+*power-independent*, `_balanced`'s monotonicity premise fails there and the
+bisection cannot zero the reserve. Scattered schedules were finishing with
+**700-1400 J unspent**, so the measured "cost of scatter" was mostly a
+solver artefact.
+
+`price_scatter` now holds **total work** fixed instead, which is both the
+clean comparison and the one Xia's data speaks to: every crew rows the
+whole race, and only the distribution differs.
+
+That the monotonicity assumption in `_balanced` has a limit is worth
+recording on its own: it holds while every segment stays above CP, which
+is true of the optimised schedules but not of arbitrary ones.
+
+## 73. The head race is a hilly cycling time trial, and the cycling literature validates the model
+
+`scripts/pacing_literature.py`. Rowing studies pacing almost exclusively
+on the **2000 m** — six to seven minutes, lanes, flat water, side by side.
+Xia's 179 finals (§72) are all of that kind. A HOCR piece shares almost
+nothing with it:
+
+| | 2000 m final | HOCR masters 8+ |
+|---|---|---|
+| duration | 6–7 min | **19–20 min** |
+| start | standing | rolling |
+| opponents | beside you | staggered, passing |
+| water | uniform lane | depth 2–8 m, current, shelter |
+| what wins | position at 450 m | elapsed time |
+
+The right analogue is an endurance event of **matched duration over a
+non-uniform course**, and that has a large quantitative literature: the
+cycling individual time trial.
+
+### Two results that point opposite ways, and are the same result
+
+**Constant conditions: variability is purely a cost.** Atkinson, Peacock &
+Passfield (2007) modelled a 289 W rider: ±15% power variation *increased*
+time by 3.29 s over 16.1 km, 4.46 s over 20 km, 10.43 s over 40 km.
+
+**Varying conditions: variability is the whole game.** Swain (1997) showed
+the optimum varies power in parallel with gradient and wind. Atkinson's
+same model gives ±10% matched to the course saving **26 s** on a windy
+40 km and **126 s** on a hilly one. Sundström & Bäckström (2017), solving
+it as optimal control with a full bioenergetic model, report optimal power
+distribution **2.9% faster** than constant power.
+
+Spread power at random and convexity taxes you; spread it in phase with
+the course and you buy more than the tax. That is exactly what
+`coxswain.crew.pacing` derives from rowing physics.
+
+### The validation
+
+Cycling and rowing share the exponent — aero drag gives `P ~ v³` for a
+bicycle, hydrodynamic drag very nearly the same for a shell — so
+`e = d ln v/d ln P = 1/3` in both, and
+
+`Δt = ½ T e(e+1) var(P)/P̄²`
+
+should reproduce Atkinson's seconds with **no free parameter and no
+rowing-specific tuning**:
+
+| distance | duration | published | this model | ratio |
+|---|---|---|---|---|
+| 16.1 km | 1449 s | 3.29 s | 3.62 s | 1.10 |
+| **20.0 km** | **1800 s** | **4.46 s** | **4.50 s** | **1.01** |
+| 40.0 km | 3600 s | 10.43 s | 9.00 s | 0.86 |
+
+Agreement to **1% at the duration closest to a head race**, from a
+different sport, different authors, different model. This is the strongest
+external check the pacing model has.
+
+**A reading trap that cost a factor of two.** Their "±15%" is a
+*sinusoidal swing of amplitude* 0.15, whose standard deviation is
+`0.15/√2 = 0.106`. Read as a standard deviation it makes the model look
+twice as pessimistic as it is. Same class of error as the `(n-1)/n`
+variance factor in §72 — both are about what "spread" means.
+
+### What it says about this course
+
+On the surveyed Charles reach this project measures **4.4 s** from pacing
+(§66) against **80–230 s** from the line (§67). The ordering matches
+cycling exactly, where the hilly course is worth roughly five times the
+windy one: on both, **terrain dominates the schedule**.
+
+The rowing analogue of gradient is **depth**. A shoal is a hill — and §66
+showed the boat sits at `Fr_h = 0.94` in the shallows, so these are steep
+hills. That reframe is the practical payoff of the comparison: it says to
+stop reasoning from 2 km rowing tactics and start reasoning from hilly
+time-trial pacing, where the literature is both larger and better matched.

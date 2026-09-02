@@ -140,6 +140,32 @@ class PacingPlan:
     def reserve_spent(self) -> float:
         return float(self.reserve[0] - self.reserve[-1])
 
+    def speed_coefficient(self) -> np.ndarray:
+        r"""Segment speed over whole-race mean speed, dimensionless.
+
+        Xia's measure [X25]_, and worth having for the reason he gives:
+        it uses the boat's own race average as its yardstick, so it strips
+        out wind, water and the crew's absolute standard and leaves only
+        **how the effort was distributed**.  That makes two pieces
+        comparable across different days, which raw splits are not.
+
+        Defined on ground speed, since that is what a GPS trace and a
+        stopwatch both measure.
+        """
+        mean = float(np.average(self.speeds_ground, weights=self.durations))
+        return np.asarray(self.speeds_ground, dtype=float) / max(mean, 1e-9)
+
+    def pacing_scatter(self) -> float:
+        """Spread of the speed coefficient -- Xia's evenness, as one number.
+
+        Xia's central empirical result is that **winning crews pace more
+        evenly than losing ones**: over 179 women's eight finals, first
+        place showed a balanced distribution across all four 500 m
+        segments while sixth place fluctuated far more.  This is the
+        quantity that separated them, so it is the one to report.
+        """
+        return float(np.std(self.speed_coefficient()))
+
     def summary(self) -> dict:
         return {
             "total_time": self.total_time,
@@ -450,6 +476,55 @@ class CoursePacing:
             if plan is not None and plan.total_time < best[0].total_time:
                 best = (plan, amplitude, float(slope))
         return best
+
+    def price_scatter(self, scatter, samples: int = 400, seed: int = 0):
+        """Seconds lost to pacing scatter **at equal total work**.
+
+        Xia reports that winning crews pace evenly and sixth-place crews
+        do not, but gives the difference as a pattern and never as a time.
+        This prices it.
+
+        **Total work is held fixed, not the reserve.**  That is the
+        comparison Xia's data actually speaks to -- every crew rows the
+        whole race, and the question is only how the effort is
+        distributed -- and it avoids a confound that made an earlier
+        version of this method meaningless.  Balancing to "spend the
+        reserve exactly" instead lets a segment below CP *recover* W',
+        and with a 300 s recovery constant against 120 s segments that
+        recovery is large.  Scattered schedules then finished holding
+        700-1400 J unspent, so the measured loss blended a real
+        convexity cost with a solver artefact.
+
+        The mechanism at equal work is pure convexity: time is
+        ``L / v`` and ``v ~ P^e``, so ``t(P)`` is convex and any spread
+        of ``P`` about its mean raises mean time.  To second order the
+        loss is ``0.5 T e(e+1) (sd/P)^2``, which is the analytic check in
+        the tests.
+
+        Returns ``(seconds_lost, achieved_speed_coefficient_scatter)``,
+        averaged over ``samples`` draws.
+        """
+        rng = np.random.default_rng(seed)
+        baseline = self.flat_power()
+        n = len(self.segments)
+        reference = self.evaluate(np.full(n, baseline))
+
+        losses, achieved = [], []
+        for _ in range(int(samples)):
+            noise = rng.normal(0.0, 1.0, size=n)
+            noise -= noise.mean()                 # equal mean power
+            powers = np.clip(baseline * (1.0 + float(scatter) * noise),
+                             0.5 * self.critical_power, self.max_power)
+            # Restore the mean exactly after clipping, so the comparison
+            # really is at equal total work rather than approximately so.
+            powers = powers + (baseline - float(np.average(
+                powers, weights=reference.durations)))
+            plan = self.evaluate(powers)
+            losses.append(plan.total_time - reference.total_time)
+            achieved.append(plan.pacing_scatter())
+        if not losses:
+            return 0.0, 0.0
+        return float(np.mean(losses)), float(np.mean(achieved))
 
     def _search(self, baseline, shape, span, samples, reference=None):
         """Golden-refined line search on the amplitude of one shape."""
