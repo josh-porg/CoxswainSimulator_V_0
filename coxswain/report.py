@@ -65,6 +65,8 @@ class Figure:
     title: str
     caption: str = ""
     reading: str = ""
+    #: Which tab this belongs under; see :class:`Table`.
+    group: str = "Findings"
 
     def data_uri(self) -> Optional[str]:
         if not os.path.isfile(self.path):
@@ -92,6 +94,10 @@ class Table:
     rows: Sequence[Sequence[object]]
     note: str = ""
     highlight: Optional[int] = None      # row index to emphasise
+    #: Which tab this belongs under.  Items sharing a group are rendered
+    #: together in the order they were added, so a table and the figure
+    #: that explains it stay side by side.
+    group: str = "Findings"
 
 
 @dataclass
@@ -124,26 +130,83 @@ class Report:
                      '<p class="stamp">generated %s</p></header>'
                      % (_escape(self.title), _escape(self.subtitle), stamp))
 
-        if self.findings:
-            parts.append('<section><h2>What matters, in order</h2>')
-            for finding in sorted(self.findings, key=lambda f: -f.weight):
-                parts.append(self._finding(finding))
-            parts.append('</section>')
-
-        for table in self.tables:
-            parts.append(self._table(table))
-        for figure in self.figures:
-            parts.append(self._figure(figure))
-
-        if self.caveats:
-            parts.append('<section class="caveats"><h2>What this does not '
-                         'know</h2><ul>')
-            for item in self.caveats:
-                parts.append('<li>%s</li>' % _escape(item))
-            parts.append('</ul></section>')
+        # Group the content.  A single flat page of every table followed
+        # by every figure was becoming unreadable, and the fix is not
+        # smaller sections but *ordering by subject*: a table and the
+        # figure that explains it belong together, and the reader wants
+        # one topic at a time.
+        panels = self._panels()
+        parts.append(self._nav(panels))
+        for index, (name, body) in enumerate(panels):
+            parts.append('<div class="panel" id="panel-%d" '
+                         'data-panel="%d"%s>'
+                         % (index, index, "" if index == 0 else ""))
+            parts.extend(body)
+            parts.append('</div>')
 
         parts.append(_FOOT)
         return "\n".join(parts)
+
+    def _panels(self):
+        """``[(tab name, [html, ...]), ...]`` in declared order.
+
+        Findings always lead: they are the summary and the reason anyone
+        opens the page.  Everything else follows in the order its group
+        was first mentioned, so the builder controls the running order
+        without needing to sort anything.
+        """
+        order = []
+        buckets = {}
+
+        def bucket(name):
+            if name not in buckets:
+                buckets[name] = []
+                order.append(name)
+            return buckets[name]
+
+        if self.findings:
+            body = bucket("What matters")
+            body.append('<section><h2>What matters, in order</h2>')
+            for finding in sorted(self.findings, key=lambda f: -f.weight):
+                body.append(self._finding(finding))
+            body.append('</section>')
+
+        for table in self.tables:
+            bucket(getattr(table, "group", "Findings")).append(
+                self._table(table))
+        for figure in self.figures:
+            bucket(getattr(figure, "group", "Findings")).append(
+                self._figure(figure))
+
+        if self.caveats:
+            body = bucket("Caveats")
+            body.append('<section class="caveats"><h2>What this does not '
+                        'know</h2><ul>')
+            for item in self.caveats:
+                body.append('<li>%s</li>' % _escape(item))
+            body.append('</ul></section>')
+
+        return [(name, buckets[name]) for name in order]
+
+    @staticmethod
+    def _nav(panels) -> str:
+        """The tab strip.
+
+        Buttons rather than anchors, because these switch a view rather
+        than navigate; ``aria-selected`` carries the state for a screen
+        reader.  Without JavaScript every panel stays visible and the
+        strip hides itself, so the page degrades to the long scroll it
+        used to be rather than to a blank screen.
+        """
+        if len(panels) < 2:
+            return ""
+        buttons = "".join(
+            '<button role="tab" data-tab="%d" aria-selected="%s" '
+            'aria-controls="panel-%d">%s</button>'
+            % (index, "true" if index == 0 else "false", index,
+               _escape(name))
+            for index, (name, _body) in enumerate(panels))
+        return ('<nav class="tabs" role="tablist" hidden>%s</nav>' % buttons)
 
     def _finding(self, finding: Finding) -> str:
         source = ('<p class="source">%s</p>' % _escape(finding.source)
@@ -270,9 +333,74 @@ _HEAD = """<!doctype html>
  .missing{color:var(--warn)}
  footer{max-width:62rem;margin:2rem auto 0;padding-top:1.2rem;
    border-top:1px solid var(--rule);color:var(--muted);font-size:.82rem}
+ /* Tab strip.  Sticky so the reader can move between topics from
+    anywhere in a long panel, and scrollable sideways on a phone rather
+    than wrapping into a block that eats the viewport. */
+ .tabs{position:sticky;top:0;z-index:5;display:flex;gap:.15rem;
+   max-width:62rem;margin:0 auto;padding:.55rem 0;overflow-x:auto;
+   background:var(--page);border-bottom:1px solid var(--rule);
+   scrollbar-width:none}
+ .tabs::-webkit-scrollbar{display:none}
+ .tabs button{flex:0 0 auto;appearance:none;cursor:pointer;
+   background:transparent;color:var(--muted);border:0;
+   border-bottom:2px solid transparent;border-radius:2px 2px 0 0;
+   padding:.5rem .85rem;white-space:nowrap;
+   font:600 .78rem/1.2 ui-sans-serif,system-ui,sans-serif;
+   text-transform:uppercase;letter-spacing:.07em}
+ .tabs button:hover{color:var(--ink)}
+ .tabs button:focus-visible{outline:2px solid var(--accent);
+   outline-offset:-2px}
+ .tabs button[aria-selected="true"]{color:var(--ink);
+   border-bottom-color:var(--accent)}
+ .panel[hidden]{display:none}
+ .panel>section:first-child{padding-top:1.4rem}
 </style></head><body>"""
 
 _FOOT = """<footer>Generated from the live model by
 <code>coxswain.report</code>. Every figure and table on this page was
 produced by the run that wrote it; nothing is transcribed.</footer>
+<script>
+/* Progressive enhancement.  The markup ships with every panel visible
+   and the tab strip hidden, so a browser with no JavaScript -- or one
+   that fails to run this -- gets the long scrolling page rather than a
+   blank one.  Only once this runs does the page become tabbed. */
+(function () {
+  var strip = document.querySelector('.tabs');
+  var panels = Array.prototype.slice.call(
+    document.querySelectorAll('.panel'));
+  if (!strip || panels.length < 2) { return; }
+  var tabs = Array.prototype.slice.call(strip.querySelectorAll('button'));
+
+  function show(index) {
+    panels.forEach(function (panel, i) { panel.hidden = i !== index; });
+    tabs.forEach(function (tab, i) {
+      tab.setAttribute('aria-selected', i === index ? 'true' : 'false');
+    });
+    try { history.replaceState(null, '', '#panel-' + index); } catch (e) {}
+  }
+
+  tabs.forEach(function (tab, index) {
+    tab.addEventListener('click', function () {
+      show(index);
+      window.scrollTo({top: 0, behavior: 'auto'});
+    });
+    /* Arrow keys move between tabs, which is what a tablist owes a
+       keyboard user. */
+    tab.addEventListener('keydown', function (event) {
+      var step = event.key === 'ArrowRight' ? 1
+               : event.key === 'ArrowLeft' ? -1 : 0;
+      if (!step) { return; }
+      event.preventDefault();
+      var next = (index + step + tabs.length) % tabs.length;
+      tabs[next].focus();
+      show(next);
+    });
+  });
+
+  strip.hidden = false;
+  var opening = parseInt((location.hash.match(/^#panel-(\\d+)$/) || [])[1],
+                         10);
+  show(isNaN(opening) || opening >= panels.length ? 0 : opening);
+})();
+</script>
 </body></html>"""

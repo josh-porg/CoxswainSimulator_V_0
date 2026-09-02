@@ -175,3 +175,100 @@ def test_an_adverse_current_costs_time():
 def test_evaluate_rejects_a_wrong_length_schedule():
     with pytest.raises(ValueError, match="expected 3 powers"):
         pacing([0.0] * 3).evaluate([300.0, 310.0])
+
+
+# --------------------------------------------------------------------------
+# the wind channel, which the first version was blind to
+# --------------------------------------------------------------------------
+def test_variable_headwind_rewards_variable_pacing():
+    """Wind enters through the elasticity, not through ``k``.
+
+    The first version built the schedule from ``k = v_water/v_ground``
+    alone.  With no current every ``k`` is 1, so it reported that a gale
+    alternating with dead calm was worth no change in pacing at all.  Air
+    drag does not scale with the water speed, so it changes how much speed
+    a watt buys -- and that is the whole of the effect.
+    """
+    segments = [CourseSegment(length=1000.0, headwind=w)
+                for w in (0.0, 8.0, 0.0, 8.0)]
+    model = CoursePacing(segments, resistance)
+    flat = model.flat_power()
+    baseline = model.evaluate(np.full(4, flat)).total_time
+    plan, amplitude = model.optimise(span=200.0, samples=81)
+    assert amplitude > 1.0
+    assert baseline - plan.total_time > 1.0
+    assert plan.powers[1] > plan.powers[0]      # push into the wind
+
+
+def test_uniform_conditions_never_reward_variable_pacing():
+    """Uniform is uniform, whatever it is uniform in."""
+    for segment in (CourseSegment(1000.0, headwind=6.0),
+                    CourseSegment(1000.0, current=-0.4),
+                    CourseSegment(1000.0, drag_factor=1.3),
+                    CourseSegment(1000.0, depth=3.0)):
+        _plan, amplitude = CoursePacing([segment] * 4,
+                                        resistance).optimise()
+        assert amplitude == pytest.approx(0.0, abs=1e-9)
+
+
+def test_a_constant_drag_multiplier_does_not_change_the_schedule():
+    """The algebraic statement, and the trap it used to license.
+
+    Scaling resistance by a speed-INDEPENDENT constant leaves the
+    elasticity of a power law untouched, so it costs time without
+    rewarding redistribution.  That much is true, and it is why this
+    module once concluded that depth was "a tax, not a tactical
+    opportunity" -- a conclusion that held only because depth was being
+    modelled as exactly such a constant.  See the next test for what depth
+    actually does.
+    """
+    deep = CoursePacing([CourseSegment(1000.0)] * 4, resistance)
+    fouled = CoursePacing([CourseSegment(1000.0, drag_factor=f)
+                           for f in (1.0, 1.4, 1.0, 1.4)], resistance)
+    assert fouled.evaluate(np.full(4, 313.0)).total_time > \
+        deep.evaluate(np.full(4, 313.0)).total_time
+    assert fouled.optimise()[1] == pytest.approx(0.0, abs=1e-9)
+
+
+def test_varying_depth_does_change_the_schedule():
+    """Depth is NOT a constant multiplier, and the difference is the point.
+
+    The shallow-water correction runs on the depth Froude number
+    ``Fr_h = v/sqrt(g h)``, so it depends on speed as well as depth and
+    steepens as ``Fr_h`` approaches one.  That bends the resistance curve,
+    which moves the elasticity ``e``, which is half of the ``e k`` that
+    sets the schedule.  A shoal is a genuine pacing decision, not a toll.
+    """
+    shoal = CoursePacing([CourseSegment(1000.0, depth=d)
+                          for d in (12.0, 2.2, 12.0, 2.2)], resistance)
+    assert shoal.driver(313.0).std() > 1e-6
+    _plan, amplitude = shoal.optimise(span=200.0, samples=61)
+    assert amplitude > 0.0
+
+
+def test_the_shallow_factor_is_evaluated_at_the_trial_speed():
+    """Freezing it at a reference speed is the bug this guards.
+
+    A speed-independent factor would make the elasticity in shallow water
+    identical to the deep-water one.  It must not be.
+    """
+    model = CoursePacing([CourseSegment(1000.0, depth=2.2),
+                          CourseSegment(1000.0)], resistance)
+    shoal, deep = model.segments
+    assert model.elasticity(313.0, shoal) != pytest.approx(
+        model.elasticity(313.0, deep), rel=1e-4)
+
+
+def test_the_driver_is_flat_in_still_air_and_still_water():
+    model = CoursePacing([CourseSegment(1000.0)] * 4, resistance)
+    driver = model.driver(313.0)
+    assert driver.std() == pytest.approx(0.0, abs=1e-9)
+
+
+def test_the_measured_elasticity_is_near_a_third_without_wind():
+    """A pure quadratic drag gives Young's 1/3 exactly; the air term is
+    what moves it, so with no wind the measurement should land on it."""
+    model = CoursePacing([CourseSegment(1000.0)], resistance,
+                         drag_area=0.0)
+    assert model.elasticity(313.0, model.segments[0]) == pytest.approx(
+        1.0 / 3.0, rel=1e-3)

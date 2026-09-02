@@ -579,7 +579,7 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
     ]
 
     report.tables = [
-        Table("What each thing is worth",
+        Table("What each thing is worth", group="Where the time is",
               ["lever", "seconds", "who controls it"],
               [["crew power, per 1%", "5.0", "training"],
                ["crew consistency, junior to elite", "11.3", "training"],
@@ -597,7 +597,7 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
               "numbers on the page are in the second group, which is "
               "worth knowing before comparing crews across flights.",
               highlight=0),
-        Table("Every lever, one list",
+        Table("Every lever, one list", group="Where the time is",
               ["lever", "seconds", "who decides", "confidence"],
               [["crew power, per 1%", "5.6", "training", "measured"],
                ["riblets on the hull", "28.6", "ILLEGAL", "measured"],
@@ -623,7 +623,7 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
               "weather and the river. The largest that is available is "
               "blade depth, and it is a technique call a coach can see "
               "from the launch.", highlight=0),
-        Table("Where a device idea goes to die",
+        Table("Where a device idea goes to die", group="Where the time is",
               ["idea", "regime", "why not"],
               [["textured kit", "Re 4e4, 5x below crisis", "no transition to trip"],
                ["trip tape on shafts", "Re 2e4, 10x below", "roughness on the flat curve"],
@@ -636,37 +636,37 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
               "Four different failure modes, and none of them is the one "
               "people expect. Checking rather than assuming is what "
               "separates them."),
-        Table("Bridges against the federal survey",
+        Table("Bridges against the federal survey", group="The river",
               ["bridge", "vs NBI (m)", "off the channel (m)"], bridge_rows,
               "The channel centreline is extracted from depth alone, so its "
               "agreement with the bridges is an independent check rather "
               "than a restatement."),
-        Table("The arches", ["bridge", "station (m)", "arches", "legal",
+        Table("The arches", group="The river", ["bridge", "station (m)", "arches", "legal",
                              "racing arch (m)", "eights abreast"], arch_rows,
               "Span counts and lengths from the National Bridge Inventory; "
               "pier thickness measured from the Grand Junction trestle. "
               "Legal arches follow the regatta's rules — the Boston "
               "arch is out of bounds everywhere, and the Cambridge arch is "
               "additionally barred at the trestle, Anderson and Eliot."),
-        Table("Candidate lines", ["line", "race time (s)", "distance (m)",
+        Table("Candidate lines", group="The line", ["line", "race time (s)", "distance (m)",
                                   "peak yaw (deg/s)", "split wanted",
                                   "illegal", "vs centreline"], line_rows,
               "Race time includes a 60 s penalty per forbidden arch. Every "
               "line here is legal by construction."),
-        Table("Arch strategy", ["strategy", "race time (s)", "distance (m)",
+        Table("Arch strategy", group="The line", ["strategy", "race time (s)", "distance (m)",
                                 "split wanted", "split strokes",
                                 "W' left (J)", "vs centre arches"],
               strategy_rows,
               "Each strategy optimised inside its own arch constraint, so "
               "this is best against best. W' is the crew's anaerobic "
               "reserve; the pace is solved so it reaches zero at the line."),
-        Table("Where the seconds go", ["line", "ideal (s)", "distance",
+        Table("Where the seconds go", group="The line", ["line", "ideal (s)", "distance",
                                        "depth", "current", "steering",
                                        "penalty"], loss_rows,
               "Each term is the cost of adding that effect to the one "
               "before, so they sum to the race time and nothing hides in a "
               "residual."),
-        Table("Steering the real boat", ["controller", "elapsed (s)",
+        Table("Steering the real boat", group="The line", ["controller", "elapsed (s)",
                                          "cross-track rms (m)", "worst (m)",
                                          "solver fallbacks"], control_rows,
               "The full 6-DOF boat driven down the optimised line, measured "
@@ -680,21 +680,21 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
                "Eliot.",
                "Gold is the navigable edge, white the channel centreline. "
                "Green spans are arches a racing crew may use; red carry a "
-               "60 second penalty."),
+               "60 second penalty.", group="The river"),
         Figure(os.path.join(figures_dir, "charles_course_profiles.png"),
                "The course straightened out",
                "Depth across the channel, centreline depth, navigable width "
                "and current, against distance from the start.",
                "The width panel is the one to watch: the river narrows to "
                "50 m between Anderson and Eliot, which is where both the "
-               "tightest corner and the one-boat travel lane are."),
+               "tightest corner and the one-boat travel lane are.", group="The river"),
         Figure(os.path.join(figures_dir, "charles_bridge_arches.png"),
                "Every arch to scale",
                "Drawn as the coxswain meets them, first bridge at the "
                "bottom, Cambridge to starboard.",
                "The green bar is a rowed eight, 6.82 m tip to tip. Anderson "
                "and Eliot are centre-arch only; the Powerhouse bridges give "
-               "you a choice."),
+               "you a choice.", group="The river"),
         Figure(lines_png, "Candidate racing lines",
                "Six lines, all legal, scored by the same evaluator.",
                "The middle panel is where the lines are legible — 20 m "
@@ -714,22 +714,22 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
                "tracks are the blade puddles at 3.15 m. The lower panel "
                "is the answer to where to sit -- note the trap at 6.3 m, "
                "one blade span across, where your inside blades land back "
-               "on their far puddle line."),
+               "on their far puddle line.", group="Hydrodynamics"),
         Figure("out/hull/hull_potential.png",
                "Potential flow around the real waterline",
                "Hess-Smith source panels on the boat's own offsets, "
                "validated against a cylinder to 1e-15. Stagnation at both "
                "ends, Cp about -0.1 over the middle, peak overspeed 8.4%. "
-               "A shell is fine enough that the water barely notices it."),
+               "A shell is fine enough that the water barely notices it.", group="Hydrodynamics"),
         Figure("out/budget/time_budget.png",
                "Finding sixty seconds",
                "The waterfall that started the tactical work, at the "
-               "masters operating point rather than a collegiate one."),
+               "masters operating point rather than a collegiate one.", group="Where the time is"),
         Figure(os.path.join(figures_dir, "charles_navigable_spans.png"),
                "The navigable spans",
                "Each bridge at about 200 m across, over the real bathymetry.",
                "At course scale a 20 m arch is a hairline; this is the scale "
-               "at which the decision is actually made."),
+               "at which the decision is actually made.", group="The river"),
         Figure("out/wind/wind_corridor.png",
                "The ground the wind crosses",
                "Bare-earth elevation from USGS 3DEP, with the 9463 "
@@ -740,7 +740,7 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
                "place, so is every roughness length downstream of them, "
                "and no amount of Raupach fixes that. Note how little of "
                "the reach is open -- three storeys of Cambridge to the "
-               "north, Boston to the south, and a tree line on both banks."),
+               "north, Boston to the south, and a tree line on both banks.", group="Wind"),
         Figure("out/wind/wind_field.png",
                "Wind reaching a rower's chest, by direction",
                "The same 6 m/s forecast, resolved to 1.5 m above the water "
@@ -751,7 +751,7 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
                "does not survive being averaged into a single number -- at "
                "station 2400 in a westerly the sheltered side carries "
                "4.58 m/s against 5.64 on the open side, a 23% difference "
-               "across 100 m of river."),
+               "across 100 m of river.", group="Wind"),
         Figure("out/wind/wind_profile.png",
                "Wind and bank roughness, station by station",
                "What a crew actually meets down the course. The upper "
@@ -761,13 +761,13 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
                "scale spanning three decades from open water to city. The "
                "spiky stretch around 400 to 800 m is real rather than "
                "numerical: that is where the upwind sector alternates "
-               "between built bank and open park as the river turns."),
+               "between built bank and open park as the river turns.", group="Wind"),
         Figure(os.path.join(figures_dir, "charles_course_current.png"),
                "The current",
                "Continuity model at October median discharge.",
                "Slack water: a few centimetres per second against a racing "
                "5 m/s. Line choice here is about distance and depth, not "
-               "about hunting current."),
+               "about hunting current.", group="The river"),
     ]
     # Animations are embedded whenever they exist on disk -- they are
     # produced by scripts/animate_race.py and scripts/render3d.py, which
@@ -779,27 +779,27 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
                "real time.",
                "The dashed line is the plan, the solid trail is what the "
                "boat did. It rows in from behind so it is already "
-               "tracking when the picture starts."),
+               "tracking when the picture starts.", group="Watch it row"),
         Figure("out/animation/race_2100_2800_chase.gif",
                "The same leg under reactive steering",
                "Line-of-sight guidance, for comparison with the MPC run "
                "above.",
                "Watch the trail through the Weeks turn: the reactive law "
                "corrects error after it appears, so it runs wider than "
-               "the anticipating controller."),
+               "the anticipating controller.", group="Watch it row"),
         Figure("out/animation/race_0000_4821_course_mpc.mp4",
                "The whole race, from above",
                "All 4822 m from the DeWolfe start to the finish above "
                "Eliot, at 24x real time.",
                "The boat is the moving mark; the dashed line is the "
                "optimised route. This is the quick reference for where the "
-               "line sits on the river."),
+               "line sits on the river.", group="Watch it row"),
         Figure("out/animation/race_0000_4821_chase_mpc.mp4",
                "The whole race, following the boat",
                "The same run at boat scale, blades working.",
                "Watch the bridges arrive: the trestle and BU inside the "
                "first 200 m, then the long Powerhouse straight, Weeks, "
-               "Anderson, and the Cambridge Boat Club bend before Eliot."),
+               "Anderson, and the Cambridge Boat Club bend before Eliot.", group="Watch it row"),
         Figure("out/render3d/mpc_2250_2560_cox.mp4",
                "From the coxswain's seat",
                "Weeks to Anderson, camera at the cox's own seat 0.80 m "
@@ -807,7 +807,7 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
                "The only view that answers whether a line is steerable. An "
                "arch 300 m off is a slot near the horizon, and the far bank "
                "hides behind the near one -- geometry every plan view "
-               "flatters."),
+               "flatters.", group="Watch it row"),
     ])
     report.figures = figures
 

@@ -104,9 +104,23 @@ class CourseSegment:
     current: float = 0.0
     #: Headwind component, m/s.  Positive opposes the boat.
     headwind: float = 0.0
-    #: Multiplier on hull resistance from finite depth.  1.0 is deep
-    #: water; the shallow-water model supplies the rest.
-    depth_factor: float = 1.0
+    #: Water depth, m.  ``inf`` is deep water.  **This is not a constant
+    #: multiplier on resistance and must not be turned into one.**  The
+    #: shallow-water correction depends on the depth Froude number
+    #: ``Fr_h = v / sqrt(g h)``, so it is a function of *speed as well as
+    #: depth*, and it rises steeply as ``Fr_h`` approaches one.  That
+    #: speed dependence is the whole reason depth belongs in a pacing
+    #: model at all: it bends the resistance curve, which changes the
+    #: elasticity ``e``, which is half of the ``e k`` that sets the
+    #: schedule.  An earlier version of this class carried a scalar
+    #: ``depth_factor`` instead and concluded that depth could never
+    #: reward variable pacing -- a conclusion that was a property of the
+    #: simplification and not of the river.
+    depth: float = float("inf")
+    #: Extra speed-independent multiplier on resistance, for a caller who
+    #: genuinely has one (fouling, a bag of weed).  Kept separate from
+    #: ``depth`` precisely so the two cannot be confused.
+    drag_factor: float = 1.0
     #: Free-text, so a plan can be read against the river.
     label: str = ""
 
@@ -141,8 +155,9 @@ class CoursePacing:
     """Solve for the power schedule that gets down *this* course fastest.
 
     ``resistance`` is a callable ``v_water -> newtons`` for the whole boat
-    in deep, still air; the segment's ``depth_factor`` multiplies it and
-    the headwind is added as an aerodynamic term.  Passing the boat's own
+    in deep, still air.  The segment's depth applies the shallow-water
+    correction AT THE TRIAL SPEED, and the headwind is added as an
+    aerodynamic term.  Passing the boat's own
     :func:`~coxswain.hydro.resistance.hull_resistance` keeps this honest;
     passing a power law makes the tests analytic.
     """
@@ -162,7 +177,29 @@ class CoursePacing:
     #: Hard ceiling on per-rower power, W.  Without one the optimiser will
     #: happily ask for a 900 W surge that no masters crew can produce.
     max_power: float = 480.0
+    #: Template :class:`~coxswain.hydro.shallow.ShallowWaterModel`; its
+    #: depth is replaced per segment.  ``None`` uses the default, which
+    #: carries the calibration of SOURCES sec. 6.
+    shallow_model: object = None
     _cache: dict = field(default_factory=dict, repr=False)
+
+    def _shallow_for(self, segment: CourseSegment):
+        """The shallow-water model at this segment's depth, or ``None``.
+
+        Built per depth and cached, because the model carries the depth as
+        a field rather than taking it as an argument.
+        """
+        depth = float(segment.depth)
+        if not np.isfinite(depth):
+            return None
+        key = ("shallow", round(depth, 3))
+        if key not in self._cache:
+            from dataclasses import replace as _replace
+
+            from ..hydro.shallow import ShallowWaterModel
+            template = self.shallow_model or ShallowWaterModel()
+            self._cache[key] = _replace(template, depth=max(depth, 0.30))
+        return self._cache[key]
 
     # -- speed from power -------------------------------------------------
     def speed_for_power(self, power: float, segment: CourseSegment) -> float:
@@ -174,13 +211,21 @@ class CoursePacing:
         reason: a fixed-point sweep oscillates near the shallow-water
         critical region and can return a *higher* speed in shallower water.
         """
-        key = (round(float(power), 4), segment.depth_factor, segment.headwind)
+        key = (round(float(power), 4), segment.depth, segment.drag_factor,
+               segment.headwind)
         if key in self._cache:
             return self._cache[key]
         delivered = self.efficiency * float(power) * self.rowers
+        shallow = self._shallow_for(segment)
 
         def excess(speed):
-            hull = self.resistance(speed) * segment.depth_factor
+            # The shallow factor is evaluated at the TRIAL speed, not at a
+            # reference one.  Freezing it would make depth a constant
+            # multiplier and throw away the Froude-number dependence that
+            # is the entire reason it matters here.
+            hull = (self.resistance(speed) * segment.drag_factor
+                    * (1.0 if shallow is None
+                       else float(shallow.factor(speed))))
             apparent = speed + segment.headwind
             air = (0.5 * self.air_density * self.drag_area
                    * apparent * abs(apparent))
@@ -252,6 +297,50 @@ class CoursePacing:
                           speeds_ground=ground, durations=durations,
                           reserve=reserve, total_time=float(durations.sum()))
 
+    def elasticity(self, power: float, segment: CourseSegment,
+                   step: float = 0.02) -> float:
+        """``d ln v_water / d ln P`` on this segment, measured.
+
+        Young's constant-``C`` algebra gives 1/3 everywhere.  It is not
+        1/3 here: the hull's own resistance curve bends
+        (:mod:`coxswain.sim.performance`), and a headwind adds a term whose
+        speed dependence is different again because the air is not moving
+        with the water.
+        """
+        low = self.speed_for_power(power * (1.0 - step), segment)
+        high = self.speed_for_power(power * (1.0 + step), segment)
+        return float(np.log(high / low) / np.log((1.0 + step) / (1.0 - step)))
+
+    def driver(self, power: float) -> np.ndarray:
+        r"""``e_i k_i``, the only course-dependent term in the optimum.
+
+        Stationarity gives ``P_i = e k /(\lambda (1 - e k))``, which is
+        increasing in ``e k``, so the whole schedule is a monotone function
+        of this one quantity.  Both halves matter and they enter by
+        different doors:
+
+        * ``k = v_w/v_g`` carries the **current**.  Adverse current raises
+          it; a helping current lowers it; still water pins it at 1.
+        * ``e = d\ln v/d\ln P`` carries everything that bends the
+          resistance curve, and the one that matters tactically is
+          **headwind** -- air drag does not scale with the water speed, so
+          a headwind changes how much speed a watt buys.
+
+        Building the schedule from ``k`` alone, as this did first, made the
+        optimiser blind to wind: with no current every ``k`` is 1, the
+        shape is identically zero, and it reported that a gale was worth no
+        change in pacing.  Depth is a third case and genuinely *does*
+        nothing here -- scaling resistance by a constant factor leaves the
+        elasticity of a power law untouched, so shallow water costs time
+        without rewarding redistribution.
+        """
+        values = np.empty(len(self.segments))
+        for index, segment in enumerate(self.segments):
+            water = self.speed_for_power(power, segment)
+            ground = max(water + segment.current, 0.05)
+            values[index] = self.elasticity(power, segment) * water / ground
+        return values
+
     # -- the two schedules worth comparing --------------------------------
     def flat_power(self, tolerance: float = 1e-3, limit: int = 60) -> float:
         """The one power that just empties the reserve at the finish.
@@ -287,12 +376,70 @@ class CoursePacing:
         """
         baseline = self.flat_power()
         reference = self.evaluate(np.full(len(self.segments), baseline))
-        ratio = reference.speeds_water / reference.speeds_ground
-        shape = ratio - np.average(ratio, weights=reference.durations)
-        if np.allclose(shape, 0.0):
+        shape = self.driver(baseline)
+        shape = shape - np.average(shape, weights=reference.durations)
+        if np.allclose(shape, 0.0, atol=1e-9):
             return reference, 0.0
 
         shape = shape / np.abs(shape).max()
+        return self._search(baseline, shape, span, samples,
+                            reference)
+
+    def optimise_with_split(self, span: float = 200.0, samples: int = 41,
+                            split_span: float = 60.0, split_samples: int = 21):
+        r"""As :meth:`optimise`, plus a front-to-back ramp.
+
+        The single course-shaped parameter cannot express *when* to spend,
+        only *where*.  With W' recovery in play that matters: a schedule
+        can empty the reserve early, refill on the easy water, and cross
+        the line still holding several kilojoules -- which the shaped
+        search cannot fix, because pushing harder everywhere is a
+        different degree of freedom from pushing harder in the slow bits.
+
+        The second basis is a straight ramp in distance.  Negative is a
+        **positive split** (out hard, fade); positive is a **negative
+        split** (build to the line).  Which one wins is the oldest
+        argument in pacing [AL08]_, and on a fixed-distance effort with a
+        finite reserve the answer is not a matter of taste -- it is
+        whatever empties the reserve exactly at the finish.
+
+        Returns ``(plan, amplitude, ramp)``.
+
+        .. [AL08] Abbiss, C.R., Laursen, P.B. (2008) *Describing and
+           understanding pacing strategies during athletic competition*,
+           Sports Med 38(3):239-52.
+        """
+        baseline = self.flat_power()
+        reference = self.evaluate(np.full(len(self.segments), baseline))
+        shape = self.driver(baseline)
+        shape = shape - np.average(shape, weights=reference.durations)
+        peak = np.abs(shape).max()
+        shape = shape / peak if peak > 1e-12 else np.zeros_like(shape)
+
+        # Distance to the middle of each segment, centred and normalised,
+        # so the ramp is +/-1 end to end and adds no mean power.
+        edges = np.concatenate([[0.0],
+                                np.cumsum([s.length for s in self.segments])])
+        middles = 0.5 * (edges[:-1] + edges[1:])
+        ramp = middles / max(edges[-1], 1e-9) - 0.5
+        ramp = ramp / max(np.abs(ramp).max(), 1e-12)
+
+        best = (reference, 0.0, 0.0)
+        for slope in np.linspace(-split_span, split_span, split_samples):
+            combined = shape + (slope / max(span, 1e-9)) * ramp
+            peak = np.abs(combined).max()
+            if peak < 1e-12:
+                continue
+            plan, amplitude = self._search(baseline, combined / peak,
+                                           span, samples, reference)
+            if plan is not None and plan.total_time < best[0].total_time:
+                best = (plan, amplitude, float(slope))
+        return best
+
+    def _search(self, baseline, shape, span, samples, reference=None):
+        """Golden-refined line search on the amplitude of one shape."""
+        if reference is None:
+            reference = self.evaluate(np.full(len(self.segments), baseline))
 
         def timed(amplitude):
             trial = self._balanced(baseline, shape, float(amplitude))

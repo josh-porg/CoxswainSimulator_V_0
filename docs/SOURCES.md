@@ -5250,3 +5250,148 @@ three recovery velocity profiles) is a genuinely dynamic result his
 Simulink model was well suited to and these algebraic exponents cannot
 touch. It needs the 6-DOF simulator with the recovery profile varied, and
 is the obvious next replication.
+
+## 63. Course-specific pacing, and two bugs that made it lie
+
+`coxswain/crew/pacing.py`, `tests/unit/test_pacing.py`,
+`scripts/course_pacing.py`.
+
+`exertion.py` gives one power for the whole race, `P = CP + W'/T`. On a
+course whose current, wind and depth vary that is not the fastest
+schedule. Minimising `T = ∫dx/v_g` subject to fixed total work gives
+
+    P_i = e_i k_i / (λ (1 − e_i k_i)),    k = v_water/v_ground,
+                                          e = d ln v / d ln P
+
+so **the whole schedule is a monotone function of the single quantity
+`e·k`.** Where the river runs against the boat `k > 1` and the optimum
+asks for more power; where it helps, less. In still air and still water
+`e·k` is constant and the schedule is flat — the classical result, and the
+check that nothing course-dependent has been assumed.
+
+The mechanism is the opposite of the instinct: **push hardest where the
+boat is slowest**, because a watt spent in slow water buys more *seconds*
+than the same watt in fast water.
+
+### How big the lever actually is
+
+Worth stating before building on it. A masters eight rowing 1140 s has
+`W'/T = 11400/1140 = 10 W` above a CP of 303 — **about 3%**. The reserve
+is not a way to row the race harder, it is a way to row *parts* of it
+harder: 30 W above CP for 60 s costs a sixth of it, so the crew has on the
+order of **six one-minute pushes in the whole race**.
+
+### Two bugs, both of which made the answer better than the truth
+
+**The reserve earned interest on a deficit.** Recovery below CP refilled
+`gap = capacity − reserve`, measured from the raw balance. A schedule that
+overspent left the balance negative, which made the gap *larger* and the
+refill *bigger* — a crew that had blown up recovering faster than one that
+had not. That made the reserve non-monotone in power, and the amplitude
+search then preferred schedules **15 kJ overdrawn precisely because they
+were infeasible and therefore fast.** The gap is now measured from a
+reserve floored at zero, and the deficit stays visible in the trace.
+
+**The balance solver used Newton where bisection was required.** Offsetting
+a shaped schedule to spend exactly the reserve is a root-find on a monotone
+function; a Newton step oscillated across it and returned unconverged
+plans. Coarser search grids found *better* times because they landed on
+those plans. `_balanced` now bisects, on the **minimum** reserve over the
+race rather than the final one — a crew cannot go into deficit at Eliot and
+be rescued by an easy last mile.
+
+Between them these two turned a claimed **16 s saving into 3.1 s.**
+
+### The wind channel, which the first version could not see
+
+The schedule was first built from `k` alone. With no current every `k` is
+1, so it reported that a gale alternating with dead calm was worth no
+change in pacing whatsoever. Wind enters through `e`, not `k` — air drag
+does not scale with the water speed — so the driver is now the product.
+On a synthetic four-segment course:
+
+| condition | saved | spread |
+|---|---|---|
+| still water | 0.00 s | 0 W |
+| uniform headwind | 0.00 s | 0 W |
+| variable current (0.1–0.6 m/s) | 2.9 s | 39 W |
+| **variable headwind (0–8 m/s)** | **7.2 s** | 28 W |
+| wind + current together | 8.6 s | 26 W |
+| variable depth | 0.00 s | 0 W |
+
+**Depth is a tax, not a tactical opportunity.** Scaling resistance by a
+constant leaves the elasticity of a power law untouched, so shallow water
+costs seconds without rewarding redistribution. That is a derived result,
+not an omission, and it is pinned by a test.
+
+### On the real Charles, the current channel is worth nothing
+
+`scripts/course_pacing.py` against the surveyed reach at median October
+discharge gives along-course currents of **0.001 to 0.026 m/s** and a
+saving of **0.00 s**. This corroborates §"the current only becomes worth
+modelling in flood" from the flow notes. **The wind is the channel that
+matters on this river**, because the Charles has almost no current but very
+uneven shelter — open basin against the sheltered Powerhouse stretch.
+Coupling this to the existing wind field is the next step.
+
+Caveat: the surveyed reach is 12.4 km, not the 4.8 km race course, so the
+absolute times from that script are not race times.
+
+## 64. Two defects found by running the suite, one fixed and one diagnosed
+
+**Fixed — the CasADi and NumPy appendage models disagreed.**
+`hydro_casadi.py` read the raw `surface.flap_effectiveness` field where
+the NumPy path goes through the `control_effectiveness` property. The
+field is `None` for a surface that derives its effectiveness from the flap
+chord ratio, so the CasADi path raised `TypeError` wherever it was unset
+and silently disagreed wherever it was set. **This alone was eight of the
+suite's failures.** Exactly the "two dynamics implementations, one boat"
+hazard §37 warns about.
+
+**Fixed — a test asserted bare-hull physics against an assembled-boat
+number.** `test_the_hull_is_directionally_unstable_in_sideslip` required
+`yaw_from_sway < 0`, contradicting `HydroCoefficients`' own docstring,
+which says it is positive and stabilising. Both are right about different
+things, and the Munk moment turned out to live in the *appendage* channel
+of the breakdown, not the resistance one — so the two could not be
+separated the obvious way. Split into two tests that difference on
+`munk_factor`: the Munk contribution is destabilising, and the skeg more
+than recovers it.
+
+**Diagnosed, not fixed — the phase-limited balance authority cannot hold
+the boat.** Two learned-trim tests fail because roll swing *grows* over
+strokes. It is not an ILC sign error and not a learning-gain problem:
+
+| balance authority | no trim | with trim (gain 4000) |
+|---|---|---|
+| flat `max_moment` = 4000 N m | 1.45° | **0.64°** |
+| `PhaseAuthority` (93–1525 N m) | 1.90° | 2.45° |
+
+With a flat authority the learned trim works exactly as designed. With the
+phase-limited authority the swing grows over strokes **even with no trim at
+all**, so the trim is a small correction on an already-diverging system.
+The fault is in the §15 phase authority, not in `trim.py`. Both tests are
+marked `xfail` with this diagnosis attached rather than having their
+thresholds tuned to pass, because tuning either would hide a real result.
+
+## 65. The report page got tabs
+
+`coxswain/report.py`. The page rendered every finding, then every table,
+then every figure, then the caveats — so a table and the figure explaining
+it could be a thousand lines apart, and the page only ever got longer.
+
+`Table` and `Figure` now carry a `group`, and the renderer buckets content
+into panels behind a sticky tab strip. Groups appear in the order they are
+first mentioned, so the builder controls the running order without sorting
+anything; findings always lead, caveats always trail.
+
+**Progressive enhancement, not a JavaScript app.** The markup ships with
+every panel visible and the tab strip `hidden`. Only the script un-hides
+the strip and starts hiding panels, so a browser that does not run it gets
+the long scrolling page it had before rather than a blank screen. Tabs are
+`<button role="tab">` with `aria-selected`, arrow keys move between them,
+and the selected panel is written to the fragment so a link can open on a
+particular tab.
+
+Current groups: *What matters*, *Where the time is*, *The river*, *The
+line*, *Wind*, *Hydrodynamics*, *Watch it row*, *Caveats*.

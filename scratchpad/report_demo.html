@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>T</title>
+<style>
+ :root{
+   --ink:#16211f; --muted:#5c6968; --rule:#dce2e0; --page:#fbfaf7;
+   --card:#ffffff; --accent:#1f5673; --good:#1f7a4d; --warn:#a2382a;
+   --fit:#c8901a; --open:#6b3fa0;
+ }
+ @media (prefers-color-scheme: dark){
+   :root:not([data-theme="light"]){
+     --ink:#e8eceb; --muted:#9aa8a6; --rule:#2b3634; --page:#111817;
+     --card:#18201f; --accent:#7fb4d0; --good:#5cc08d; --warn:#e0776a;
+     --fit:#e0b45c; --open:#b294d8;
+   }
+ }
+ :root[data-theme="dark"]{
+   --ink:#e8eceb; --muted:#9aa8a6; --rule:#2b3634; --page:#111817;
+   --card:#18201f; --accent:#7fb4d0; --good:#5cc08d; --warn:#e0776a;
+   --fit:#e0b45c; --open:#b294d8;
+ }
+ *{box-sizing:border-box}
+ body{margin:0;background:var(--page);color:var(--ink);
+   font:16px/1.6 "Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+   padding:0 1.2rem 5rem}
+ header{max-width:62rem;margin:0 auto;padding:3.4rem 0 1.6rem;
+   border-bottom:1px solid var(--rule)}
+ h1{font-size:clamp(1.8rem,4vw,2.7rem);line-height:1.15;margin:0 0 .5rem;
+   text-wrap:balance;letter-spacing:-.01em}
+ .sub{margin:0;color:var(--muted);font-size:1.05rem;max-width:46rem}
+ .stamp{margin:.9rem 0 0;color:var(--muted);font-size:.8rem;
+   text-transform:uppercase;letter-spacing:.09em}
+ section{max-width:62rem;margin:0 auto;padding:2.2rem 0 .4rem}
+ h2{font-size:1.32rem;margin:0 0 1.1rem;letter-spacing:-.005em}
+ h3{font-size:1.02rem;margin:0 0 .35rem;display:flex;gap:.6rem;
+   align-items:baseline;flex-wrap:wrap}
+ .finding{display:flex;gap:0;background:var(--card);border:1px solid var(--rule);
+   border-radius:3px;margin:0 0 .8rem;overflow:hidden}
+ .finding .rail{width:4px;flex:0 0 4px;background:var(--accent)}
+ .finding.measured .rail{background:var(--good)}
+ .finding.fitted .rail{background:var(--fit)}
+ .finding.reported .rail{background:var(--accent)}
+ .finding.open .rail{background:var(--open)}
+ .finding .body{padding:.95rem 1.15rem}
+ .headline{margin:0;font-size:1.14rem;font-weight:600}
+ .detail{margin:.5rem 0 0;color:var(--muted);font-size:.94rem}
+ .source{margin:.5rem 0 0;color:var(--muted);font-size:.82rem;
+   font-style:italic}
+ .badge{font:600 .66rem/1 ui-sans-serif,system-ui,sans-serif;
+   text-transform:uppercase;letter-spacing:.1em;padding:.28em .55em;
+   border-radius:2px;border:1px solid currentColor}
+ .badge.measured{color:var(--good)} .badge.derived{color:var(--accent)}
+ .badge.fitted{color:var(--fit)} .badge.reported{color:var(--accent)}
+ .badge.open{color:var(--open)}
+ .scroll{overflow-x:auto}
+ table{border-collapse:collapse;width:100%;font-size:.93rem;
+   font-variant-numeric:tabular-nums}
+ th,td{padding:.5rem .7rem;text-align:right;border-bottom:1px solid var(--rule)}
+ th:first-child,td:first-child{text-align:left}
+ thead th{font:600 .72rem/1 ui-sans-serif,system-ui,sans-serif;
+   text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+ tr.row-mark td{background:color-mix(in srgb,var(--good) 12%, transparent);
+   font-weight:600}
+ .note,.caption{color:var(--muted);font-size:.87rem;margin:.7rem 0 0}
+ .reading{margin:.7rem 0 0;font-size:.93rem;
+   border-left:2px solid var(--rule);padding-left:.9rem}
+ figure{margin:0;background:var(--card);border:1px solid var(--rule);
+   border-radius:3px;padding:.7rem}
+ img,video{width:100%;height:auto;display:block;border-radius:2px}
+ .caveats{border-top:1px solid var(--rule);margin-top:2rem}
+ .caveats li{margin:0 0 .55rem;color:var(--muted)}
+ .missing{color:var(--warn)}
+ footer{max-width:62rem;margin:2rem auto 0;padding-top:1.2rem;
+   border-top:1px solid var(--rule);color:var(--muted);font-size:.82rem}
+ /* Tab strip.  Sticky so the reader can move between topics from
+    anywhere in a long panel, and scrollable sideways on a phone rather
+    than wrapping into a block that eats the viewport. */
+ .tabs{position:sticky;top:0;z-index:5;display:flex;gap:.15rem;
+   max-width:62rem;margin:0 auto;padding:.55rem 0;overflow-x:auto;
+   background:var(--page);border-bottom:1px solid var(--rule);
+   scrollbar-width:none}
+ .tabs::-webkit-scrollbar{display:none}
+ .tabs button{flex:0 0 auto;appearance:none;cursor:pointer;
+   background:transparent;color:var(--muted);border:0;
+   border-bottom:2px solid transparent;border-radius:2px 2px 0 0;
+   padding:.5rem .85rem;white-space:nowrap;
+   font:600 .78rem/1.2 ui-sans-serif,system-ui,sans-serif;
+   text-transform:uppercase;letter-spacing:.07em}
+ .tabs button:hover{color:var(--ink)}
+ .tabs button:focus-visible{outline:2px solid var(--accent);
+   outline-offset:-2px}
+ .tabs button[aria-selected="true"]{color:var(--ink);
+   border-bottom-color:var(--accent)}
+ .panel[hidden]{display:none}
+ .panel>section:first-child{padding-top:1.4rem}
+</style></head><body>
+<header><h1>T</h1><p class="sub">s</p><p class="stamp">generated 01 September 2026</p></header>
+<nav class="tabs" role="tablist" hidden><button role="tab" data-tab="0" aria-selected="true" aria-controls="panel-0">What matters</button><button role="tab" data-tab="1" aria-selected="false" aria-controls="panel-1">Where the time is</button><button role="tab" data-tab="2" aria-selected="false" aria-controls="panel-2">The river</button><button role="tab" data-tab="3" aria-selected="false" aria-controls="panel-3">Caveats</button></nav>
+<div class="panel" id="panel-0" data-panel="0">
+<section><h2>What matters, in order</h2>
+<article class="finding derived"><div class="rail"></div><div class="body"><h3>a <span class="badge derived">derived</span></h3><p class="headline">h</p></div></article>
+</section>
+</div>
+<div class="panel" id="panel-1" data-panel="1">
+<section><h2>One</h2><div class="scroll"><table><thead><tr><th>a</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table></div></section>
+</div>
+<div class="panel" id="panel-2" data-panel="2">
+<section><h2>Two</h2><div class="scroll"><table><thead><tr><th>a</th></tr></thead><tbody><tr><td>2</td></tr></tbody></table></div></section>
+<section><h2>F</h2><p class="missing">not generated</p></section>
+</div>
+<div class="panel" id="panel-3" data-panel="3">
+<section class="caveats"><h2>What this does not know</h2><ul>
+<li>x</li>
+</ul></section>
+</div>
+<footer>Generated from the live model by
+<code>coxswain.report</code>. Every figure and table on this page was
+produced by the run that wrote it; nothing is transcribed.</footer>
+<script>
+/* Progressive enhancement.  The markup ships with every panel visible
+   and the tab strip hidden, so a browser with no JavaScript -- or one
+   that fails to run this -- gets the long scrolling page rather than a
+   blank one.  Only once this runs does the page become tabbed. */
+(function () {
+  var strip = document.querySelector('.tabs');
+  var panels = Array.prototype.slice.call(
+    document.querySelectorAll('.panel'));
+  if (!strip || panels.length < 2) { return; }
+  var tabs = Array.prototype.slice.call(strip.querySelectorAll('button'));
+
+  function show(index) {
+    panels.forEach(function (panel, i) { panel.hidden = i !== index; });
+    tabs.forEach(function (tab, i) {
+      tab.setAttribute('aria-selected', i === index ? 'true' : 'false');
+    });
+    try { history.replaceState(null, '', '#panel-' + index); } catch (e) {}
+  }
+
+  tabs.forEach(function (tab, index) {
+    tab.addEventListener('click', function () {
+      show(index);
+      window.scrollTo({top: 0, behavior: 'auto'});
+    });
+    /* Arrow keys move between tabs, which is what a tablist owes a
+       keyboard user. */
+    tab.addEventListener('keydown', function (event) {
+      var step = event.key === 'ArrowRight' ? 1
+               : event.key === 'ArrowLeft' ? -1 : 0;
+      if (!step) { return; }
+      event.preventDefault();
+      var next = (index + step + tabs.length) % tabs.length;
+      tabs[next].focus();
+      show(next);
+    });
+  });
+
+  strip.hidden = false;
+  var opening = parseInt((location.hash.match(/^#panel-(\d+)$/) || [])[1],
+                         10);
+  show(isNaN(opening) || opening >= panels.length ? 0 : opening);
+})();
+</script>
+</body></html>
