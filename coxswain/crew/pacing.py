@@ -232,7 +232,18 @@ class CoursePacing:
                 # Skiba's exponential refill; the asymmetry is the whole
                 # tactical point -- spending is fast, getting it back is
                 # not.
-                gap = self.capacity - reserve[index]
+                #
+                # The gap is measured from a reserve floored at zero, not
+                # from the raw balance.  A schedule that overspends leaves
+                # the balance negative, and refilling from a negative
+                # reserve gave a *larger* gap and so a bigger refill: a
+                # crew that had blown up recovered faster than one that had
+                # not.  That made the reserve non-monotone in power and let
+                # the optimiser prefer schedules 15 kJ in deficit precisely
+                # because they were infeasible.  The deficit is kept in the
+                # trace so infeasibility stays visible; it just no longer
+                # earns interest.
+                gap = self.capacity - max(reserve[index], 0.0)
                 refill = gap * (1.0 - np.exp(-durations[index]
                                              / self.recovery_tau))
                 reserve[index + 1] = reserve[index] + refill
@@ -283,28 +294,92 @@ class CoursePacing:
 
         shape = shape / np.abs(shape).max()
 
-        best_plan, best_amplitude = reference, 0.0
-        for amplitude in np.linspace(0.0, span, samples):
-            trial = self._balanced(baseline, shape, amplitude)
-            if trial is None:
-                continue
-            if trial.total_time < best_plan.total_time:
-                best_plan, best_amplitude = trial, float(amplitude)
+        def timed(amplitude):
+            trial = self._balanced(baseline, shape, float(amplitude))
+            return (trial, trial.total_time if trial is not None
+                    else float("inf"))
+
+        grid = np.linspace(0.0, span, samples)
+        best_plan, best_time, best_amplitude = reference, \
+            reference.total_time, 0.0
+        for amplitude in grid:
+            trial, elapsed = timed(amplitude)
+            if elapsed < best_time:
+                best_plan, best_time, best_amplitude = trial, elapsed, \
+                    float(amplitude)
+
+        # Refine by bisection on the bracket around the grid minimum, so
+        # the answer stops depending on ``samples``.  Without this a
+        # coarser grid over a wider span reported a *worse* optimum, which
+        # is a property of the search and not of the river.
+        step = grid[1] - grid[0] if len(grid) > 1 else 0.0
+        low = max(0.0, best_amplitude - step)
+        high = min(span, best_amplitude + step)
+        for _ in range(24):
+            if high - low < 0.05:
+                break
+            left, right = low + (high - low) / 3.0, high - (high - low) / 3.0
+            _pl, left_time = timed(left)
+            _pr, right_time = timed(right)
+            if left_time < right_time:
+                high = right
+            else:
+                low = left
+        trial, elapsed = timed(0.5 * (low + high))
+        if elapsed < best_time:
+            best_plan, best_amplitude = trial, float(0.5 * (low + high))
         return best_plan, best_amplitude
 
     def _balanced(self, baseline: float, shape: np.ndarray,
                   amplitude: float, tolerance: float = 1.0,
-                  limit: int = 40):
-        """Shift a shaped schedule until it spends exactly the reserve."""
-        offset = baseline
-        for _ in range(limit):
+                  limit: int = 60):
+        """Shift a shaped schedule until it spends exactly the reserve.
+
+        **Bisection, not Newton.**  The reserve left at the finish falls
+        monotonically as the offset rises -- more power everywhere can
+        only empty the reserve faster -- so bisection is unconditionally
+        convergent.  A Newton step on the same function is not: it
+        oscillated across the root and returned schedules overspent by up
+        to 10 kJ, which the amplitude search then preferred *because* they
+        were illegal and therefore fast.  The search was selecting for
+        non-convergence.
+        """
+        def plan_for(offset):
             powers = np.clip(offset + amplitude * shape,
                              0.5 * self.critical_power, self.max_power)
-            plan = self.evaluate(powers)
-            left = plan.reserve[-1]
-            if abs(left) < tolerance:
+            return self.evaluate(powers)
+
+        # Bisect on the MINIMUM reserve over the race, not the final one.
+        # A crew cannot go into deficit at Eliot and be rescued by an easy
+        # last mile, so the final balance is the wrong target: it lets a
+        # schedule dip below zero mid-race and still score as legal.  The
+        # minimum is also the monotone quantity, which is what makes the
+        # bracket safe.
+        def worst(offset):
+            return float(plan_for(offset).reserve.min())
+
+        low, high = 0.5 * self.critical_power, self.max_power
+        if worst(low) < 0.0:
+            return None                      # infeasible at any offset
+        if worst(high) > 0.0:
+            return plan_for(high)            # ceiling binds before the reserve
+
+        plan = None
+        for _ in range(limit):
+            middle = 0.5 * (low + high)
+            plan = plan_for(middle)
+            margin = float(plan.reserve.min())
+            if abs(margin) < tolerance:
                 return plan
-            # Spending the reserve faster needs more power; the derivative
-            # is roughly the race duration, which makes this a Newton step.
-            offset += left / max(plan.total_time, 1.0)
+            if margin > 0.0:
+                low = middle                 # reserve unspent, push harder
+            else:
+                high = middle
+        # Never hand back a schedule that did not converge onto the
+        # constraint.  An unconverged plan in deficit is *fast*, and the
+        # amplitude search will pick it for that reason -- which is how
+        # the 16 s "saving" this module first reported turned out to be a
+        # crew 15 kJ overdrawn.
+        if plan is None or plan.reserve.min() < -tolerance:
+            return None
         return plan
