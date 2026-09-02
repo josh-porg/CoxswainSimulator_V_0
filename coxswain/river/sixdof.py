@@ -320,9 +320,19 @@ class SixDofModel:
         self.balance_limit = 4000.0
         self.critical_power = 3040.0
         self.anaerobic_capacity = 176000.0
+        # Air drag. Present in still air too -- it was absent entirely,
+        # not merely wind-blind. ``wind_abs`` is the true wind in the
+        # absolute frame, m/s, blowing TOWARDS that vector.
+        from ..hydro.wind import AeroModel
+        try:
+            self.aero = AeroModel.calibrate(boat)
+        except Exception:
+            self.aero = None
+        self.wind_abs = np.zeros(2)
 
     # -- dynamics ---------------------------------------------------------
-    def derivative(self, state, control, time, depth=None):
+    def derivative(self, state, control, time, depth=None,
+                   wind=None):
         import casadi as ca
 
         from ..core import frames
@@ -483,10 +493,22 @@ class SixDofModel:
         lateral_fix = ca.vertcat(0.0, cross_y - resistance[1], 0.0)
         cross_moment = ca.vertcat(0.0, 0.0, cross_n)
 
+        # -- air -----------------------------------------------------------
+        # There was NO aerodynamic term here at all, in either still air or
+        # wind, while `SixDofTrajectory.dynamics_function` accepted a
+        # ``wind`` argument and documented that it was applied.  The
+        # stochastic solver drew a wind per scenario (sigma 2.5 m/s) and
+        # passed it in, and every scenario was solved in still air.  See
+        # SOURCES sec. 69.
+        aero_force_hull, aero_moment_hull = self._aero_casadi(
+            velocity_hull, rotation, ca)
+
         force_hull = (resistance + lateral_fix + appendage_force
-                      + oar_force_hull + balance_force + munk_force)
+                      + oar_force_hull + balance_force + munk_force
+                      + aero_force_hull)
         moment_hull_total = (appendage_moment + oar_moment_hull
-                             + balance_moment + cross_moment + munk_moment)
+                             + balance_moment + cross_moment + munk_moment
+                             + aero_moment_hull)
 
         force = (rotation @ force_hull + buoyancy_force + weight
                  + crew_force)
@@ -555,6 +577,51 @@ class SixDofModel:
         force = self.munk_factor * ca.cross(top, omega_hull)
         moment = self.munk_factor * (ca.cross(top, velocity_hull)
                                      + ca.cross(bot, omega_hull))
+        return force, moment
+
+
+    def _aero_casadi(self, velocity_hull, rotation, ca):
+        """Aerodynamic force and moment in the hull frame.
+
+        Mirrors :meth:`coxswain.hydro.wind.AeroModel.loads`, including its
+        ``|v| v`` form rather than ``v^2``: that is what keeps the sign
+        right in a tailwind that overtakes the boat, which is exactly the
+        case Kleshnev says drives the aerodynamic share to zero.  Squaring
+        instead would make an overtaking tailwind *push backwards*.
+
+        The true wind is a constant in the absolute frame, so it is rotated
+        into the hull frame here rather than being stored there -- a boat
+        that yaws through 30 degrees round Weeks meets a different apparent
+        wind at the same true wind, and a hull-frame constant cannot say
+        so.
+
+        The centre of pressure sits above the waterline, so the drag makes
+        a real pitch moment.  It is small, but it is the same class of term
+        as ``cross_accel`` (SOURCES sec. 47), which was also small until it
+        turned out to be 54% of the pitch swing.
+        """
+        aero = getattr(self, "aero", None)
+        if aero is None:
+            return ca.DM.zeros(3), ca.DM.zeros(3)
+
+        true_abs = ca.DM([float(self.wind_abs[0]), float(self.wind_abs[1]),
+                          0.0])
+        true_hull = rotation.T @ true_abs
+        # Apparent wind the boat feels: the air's motion relative to it.
+        apparent = true_hull - ca.vertcat(velocity_hull[0], velocity_hull[1],
+                                          0.0)
+
+        area = float(aero.total_area)
+        density = float(aero.density)
+        scale = 0.5 * density * area
+        # ``sqrt(x^2 + eps)`` rather than ``fabs``: the derivative of
+        # ``fabs`` at zero is what IPOPT trips over, and still air is
+        # exactly the point every solve starts from.
+        speed = ca.sqrt(apparent[0] ** 2 + apparent[1] ** 2 + 1e-9)
+        force = ca.vertcat(scale * speed * apparent[0],
+                           scale * speed * apparent[1], 0.0)
+        height = float(getattr(aero, "crew_height", 0.60))
+        moment = ca.cross(ca.vertcat(0.0, 0.0, height), force)
         return force, moment
 
 

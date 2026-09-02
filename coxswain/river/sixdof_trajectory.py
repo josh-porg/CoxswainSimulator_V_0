@@ -194,7 +194,16 @@ class SixDofTrajectory:
 
         where = ca.vertcat(state[0], state[1])
         depth = ca.fmax(self.depth(where), 0.3)
-        derivative = self.model.derivative(state, control, time, depth)
+        # The wind is set on the model rather than passed down the call,
+        # because it is a constant of the scenario and not a function of
+        # the state.  Previously this argument was accepted and discarded.
+        previous = getattr(self.model, "wind_abs", None)
+        self.model.wind_abs = self.wind_vector(wind)
+        try:
+            derivative = self.model.derivative(state, control, time, depth)
+        finally:
+            if previous is not None:
+                self.model.wind_abs = previous
 
         if self.has_current:
             # The boat moves through water that is itself moving, so the
@@ -208,10 +217,24 @@ class SixDofTrajectory:
         return ca.Function("sixdof_river", [state, control, time],
                            [derivative])
 
-    def wind_note(self, wind):
-        """Placeholder hook: scenario wind enters through the boat's aero
-        model, which the stochastic solver configures per scenario."""
-        return wind
+    @staticmethod
+    def wind_vector(wind):
+        """``(east, north)`` m/s the wind blows TOWARDS, from a scenario.
+
+        Scenarios carry ``wind_speed`` and ``wind_bearing``, the bearing
+        being the direction blown towards in the model's maths frame (see
+        :class:`~coxswain.river.stochastic.Scenario`).  Returns zeros for
+        ``None`` so a windless solve is the default rather than an error.
+
+        This replaces ``wind_note``, which returned its argument unchanged
+        and claimed in its docstring that the wind was applied elsewhere.
+        It was not applied anywhere.  See SOURCES sec. 69.
+        """
+        if wind is None:
+            return np.zeros(2)
+        speed = float(getattr(wind, "wind_speed", 0.0))
+        bearing = float(getattr(wind, "wind_bearing", 0.0))
+        return np.array([speed * np.cos(bearing), speed * np.sin(bearing)])
 
     def initial_state(self, position, heading, speed):
         """A start state that is actually consistent.
