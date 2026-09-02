@@ -171,18 +171,55 @@ def test_split_adds_yaw_authority():
     in the full model.
     """
     model = ReducedModel()
+    rudder_only = model.steady_turn_radius(model.rudder_limit)
+    with_split = model.steady_turn_radius(model.rudder_limit,
+                                          model.split_limit)
 
-    def steady_radius(delta, split):
-        rate = (model.yaw_control * model.reference_speed ** 2 * delta
-                + model.split_control * split) / (
-                    model.yaw_damping * model.reference_speed)
-        return model.reference_speed / abs(rate)
-
-    rudder_only = steady_radius(model.rudder_limit, 0.0)
-    with_split = steady_radius(model.rudder_limit, model.split_limit)
-    assert rudder_only == pytest.approx(283.0, rel=0.05)
-    assert with_split < 0.6 * rudder_only
+    # 259 m is the FULL model's measurement, and what the surrogate has to
+    # reproduce.  This assertion used to read 283 m, which was the reduced
+    # model's own linear answer at a 12-degree rudder limit -- so when the
+    # limit was raised to the boat's real 45 degrees the test began failing
+    # against a number that had never been a physical target.
+    assert rudder_only == pytest.approx(259.0, rel=0.05)
+    assert with_split < 0.75 * rudder_only
     assert with_split < 200.0
+
+
+def test_rudder_authority_saturates():
+    """The reduced model must not sell steering the boat does not have.
+
+    ``yaw_control`` is fitted at 4 and 8 degrees.  Applied linearly to the
+    45-degree structural limit it gave a 75.6 m turn radius against the
+    6-DOF model's 259 m -- 3.4x too much authority in a surrogate whose
+    whole job is to produce trajectories the full model can fly.
+    """
+    model = ReducedModel()
+    # Near zero the response is linear: halving the angle halves the rate.
+    small = model.steady_yaw_rate(np.radians(0.5))
+    doubled = model.steady_yaw_rate(np.radians(1.0))
+    assert doubled == pytest.approx(2.0 * small, rel=0.01)
+
+    # Far out it is not.  Linear would give 5.6x the 8-degree rate.
+    at_eight = model.steady_yaw_rate(np.radians(8.0))
+    at_full = model.steady_yaw_rate(model.rudder_limit)
+    assert at_full < 2.0 * at_eight
+
+    # And the fit the slope came from must survive: the mean ratio over
+    # the two step angles the 6-DOF was probed at is what was measured.
+    ratios = [model.steady_yaw_rate(np.radians(d))
+              * model.yaw_damping
+              / (model.reference_speed * np.radians(d))
+              for d in (4.0, 8.0)]
+    assert float(np.mean(ratios)) == pytest.approx(539.0, rel=0.01)
+
+
+def test_disabling_saturation_recovers_the_linear_model():
+    """The saturation is a documented choice, not a hidden one."""
+    model = ReducedModel(rudder_saturation=0.0)
+    delta = np.radians(30.0)
+    expected = (model.yaw_control * model.reference_speed ** 2 * delta
+                / (model.yaw_damping * model.reference_speed))
+    assert model.steady_yaw_rate(delta) == pytest.approx(expected, rel=1e-12)
 
 
 @pytest.mark.slow

@@ -133,8 +133,13 @@ class ReducedModel:
     reference_speed: float = 5.2     # m/s, deep water, straight
     drag_coefficient: float = 0.0    # N s2/m2, set by fitting
     #: Yaw moment per unit rudder angle per unit speed squared, N m/rad.
-    #: Fitted from step-rudder responses of the 6-DOF model for an eight.
-    yaw_control: float = 539.0
+    #: Fitted from step-rudder responses of the 6-DOF model for an eight,
+    #: at 4 and 8 degrees.  Raised from 539.0 alongside
+    #: :attr:`rudder_saturation`, which are solved together so the mean
+    #: slope over those two fit angles is unchanged AND full rudder
+    #: reproduces the 6-DOF's 259 m turn radius.  Changing either alone
+    #: breaks one of those two conditions.
+    yaw_control: float = 585.5
     #: Yaw damping per unit speed, N m s/rad.
     yaw_damping: float = 32000.0
     #: Extra drag per unit yaw rate squared, N s2/rad2.  Turning costs
@@ -145,6 +150,28 @@ class ReducedModel:
     #: 12 degrees, which is not what the boat has and cost the optimiser
     #: most of its steering.
     rudder_limit: float = MAX_RUDDER_DEFLECTION
+    #: Effective-deflection scale at which rudder authority saturates,
+    #: radians.  **Without this the model is a linearisation used five
+    #: times past its fit range.**
+    #:
+    #: ``yaw_control`` is fitted from step responses at 4 and 8 degrees
+    #: (see :meth:`fit_from_boat`) and then applied linearly out to the
+    #: 45-degree structural limit.  It should not be: this model has no
+    #: sway state, so it cannot represent the sideslip a large rudder
+    #: induces, and that sideslip is what cancels most of the moment.
+    #: SOURCES sec. 36 measures the effect in the full model -- rudder
+    #: alone gives about 3.5 deg/s with sideslip ignored and about 1.1
+    #: deg/s once it is not.
+    #:
+    #: Left linear, the reduced model held a **75.6 m** turn radius at full
+    #: rudder against the 6-DOF model's measured **259 m** -- 3.4 times more
+    #: steering than the boat has, in a surrogate whose entire job is to
+    #: produce trajectories the full model can fly.
+    #:
+    #: ``delta_eff = s tanh(delta / s)`` preserves the fitted slope as
+    #: ``delta -> 0`` and saturates at ``s``, which is set so that full
+    #: rudder reproduces the 6-DOF's 259 m.  Set to zero to disable.
+    rudder_saturation: float = 0.21127
     #: Yaw moment per unit port/starboard pressure split, N m.  The
     #: coxswain's second control, and on a river the decisive one.
     #: Measured against the extracted Charles channel: full rudder alone
@@ -178,6 +205,36 @@ class ReducedModel:
             # reference speed: T = k v_ref^2
             self.drag_coefficient = 1.0
         self.thrust = self.drag_coefficient * self.reference_speed ** 2
+
+    def effective_rudder(self, delta, symbolic=None):
+        """Deflection the yaw moment actually responds to, radians.
+
+        ``s tanh(delta / s)``: identity for small ``delta``, so the slope
+        fitted at 4 and 8 degrees is untouched, and saturating at ``s`` so
+        that full rudder does not buy authority the boat does not have.
+        See :attr:`rudder_saturation`.
+
+        Pass CasADi as ``symbolic`` to build the expression instead.
+        """
+        scale = float(self.rudder_saturation)
+        if scale <= 0.0:
+            return delta
+        if symbolic is None:
+            return scale * np.tanh(np.asarray(delta, dtype=float) / scale)
+        return scale * symbolic.tanh(delta / scale)
+
+    def steady_yaw_rate(self, delta=0.0, split=0.0, speed=None):
+        """Steady-state yaw rate at this rudder and split, rad/s."""
+        u = self.reference_speed if speed is None else float(speed)
+        return ((self.yaw_control * u ** 2 * self.effective_rudder(delta)
+                 + self.split_control * float(split))
+                / (self.yaw_damping * u))
+
+    def steady_turn_radius(self, delta=0.0, split=0.0, speed=None):
+        """Radius of the steady turn those controls hold, metres."""
+        u = self.reference_speed if speed is None else float(speed)
+        rate = self.steady_yaw_rate(delta, split, u)
+        return u / abs(rate) if rate else float("inf")
 
     def straight_line_speed(self, depth_factor: float = 1.0,
                             power_fraction: float = 1.0) -> float:
@@ -475,7 +532,8 @@ def solve_trajectory(channel, start: np.ndarray, goal: np.ndarray,
             r,
             (effort * model.thrust - drag - turn_loss - split_loss)
             / model.mass,
-            (model.yaw_control * u ** 2 * delta
+            (model.yaw_control * u ** 2
+             * model.effective_rudder(delta, ca)
              + model.split_control * pressure
              - model.yaw_damping * u * r) / model.yaw_inertia,
             -(drawn - model.critical_power),
