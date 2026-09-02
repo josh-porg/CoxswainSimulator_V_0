@@ -64,6 +64,25 @@ DRIVE_SHAPE = (1.4852, 2.2278)
 #: switching between them.
 DRIVE_SHAPE_MEAN = 0.53853
 
+#: ``shift_per_spm`` that reproduces McBride's measurement: peak oar force
+#: arrives **3.4% of the stroke cycle (3 degrees of oar angle) earlier** at
+#: race pace than at 20 spm [W18]_.
+#:
+#: **The default model moves it the wrong way.**  With no shift the peak
+#: arrives 4.63% of the cycle *later* at 36 spm than at 20, because
+#: :attr:`StrokeTiming.drive_fraction` grows with rate and the peak sits at
+#: a fixed fraction *of the drive*.  Against McBride's 3.4% earlier that is
+#: an 8.0% discrepancy in the wrong direction -- a real defect that only
+#: showed up because the review reports the observable in cycle terms.
+#:
+#: Not switched on by default: every speed calibration in the catalogue
+#: predates it, exactly as with ``shape``.  Pass it explicitly.
+#:
+#: .. [W18] Warmenhoven, J., Cobley, S., Draper, C., Smith, R. (2018)
+#:    *Over 50 Years of Researching Force Profiles in Rowing: What Do We
+#:    Know?*, Sports Medicine 48:2703-2714, sec. 6.3.1, citing McBride.
+MCBRIDE_SHIFT_PER_SPM = 0.010329
+
 
 @dataclass(frozen=True)
 class OarForceProfile:
@@ -95,6 +114,50 @@ class OarForceProfile:
     #: for the previous symmetric one.  Kept switchable because every
     #: speed calibration in the catalogue predates the change.
     shape: str = "kleshnev"
+    #: Extra front-loading, as a shift of the peak within the drive.
+    #: Positive moves the peak EARLIER.  Zero reproduces the fitted
+    #: Kleshnev shape exactly, so nothing changes unless it is asked for.
+    #:
+    #: This exists because the peak's position is not a constant of the
+    #: rower: McBride reports peak oar force occurring **3.4% of the
+    #: stroke cycle (3 degrees of oar angle) earlier** when the rate rises
+    #: from 20 spm to race pace [W18]_.  A profile pinned at one position
+    #: cannot represent that, and the rate question is exactly what this
+    #: project keeps running into.
+    peak_shift: float = 0.0
+    #: Rate at which ``peak_shift`` is quoted, spm.  Above it the peak
+    #: moves earlier and below it later, at ``shift_per_spm``.
+    reference_rate: float = 20.0
+    #: Fraction of the DRIVE that the peak moves earlier per spm.
+    #: Calibrated so that 20 spm to 36 spm reproduces McBride's 3.4% of
+    #: the cycle; see ``scripts/force_profile.py`` for the check, and note
+    #: that the drive fraction itself grows with rate, so the cycle-level
+    #: shift is not simply this times the drive.
+    shift_per_spm: float = 0.0
+
+    def peak_position(self, timing: StrokeTiming = None) -> float:
+        """Where the peak sits within the drive, as a fraction in (0, 1)."""
+        if self.shape == "half_sine":
+            base = 0.5
+        else:
+            a, b = DRIVE_SHAPE
+            base = a / (a + b)
+        shift = float(self.peak_shift)
+        if timing is not None and self.shift_per_spm:
+            shift += self.shift_per_spm * (float(timing.rate)
+                                           - self.reference_rate)
+        return float(np.clip(base - shift, 0.05, 0.95))
+
+    @staticmethod
+    def _exponents(peak: float, total: float):
+        """Beta exponents putting the mode at ``peak`` with fixed ``a+b``.
+
+        Holding ``a + b`` fixed keeps the curve's *width* roughly constant
+        while the mode moves, so shifting the peak does not silently also
+        change how long the rower is near maximum load.
+        """
+        a = peak * total
+        return a, total - a
 
     def magnitude(self, t, timing: StrokeTiming):
         """Shape factor in ``[0, 1]``; zero through the recovery."""
@@ -102,14 +165,32 @@ class OarForceProfile:
         phase_time = np.mod(t, timing.period)
         active = phase_time <= timing.drive_duration
         u = np.clip(phase_time / timing.drive_duration, 0.0, 1.0)
-        if self.shape == "half_sine":
+        if self.shape == "half_sine" and not (self.peak_shift
+                                              or self.shift_per_spm):
             curve = np.sin(np.pi * u)
         else:
-            a, b = DRIVE_SHAPE
-            peak = a / (a + b)
+            base_a, base_b = DRIVE_SHAPE
+            peak = self.peak_position(timing)
+            a, b = self._exponents(peak, base_a + base_b)
             norm = peak ** a * (1.0 - peak) ** b
             curve = u ** a * (1.0 - u) ** b / norm
         return np.where(active, np.maximum(curve, 0.0), 0.0)
+
+    def mean_to_peak(self, timing: StrokeTiming, samples: int = 400) -> float:
+        """Mean force over the drive divided by peak force, ``MPFR``.
+
+        A discriminating measure in the review literature: elite rowers
+        show a **significantly higher** ratio than sub-elite [W18]_,
+        because impulse is the area under the curve and a rectangular
+        profile carries more of it for the same peak.  Chasing peak force
+        alone is the classic mistake -- two rowers with identical peaks can
+        differ substantially in what they deliver.
+
+        This is a diagnostic on the profile, not an input to it.
+        """
+        u = (np.arange(samples) + 0.5) / samples
+        curve = self.magnitude(u * timing.drive_duration, timing)
+        return float(curve.mean() / max(curve.max(), 1e-12))
 
 
 @dataclass(frozen=True)

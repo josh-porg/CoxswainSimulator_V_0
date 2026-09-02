@@ -5395,3 +5395,277 @@ particular tab.
 
 Current groups: *What matters*, *Where the time is*, *The river*, *The
 line*, *Wind*, *Hydrodynamics*, *Watch it row*, *Caveats*.
+
+## 66. Depth is not a scale factor, and the correction reverses the advice
+
+§63 concluded that depth was "a tax, not a tactical opportunity" — that
+shallow water costs seconds without rewarding a change in pacing. **That
+was wrong, and it was wrong because of how this code modelled depth, not
+because of anything about the river.**
+
+`CourseSegment` carried a scalar `depth_factor` multiplying resistance,
+evaluated once at a reference speed. Under that model the conclusion
+follows trivially: scaling a power law by a constant leaves its elasticity
+untouched, so `e` cannot vary and no redistribution can be worth anything.
+
+But the shallow-water correction is `F(v, h)`, running on the **depth
+Froude number** `Fr_h = v/√(gh)`, and it steepens sharply as `Fr_h`
+approaches one. It depends on speed as well as depth. That is precisely
+the dependence a pacing model needs, because it bends the resistance curve
+and so moves `e = d ln v/d ln P` — half of the `e·k` that sets the whole
+schedule.
+
+`CourseSegment.depth` is now a depth in metres and the factor is evaluated
+**at the trial speed** inside the power balance. `drag_factor` remains for
+a caller who genuinely has a speed-independent multiplier, kept separate so
+the two cannot be confused again.
+
+### How much it mattered
+
+| four segments, alternating | saved | spread | `e·k` range |
+|---|---|---|---|
+| deep everywhere | 0.00 s | 0 W | 0.333 – 0.333 |
+| uniform 2.2 m | 0.00 s | 0 W | 0.220 – 0.220 |
+| constant multiplier ×1.4 | 0.00 s | 0 W | 0.333 – 0.333 |
+| **depth 12 m / 2.2 m** | **6.77 s** | 34 W | 0.220 – 0.333 |
+| depth 12 m / 1.8 m | 7.93 s | 34 W | 0.170 – 0.333 |
+| depth 12 m / 1.5 m | 8.62 s | 35 W | 0.126 – 0.333 |
+
+In 2.2 m of water the elasticity falls **34%**, from 0.333 to 0.220. A
+depth contrast of 12 m against 2.2 m is worth **6.8 s** — more than double
+the current channel (2.9 s) and comparable to the wind channel (7.2 s).
+
+### And the advice runs the other way
+
+The current result was *push where you are slowest*. The depth result is
+the opposite: **ease through the shoals, push in the deep water.**
+
+Both are the same rule, which is why `e·k` is the right quantity to think
+in. Spend a watt where it buys the most **seconds**:
+
+* **Adverse current** — you are slow, but a watt still buys full speed.
+  `e` is unchanged, `k` rises. **Push.**
+* **Shallow water** — a watt buys much less speed, because drag is
+  climbing steeply toward the critical depth Froude number. `e` collapses.
+  **Ease.**
+
+Reading either off "where the boat is slow" gets one of the two backwards.
+Pinned by `test_varying_depth_does_change_the_schedule` and
+`test_the_shallow_factor_is_evaluated_at_the_trial_speed`; the old
+algebraic statement survives as
+`test_a_constant_drag_multiplier_does_not_change_the_schedule`, relabelled
+so it can no longer be read as a claim about depth.
+
+### Also added: the front-to-back split
+
+`optimise_with_split` adds a straight ramp in distance to the
+course-shaped basis — negative is a positive split (out hard, fade),
+positive a negative split (build to the line). The shaped search alone can
+say *where* to spend but not *when*, and with W' recovery in play a
+schedule could empty the reserve early, refill on easy water and finish
+holding several kilojoules. On the Charles with a 6 m/s WSW wind the ramp
+recovers a further 0.5 s and wants **+20 W** end to end, i.e. a mild
+negative split.
+
+### §66 continued: on the real Charles, depth dominates everything
+
+Re-running `scripts/course_pacing.py --wind 6 --wind-from 250` with depth
+done properly, over the surveyed reach in twelve segments:
+
+| station | current | headwind | depth m | `e·k` | Δ power |
+|---|---|---|---|---|---|
+| 517 m | −0.026 | −5.20 | **2.07** | **0.079** | **−11.0 W** |
+| 2584 m | −0.023 | −3.94 | 2.27 | 0.139 | −6.2 W |
+| 6720 m | −0.012 | +2.51 | 3.05 | 0.262 | +3.7 W |
+| 9821 m | −0.001 | −5.52 | 5.79 | 0.312 | +7.7 W |
+| 11889 m | −0.005 | −5.52 | **7.80** | **0.334** | **+9.5 W** |
+
+Saving **4.40 s**, up from 2.06 s when depth was a frozen factor.
+
+**`e·k` varies 4.2-fold down the reach — 0.079 to 0.334 — and almost all
+of it is depth.** Current spans 0.001–0.026 m/s and does essentially
+nothing; wind moves it a little; depth moves it by a factor of four.
+
+### Why: a racing eight on the Charles is at the critical Froude number
+
+| depth m | `Fr_h` at 4.23 m/s | critical speed m/s |
+|---|---|---|
+| **2.07** | **0.939** | **4.51** |
+| 2.27 | 0.897 | 4.72 |
+| 3.05 | 0.773 | 5.47 |
+| 5.79 | 0.561 | 7.54 |
+| 7.80 | 0.484 | 8.75 |
+
+In the shallowest surveyed water a masters eight at race pace sits at
+`Fr_h = 0.94`, with critical speed only 4.51 m/s — **6% above race pace.**
+That is on the near-vertical part of the transcritical drag rise, which is
+why the elasticity collapses to 0.079: in that water a watt buys almost no
+speed at all.
+
+Three consequences, in order of size:
+
+1. **Ease through the shallows and push in the deep water.** Worth 4.4 s
+   over the surveyed reach on redistribution alone, costing nothing.
+2. **A faster crew is worse off, not better.** A collegiate eight at
+   5.0 m/s is *supercritical* in 2.07 m. The shallow penalty is not a
+   fixed tax; it grows steeply with boat speed.
+3. **This is a line-choice question before it is a pacing question.**
+   Depth this close to critical means steering for deep water is worth
+   more than any pacing schedule over the same stretch — and the racing
+   line optimiser already has the bathymetry to do it.
+
+**Caveats, both real.** The surveyed reach is 12.4 km against the 4.8 km
+race course, so absolute times here are not race times. And the depths are
+sampled along the course *centreline*, which its own docstring calls "a
+coarse spine, not a surveyed navigation channel" — so these are indicative
+of the reach, not of the line a crew would actually row. Re-running this
+against an optimised racing line is the next step and would probably
+reduce the shallow exposure considerably.
+
+### Performance note
+
+Evaluating the shallow model inside the power balance made a twelve-segment
+run slower than the race it was pacing. The factor is now tabulated on a
+speed grid once per depth and interpolated — the same treatment
+`RouteEvaluator.speed_through_water` gives it. The pacing test suite went
+from **137.8 s to 1.7 s** with every assertion unchanged.
+
+## 67. The line, coupled to the pacing: there is no depth margin
+
+`scripts/line_and_pace.py`. §66 found that depth dominates the pacing
+calculus on the Charles because the shallowest surveyed water puts a
+masters eight at `Fr_h = 0.94`. Its consequence is about steering, not
+pacing: if shallow water is that expensive, going around it may beat any
+redistribution of power through it. Constant-offset lines, with the pacing
+optimiser re-run **separately on each line** (the best schedule for a deep
+line is not the best schedule for a shallow one, and a single fixed
+schedule would understate the deep line):
+
+| line | length m | mean depth | min depth | flat s | paced s | vs centre |
+|---|---|---|---|---|---|---|
+| −30 m | 12399 | 3.08 | 1.01 | 2933.0 | 2868.6 | **+229.8** |
+| −20 m | 12395 | 3.59 | 1.76 | 2722.2 | 2718.9 | **+80.1** |
+| −10 m | 12393 | 3.80 | 1.97 | 2660.6 | 2657.3 | +18.6 |
+| **0 m** | 12392 | **3.88** | **2.04** | 2641.7 | **2638.8** | 0.0 |
+| +10 m | 12391 | 3.76 | 2.12 | 2661.6 | 2658.5 | +19.8 |
+| +20 m | 12389 | 3.45 | 1.54 | 2758.7 | 2756.2 | +117.4 |
+| +30 m | 12385 | 3.10 | 0.88 | 2839.9 | 2825.0 | +186.2 |
+
+**The centreline wins, and it is not close.** That is not a coincidence:
+`charles_course` derives its centreline from the channel raster, so it
+already follows the deep water. Constant offsets can only move off the
+thalweg, and every one of them does.
+
+### The margin is about 0.05 in Froude number
+
+| line | min depth | `Fr_h` at 4.23 m/s | regime |
+|---|---|---|---|
+| **0 m** | 2.04 | **0.946** | transcritical |
+| −10 m | 1.97 | 0.962 | transcritical |
+| **−20 m** | 1.76 | **1.018** | **supercritical** |
+| +20 m | 1.54 | 1.088 | supercritical |
+| −30 m | 1.01 | 1.344 | supercritical |
+
+**Twenty metres off the line and the boat goes supercritical.** The deep
+line already sits at 0.946, so there is essentially no depth margin on this
+river: a fifth of a boat length of lateral wander in the wrong place tips
+the hull across `Fr_h = 1` and onto the far side of the drag rise. That is
+the mechanism behind the 80–230 s penalties above, and it is a far larger
+number than anything pacing, rigging or equipment has produced.
+
+### A secondary result worth keeping
+
+Compare the `flat` and `paced` columns. On a good line the pacing optimiser
+is worth ~3 s; on the −30 m line it is worth **64 s**. Redistribution
+matters most exactly where the conditions vary most, which is the same
+statement as §66's `e·k` spread and a useful sanity check that the two
+scripts agree.
+
+### Caveats
+
+The surveyed reach is 12.4 km against a 4.8 km race, so scale the seconds
+by roughly 0.39 before quoting them. Depths come from the survey sampled
+along each line; the centreline is a coarse spine and the offsets are a
+crude family — a real optimum weaves toward the thalweg rather than sitting
+parallel to it. What this sizing settles is that the weaving version is
+worth solving properly, because the penalty surface is steep.
+
+## 68. Warmenhoven et al. (2018): the force peak moves the wrong way with rate
+
+`Over 50 Years of Researching Force Profiles in Rowing: What Do We Know?`,
+Warmenhoven, Cobley, Draper & Smith, *Sports Medicine* 48:2703-2714. A
+review rather than a measurement, which makes it useful in a different
+way: it reports which force-profile characteristics have survived fifty
+years of study, and several are things this model asserts without ever
+having been checked.
+
+### The defect it exposed
+
+§6.3.1, citing McBride: **peak oar force occurs 3.4% of the stroke cycle
+(3° of oar angle) EARLIER when the rate rises from 20 spm to race pace.**
+
+`OarForceProfile` put the peak at a fixed fraction *of the drive* — 0.40,
+Kleshnev's figure. But `StrokeTiming.drive_fraction` grows with rate
+(`0.63067 − 5.20991/rate`), so a peak fixed within the drive still moves
+within the cycle, and it moves the wrong way:
+
+| | 20 → 36 spm, cycle fraction |
+|---|---|
+| this model, as it stood | **4.63% later** |
+| McBride, measured | **3.4% earlier** |
+| discrepancy | **8.0% of the cycle** |
+
+This only surfaced because the review quotes the observable in *cycle*
+terms while the model parameterises it in *drive* terms. Both numbers were
+defensible in their own frame; the mismatch lived in the conversion nobody
+had done.
+
+`OarForceProfile` now takes `peak_shift` and `shift_per_spm`, with the
+peak's Beta exponents re-solved at fixed `a + b` so moving the mode does
+not silently also change how long the rower sits near maximum load.
+`MCBRIDE_SHIFT_PER_SPM = 0.010329` reproduces the 3.4% exactly.
+
+**Left opt-in**, like `shape` and the Michell wave table, because every
+speed calibration in the catalogue predates it. `test_the_shift_is_opt_in`
+pins that, and `test_without_the_shift_the_peak_moves_the_WRONG_way_with_rate`
+pins the defect's sign and magnitude so that anyone who later refits
+`drive_fraction` is told they have changed this too.
+
+### Mean-to-peak force ratio, now computed
+
+The review's other durable result: **MPFR is significantly higher in elite
+rowers than sub-elite**, because impulse is the area under the curve and a
+more rectangular profile carries more of it for the same peak. Chasing
+peak force alone is the classic error — two rowers with identical peaks can
+deliver materially different impulse.
+
+`OarForceProfile.mean_to_peak` reports it; the default curve gives 0.5385,
+which recovers `DRIVE_SHAPE_MEAN` and is therefore a consistency check
+rather than a new number.
+
+One honest caveat, stated in the test that pins it: front-loading the peak
+*lowers* MPFR in this parameterisation, which is arithmetic from holding
+`a + b` fixed, **not** a prediction that faster rating makes a worse rower.
+The review's elite/sub-elite MPFR finding is about a different degree of
+freedom (curve width) that this model does not yet expose.
+
+### Not yet implemented, and worth it
+
+**Sweep asymmetry is deliberate in skilled crews.** McBride reports stroke
+seat generating 13.8% greater peak oarlock force than bow seat; Roth et al.
+the same for a pair. In *skilled* pairs the stroke reaches peak force
+earlier and applies 10–20% more force through the first part of the drive,
+with bow applying more into the finish — and the trends **reverse** in
+unskilled pairs. The review reads this as intentional compensation for the
+moment created by staggered seats.
+
+This project has `power_scales` per seat but one shared profile *shape*, so
+it can represent the magnitude asymmetry and not the timing one. Given that
+`phase_offsets` already exists, a per-seat `peak_shift` is a small change
+with a real crew-rigging question behind it.
+
+**Female force profiles differ in shape, not just magnitude.** Warmenhoven
+et al. found women more likely to show a fall in relative force from 10%
+before to 30% after the perpendicular — peak reached earlier and *not*
+maintained through the second half. Directly relevant to a women's masters
+eight, and representable with the machinery just added.

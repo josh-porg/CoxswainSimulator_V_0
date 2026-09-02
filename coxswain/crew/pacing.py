@@ -184,10 +184,18 @@ class CoursePacing:
     _cache: dict = field(default_factory=dict, repr=False)
 
     def _shallow_for(self, segment: CourseSegment):
-        """The shallow-water model at this segment's depth, or ``None``.
+        """``speed -> factor`` at this segment's depth, or ``None`` if deep.
 
-        Built per depth and cached, because the model carries the depth as
-        a field rather than taking it as an argument.
+        Tabulated on a speed grid once per depth and interpolated, which
+        is the same trick :meth:`RouteEvaluator.speed_through_water` uses
+        and for the same reason: the factor is smooth in speed, and the
+        power balance below asks for it inside a bisection that the
+        amplitude search runs tens of thousands of times.  Calling the
+        model directly there made a twelve-segment Charles run take longer
+        than the race it was pacing.
+
+        The grid must resolve the transcritical rise, which is where the
+        interesting behaviour is, so it is fine down to 0.05 m/s.
         """
         depth = float(segment.depth)
         if not np.isfinite(depth):
@@ -198,7 +206,14 @@ class CoursePacing:
 
             from ..hydro.shallow import ShallowWaterModel
             template = self.shallow_model or ShallowWaterModel()
-            self._cache[key] = _replace(template, depth=max(depth, 0.30))
+            model = _replace(template, depth=max(depth, 0.30))
+            speeds = np.arange(0.0, 12.0 + 1e-9, 0.05)
+            factors = np.array([float(model.factor(v)) for v in speeds])
+
+            def interpolate(speed, _s=speeds, _f=factors):
+                return float(np.interp(abs(float(speed)), _s, _f))
+
+            self._cache[key] = interpolate
         return self._cache[key]
 
     # -- speed from power -------------------------------------------------
@@ -225,7 +240,7 @@ class CoursePacing:
             # is the entire reason it matters here.
             hull = (self.resistance(speed) * segment.drag_factor
                     * (1.0 if shallow is None
-                       else float(shallow.factor(speed))))
+                       else shallow(speed)))
             apparent = speed + segment.headwind
             air = (0.5 * self.air_density * self.drag_area
                    * apparent * abs(apparent))
