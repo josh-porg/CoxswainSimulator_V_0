@@ -579,7 +579,7 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
     ]
 
     report.tables = [
-        Table("What each thing is worth", group="Where the time is",
+        Table("What each thing is worth",
               ["lever", "seconds", "who controls it"],
               [["crew power, per 1%", "5.0", "training"],
                ["crew consistency, junior to elite", "11.3", "training"],
@@ -596,8 +596,8 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
               "everything below is the day you drew. The two largest "
               "numbers on the page are in the second group, which is "
               "worth knowing before comparing crews across flights.",
-              highlight=0),
-        Table("Every lever, one list", group="Where the time is",
+              highlight=0, group="Where the time is"),
+        Table("Every lever, one list",
               ["lever", "seconds", "who decides", "confidence"],
               [["crew power, per 1%", "5.6", "training", "measured"],
                ["riblets on the hull", "28.6", "ILLEGAL", "measured"],
@@ -622,8 +622,8 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
               "are not available to you: one is banned and two are the "
               "weather and the river. The largest that is available is "
               "blade depth, and it is a technique call a coach can see "
-              "from the launch.", highlight=0),
-        Table("Where a device idea goes to die", group="Where the time is",
+              "from the launch.", highlight=0, group="Where the time is"),
+        Table("Where a device idea goes to die",
               ["idea", "regime", "why not"],
               [["textured kit", "Re 4e4, 5x below crisis", "no transition to trip"],
                ["trip tape on shafts", "Re 2e4, 10x below", "roughness on the flat curve"],
@@ -635,42 +635,42 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
                ["tip fence", "correct", "works; already fitted"]],
               "Four different failure modes, and none of them is the one "
               "people expect. Checking rather than assuming is what "
-              "separates them."),
-        Table("Bridges against the federal survey", group="The river",
+              "separates them.", group="Where the time is"),
+        Table("Bridges against the federal survey",
               ["bridge", "vs NBI (m)", "off the channel (m)"], bridge_rows,
               "The channel centreline is extracted from depth alone, so its "
               "agreement with the bridges is an independent check rather "
-              "than a restatement."),
-        Table("The arches", group="The river", ["bridge", "station (m)", "arches", "legal",
+              "than a restatement.", group="The river"),
+        Table("The arches",  ["bridge", "station (m)", "arches", "legal",
                              "racing arch (m)", "eights abreast"], arch_rows,
               "Span counts and lengths from the National Bridge Inventory; "
               "pier thickness measured from the Grand Junction trestle. "
               "Legal arches follow the regatta's rules — the Boston "
               "arch is out of bounds everywhere, and the Cambridge arch is "
-              "additionally barred at the trestle, Anderson and Eliot."),
-        Table("Candidate lines", group="The line", ["line", "race time (s)", "distance (m)",
+              "additionally barred at the trestle, Anderson and Eliot.", group="The river"),
+        Table("Candidate lines",  ["line", "race time (s)", "distance (m)",
                                   "peak yaw (deg/s)", "split wanted",
                                   "illegal", "vs centreline"], line_rows,
               "Race time includes a 60 s penalty per forbidden arch. Every "
-              "line here is legal by construction."),
-        Table("Arch strategy", group="The line", ["strategy", "race time (s)", "distance (m)",
+              "line here is legal by construction.", group="The line"),
+        Table("Arch strategy",  ["strategy", "race time (s)", "distance (m)",
                                 "split wanted", "split strokes",
                                 "W' left (J)", "vs centre arches"],
               strategy_rows,
               "Each strategy optimised inside its own arch constraint, so "
               "this is best against best. W' is the crew's anaerobic "
-              "reserve; the pace is solved so it reaches zero at the line."),
-        Table("Where the seconds go", group="The line", ["line", "ideal (s)", "distance",
+              "reserve; the pace is solved so it reaches zero at the line.", group="The line"),
+        Table("Where the seconds go",  ["line", "ideal (s)", "distance",
                                        "depth", "current", "steering",
                                        "penalty"], loss_rows,
               "Each term is the cost of adding that effect to the one "
               "before, so they sum to the race time and nothing hides in a "
-              "residual."),
-        Table("Steering the real boat", group="The line", ["controller", "elapsed (s)",
+              "residual.", group="The line"),
+        Table("Steering the real boat",  ["controller", "elapsed (s)",
                                          "cross-track rms (m)", "worst (m)",
                                          "solver fallbacks"], control_rows,
               "The full 6-DOF boat driven down the optimised line, measured "
-              "after the opening transient."),
+              "after the opening transient.", group="The line"),
     ]
 
     figures = [

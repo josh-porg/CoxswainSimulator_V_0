@@ -5749,3 +5749,90 @@ seeded RNG — but it is named a sketch, documented as "invented numbers",
 and carries `is_survey=False` with `Course.require_survey` to enforce it.
 `charles_course` is `is_survey=True`. The §66–67 depth results ran on real
 survey data.
+
+## 70. The reduced steering model sold 3.4x the rudder the boat has
+
+`test_split_adds_yaw_authority` had been failing, asserting a 283 m turn
+radius against a measured 75.6 m. Both numbers turned out to be wrong in
+different ways, which is why it survived so long.
+
+### What the test was asserting
+
+283 m was **the reduced model's own linear answer at a 12-degree rudder
+limit** — not a physical target. When `rudder_limit` was later raised to
+the boat's real 45 degrees (correctly: the surface does deflect that far),
+the test began failing against a number that had never measured anything.
+The physical target is the **6-DOF model's 259 m**, quoted in this
+module's own docstring and in `split_control`'s comment.
+
+### What the model was doing
+
+`ReducedModel.yaw_control = 539.0` is fitted from step-rudder responses at
+**4 and 8 degrees** (`fit_reduced_model`), then applied **linearly out to
+45 degrees** — a linearisation used 5.6x past its fit range.
+
+It should not be. The reduced model has five states and no sway, so it
+cannot represent the sideslip a large rudder induces, and that sideslip is
+what cancels most of the moment. §36 measures the effect in the full model:
+rudder alone gives about 3.5 deg/s with sideslip ignored and about
+**1.1 deg/s** once it is not.
+
+Left linear, the surrogate held **75.6 m** at full rudder against the
+6-DOF's **259 m** — 3.4x more steering than the boat has, in a model whose
+entire job is to produce trajectories the full model can fly. Every line
+the optimiser has produced through a tight bend was flown with a rudder
+that does not exist.
+
+### The fix
+
+`effective_rudder(delta) = s tanh(delta / s)` — identity as `delta -> 0`,
+saturating at `s`. `yaw_control` and `s` are solved **together** against
+two conditions:
+
+* the mean fitted slope over the 4° and 8° step angles is unchanged (539.0),
+  so the measurement the coefficient came from still holds;
+* full rudder reproduces the 6-DOF's 259 m.
+
+giving `yaw_control = 585.5`, `rudder_saturation = 0.21127` rad (12.10°).
+Changing either alone breaks one of the two conditions, which is recorded
+in the attribute docstring because it is exactly the kind of thing a later
+refit will get wrong.
+
+| rudder | effective | yaw rate | radius |
+|---|---|---|---|
+| 2° | 1.98° | 0.20 °/s | 1480 m |
+| 4° | 3.84° | 0.39 °/s | 763 m |
+| **8°** | 6.89° | 0.70 °/s | 425 m |
+| 20° | 10.68° | 1.09 °/s | 274 m |
+| **45°** | 11.31° | **1.15 °/s** | **259 m** |
+
+Rudder plus a 30% split now gives 155 m, against the 6-DOF's 130 m — still
+conservative about combined steering, which is the right direction for a
+surrogate that has to produce flyable trajectories.
+
+Three tests: the 259 m target, that authority saturates (full rudder gives
+under twice the 8° rate where linear would give 5.6x), and that
+`rudder_saturation=0.0` recovers the linear model exactly, so the choice
+stays visible rather than baked in.
+
+### Also cleared
+
+The two `test_trim.py` failures now pass — they were downstream of the
+`flap_effectiveness` `TypeError` fixed in §69. **All previously failing
+unit tests now pass.**
+
+## 71. `make_report.py` did not parse
+
+Nine `Table(...)` and `Figure(...)` calls had `group=` inserted directly
+after the title, ahead of the positional `columns` and `rows`:
+
+```python
+Table("What each thing is worth", group="Where the time is",
+      ["lever", "seconds", "who controls it"],   # SyntaxError
+```
+
+`SyntaxError: positional argument follows keyword argument`. The report
+could not be built at all — the tab grouping had been added without the
+script once being run. Fixed by moving each `group=` to the end of its
+call, located by paren matching rather than by line, since the calls span
+up to thirty lines each.
