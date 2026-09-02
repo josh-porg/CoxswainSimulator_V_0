@@ -5669,3 +5669,83 @@ et al. found women more likely to show a fall in relative force from 10%
 before to 30% after the perpendicular — peak reached earlier and *not*
 maintained through the second half. Directly relevant to a women's masters
 eight, and representable with the machinery just added.
+
+## 69. Audit: the 6-DOF trajectory model had no air at all
+
+Prompted by a direct instruction to check the model for unsanctioned
+reductions. Four candidates were examined; two were earned, one is a
+documented defect, and one was real and silent.
+
+### Real and silent: wind drawn, passed, and discarded
+
+`SixDofTrajectory.dynamics_function(wind=None)` accepted a `wind`
+argument and its docstring said "when given, the aerodynamic loads of
+`coxswain.hydro.wind` are added". **The parameter appeared zero times in
+the function body.** `StochasticFleet` drew a wind per scenario
+(`wind_sigma = 2.5` m/s), called `dynamics_function(wind=leg.scenario)`,
+and every scenario was solved in still air.
+
+Worse than wind-blindness: `SixDofModel.derivative` had **no aerodynamic
+term whatsoever**. In still air at 4.23 m/s the missing force is 35.3 N
+against roughly 470 N of hull resistance — **7.5% of total drag absent
+from the trajectory optimiser**, while the NumPy simulator has carried it
+all along. The two models were not solving the same boat.
+
+`wind_note`, an identity function whose docstring asserted the wind was
+applied somewhere else, is replaced by `wind_vector`, which converts a
+scenario's `wind_speed`/`wind_bearing` into an absolute-frame vector.
+`_aero_casadi` adds the load, mirroring `AeroModel.loads`:
+
+| condition | `F_x` | note |
+|---|---|---|
+| still air | −35.3 N | `0.5 ρ A v²` exactly |
+| 5 m/s headwind | −168.2 N | apparent 9.23 m/s |
+| 5 m/s tailwind | +1.2 N | apparent 0.77 m/s — Kleshnev's vanishing share |
+| 8 m/s tailwind | **+28.1 N** | overtaking wind genuinely **pushes** |
+
+The `|v| v` form is kept rather than `v²` for the last row: squaring would
+make an overtaking tailwind push the boat *backwards*. The true wind is
+rotated from the absolute frame per state, so a boat yawing 30° round
+Weeks meets a different apparent wind at the same true wind — a hull-frame
+constant could not say that. `sqrt(x² + ε)` replaces `fabs` because still
+air is exactly where every solve starts and `fabs` has no derivative there.
+
+### Earned: the route optimiser's `v³` power law
+
+`RouteEvaluator.speed_through_water` conserves `F(v,h) v³` rather than
+solving the real resistance curve, which is a genuine simplification —
+resistance is not `v²`. Measured against the full `hull_resistance` at
+equal power across the depth range:
+
+| depth m | `v³` law | real resistance | error |
+|---|---|---|---|
+| 1.5 | 3.7424 | 3.7311 | 0.30% |
+| 2.0 | 4.1879 | 4.1812 | 0.16% |
+| 3.0 | 4.7422 | 4.7337 | 0.18% |
+| 6.0 | 5.1539 | 5.1523 | 0.03% |
+
+**Worst case 0.30%.** Earned, and now measured rather than assumed.
+
+### Earned, but worth knowing: CasADi lift is linear
+
+`hydro_casadi.surface_load` uses `C_L = C_Lα α`; the NumPy path uses
+Whicker–Fehlner, which adds a crossflow term and stalls near 45°. Over the
+working range the CasADi form runs **3–6.5% low** (worst at 15°, ratio
+0.935) — conservative on rudder authority, so a plan built on it will
+slightly *under*-estimate how well the boat turns rather than over.
+
+### Also fixed: a crash from the same divergence
+
+The same file read `surface.flap_effectiveness` (the raw field, `None`
+whenever effectiveness is derived from the flap chord ratio) where the
+NumPy path has always used the `control_effectiveness` property. This
+raised `TypeError: unsupported operand type(s) for *: 'NoneType' and 'MX'`
+and accounted for **8 of the 12** pre-existing unit-test failures.
+
+### Checked and clean
+
+`charles_river_sketch` builds a synthetic parabolic depth field from a
+seeded RNG — but it is named a sketch, documented as "invented numbers",
+and carries `is_survey=False` with `Course.require_survey` to enforce it.
+`charles_course` is `is_survey=True`. The §66–67 depth results ran on real
+survey data.
