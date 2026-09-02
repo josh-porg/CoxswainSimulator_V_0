@@ -30,7 +30,7 @@ import os
 from dataclasses import dataclass, field
 from typing import Optional, Sequence
 
-__all__ = ["Finding", "Figure", "Report"]
+__all__ = ["Finding", "Figure", "Embed", "Report"]
 
 
 @dataclass
@@ -101,6 +101,23 @@ class Table:
 
 
 @dataclass
+class Embed:
+    """An interactive page carried inside a tab.
+
+    Static figures answer the question they were plotted for.  An embed
+    is for the ones where the reader's question is not known in advance --
+    "what if it is a dry year", "what if the wind backs" -- and the honest
+    answer is to hand them the controls.
+    """
+
+    path: str                     # relative to the report, e.g. "map.html"
+    title: str
+    caption: str = ""
+    height: int = 1180
+    group: str = "Course explorer"
+
+
+@dataclass
 class Report:
     """A page of findings, tables and figures."""
 
@@ -109,6 +126,7 @@ class Report:
     findings: list = field(default_factory=list)
     tables: list = field(default_factory=list)
     figures: list = field(default_factory=list)
+    embeds: list = field(default_factory=list)
     caveats: list = field(default_factory=list)
 
     def write(self, path: str) -> str:
@@ -177,6 +195,9 @@ class Report:
         for figure in self.figures:
             bucket(getattr(figure, "group", "Findings")).append(
                 self._figure(figure))
+        for embed in self.embeds:
+            bucket(getattr(embed, "group", "Findings")).append(
+                self._embed(embed))
 
         if self.caveats:
             body = bucket("Caveats")
@@ -207,6 +228,29 @@ class Report:
                _escape(name))
             for index, (name, _body) in enumerate(panels))
         return ('<nav class="tabs" role="tablist" hidden>%s</nav>' % buttons)
+
+    def _embed(self, embed: "Embed") -> str:
+        """An iframe, with a link out for when the frame is inconvenient.
+
+        The frame is loaded lazily: the explorer carries the whole
+        bathymetry and every precomputed line, and paying for that on a
+        tab the reader may never open would slow the page for everyone.
+        """
+        return ('<section class="embed">'
+                '<h2>%s</h2>'
+                '%s'
+                '<iframe src="%s" loading="lazy" title="%s" '
+                'style="width:100%%;height:%dpx;border:1px solid '
+                'var(--edge,#dde4e8);border-radius:12px;'
+                'background:var(--panel,#fff)"></iframe>'
+                '<p class="source"><a href="%s" target="_blank" '
+                'rel="noopener">Open the explorer on its own</a></p>'
+                '</section>'
+                % (_escape(embed.title),
+                   ('<p class="detail">%s</p>' % _escape(embed.caption))
+                   if embed.caption else "",
+                   _escape(embed.path), _escape(embed.title),
+                   int(embed.height), _escape(embed.path)))
 
     def _finding(self, finding: Finding) -> str:
         source = ('<p class="source">%s</p>' % _escape(finding.source)

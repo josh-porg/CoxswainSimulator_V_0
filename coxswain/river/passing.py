@@ -152,9 +152,34 @@ class Entry:
     #: Encounters in which this crew currently owes a yield, by other bow.
     owes: Dict[int, Side] = field(default_factory=dict)
 
+    #: ``(station, lateral) -> m/s``.  When given, the crew's speed is
+    #: read from the river at every step instead of being a constant, and
+    #: :attr:`speed` becomes only the starting guess.  This is what
+    #: couples the rules to the physics: a crew forced off the deep line
+    #: by a yield slows down, which is the cost the rulebook does not
+    #: mention and the state machine alone cannot see.
+    speed_fn: object = None
+    #: Integrated station, used when ``speed_fn`` is set.
+    station: float = 0.0
+    #: Metres of progress given up to yields, for accounting.
+    lost_to_yield: float = 0.0
+
     def position(self, time: float) -> float:
-        """Bow-ball station along the course at ``time``, m."""
+        """Bow-ball station along the course at ``time``, m.
+
+        Constant speed has a closed form and is kept for it: the rule
+        tests want an exactly reproducible geometry, and integrating a
+        constant would only add rounding.  With ``speed_fn`` the station
+        is advanced by :meth:`HeadRace.run` instead and simply read here.
+        """
+        if self.speed_fn is not None:
+            return self.station
         return max(0.0, (time - self.start)) * self.speed
+
+    def current_speed(self) -> float:
+        if self.speed_fn is None:
+            return self.speed
+        return float(self.speed_fn(self.station, self.lateral))
 
     @property
     def label(self) -> str:
@@ -173,6 +198,9 @@ class Encounter:
     #: at declaration, so a crew cannot dither.
     complying: bool = True
     declared_at: Optional[float] = None
+    #: Open water at the previous step, so "closing" can be distinguished
+    #: from "close".
+    previous_gap: Optional[float] = None
     yielded_at: Optional[float] = None
     completed_at: Optional[float] = None
     penalised: bool = False
@@ -312,7 +340,24 @@ class HeadRace:
             return
 
         if encounter.phase is Phase.CLEAR:
-            if gap <= self.rules.declare_at:
+            # **Closing, not merely near.**  A boat that is dropping back
+            # is not attempting a pass, and letting it declare produced a
+            # nonsense the coupled model exposed at once: a crew that had
+            # just been overtaken immediately demanded a yield from the
+            # crew that passed it, purely because the two were still
+            # within a length of each other.  The rulebook is about a
+            # boat "attempting to pass"; falling away is not that.
+            #
+            # A pair must be seen TWICE before it can declare.  Treating
+            # the first sighting as closing re-admitted the same bug by
+            # the back door: a role reversal creates a fresh encounter
+            # that has no previous gap, so the boat being dropped got one
+            # free declaration and pinned the crew that had just passed it
+            # off its line for the rest of the race.
+            closing = (encounter.previous_gap is not None
+                       and gap < encounter.previous_gap - 1e-9)
+            encounter.previous_gap = gap
+            if gap <= self.rules.declare_at and closing:
                 self._declare(encounter, time)
             return
 
@@ -365,8 +410,48 @@ class HeadRace:
                         continue
                     self._update_pair(behind, ahead, time)
 
+            # **Retire encounters whose passer has gone by.**  The loop
+            # above stops visiting a pair the moment the passer draws
+            # ahead, so a pass that succeeds is never marked COMPLETE and
+            # the passed crew is never released from its yield.  Coupled
+            # to a speed field that showed up immediately: a crew held a
+            # 3.5 m offset for the remaining two thirds of the race and
+            # lost 187 m to it, having been passed once.
+            for (passer_bow, passee_bow), encounter in \
+                    list(self.encounters.items()):
+                if encounter.phase is Phase.COMPLETE:
+                    continue
+                passer = self.entries[passer_bow]
+                passee = self.entries[passee_bow]
+                if passer.position(time) - passee.position(time) > \
+                        self.rules.boat_length + self.rules.clear_at:
+                    encounter.phase = Phase.COMPLETE
+                    encounter.completed_at = time
+                    passee.owes.pop(passer_bow, None)
+                    self.log.add(time, "complete", passer=passer_bow,
+                                 passee=passee_bow)
+
             for entry in racing:
                 self._advance_lateral(entry, dt)
+
+            # Advance the physics-driven crews along the river.  Their
+            # speed depends on where they are laterally, so this has to
+            # come *after* the yields have moved them: a crew pushed off
+            # the deep line is slower for the rest of the step, which is
+            # the whole point of coupling the two models.
+            for entry in racing:
+                if entry.speed_fn is None:
+                    continue
+                free = float(entry.speed_fn(entry.station,
+                                            entry.preferred_lateral))
+                actual = entry.current_speed()
+                entry.station += actual * dt
+                entry.lost_to_yield += (free - actual) * dt
+
+            for entry in order:
+                if entry.speed_fn is not None and entry.finished is None \
+                        and entry.station <= 0.0 and time >= entry.start:
+                    entry.station = 1e-6
 
             if all(e.finished is not None or e.disqualified
                    for e in order):

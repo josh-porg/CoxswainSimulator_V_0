@@ -6291,3 +6291,151 @@ priorities.
 **4.59 s** with a spread of 16.9 W. `e·k` spans 0.149-0.335, a **2.25×**
 variation against the eight's **4.2×** -- the same statement as the Froude
 table, arrived at through the pacing model instead.
+
+## 80. Two boats: their wake moves your line by one metre, not twenty
+
+`scripts/two_boat.py`, `PuddleWake.lateral_overlap`. The first step of the
+multi-boat work: a crew starts ahead at the regatta interval and holds the
+same speed, so the gap never closes and you sit in their water all race.
+
+### The gap this filled
+
+Everything in `coxswain/hydro/wake.py` was a **centreline** quantity —
+`power_penalty`, `hull_benefit`, `drag_penalty` all take a gap astern and
+nothing else. That answers "how bad is it to sit on a stern" and is
+structurally unable to answer "which side should I go", which is the
+question a coxswain actually has.
+
+`lateral_overlap(gap, separation, blade_track)` adds the missing axis. A
+leader lays **two** puddle tracks at ±`blade_track`; a follower sweeps its
+own two about its own centreline. The overlap of the four pairings, with
+puddles spreading by the Lamb–Oseen core law `d(σ²)/dt = 4ν_t` — the same
+constant `coxswain.hydro.vortex` uses, so the analytic and blob models
+cannot quietly disagree about how fast a puddle grows.
+
+### The geometry is the result
+
+At 40 m astern, blade track 2.30 m:
+
+| separation | in their puddles |
+|---|---|
+| **0.0 m** | **1.000** |
+| 0.4 m | 0.486 |
+| **0.8 – 3.6 m** | **0.000** |
+| 4.0 m | 0.115 |
+| **4.4 – 4.8 m** | **0.372** |
+| 5.6 m + | 0.000 |
+
+**Under a metre of lateral offset clears their puddles completely.** The
+tracks are narrow; getting out of them costs essentially nothing on a
+river where the line is worth far more than the wake.
+
+**And there is a second wake lane at twice the blade track**, where your
+port blades land in their starboard puddles. A coxswain drifting out to
+"get clear" can row straight through a second band of dirty water on the
+way out. For the four (track 3.13 m) that lane sits near **6.3 m**.
+
+### What it costs, women's 4+, 15 s interval
+
+Gap 58 m — 4.4 boat lengths — held all race.
+
+| your line | in puddles | clean water | their water | wake cost |
+|---|---|---|---|---|
+| **+0.0 m** | 1.000 | 2918.4 | 2924.7 | **+6.33 s** |
+| +0.5 m | 0.411 | 2916.5 | 2916.6 | +0.08 s |
+| **+1.0 m** | 0.000 | 2916.8 | 2914.2 | **−2.54 s** |
+| +3.0 m | 0.000 | 2919.3 | 2919.3 | +0.02 s |
+| **+6.0 m** | 0.342 | 2923.1 | 2927.3 | **+4.14 s** |
+| +20.0 m | 0.000 | 2966.0 | 2966.0 | 0.00 s |
+
+At a 10 s interval (gap 39 m) sitting on their line costs **7.82 s** —
+closer is worse, as it must be.
+
+**Their wake moves the optimal line by 1 m, and the depth penalty for that
+is negligible.** The two pulls that looked like they might compete —
+depth onto the thalweg, puddles off it — do not, because the puddle tracks
+are far narrower than the depth gradient is wide. The tactical answer is
+the boring one, which is worth knowing rather than assuming: *take the
+smallest offset that clears their blades and stay in the deep water.*
+
+### One number here is softer than the others
+
+The small net **benefit** at 1.0 m (factor 0.9960) is the hull wake
+helping once the puddles are cleared. That depends on `hull_benefit`'s
+`overlap` constant and on the Gaussian width assumed for the hull wake,
+neither of which is measured — and §(wake) already records that an earlier
+non-spreading version of `hull_benefit` returned an 8% drag reduction that
+would have made stern-sitting the best tactic in rowing. Treat "1 m back
+is slightly faster than clean water" as **not established**; treat "on
+their line costs 6–8 s" and "1 m clears it" as geometry, which they are.
+
+11 tests, including that spreading matches the blob model's law exactly
+and that the second lane follows the rig width.
+
+## 81. The course explorer: layers, sliders, and a line that moves
+
+`scripts/export_map.py`, `scripts/templates/map.html`, `coxswain.report.Embed`.
+
+The report had tables and static figures, which answer the questions they
+were plotted for. It had no way to answer the ones a coxswain actually
+brings — *what if it is a dry year, what if the wind backs* — and the
+honest response to those is to hand over the controls.
+
+**Three switchable layers** (depth, current, sheltered wind at chest
+height) over the surveyed reach, **two sliders** (water level, wind speed)
+and a wind-direction selector, with the depth-following line, a
+straightened station-versus-offset strip, and the centreline depth profile
+all redrawing together.
+
+### What the line does when you move the controls
+
+| condition | mean offset | largest swing |
+|---|---|---|
+| still air | 10.8 m | 56.0 m |
+| 6 m/s from 250° | 11.1 m | — |
+| **6 m/s from 340°** | **7.2 m** | **51.0 m** |
+
+Wind direction moves the line by ~3.6 m of mean offset, which is a real
+effect and not one that was visible in any static figure.
+
+### And the slider surfaced a result of its own
+
+| water level | shallowest on line | peak `Fr_h` (4+) |
+|---|---|---|
+| −0.3 m (dry year) | 0.93 m | **1.29** |
+| 0.0 m | 1.23 m | **1.12** |
+| +0.3 m (wet year) | 1.53 m | **1.01** |
+
+**Even in a wet year the shallowest point on the line sits at `Fr_h` = 1.01
+for the four.** §79 found the four has margin the eight lacks, and that is
+true of the *typical* shallow water — but not of the worst point, which is
+critical in every year modelled and deeply supercritical in a dry one.
+
+### Honesty about what the line is
+
+A **greedy** depth-following line: fastest water station by station, then
+smoothed. It ignores what steering costs, which is the whole subject of
+`coxswain.river.route` and the MPC work. So it is an **upper bound on how
+much the line should move** — read it as *where the good water is*, not
+where to point the boat. The page says exactly that, on the page.
+
+The 56 m "largest swing" is the tell: no eight is steering that, and the
+number is there to make the greediness visible rather than to hide it.
+
+### Two implementation notes worth keeping
+
+**Tabulate, again.** The first export solved the power balance point by
+point and needed **over two million** `hull_resistance` calls to fill the
+parameter grid. Replaced with a `(depth, headwind) -> speed` bilinear
+table, the same treatment `RouteEvaluator.speed_through_water` and
+`CoursePacing` already get. Third time this pattern has bitten; it is
+now the default assumption for anything inside an optimiser loop.
+
+**Canvas sizing.** Setting `canvas.height` for a device-pixel-ratio
+backing store also sets the element's *layout* height, so on a 1.25x
+display every panel was a third taller than its content with dead space
+below. The CSS box has to be pinned separately with `style.height`.
+
+`Report.embeds` carries it as a lazily-loaded iframe in its own tab, with
+a link out, and is skipped entirely when `map.html` is absent — a missing
+iframe is worse than a missing tab.

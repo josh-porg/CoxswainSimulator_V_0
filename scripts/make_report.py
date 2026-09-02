@@ -34,7 +34,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from coxswain.boats import catalog                        # noqa: E402
 from coxswain.progress import progress, stage            # noqa: E402
-from coxswain.report import Figure, Finding, Report, Table  # noqa: E402
+from coxswain.report import (Embed, Figure, Finding,  # noqa: E402
+                             Report, Table)
 from coxswain.river import bridges as B                   # noqa: E402
 from coxswain.river import charles, charts, lines         # noqa: E402
 from coxswain.river.charts import CourseGeometry          # noqa: E402
@@ -810,6 +811,17 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
                "flatters.", group="Watch it row"),
     ])
     report.figures = figures
+    # The explorer is built separately (scripts/export_map.py writes the
+    # data, then the template is filled), so it is embedded only when it
+    # is actually there -- a missing iframe is worse than a missing tab.
+    if os.path.exists(os.path.join(args.out, "map.html")):
+        report.embeds = [Embed(
+            path="map.html",
+            title="Course explorer",
+            caption="Depth, current and shelter over the surveyed reach, "
+                    "with the depth-following line for the conditions you "
+                    "set. Switch the layer, drag the water level, change "
+                    "the wind, and watch the line move.")]
 
     report.caveats = [
         "The 82 s depth loss is the largest claim here and the least "
