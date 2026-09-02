@@ -180,6 +180,7 @@ class RouteEvaluator:
         self.flow = flow
         self.boat = boat
         self.reference_speed = float(reference_speed)
+        self.traffic = None
         #: Rowing up the course (towards increasing station) or down it.
         self.upstream = bool(upstream)
         self.n_samples = int(n_samples)
@@ -302,6 +303,17 @@ class RouteEvaluator:
                                  self.exertion.capacity)
             race_intensity = power / self.exertion.critical_power
         self.race_intensity = float(race_intensity)
+        return self
+
+    def with_traffic(self, lead):
+        """Charge the line for the wake of a boat ahead.
+
+        ``lead`` is a :class:`~coxswain.river.traffic.LeadBoat`.  Its wake
+        is a static field once both boats hold the same speed -- see that
+        module for why -- so it costs one extra lookup per sample and the
+        existing optimiser needs no changes at all.
+        """
+        self.traffic = lead
         return self
 
     def with_wind(self, field, boat=None, drag_area: float = None,
@@ -560,6 +572,18 @@ class RouteEvaluator:
         depth = np.asarray(self.course.depth(points[:, 0], points[:, 1]),
                            dtype=float)
         speed_water = self.speed_through_water(depth)
+
+        # -- a boat ahead -------------------------------------------------
+        # Their wake is a drag multiplier painted along their track, so it
+        # enters the speed BEFORE the current is added: it acts on motion
+        # through the water, which is the only thing a wake can act on.
+        # Resistance goes as v^2 at fixed power, so a drag factor f slows
+        # the boat by f^(-1/3).
+        if self.traffic is not None:
+            factor = np.asarray(
+                self.traffic.drag_factor_along(station, offset), dtype=float)
+            speed_water = speed_water * np.maximum(factor, 1e-6) ** (-1.0/3.0)
+
         current_along = self.current_along_path(station, offset)
         speed_ground = np.maximum(speed_water + current_along, 0.05)
 

@@ -5999,3 +5999,295 @@ showed the boat sits at `Fr_h = 0.94` in the shallows, so these are steep
 hills. That reframe is the practical payoff of the comparison: it says to
 stop reasoning from 2 km rowing tactics and start reasoning from hilly
 time-trial pacing, where the literature is both larger and better matched.
+
+## 74. Two boats: the wake has two lateral peaks, and the gap between them is worth 5 s
+
+`coxswain/river/traffic.py`, `scripts/two_boats.py`. Every line optimised
+before this assumed an empty river. A HOCR entry never has one.
+
+### The assumption that makes it tractable
+
+If both boats hold the **same speed**, the gap is constant, so every puddle
+you meet has been ageing for exactly the start interval — everywhere, all
+race. The leader's wake becomes a **static drag field painted along their
+track**, and the existing line optimiser handles it with one extra lookup
+per sample.
+
+Worth stating loudly because it is doing a lot of work, and it fails
+exactly when the race gets interesting: when you are *closing*, the gap is
+shrinking and the wake is younger and stronger than this says. It is right
+for a crew of similar speed sitting the same distance ahead all the way
+down, and optimistic for one you are catching.
+
+### Two peaks, not one
+
+`PuddleWake` gives decay with age but has **no lateral structure at all** —
+it was built to answer "what does sitting directly behind cost". Line
+choice is entirely about lateral structure. Their puddles sit in two lines
+at their blade track (3.15 m for an eight); yours sweep the same distance
+either side of you. Coincidences therefore happen at **zero offset** and at
+**twice the blade track**:
+
+| offset m | 10 s | 15 s | 30 s | 60 s |
+|---|---|---|---|---|
+| **0.0** | **1.0117** | **1.0100** | 1.0074 | 1.0054 |
+| 2.0 | 1.0035 | 1.0030 | 1.0023 | 1.0018 |
+| **3.0** | **1.0006** | **1.0007** | **1.0007** | **1.0007** |
+| 5.0 | 1.0057 | 1.0050 | 1.0039 | 1.0030 |
+| **6.0** | **1.0114** | **1.0092** | 1.0064 | 1.0044 |
+| 10.0 | 1.0000 | 1.0000 | 1.0001 | 1.0002 |
+
+A single-peaked wake would say "just move over". A double-peaked one says
+move over *the right amount* — and the clean window at ~3 m is only about a
+metre wide.
+
+### What it costs, at a 15 s interval
+
+| | seconds |
+|---|---|
+| empty river | 2567.2 |
+| same line, in their water | 2575.7 |
+| re-optimised around them | 2570.5 |
+| **cost of the traffic** | **8.5** |
+| **recovered by moving over** | **5.2** |
+
+Internally consistent: ~1% drag → 0.33% speed → 0.0033 × 2567 = 8.5 s.
+
+The 8.5 s is not the coxswain's decision; the **5.2 s is**. Over the 4.8 km
+race rather than the 12.4 km surveyed reach, scale by ~0.39: roughly **2 s
+for moving over**, and it costs nothing.
+
+### Limitation worth flagging
+
+The optimiser uses 7 control points over 12.4 km, so the line cannot wiggle
+finely enough to hold a one-metre window continuously. The measured 5.2 s
+is therefore a **lower bound** on what perfect lateral placement is worth.
+
+### The passing rules are not modelled yet
+
+HOCR: the Passer declares a side within one boat length of open water; the
+Passee must have yielded by half a length; 60 s, then 120 s, then
+disqualification. Once yielded, the obligation is satisfied and both crews
+own the safety of the rest of the pass. Start interval in the chute is 2–3
+lengths of open water.
+
+None of it binds while both boats hold the same speed — nobody closes, so
+nobody passes. That is the next step, and it is a different kind of problem:
+a game between two coxswains rather than an optimisation against a river.
+
+## 75. Running pacing, and the championship / time-trial split
+
+Completing §73's cross-sport comparison. Running's pacing literature draws
+the **same distinction** this project drew for rowing, and independently.
+
+* **Championship 5000 m / 10 000 m** — negative pacing with micro-variations
+  of pace. These are tactical, head-to-head races where position decides.
+* **World records at meet races** (1500 m, 5000 m, 10 000 m) — **U-shaped**:
+  faster start and finish than middle.
+* **Marathon championships** are positively paced; recent **world records**
+  are evenly paced.
+* For efforts over ~2 minutes, performance improves when pace is
+  distributed more evenly.
+* At 5000 m, **women adopt a more even pace than men**.
+
+The pattern across all four bullets is one thing: **when position decides,
+pacing is tactical; when the clock decides, pacing is even.** Same split as
+Xia's 2 km finals (§72) versus a head race, and the same reason HOCR
+belongs with the time-trial literature rather than the championship
+literature.
+
+## 76. Passing rules as a state machine, deliberately without physics
+
+`coxswain/river/passing.py`. The rules are discrete, stateful and
+adversarial; debugging that through a 6-DOF simulation is the wrong way
+round. This module keeps only station along the course and which side of
+the line a crew is on.
+
+Implemented from the HOCR *Rules and Guidelines*: Passer declares a side
+within **one boat length of open water**; Passee must have yielded by
+**half a boat length**, given adequate room and time; once yielded the
+obligation is discharged; **60 s, then 120 s, then disqualification**. Plus
+the part that is not written down: a yield **persists** through the
+overlap, and a stalled approach must be re-declared rather than owed
+forever.
+
+### Open water is clear water
+
+Every threshold is the gap between the Passee's **stern** and the Passer's
+**bow**. Two bow balls one length apart have *zero* open water. Reading the
+rulebook as bow-to-bow fires every threshold a full boat length early —
+pinned by `test_open_water_is_clear_water_not_bow_to_bow`.
+
+### Two bugs the tests caught
+
+**Penalising the physically impossible.** A field with `compliance = 1.0`
+produced **ten penalties**. Role reversals begin with the boats already
+overlapped, so the declaration fires at negative open water and the
+half-length threshold is breached on the next 0.5 s step — before any crew
+could move. The rulebook already anticipates this ("adequate room and
+time"), so `PassingRules.adequate_time` now gates the penalty on
+`grace × yield_width / yield_rate`. A complying field is now never
+penalised, which is the headline invariant.
+
+**`compliance` was documented but never read.** It appeared in the
+constructor and the docstring and was used nowhere, so every crew always
+yielded and the entire penalty half of the rulebook was untestable. Now
+drawn once per encounter at declaration.
+
+### One assertion that was wrong about the physics, not the code
+
+"A complying crew has yielded by half a length" is **false**, and the
+counterexample is real: the yield takes `3.5 / 0.35 = 10 s`, and a crew
+closing faster than ~0.87 m/s covers the 8.65 m from declaration to
+threshold in less. One such pass completed its yield at 6.72 m. The crew is
+not at fault and is not penalised. The invariant that does hold is that
+they moved immediately and took no longer than the manoeuvre requires.
+
+19 tests. With `compliance = 0.6`: 46 declares, 40 yields, 10 penalties,
+1 disqualification.
+
+## 77. Sixty years of champions: the year matters more than the record
+
+`tools/scrape_hocr_champions.py`, `scripts/hocr_history.py`. **2462
+winners, 98 events, 1965–2025**, parsed from the regatta's champions page
+(static HTML, no API).
+
+Every category races the same river on the same day, so
+`t_ey = t̄_e × f_y × ε` separates the day from the crew, with the **year
+factor** `f_y` the median log-residual across all events that ran.
+
+| year | factor | | year | factor |
+|---|---|---|---|---|
+| 2017 | **−4.87%** | | 2022 | −3.78% |
+| 2025 | −3.60% | | 2023 | −2.62% |
+| 2024 | −3.41% | | 2019 | −2.39% |
+
+Spread across 1965–2025 is **24.5%**; fastest day 2017, slowest 1968
+(+19.58%).
+
+### The result that justifies the whole exercise
+
+Women's Grand-Master Eights (the target category), 2010–2025:
+
+| | raw | adjusted | day |
+|---|---|---|---|
+| **fastest raw** — Toronto Sculling 2025 | **17:22.14** (CR) | 1081 s | −3.6% |
+| Chinook 2017 | 17:22.90 (CR) | 1096 s | −4.9% |
+| **best adjusted** — Long Beach 2016 | 17:25.32 | **1036 s** | +0.9% |
+
+**The 2016 row is the best performance in the category's history, and it
+is not the course record.** Both 2017 and 2025 records were set on
+days roughly 4% fast; 2016 was set on a slightly slow day. Ranking crews by
+raw time ranks the weather.
+
+**Caveat, and it is not small:** these are winners only, so a category's
+time depends on who entered. A year a national squad shows up is a strong
+field, not a fast day. The median across ~80 categories blunts this but
+cannot remove it — full placings would, and live behind per-event ids on
+RegattaCentral.
+
+## 78. GPS ingest: tracks in course coordinates
+
+`tools/ingest_gps.py`. A GPX is a list of latitudes; a line study needs
+**(station, offset)** on the surveyed course, so tracks are directly
+comparable with anything `coxswain.river.route` produces.
+
+Validated by round trip rather than inspection — build a GPX from a line
+of known offset and require it back:
+
+| built at | recovered (median) |
+|---|---|
+| 0 m | −0.03 m |
+| +15 m | +14.70 m |
+| −20 m | −19.31 m |
+
+Sign convention matches `Route` (positive to port) so a track and an
+optimised line plot on one axis. The small magnitude shortfall is
+`clip_to_channel` correctly pulling the line inboard where the river
+narrows, not projection error. 10 tests, including that a towpath run is
+rejected and that **direction** is detected — the Charles is rowed both
+ways daily and raced one way, and averaging a race piece with a paddle home
+would be silent nonsense.
+
+`boat_type` and `crew` are kept as **null** fields rather than guessed from
+speed; inventing them would manufacture data.
+
+### Sourcing reality
+
+The OpenStreetMap trackpoints API is the only bulk source that is free and
+unambiguously redistributable, and it returned **HTTP 429 from this
+network on every attempt**, including with backoff. The downloader backs
+off and reports rather than hammering a volunteer-funded service. Strava
+and Garmin hold far more rowing data but neither permits bulk access to
+other people's activities, so the realistic path is the user's own exports
+through `--gpx`.
+
+## 79. The boat changed: women's Veteran Fours 60+, not the eight
+
+The project was calibrated throughout for a women's Grand-Master **eight**.
+The boat actually being coxed at the Charles is a women's **Veteran Four,
+60+**. `scripts/course_pacing.py` and `scripts/line_and_pace.py` now take
+`--boat {8+,4+}` and pass `rowers=boat.n_seats`, which was silently 8.
+
+### The category
+
+Women's Veteran Fours, age average 60+, n = 11, 2014-2025.
+
+| | |
+|---|---|
+| median winning time | **20:32.34** |
+| range | 20:03.91 - 22:08.69 |
+| course record | East Arm, **20:03.91** (2024) |
+| **best adjusted row** | **Early Lights, 20:32.90 (2016)** |
+
+The §77 pattern repeats exactly: the 2024 record was set on a day 3.4%
+fast, while 2016 was slightly slow (+0.9%). **The best performance in the
+category's history is not the course record.**
+
+Winning pace is 3.895 m/s against the eight's 4.490 -- the four is 15.3%
+slower over the same course.
+
+### That speed difference changes the physics, not just the number
+
+§66-67 found the eight has essentially no depth margin: at race pace in
+the shallowest surveyed water it sits at `Fr_h = 0.997`, and twenty metres
+off the line puts it supercritical. **The four does not have that
+problem.**
+
+| depth m | `Fr_h` 8+ | `Fr_h` 4+ | 8+ regime | 4+ regime |
+|---|---|---|---|---|
+| 1.50 | 1.171 | 1.016 | supercritical | supercritical |
+| **1.76** | **1.081** | **0.938** | **supercritical** | transcritical |
+| **2.07** | **0.997** | **0.865** | **transcritical** | **subcritical** |
+| 2.27 | 0.952 | 0.826 | transcritical | subcritical |
+| 3.05 | 0.821 | 0.712 | subcritical | subcritical |
+
+The four sits about **0.13 lower in `Fr_h` everywhere**, which is the
+difference between the knife edge and comfortably below it.
+
+### What it costs to be off the line, by boat
+
+| line | min depth | 8+ penalty | 4+ penalty |
+|---|---|---|---|
+| −20 m | 1.76 | +80.1 s | **+53.6 s** |
+| −10 m | 1.97 | +18.6 s | +13.3 s |
+| **0 m** | 2.04 | 0.0 | 0.0 |
+| +10 m | 2.12 | +19.8 s | +11.4 s |
+| +20 m | 1.54 | +117.4 s | **+79.9 s** |
+
+**Being in the slower boat buys line freedom.** Across the 1.5-2.2 m band
+the four is penalised roughly a third less than the eight for the same
+lateral error, because it stays subcritical where the eight crosses over.
+The centreline still wins for both -- it is the thalweg by construction --
+but the four's penalty surface around it is markedly flatter.
+
+The practical reading: **the eight has to be more precise about depth than
+the four does.** Two crews from the same club, same river, opposite
+priorities.
+
+### Pacing
+
+`--boat 4+ --wind 6 --wind-from 250`: flat 306.7 W/rower, optimum saves
+**4.59 s** with a spread of 16.9 W. `e·k` spans 0.149-0.335, a **2.25×**
+variation against the eight's **4.2×** -- the same statement as the Froude
+table, arrived at through the pacing model instead.

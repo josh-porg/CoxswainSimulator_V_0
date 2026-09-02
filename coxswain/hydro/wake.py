@@ -138,6 +138,10 @@ class PuddleWake:
     #: side -- but a real eight shows a little more than that.
     slip: float = None
     density: float = WATER_DENSITY
+    #: Turbulent eddy viscosity for puddle spreading, m^2/s.  Matches
+    #: :class:`coxswain.hydro.vortex.VortexField` so the analytic and blob
+    #: models spread puddles at the same rate.
+    eddy_viscosity: float = 1.5e-3
 
     @property
     def impulse(self) -> float:
@@ -244,6 +248,54 @@ class PuddleWake:
     def momentum_area(self) -> float:
         """``D / (rho U^2)``, the wake's momentum thickness area, m^2."""
         return self.drag / (self.density * self.speed ** 2)
+
+    def puddle_radius(self, age):
+        """Puddle radius after ``age`` seconds, m.
+
+        Lamb-Oseen core spreading, ``d(sigma^2)/dt = 4 nu_t``, the same
+        law :mod:`coxswain.hydro.vortex` uses so the analytic and the
+        blob model cannot quietly disagree about how fast a puddle grows.
+        """
+        age = np.maximum(np.asarray(age, float), 0.0)
+        return np.sqrt(self.initial_radius ** 2
+                       + 4.0 * self.eddy_viscosity * age)
+
+    def lateral_overlap(self, gap, separation, blade_track: float = 2.30):
+        r"""Fraction of the follower's blade work that lands in puddles.
+
+        **Everything else in this class is a centreline quantity**, which
+        is fine for asking "how bad is it to sit on a stern" and useless
+        for asking "which side should I go". A leader lays two puddle
+        tracks, one per side, at :math:`\pm` its own ``blade_track``. A
+        follower offset laterally by ``separation`` sweeps its blades at
+        :math:`\pm` its own track about *its* centreline. The overlap is
+        what actually costs power.
+
+        Modelled as the overlap of two circles of radius
+        :meth:`puddle_radius`, summed over the four track pairings and
+        clipped at one. Crude, but it has the two properties that matter:
+        it is **one on the leader's exact line** and it **falls to zero**
+        once the tracks are further apart than the puddles are wide.
+
+        The consequence is the interesting part. Puddles push a follower
+        *off* the leader's line, and on this river depth pulls it back
+        *onto* the thalweg (SOURCES sec. 66-67). Those compete, and
+        neither is knowable without the other.
+        """
+        gap = np.asarray(gap, float)
+        separation = np.asarray(separation, float)
+        radius = self.puddle_radius(np.abs(gap) / max(self.speed, 1e-6))
+
+        total = np.zeros(np.broadcast(gap, separation).shape)
+        for mine in (+blade_track, -blade_track):
+            for theirs in (+blade_track, -blade_track):
+                offset = np.abs(separation + mine - theirs)
+                # Fractional linear overlap of two discs of equal radius.
+                total = total + np.clip(1.0 - offset / (2.0 * radius),
+                                        0.0, 1.0)
+        # Two of the four pairings coincide at zero separation, which is
+        # the on-line case and must read exactly one.
+        return np.clip(total / 2.0, 0.0, 1.0)
 
     def hull_benefit(self, gap, constant: float = 1.2,
                      overlap: float = 0.25):

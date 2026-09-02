@@ -95,6 +95,22 @@ def build_segments(course, n: int, boat, wind=None):
     return segments
 
 
+def build_boat(kind: str, rate: float):
+    """A masters women's crew in the named hull.
+
+    The catalogue's defaults are heavyweight men; a women's masters crew
+    is lighter and shorter, and both change the displacement and so the
+    wetted area.  Getting this wrong is not cosmetic -- it was the eight
+    that this project was calibrated against, and the boat actually being
+    raced is a four.
+    """
+    if kind in ("4+", "four", "coxed_four"):
+        return catalog.coxed_four(rate=rate, rower_mass=68.0,
+                                  rower_stature=1.70, coxswain_mass=68.0)
+    return catalog.eight(rate=rate, rower_mass=68.0, rower_stature=1.70,
+                         coxswain_mass=68.0)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description=__doc__,
@@ -107,14 +123,21 @@ def main(argv=None):
                              "(0 disables the wind field)")
     parser.add_argument("--wind-from", type=float, default=250.0,
                         help="meteorological bearing the wind comes from")
+    parser.add_argument("--boat", default="8+", choices=["8+", "4+"],
+                        help="which hull to pace")
+    parser.add_argument("--rate", type=float, default=None,
+                        help="stroke rate; defaults to 32 for an eight, "
+                             "30 for a four")
     args = parser.parse_args(argv)
+    if args.rate is None:
+        args.rate = 30.0 if args.boat == "4+" else 32.0
 
-    boat = catalog.eight(rate=32.0, rower_mass=68.0, rower_stature=1.70,
-                         coxswain_mass=68.0)
+    boat = build_boat(args.boat, args.rate)
     course = charles_course(month=args.month, statistic=args.statistic)
     wind = build_wind(args.wind, args.wind_from)
     segments = build_segments(course, args.segments, boat, wind)
     model = CoursePacing(segments, hull_drag(boat),
+                         rowers=boat.n_seats,
                          shallow_model=boat.shallow)
 
     flat = model.flat_power()
