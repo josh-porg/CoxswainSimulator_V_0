@@ -1,0 +1,172 @@
+event,place,bow,club,age,raw,raw_seconds,correction_seconds,adjusted,adjusted_seconds
+Mixed Masters 8+,1,173,Corvallis,71,15:52.7,952.7,154.88,13:17.8,797.8
+Mixed Masters 8+,2,172,Mt. Baker,56,15:20.4,920.4,67.28,14:13.1,853.1
+Mixed Masters 8+,3,170,Oregon Association,49,15:25.3,925.3,38.72,14:46.6,886.6
+Mixed Masters 8+,4,166,Pocock,39,14:59.8,899.8,11.52,14:48.3,888.3
+Mixed Masters 8+,5,164,Lake Union B,36,14:55.6,895.6,6.48,14:49.1,889.1
+Mixed Masters 8+,6,165,Renton,37,15:03.6,903.6,8.0,14:55.6,895.6
+Mixed Masters 8+,7,167,Corvallis,43,15:28.6,928.6,20.48,15:08.2,908.2
+Mixed Masters 8+,8,169,Kenmore Community,47,16:00.2,960.2,32.0,15:28.2,928.2
+Mixed Masters 8+,9,171,Lake Union,52,16:22.7,982.7,50.0,15:32.7,932.7
+Mixed Masters 8+,10,168,Pocock D,46,16:31.0,991.0,28.88,16:02.1,962.1
+Mixed Masters 8+,11,163,Sammamish Association,54,17:34.5,1054.5,58.32,16:36.2,996.2
+Mixed Masters Novice 8+,1,174,Vancouver,40,16:16.7,976.7,13.52,16:03.2,963.2
+Mixed Masters Novice 8+,2,175,Mt. Baker,49,17:25.9,1045.9,38.72,16:47.2,1007.2
+Mixed Masters 4x,1,181,Unaff.,52,14:29.9,869.9,50.0,13:39.9,819.9
+Mixed Masters 4x,2,177,Lake Washington Composite,37,13:51.5,831.5,8.0,13:43.5,823.5
+Mixed Masters 4x,4,185,Commencement Bay,63,16:21.3,981.3,103.68,14:37.6,877.6
+Mixed Masters 4x,5,182,Vashon Island,53,16:05.5,965.5,54.08,15:11.4,911.4
+Mixed Masters 4x,6,178,Olympia Area,41,16:10.7,970.7,15.68,15:55.0,955.0
+Mixed Masters 4x,7,179,Station L,47,16:48.5,1008.5,32.0,16:16.5,976.5
+Mixed Masters 4x,9,176,Lake Union,37,17:00.8,1020.8,8.0,16:52.8,1012.8
+Mixed Masters 4x,10,183,Pocock S,54,18:43.0,1123.0,58.32,17:44.7,1064.7
+Mixed Masters Novice 4x,1,186,Renton,34,21:06.9,1266.9,3.92,21:03.0,1263.0
+Mixed Masters 2x,1,212,D. Parker/R. Colven,65,16:05.9,965.9,124.76,14:01.1,841.1
+Mixed Masters 2x,2,209,L. Jensen/P. Volz,60,16:24.6,984.6,94.09,14:50.5,890.5
+Mixed Masters 2x,3,210,R. Sternagel/H. Werner,61,17:18.7,1038.7,99.88,15:38.9,938.9
+Mixed Masters 2x,4,206,J. Hostetler/S. Pattie,31,16:04.0,964.0,1.38,16:02.6,962.6
+Mixed Masters 2x,5,211,D. HARMON/S. Harmon,64,18:20.4,1100.4,118.28,16:22.1,982.1
+Mixed Masters 2x,7,207,A. Oesman/K. Collienne,34,19:10.7,1150.7,4.23,19:06.5,1146.5
+Mens Masters 8+,1,325,Sammamish Association,52,13:58.4,838.4,50.0,13:08.4,788.4
+Mens Masters 8+,2,328,Lake Washington,47,14:04.0,844.0,32.0,13:32.0,812.0
+Mens Masters 8+,3,330,Corvallis,53,14:33.3,873.3,54.08,13:39.2,819.2
+Mens Masters 8+,4,327,Pocock,45,14:10.9,850.9,25.92,13:45.0,825.0
+,4,327,Age: 64 -1:49.52,45,14:10.9,850.9,25.92,13:45.0,825.0
+,5,332,Ancient Mariners,64,15:35.2,935.2,109.52,13:45.7,825.7
+,6,331,Willamette,55,14:59.6,899.6,62.72,13:56.9,836.9
+,7,326,Sammamish Association,53,15:10.9,910.9,54.08,14:16.8,856.8
+,8,324,Sammamish Association,44,14:53.8,893.8,23.12,14:30.7,870.7
+,9,329,Mt. Baker,53,15:26.3,926.3,54.08,14:32.2,872.2
+Mens Masters Novice 8+,1,333,Vancouver,35,15:06.0,906.0,5.12,15:00.9,900.9
+Womens Masters 8+,1,351,Conibear,60,15:25.0,925.0,87.12,13:57.9,837.9
+Womens Masters 8+,2,335,Sammamish Association,53,14:55.0,895.0,54.08,14:01.0,841.0
+Womens Masters 8+,3,347,Lake Union,51,15:02.7,902.7,46.08,14:16.6,856.6
+Womens Masters 8+,4,343,Willamette,48,15:35.7,935.7,35.28,15:00.5,900.5
+Womens Masters 8+,5,334,Sammamish Association,43,15:31.5,931.5,20.48,15:11.0,911.0
+Womens Masters 8+,7,341,Commencement Bay,45,16:01.0,961.0,25.92,15:35.1,935.1
+Womens Masters 8+,8,342,Station L,50,16:22.3,982.3,42.32,15:39.9,939.9
+Womens Masters 8+,9,348,Corvallis,52,16:38.0,998.0,50.0,15:48.0,948.0
+Womens Masters 8+,10,349,Mt. Baker,53,16:58.7,1018.7,54.08,16:04.6,964.6
+Womens Masters 8+,11,353,Conibear B,65,18:01.4,1081.4,115.52,16:05.9,965.9
+Womens Masters 8+,12,339,Lake Washington,35,16:22.4,982.4,5.12,16:17.3,977.3
+Womens Masters 8+,13,350,Kitsap,58,17:41.5,1061.5,76.88,16:24.6,984.6
+Womens Masters 8+,14,338,Sammamish Association,49,17:05.9,1025.9,38.72,16:27.2,987.2
+Womens Masters 8+,15,352,Montlake,61,18:05.1,1085.1,92.48,16:32.6,992.6
+Womens Masters 8+,16,344,Whatcom,48,17:12.8,1032.8,35.28,16:37.5,997.5
+Womens Masters 8+,17,340,Lake Union B,37,17:02.8,1022.8,8.0,16:54.8,1014.8
+Womens Masters 8+,18,704,Lake Union C,48,17:37.5,1057.5,35.28,17:02.2,1022.2
+Womens Masters 8+,19,337,Sammamish Association,57,18:21.0,1101.0,72.0,17:09.0,1029.0
+Womens Masters 8+,20,354,Martha's Moms,63,19:37.8,1177.8,103.68,17:54.1,1074.1
+Mens Masters 2x,1,453,R. Colven/M. Biery,62,15:17.6,917.6,105.84,13:31.7,811.7
+Mens Masters 2x,2,451,S. Urbatsch/L. Ripley,59,15:30.4,930.4,88.47,14:02.0,842.0
+Mens Masters 2x,4,440,J. Kallay/P. Eames,46,15:33.0,933.0,31.19,15:01.8,901.8
+Mens Masters 2x,5,448,j. sama/C. Delaporte,49,16:02.7,962.7,41.82,15:20.9,920.9
+Mens Masters 2x,6,455,J. Jannetty/b. van buren,71,18:47.5,1127.5,167.27,16:00.2,960.2
+Mens Masters 2x,7,445,A. King/F. Saxen,41,16:20.9,980.9,16.93,16:04.0,964.0
+Mens Masters 2x,8,447,J. McCann/A. Silberfein,45,16:37.0,997.0,27.99,16:09.0,969.0
+Mens Masters 2x,9,444,H. Pistor/G. Hernandez,40,16:25.9,985.9,14.6,16:11.3,971.3
+Mens Masters 2x,10,450,L. Walton/B. Fite,50,17:03.2,1023.2,45.71,16:17.5,977.5
+Mens Masters 2x,11,449,M. Micheletti/R. Ramsey,49,17:06.0,1026.0,41.82,16:24.2,984.2
+Mens Masters 2x,12,452,T. Cleland/B. Brown,62,18:32.5,1112.5,105.84,16:46.6,1006.6
+Mens Masters 2x,13,443,Z. Brewer/A. Mazick,39,17:08.2,1028.2,12.44,16:55.7,1015.7
+Mens Masters 2x,14,446,L. Morgan/B. Lewandowski,45,17:28.8,1048.8,27.99,17:00.8,1020.8
+Mens Masters 2x,15,442,B. Kuehn/L. Giannechini,32,17:44.3,1064.3,2.16,17:42.1,1062.1
+Mens Masters 2x,16,454,P. Kouba/R. Good,69,27:36.1,1656.1,152.41,25:03.7,1503.7
+Mens Masters Novice 2x,1,457,M. Thomas/C. Papetti,31,16:35.9,995.9,1.38,16:34.5,994.5
+,2,458,R. Petitt/Z. Tomlinson,47,26:30.5,1590.5,34.56,25:56.0,1556.0
+Womens Masters 2x,1,468,M. Pearlstein/M. Gradek,51,15:54.9,954.9,49.77,15:05.2,905.2
+Womens Masters 2x,2,463,S. Smith/J. Potter,44,16:15.6,975.6,24.97,15:50.6,950.6
+Womens Masters 2x,3,476,c. pelmas/C. Lund,64,17:53.6,1073.6,118.28,15:55.3,955.3
+Womens Masters 2x,4,475,K. Smith/E. Bramhall,63,17:51.9,1071.9,111.97,15:59.9,959.9
+Womens Masters 2x,5,466,J. Dykema/L. Doermann,47,16:37.3,997.3,34.56,16:02.7,962.7
+Womens Masters 2x,6,477,K. Juhlin/S. Keller,73,19:11.6,1151.6,182.82,16:08.7,968.7
+Womens Masters 2x,8,462,M. Iwema/A. Sullivan,42,17:04.2,1024.2,19.44,16:44.7,1004.7
+Womens Masters 2x,9,459,E. Aiello/H. Werner,50,17:38.2,1058.2,45.71,16:52.5,1012.5
+Womens Masters 2x,10,472,R. Hoch/S. Spaulding,56,18:14.9,1094.9,72.66,17:02.3,1022.3
+Womens Masters 2x,11,460,N. Durfee/H. Eisenach,29,17:20.2,1040.2,0.35,17:19.8,1039.8
+Womens Masters 2x,12,474,K. Goforth/L. Heffernan,61,19:05.1,1145.1,99.88,17:25.2,1045.2
+Womens Masters 2x,13,471,R. Brennan/P. Zenteno,56,19:01.6,1141.6,72.66,17:48.9,1068.9
+Womens Masters 2x,14,473,M. Bradshaw/A. Rengaraj,57,19:45.5,1185.5,77.76,18:27.8,1107.8
+Womens Masters 2x,15,478,M. Love/O. Treciokas,73,21:35.1,1295.1,182.82,18:32.3,1112.3
+Womens Masters 2x,16,470,L. Young/K. Berens,55,19:51.2,1191.2,67.74,18:43.4,1123.4
+Womens Masters 2x,17,465,S. Loh/R. Egner,47,19:23.3,1163.3,34.56,18:48.8,1128.8
+Womens Masters 2x,18,461,K. Cox/E. Blatter,34,20:37.2,1237.2,4.23,20:32.9,1232.9
+Womens Masters Novice 2x,1,479,J. Weiss/C. Copenhaver,36,21:31.9,1291.9,7.0,21:24.9,1284.9
+Womens Masters 2-,1,481,K. Klinger/P. Riley,45,18:16.5,1096.5,32.4,17:44.1,1064.1
+Womens Masters 2-,2,480,A. Taylor/Y. Cote,56,20:09.4,1209.4,84.1,18:45.3,1125.3
+Mens Masters 4x,1,706,Station L,56,14:13.6,853.6,67.28,13:06.3,786.3
+Mens Masters 4x,2,576,Pocock J,65,15:42.5,942.5,115.52,13:47.0,827.0
+Mens Masters 4x,3,577,Bainbridge Island,71,16:27.9,987.9,154.88,13:53.0,833.0
+Mens Masters 4x,4,573,Whatcom,58,15:31.7,931.7,76.88,14:14.8,854.8
+Mens Masters 4x,5,567,Pocock B,38,14:47.2,887.2,9.68,14:37.5,877.5
+Mens Masters 4x,6,569,Oregon Association,46,15:23.4,923.4,28.88,14:54.5,894.5
+Mens Masters 4x,7,570,Lake Washington,51,15:48.3,948.3,46.08,15:02.2,902.2
+Mens Masters 4x,9,575,Commencement Bay,64,17:08.3,1028.3,109.52,15:18.7,918.7
+Mens Masters 4x,10,568,Lake Union,33,15:26.1,926.1,2.88,15:23.2,923.2
+Mens Masters 4x,11,566,Renton,31,16:13.3,973.3,1.28,16:12.0,972.0
+Womens Masters 4x,1,579,Lake Washington,36,15:10.3,910.3,6.48,15:03.8,903.8
+Womens Masters 4x,2,590,Martha's Moms,66,17:26.0,1046.0,121.68,15:24.3,924.3
+Womens Masters 4x,3,578,Lake Union,34,15:47.8,947.8,3.92,15:43.9,943.9
+Womens Masters 4x,4,587,Olympia Area,60,17:25.9,1045.9,87.12,15:58.8,958.8
+Womens Masters 4x,5,589,Vashon Island,67,18:07.8,1087.8,128.0,15:59.8,959.8
+Womens Masters 4x,6,585,Commencement Bay,53,17:16.6,1036.6,54.08,16:22.5,982.5
+Womens Masters 4x,7,584,Oregon Association,53,17:19.1,1039.1,54.08,16:25.0,985.0
+Womens Masters 4x,8,588,North Cascades,63,18:32.0,1112.0,103.68,16:48.3,1008.3
+Womens Masters 4x,9,591,Martha's Moms,68,19:04.9,1144.9,134.48,16:50.4,1010.4
+Womens Masters 4x,10,582,Montlake,61,18:26.1,1106.1,92.48,16:53.6,1013.6
+Womens Masters 4x,11,586,Mt. Baker,57,18:09.7,1089.7,72.0,16:57.7,1017.7
+Womens Masters 4x,12,581,Lake Stevens,50,17:47.4,1067.4,42.32,17:05.1,1025.1
+Womens Masters 4x,13,583,Lake Stevens B,52,18:12.2,1092.2,50.0,17:22.2,1042.2
+,13,583,Age: 38 -9.68,52,18:12.2,1092.2,50.0,17:22.2,1042.2
+,14,580,Renton,38,18:24.6,1104.6,9.68,18:14.9,1094.9
+Womens Masters Novice 4x,1,592,Vancouver,43,20:31.7,1231.7,20.48,20:11.3,1211.3
+Mens Masters 4+,1,600,Ancient Mariners,71,16:55.2,1015.2,167.27,14:07.9,847.9
+Mens Masters 4+,2,596,Ancient Mariners,54,15:17.1,917.1,62.99,14:14.1,854.1
+Mens Masters 4+,3,597,Willamette,55,15:26.5,926.5,67.74,14:18.7,858.7
+Mens Masters 4+,4,599,Mt. Baker,63,16:20.6,980.6,111.97,14:28.6,868.6
+Mens Masters 4+,5,593,Sammamish Association,44,15:43.7,943.7,24.97,15:18.8,918.8
+Mens Masters 4+,6,595,Kitsap,53,16:28.0,988.0,58.41,15:29.6,929.6
+Mens Masters 4+,8,598,Ancient Mariners,62,18:38.7,1118.7,105.84,16:52.8,1012.8
+Mens Masters Novice 4+,1,601,Vancouver,47,18:35.6,1115.6,34.56,18:01.0,1081.0
+Womens Masters 4+,1,604,Sammamish Association,44,15:51.2,951.2,24.97,15:26.2,926.2
+Womens Masters 4+,2,606,Sammamish Association,49,16:17.2,977.2,41.82,15:35.3,935.3
+Womens Masters 4+,3,612,Pocock,51,16:25.4,985.4,49.77,15:35.6,935.6
+Womens Masters 4+,4,603,Sammamish Association,40,15:58.5,958.5,14.6,15:43.9,943.9
+Womens Masters 4+,5,620,Conibear B,70,18:24.7,1104.7,159.75,15:45.0,945.0
+Womens Masters 4+,6,621,Lake Washington B,70,18:25.5,1105.5,159.75,15:45.8,945.8
+Womens Masters 4+,7,615,Willamette,55,16:54.0,1014.0,67.74,15:46.3,946.3
+Womens Masters 4+,8,618,Station L,59,17:27.3,1047.3,88.47,15:58.8,958.8
+Womens Masters 4+,9,616,Martha's Moms,56,17:12.1,1032.1,72.66,15:59.4,959.4
+Womens Masters 4+,10,617,Conibear,57,17:32.4,1052.4,77.76,16:14.7,974.7
+Womens Masters 4+,11,614,Mt. Baker,54,17:23.2,1043.2,62.99,16:20.2,980.2
+Womens Masters 4+,12,607,Sammamish Association,58,17:43.7,1063.7,83.03,16:20.7,980.7
+Womens Masters 4+,13,605,Sammamish Association,60,18:02.3,1082.3,94.09,16:28.3,988.3
+,13,605,Age: 46 -31.19,60,18:02.3,1082.3,94.09,16:28.3,988.3
+,14,610,College Club Seattle B,46,17:06.4,1026.4,31.19,16:35.3,995.3
+,15,608,Lake Union,29,16:38.9,998.9,0.35,16:38.5,998.5
+,16,613,Martha's Moms,53,17:46.0,1066.0,58.41,16:47.6,1007.6
+,18,705,Lake Washington,41,17:25.9,1045.9,16.93,17:09.0,1029.0
+,20,602,Sammamish Association,45,19:18.5,1158.5,27.99,18:50.5,1130.5
+Mens Masters 1x,1,635,Roy Colven,65,17:32.2,1052.2,144.4,15:07.8,907.8
+Mens Masters 1x,2,629,Kent McCleary,56,17:26.5,1046.5,84.1,16:02.4,962.4
+Mens Masters 1x,3,627,Brett Hanscom,54,17:18.5,1038.5,72.9,16:05.6,965.6
+Mens Masters 1x,4,628,Edward Hall,55,17:33.3,1053.3,78.4,16:14.9,974.9
+Mens Masters 1x,5,625,Evan Halprin,45,16:52.4,1012.4,32.4,16:20.0,980.0
+Mens Masters 1x,6,636,Rod Sternagel,67,19:17.7,1157.7,160.0,16:37.7,997.7
+Mens Masters 1x,7,623,Josh Karney,42,17:04.4,1024.4,22.5,16:41.9,1001.9
+Mens Masters 1x,8,632,Christian Roth,63,19:10.8,1150.8,129.6,17:01.2,1021.2
+Mens Masters 1x,9,624,Jack Rutledge,43,17:54.0,1074.0,25.6,17:28.4,1048.4
+Mens Masters 1x,10,626,Andres Hermosilla,49,18:32.1,1112.1,48.4,17:43.7,1063.7
+Mens Masters 1x,11,799,DAVID HARMON,67,20:26.4,1226.4,160.0,17:46.4,1066.4
+Mens Masters 1x,12,631,Jeff Wolf,61,20:08.5,1208.5,115.6,18:12.9,1092.9
+Mens Masters 1x,15,622,Rishabh Yadav,29,19:19.4,1159.4,0.4,19:19.0,1159.0
+Mens Masters Novice 1x,2,638,Michael Levitt,44,20:04.3,1204.3,28.9,19:35.4,1175.4
+Womens Masters 1x,1,655,Elizabeth Runde,66,18:34.2,1114.2,152.1,16:02.1,962.1
+Womens Masters 1x,2,654,Ann Creighton,64,18:56.6,1136.6,136.9,16:39.7,999.7
+Womens Masters 1x,3,650,Eleanor Aiello,46,17:41.9,1061.9,36.1,17:05.8,1025.8
+Womens Masters 1x,4,649,Jenny Withycombe,44,18:08.7,1088.7,28.9,17:39.8,1059.8
+Womens Masters 1x,5,651,Stephanie Geoffrion,50,18:41.3,1121.3,52.9,17:48.4,1068.4
+Womens Masters 1x,6,648,Hailey Clark,42,19:01.8,1141.8,22.5,18:39.3,1119.3
+Womens Masters 1x,7,647,Jessica Rivas,42,19:06.3,1146.3,22.5,18:43.8,1123.8
+Womens Masters 1x,8,640,Victoria Trentin,2,19:06.3,1146.3,0.0,19:06.3,1146.3
+Womens Masters 1x,9,653,Sheila Vicic,61,21:11.4,1271.4,115.6,19:15.8,1155.8

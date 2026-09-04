@@ -58,8 +58,30 @@ def build_wind(speed: float, wind_from: float):
                          speed, wind_from, height=1.5)
 
 
+#: The race is rowed towards DECREASING station -- BU 7629 down to Eliot
+#: 3812 -- so the course tangent, which points along increasing station,
+#: points downstream.  Every direction-sensitive quantity has to be taken
+#: against the reversed tangent or it describes a boat paddling home.
+#: See ``charles.RiverFlow.as_current_field`` for the three checks that
+#: fix the sense.
+RACE_SENSE = -1.0
+
+
+def race_tangent(course, station):
+    """Unit vector in the direction the race is actually rowed."""
+    heading = float(course.heading_at(station))
+    return RACE_SENSE * np.array([np.cos(heading), np.sin(heading)])
+
+
 def build_segments(course, n: int, boat, wind=None):
-    """Cut the reach into ``n`` segments and read the river on each."""
+    """Cut the reach into ``n`` segments and read the river on each.
+
+    Segments are still generated in station order, which is fine: the
+    river is the same either way and the pacing optimiser only needs the
+    conditions per segment.  What is **not** direction-agnostic is the
+    current and the wind, and both are projected onto
+    :func:`race_tangent`.
+    """
     from coxswain.hydro.shallow import ShallowWaterModel
 
     stations = np.linspace(0.0, course.length, n + 1)
@@ -68,8 +90,7 @@ def build_segments(course, n: int, boat, wind=None):
     for start, end in zip(stations[:-1], stations[1:]):
         middle = 0.5 * (start + end)
         point = course.position_at(middle)
-        heading = float(course.heading_at(middle))
-        tangent = np.array([np.cos(heading), np.sin(heading)])
+        tangent = race_tangent(course, middle)
         current = np.asarray(course.current_at(point[0], point[1]))[:2]
         # Positive helps: project the current onto the direction of travel.
         along = float(np.dot(current, tangent))

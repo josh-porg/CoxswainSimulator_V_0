@@ -406,8 +406,24 @@ class ContinuityFlow:
                          lateral: bool = True) -> CurrentField:
         """A :class:`CurrentField` pointing downstream at the local speed.
 
-        Downstream is towards decreasing station, since the course is laid
-        out bow-first up the river the way a crew rows it.
+        **Downstream is towards INCREASING station.**  This docstring used
+        to claim the opposite -- "the course is laid out bow-first up the
+        river the way a crew rows it" -- and the extracted centreline does
+        not do that.  Three independent checks agree:
+
+        * the landmark list, declared downstream-to-upstream, runs from
+          DeWolfe Boathouse at station 7863 down to Weld at 5176;
+        * the bridges run BU 7629, River Street 6349, Western Avenue 6012,
+          Weeks 5512, Anderson 5082, Eliot 3812 -- the racing order is
+          *decreasing* station;
+        * station 9000 lies 3.1 km east of station 4000, and the Charles
+          runs west to east.
+
+        So the race is rowed towards decreasing station, and the water
+        flows towards increasing station.  Getting this backwards made
+        :class:`CurrentField` return the water's velocity pointing
+        **upstream**, in flat contradiction of its own documented sign
+        convention.
 
         With ``lateral=True`` (the default) the speed varies **across** the
         channel as well as along it, from :meth:`lateral_profile`.  Setting
@@ -434,9 +450,11 @@ class ContinuityFlow:
                                             fractions, row))
             else:
                 magnitude = float(np.interp(s, stations, mean_speed))
-            # water flows towards the start of the course (downstream)
-            return (-magnitude * np.cos(heading),
-                    -magnitude * np.sin(heading))
+            # Water flows towards INCREASING station, which is downstream.
+            # The minus sign that used to be here inverted every current
+            # vector on the reach.
+            return (magnitude * np.cos(heading),
+                    magnitude * np.sin(heading))
 
         return CurrentField(function=flow)
 
@@ -645,6 +663,45 @@ def test_section(channel=None, origin=CHARLES_ORIGIN,
     inside = (station >= low) & (station <= high)
     segment = line[inside][::-1]      # ordered in the direction of travel
     return segment[0], segment[-1], segment
+
+
+def hocr_race_course(month: int = 10, statistic: str = "median",
+                     origin: Tuple[float, float] = CHARLES_ORIGIN,
+                     level_offset: float = 0.0) -> Course:
+    """A :class:`Course` covering **only the raced water**.
+
+    :func:`charles_course` returns the whole surveyed reach, 12.4 km of
+    it, of which the Head of the Charles races 4828 m.  Optimising or
+    plotting over the full reach spends most of its effort on water no
+    crew will ever see, and -- because the reach extends past both ends of
+    the race -- it also reports times two and a half times too long.
+
+    The depth and current fields are position-based, so they carry over
+    untouched; only the centreline and its widths are clipped.  The
+    result is ordered **bow-first**, so station 0 is the start line and
+    increasing station is the direction of travel, which is the opposite
+    sense to the parent reach (see :meth:`RiverFlow.as_current_field`) and
+    the reason this function exists rather than a slice at the call site.
+    """
+    channel = charles_channel(origin)
+    start_xy, finish_xy, line, (start, finish) = hocr_course(
+        channel=channel, origin=origin)
+    full = charles_course(month=month, statistic=statistic, origin=origin,
+                          level_offset=level_offset)
+
+    widths = np.array([float(full.half_width_at(
+        max(min(start - d, start), finish)))
+        for d in np.linspace(0.0, start - finish, len(line))])
+
+    return Course(
+        centreline=line,
+        half_width=widths,
+        depth=full.depth,
+        current=full.current,
+        name="Head of the Charles course",
+        is_survey=full.is_survey,
+        notes="raced water only, bow-first; " + full.notes,
+    )
 
 
 def hocr_course(channel=None, origin: Tuple[float, float] = CHARLES_ORIGIN,

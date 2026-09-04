@@ -142,8 +142,22 @@ def rings(element):
     return out
 
 
-def main():
-    south, west, north, east = DEM_BOUNDS
+def main(argv=None):
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Fetch building, canopy and tree footprints from "
+                    "OpenStreetMap for a bounding box.")
+    parser.add_argument("--bounds", default=None,
+                        help="south,west,north,east; defaults to the "
+                             "Charles DEM bounds")
+    parser.add_argument("--out", default="charles_structures.npz",
+                        help="file name under coxswain/data/")
+    args = parser.parse_args(argv)
+
+    bounds = (tuple(float(v) for v in args.bounds.split(","))
+              if args.bounds else DEM_BOUNDS)
+    south, west, north, east = bounds
     box = "%f,%f,%f,%f" % (south, west, north, east)
     print("Overpass, box %s" % box)
 
@@ -196,8 +210,7 @@ def main():
     print("   polygons above are the more complete record of canopy)")
 
     target = os.path.join(os.path.dirname(os.path.dirname(
-        os.path.abspath(__file__))), "coxswain", "data",
-        "charles_structures.npz")
+        os.path.abspath(__file__))), "coxswain", "data", args.out)
     np.savez_compressed(
         target,
         building_xy=np.concatenate(polygons) if polygons else np.zeros((0, 2)),
@@ -210,7 +223,7 @@ def main():
         tree_xy=np.array(points, dtype=np.float64) if points
         else np.zeros((0, 2)),
         tree_height=np.array(tree_height, dtype=np.float32),
-        bounds=np.array(DEM_BOUNDS, dtype=np.float64),
+        bounds=np.array(bounds, dtype=np.float64),
     )
     print("wrote %s (%.1f MB)" % (target, os.path.getsize(target) / 1e6))
     return 0

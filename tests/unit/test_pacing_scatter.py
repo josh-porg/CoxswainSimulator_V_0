@@ -156,3 +156,72 @@ def test_a_varying_course_is_the_exception_that_proves_it():
                           for d in (12.0, 2.2, 12.0, 2.2)], resistance)
     _plan, amplitude = river.optimise(span=200.0, samples=61)
     assert amplitude > 0.0
+
+
+# --------------------------------------------------------------------------
+# the executable bound -- how the literature enters the model
+# --------------------------------------------------------------------------
+def test_flat_pacing_has_zero_power_scatter_by_construction():
+    model = uniform()
+    plan = model.evaluate(np.full(4, model.flat_power()))
+    assert plan.power_scatter() == pytest.approx(0.0, abs=1e-12)
+
+
+def test_on_a_varying_course_the_speed_coefficient_measures_the_COURSE():
+    """Why the executable bound is on power and not on Xia's measure.
+
+    In a buoyed lane, speed varies only because the crew made it vary, so
+    Xia's speed coefficient is a clean measure of pacing choice.  On a
+    river it is not: a crew holding one power the whole way still produces
+    a large speed scatter, because the water changes underneath them.
+    Bounding that would reject flat pacing as unexecutable.
+    """
+    river = CoursePacing([CourseSegment(500.0, depth=d)
+                          for d in (12.0, 2.2, 12.0, 2.2)], resistance)
+    flat = river.evaluate(np.full(4, river.flat_power()))
+    assert flat.power_scatter() == pytest.approx(0.0, abs=1e-12)
+    assert flat.pacing_scatter() > 0.02
+
+
+def test_the_power_bound_restricts_the_optimum():
+    river = CoursePacing([CourseSegment(500.0, depth=d)
+                          for d in (12.0, 2.2, 12.0, 2.2)], resistance)
+    free, _a = river.optimise(span=200.0, samples=61)
+    tight, _b = river.optimise(span=200.0, samples=61,
+                               max_power_scatter=0.002)
+    assert tight.power_scatter() <= 0.002 + 1e-9
+    assert tight.power_scatter() < free.power_scatter()
+    assert tight.total_time >= free.total_time
+
+
+def test_a_generous_bound_does_not_bite():
+    river = CoursePacing([CourseSegment(500.0, depth=d)
+                          for d in (12.0, 2.2, 12.0, 2.2)], resistance)
+    free, _a = river.optimise(span=200.0, samples=61)
+    loose, _b = river.optimise(span=200.0, samples=61,
+                               max_power_scatter=1.0)
+    assert loose.total_time == pytest.approx(free.total_time, rel=1e-9)
+
+
+def test_whether_the_optimum_is_more_even_than_flat_depends_on_the_course():
+    """Xia's "winners pace evenly" does NOT generalise to a river.
+
+    This test was written to assert that the optimum is always at least
+    as even as flat pacing, on the strength of Xia's result and of the
+    real Charles, where optimising takes the speed coefficient from 0.0890
+    down to 0.0855.  It is false in general, and the counterexample is
+    this synthetic alternating-depth river, where the optimum eases hard
+    in the shallows and pushes in the deep and so **amplifies** the speed
+    variation.
+
+    Both behaviours are the same rule -- spend where a watt buys the most
+    seconds -- reading different courses.  Whether that ends up looking
+    even is a property of the water, not a target.  Which is exactly why
+    the executable bound belongs on power, where the crew's choice lives.
+    """
+    river = CoursePacing([CourseSegment(500.0, depth=d)
+                          for d in (12.0, 2.2, 12.0, 2.2)], resistance)
+    flat = river.evaluate(np.full(4, river.flat_power()))
+    best, _a = river.optimise(span=200.0, samples=61)
+    assert best.total_time < flat.total_time          # it is faster
+    assert best.pacing_scatter() > flat.pacing_scatter()   # and less even

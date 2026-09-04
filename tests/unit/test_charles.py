@@ -205,9 +205,34 @@ def test_flow_is_fastest_where_the_section_is_smallest(course):
     assert np.argmin(area) == np.argmax(speed)
 
 
+def test_the_station_axis_runs_downstream(course):
+    """Increasing station goes DOWNSTREAM, and the geography settles it.
+
+    This is not a convention anyone is free to choose: the extracted
+    centreline either runs one way or the other, and it runs east.  The
+    Charles flows west to east, so increasing station is downstream and
+    the race -- rowed upstream from BU to Eliot -- goes towards
+    *decreasing* station.
+
+    Checked against longitude rather than against any other part of the
+    model, because the whole point is to have one anchor that cannot
+    drift with the code.
+    """
+    low = course.position_at(np.array(course.length * 0.3))
+    high = course.position_at(np.array(course.length * 0.7))
+    assert float(high[0]) > float(low[0])          # further east
+
+
 def test_current_field_points_downstream(course):
-    """Downstream is towards the start of the course, which is laid out
-    the way a crew rows it -- bow-first up the river."""
+    """The water flows east, which is towards increasing station.
+
+    :class:`CurrentField` documents its vector as "the velocity of the
+    *water* in the absolute frame", so this is a physical claim and not a
+    bookkeeping one.  It used to assert the opposite, matching a docstring
+    in ``as_current_field`` that claimed downstream was towards decreasing
+    station; both were wrong, and the error inverted every current vector
+    on the reach.  See SOURCES sec. 83.
+    """
     flow = charles.ContinuityFlow(course, discharge=20.0)
     field = flow.as_current_field()
     station = course.length * 0.5
@@ -215,7 +240,26 @@ def test_current_field_points_downstream(course):
     velocity = field(point[0], point[1])
     heading = float(course.heading_at(np.array(station)))
     along = np.array([np.cos(heading), np.sin(heading)])
-    assert np.dot(velocity, along) < 0.0
+    assert np.dot(velocity, along) > 0.0
+
+
+def test_the_current_opposes_a_crew_racing_the_course(course):
+    """The consequence, stated the way a coxswain would.
+
+    The race is rowed towards decreasing station, so the racing tangent
+    is the negative of the course tangent, and the current must come out
+    adverse.  Two sign errors used to cancel here -- an inverted current
+    and a script that traversed the reach downstream -- which is exactly
+    why this needs its own test rather than being inferred.
+    """
+    flow = charles.ContinuityFlow(course, discharge=20.0)
+    field = flow.as_current_field()
+    station = course.length * 0.5
+    point = course.position_at(np.array(station))
+    velocity = field(point[0], point[1])
+    heading = float(course.heading_at(np.array(station)))
+    racing = -np.array([np.cos(heading), np.sin(heading)])
+    assert np.dot(velocity, racing) < 0.0
 
 
 def test_current_field_magnitude_matches_the_profile(course):

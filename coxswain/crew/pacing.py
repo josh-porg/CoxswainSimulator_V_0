@@ -166,6 +166,29 @@ class PacingPlan:
         """
         return float(np.std(self.speed_coefficient()))
 
+    def power_scatter(self) -> float:
+        r"""Relative spread of the power schedule, ``sd(P)/mean(P)``.
+
+        **This, not** :meth:`pacing_scatter`, **is the executable
+        quantity on a river**, and the distinction is a correction to the
+        literature rather than a detail.
+
+        Xia measures evenness on *speed*, and in a buoyed lane that is the
+        same thing as effort: the water is uniform, so speed varies only
+        because the crew made it vary.  On the Charles it is not.  Depth,
+        shelter and stream all change down the reach, so a crew holding
+        one power the whole way still produces a speed coefficient with a
+        scatter of about **0.089** -- larger than anything the pacing
+        choice contributes.  Bounding *that* would reject flat pacing as
+        unexecutable, which is absurd.
+
+        A crew executes watts.  The river turns them into metres per
+        second.  So the bound that means "no crew could row this" belongs
+        on the watts.
+        """
+        mean = float(np.average(self.powers, weights=self.durations))
+        return float(np.std(self.powers) / max(abs(mean), 1e-9))
+
     def summary(self) -> dict:
         return {
             "total_time": self.total_time,
@@ -400,7 +423,8 @@ class CoursePacing:
             power = 0.5 * (power + updated)
         return float(power)
 
-    def optimise(self, span: float = 60.0, samples: int = 41):
+    def optimise(self, span: float = 60.0, samples: int = 41,
+                 max_power_scatter: float = None):
         """Best schedule of the form ``P_i = P0 + span * g(k_i)``.
 
         The optimality condition makes power a function of ``k =
@@ -423,8 +447,8 @@ class CoursePacing:
             return reference, 0.0
 
         shape = shape / np.abs(shape).max()
-        return self._search(baseline, shape, span, samples,
-                            reference)
+        return self._search(baseline, shape, span, samples, reference,
+                            max_power_scatter=max_power_scatter)
 
     def optimise_with_split(self, span: float = 200.0, samples: int = 41,
                             split_span: float = 60.0, split_samples: int = 21):
@@ -526,15 +550,48 @@ class CoursePacing:
             return 0.0, 0.0
         return float(np.mean(losses)), float(np.mean(achieved))
 
-    def _search(self, baseline, shape, span, samples, reference=None):
-        """Golden-refined line search on the amplitude of one shape."""
+    def _search(self, baseline, shape, span, samples, reference=None,
+                max_power_scatter=None):
+        """Golden-refined line search on the amplitude of one shape.
+
+        ``max_power_scatter`` caps ``sd(P)/mean(P)``, which is how the
+        pacing literature enters this model rather than merely being
+        cited by it.  Atkinson et al. found that the power variation
+        a physics model calls optimal on a windy course is **larger than
+        cyclists can actually sustain**, so the realised gain falls well
+        short of the predicted one; Xia found the same ordering in rowing
+        from the other end, with the crews that paced most evenly winning.
+        The common finding is that *executable* variation is narrower than
+        *optimal* variation, and a model with no such bound will happily
+        recommend a schedule nobody can row.
+
+        The bound is on **power**, not on Xia's speed coefficient.  See
+        :meth:`PacingPlan.power_scatter`: on a river the speed
+        coefficient is dominated by the river, so flat pacing already
+        scores 0.089 and bounding it would reject the schedule the
+        literature is recommending.
+
+        Left ``None`` by default, and deliberately not given a hardcoded
+        value: Xia reports his distribution graphically and this project
+        does not have the underlying data, so any constant here would be
+        invented.  What the mechanism provides is the comparison -- a
+        coxswain with their own GPS traces can set the bound from what
+        their crew demonstrably executes.
+        """
         if reference is None:
             reference = self.evaluate(np.full(len(self.segments), baseline))
 
+        def allowed(plan):
+            return (plan is not None
+                    and (max_power_scatter is None
+                         or plan.power_scatter()
+                         <= max_power_scatter + 1e-12))
+
         def timed(amplitude):
             trial = self._balanced(baseline, shape, float(amplitude))
-            return (trial, trial.total_time if trial is not None
-                    else float("inf"))
+            if not allowed(trial):
+                return (trial, float("inf"))
+            return (trial, trial.total_time)
 
         grid = np.linspace(0.0, span, samples)
         best_plan, best_time, best_amplitude = reference, \

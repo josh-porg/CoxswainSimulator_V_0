@@ -112,6 +112,18 @@ class PassingRules:
     #: Safety factor on the time a yield physically takes, used to decide
     #: whether a crew had "adequate room and time".
     grace: float = 1.3
+    #: Distance from the start inside which a non-yield is **not** an
+    #: offence, m.  Straight from the rulebook: "Between the Start Line
+    #: and exiting the BU Bridge, Non-Yield penalties for a boat being
+    #: passed do not apply and will not be assessed."
+    #:
+    #: This is not a nicety.  The first two bridges sit almost on top of
+    #: each other just above the start and the opening stretch is the most
+    #: congested water on the course, so it is exactly where a model that
+    #: did not know about the exemption would hand out the most penalties.
+    #: Zero disables it, which is what a course that is not the Charles
+    #: wants.
+    exempt_from_start: float = 0.0
 
     @property
     def adequate_time(self) -> float:
@@ -373,7 +385,16 @@ class HeadRace:
                   and encounter.declared_at is not None
                   and time - encounter.declared_at
                   >= self.rules.adequate_time):
-                self._penalise(encounter, time)
+                if passee.position(time) <= self.rules.exempt_from_start:
+                    # Inside the start-line-to-BU exemption.  The yield is
+                    # still owed and still moves the crew; only the
+                    # penalty is withheld.
+                    encounter.penalised = True
+                    self.log.add(time, "exempt", passer=passer.bow,
+                                 passee=passee.bow,
+                                 station=round(passee.position(time), 1))
+                else:
+                    self._penalise(encounter, time)
             return
 
         if encounter.phase in (Phase.YIELDED, Phase.OVERLAPPED):

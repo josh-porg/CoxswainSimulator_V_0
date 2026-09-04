@@ -32,7 +32,8 @@ from typing import Tuple
 
 import numpy as np
 
-__all__ = ["Structures", "charles_structures"]
+__all__ = ["Structures", "charles_structures",
+           "seattle_structures", "load_structures"]
 
 _CACHE = {}
 _PATH = os.path.join(os.path.dirname(os.path.dirname(
@@ -121,17 +122,39 @@ class Structures:
 def charles_structures(origin: Tuple[float, float] = None) -> Structures:
     """Load the stored footprints into the model's tangent plane."""
     from .charles import CHARLES_ORIGIN
-    from .course import local_tangent_plane
 
     origin = CHARLES_ORIGIN if origin is None else origin
-    if origin in _CACHE:
-        return _CACHE[origin]
-    if not os.path.exists(_PATH):
-        raise FileNotFoundError(
-            "%s is missing -- run tools/extract_charles_structures.py, "
-            "which fetches it from OpenStreetMap" % _PATH)
+    return load_structures("charles_structures.npz", origin)
 
-    blob = np.load(_PATH)
+
+def seattle_structures(origin: Tuple[float, float] = None) -> Structures:
+    """Lake Union's buildings, canopy and trees.
+
+    Same extractor, same file format, different bounding box -- the
+    footprints are stored as latitude and longitude and projected at load
+    time, so nothing about the Charles is baked into them.
+    """
+    from .seattle import SEATTLE_ORIGIN
+
+    origin = SEATTLE_ORIGIN if origin is None else origin
+    return load_structures("seattle_structures.npz", origin)
+
+
+def load_structures(name: str, origin: Tuple[float, float]) -> Structures:
+    """Load a stored footprint set into a tangent plane at ``origin``."""
+    from .course import local_tangent_plane
+
+    path = os.path.join(os.path.dirname(_PATH), name)
+    key = (name, origin)
+    if key in _CACHE:
+        return _CACHE[key]
+    if not os.path.exists(path):
+        raise FileNotFoundError(
+            "%s is missing -- run tools/extract_charles_structures.py "
+            "with --out %s, which fetches it from OpenStreetMap"
+            % (path, name))
+
+    blob = np.load(path)
 
     def split(xy, offsets):
         if len(xy) == 0:
@@ -154,5 +177,5 @@ def charles_structures(origin: Tuple[float, float] = None) -> Structures:
         sources=blob["building_height_source"], canopy=canopy,
         canopy_heights=blob["canopy_height"], trees=trees,
         tree_heights=blob["tree_height"])
-    _CACHE[origin] = structures
+    _CACHE[key] = structures
     return structures

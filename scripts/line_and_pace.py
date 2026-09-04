@@ -54,7 +54,8 @@ from coxswain.crew.pacing import CoursePacing, CourseSegment  # noqa: E402
 from coxswain.river.charles import charles_course           # noqa: E402
 from coxswain.river.route import Route                      # noqa: E402
 
-from course_pacing import build_wind, hull_drag             # noqa: E402
+from course_pacing import (RACE_SENSE, build_wind,  # noqa: E402
+                           hull_drag)
 
 
 def segments_along(course, path, n: int, wind=None):
@@ -76,7 +77,9 @@ def segments_along(course, path, n: int, wind=None):
         index = int(np.clip(np.searchsorted(along, middle) - 1,
                             0, len(leg) - 1))
         point = path[index]
-        tangent = step[index] / max(leg[index], 1e-9)
+        # The path is generated in station order, which runs downstream;
+        # the race runs the other way.
+        tangent = RACE_SENSE * step[index] / max(leg[index], 1e-9)
 
         depth = float(course.depth_at(point[0], point[1]))
         current = np.asarray(course.current_at(point[0], point[1]))[:2]

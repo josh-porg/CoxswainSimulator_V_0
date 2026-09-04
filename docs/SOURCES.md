@@ -6439,3 +6439,1518 @@ below. The CSS box has to be pinned separately with `style.height`.
 `Report.embeds` carries it as a lazily-loaded iframe in its own tab, with
 a link out, and is skipped entirely when `map.html` is absent — a missing
 iframe is worse than a missing tab.
+
+## 82. Coupling the rules to the river, and the two bugs that exposed
+
+`scripts/passing_race.py`, plus `Entry.speed_fn` in
+`coxswain/river/passing.py`.
+
+§76 built the rulebook as a state machine with no physics, deliberately.
+§80 priced a wake. Neither could answer the question the rules actually
+pose: **what does being told to move over cost?** The state machine alone
+makes every yield free — a crew moves over, changes a number, and rows on
+at the same speed. On this river that is exactly wrong, because the line
+*is* the deep water (§66-67, §79). A yield is a time penalty paid in
+bathymetry.
+
+`Entry` now takes an optional `speed_fn(station, lateral)`; when set, the
+crew's speed is read from the river at its **actual** lateral position
+every step, and `lost_to_yield` integrates the shortfall against where it
+wanted to be. Constant speed keeps its closed form, so the 19 rule tests
+are untouched.
+
+### Two real defects, invisible until the models were joined
+
+**A passed crew never got its line back.** The pair loop stops visiting an
+encounter the moment the passer draws ahead, so a *successful* pass was
+never marked COMPLETE and the obligation was never released. With constant
+speeds that is invisible — a crew 3.5 m off its line goes exactly as fast.
+Coupled to a speed field it was glaring: **the passed crew held the offset
+for the remaining two thirds of the race and lost 187 m to it.** Encounters
+are now retired by a sweep over stored pairs, not by the ordering loop.
+
+**A boat being dropped could demand a yield.** With the first bug fixed,
+its mirror appeared: at the moment of the crossover the passed crew
+becomes "the boat behind", creates a fresh encounter, and — being within a
+length — declared on the crew that had just passed it, pinning *that* crew
+off its line for 171 m. Two compounding errors: a declaration needs the
+gap to be **closing**, not merely small, and a pair must be observed
+**twice** before it can declare. Treating the first sighting as closing
+readmitted the bug by the back door, because a role reversal always
+creates an encounter with no previous gap.
+
+The rulebook is about a boat "attempting to pass". Falling away is not
+that, and the user's own description says so: the roles reverse when *"they
+start advancing on you"*.
+
+After both fixes, the same race reads: declare at 27.5 s, yield at 37.0,
+complete at 153.0, both crews back on their line, **passee 29.9 m lost,
+passer 0.00**. One-directional obligation, one-directional cost.
+
+### What it costs on the real reach, women's 4+
+
+| case | yields | lost m | lost s |
+|---|---|---|---|
+| both on the centreline | 2 | 3.9 | **1.00** |
+| they hold centre, you sit 1 m off | 2 | 0.8 | 0.22 |
+| they are 5 m off, you take centre | 2 | 0.7 | 0.19 |
+
+About a second per encounter, and it appears on no scoresheet — separate
+from any 60 s penalty. Small, but it is the part a coxswain controls.
+
+### The tactical result: which side to send them
+
+The rulebook gives the **passer** the choice of side and says nothing
+about which is better. The river does, because the two banks are not the
+same depth:
+
+| station | centre | port 3.5 m | stbd 3.5 m | better for them | margin |
+|---|---|---|---|---|---|
+| 1767 | 4.3353 | 4.3321 | 4.3388 | starboard | 0.15% |
+| **3035** | 4.2629 | **4.2442** | 4.2789 | starboard | **0.82%** |
+| 4302 | 4.2090 | 4.2174 | 4.2038 | **port** | 0.32% |
+| 5569 | 4.3326 | 4.3202 | 4.3402 | starboard | 0.46% |
+
+Sending a crew to the shallow side costs them up to **0.8% of boat speed**
+for as long as they hold it, and the side that is worse for them flips
+along the reach. It is legal, free, and entirely within the passer's gift
+— and it is the first result in this project that is about *racing someone*
+rather than racing the course.
+
+11 coupling tests, including the control that matters: **a yield costs
+nothing on a flat river.** Without that, the cost would be an artefact of
+the bookkeeping rather than the bathymetry.
+
+## 83. Checking the actual rulebook, and the sign error it led to
+
+The passing rules in §76 were implemented from memory. Checked against the
+official [HOCR Rules & Guidelines](https://hocr.org/competitors/rules-guidelines/),
+every constant holds:
+
+| implemented | rulebook |
+|---|---|
+| declare within **1 boat length of open water** | ✔ verbatim |
+| yield complete by **½ boat length** | ✔ verbatim |
+| conditioned on **"adequate room and time"** | ✔ verbatim |
+| **60 s / 120 s / disqualification** | ✔ |
+| **passer** chooses the side | ✔ |
+| obligation discharged once yielded | ✔ |
+
+One rule was **missing**: *"Between the Start Line and exiting the BU
+Bridge, Non-Yield penalties for a boat being passed do not apply and will
+not be assessed."* There is a start-zone exemption, and the model
+penalised crews inside it.
+
+### Following that up found something much larger
+
+Locating BU Bridge to implement the exemption meant putting the bridges on
+the station axis, and the numbers were the wrong way round:
+
+| | station |
+|---|---|
+| BU Bridge (race **start** end) | **7629** |
+| River Street | 6349 |
+| Western Avenue | 6012 |
+| Weeks | 5512 |
+| Larz Anderson | 5082 |
+| Eliot (race **finish** end) | **3812** |
+
+**The race runs towards decreasing station.** Three independent checks
+agree: the landmark tuple, declared downstream-to-upstream, runs DeWolfe
+7863 down to Weld 5176; station 9000 lies 3.1 km **east** of station 4000,
+and the Charles flows west to east.
+
+`RiverFlow.as_current_field` asserted the opposite in its own docstring --
+"downstream is towards decreasing station, since the course is laid out
+bow-first up the river" -- and negated the flow vector accordingly. So
+`CurrentField` returned the water's velocity pointing **upstream**, in flat
+contradiction of its own documented convention ("the velocity of the
+*water* in the absolute frame").
+
+### Two errors that cancelled, and one that did not
+
+Every pacing script traverses station `0 -> length`, which is
+**downstream** -- the reverse of the race. Combined with the inverted
+current:
+
+* **Current: the errors cancelled.** Inverted current dotted with a
+  reversed tangent gave adverse values, which is the right answer for a
+  crew racing upstream. This is why it survived so long.
+* **Wind: they did not.** The headwind was projected onto the downstream
+  tangent, so **every wind figure in every pacing result was backwards.**
+
+### What changed
+
+Women's 4+, 6 m/s from 250°, surveyed reach:
+
+| | before | after |
+|---|---|---|
+| headwind at 517 m | −5.20 (tail) | **+5.20 (head)** |
+| flat pacing | 2848.9 s | **3300.0 s** |
+| optimum saves | 4.59 s | **7.06 s** |
+| `e·k` range | 0.149–0.335 | 0.245–0.444 |
+| current | −0.026 … −0.001 | unchanged |
+
+A wind from 250° is **west-south-west, blowing towards the east-north-east**.
+The race is rowed east to west. That is a headwind, and the model had been
+calling it a tailwind — worth 451 s over the surveyed reach, 16% of
+elapsed time.
+
+Fixed by removing the negation in `as_current_field` and adding an explicit
+`RACE_SENSE = -1.0` with `race_tangent()` in `scripts/course_pacing.py`,
+used by `line_and_pace.py` too. Depth results are unaffected: depth does
+not care which way you row.
+
+### Tests
+
+`test_current_field_points_downstream` had encoded the wrong assumption
+and asserted it. Replaced with three: the station axis runs east (anchored
+on **longitude**, so it cannot drift with the model), the current points
+downstream, and the current opposes a crew racing the course. That last
+one exists precisely because two sign errors cancelled there and an
+inferred check would have passed throughout.
+
+108 river tests pass; 72 across pacing, passing and wake.
+
+## 84. The start-zone exemption, and making the pacing literature bite
+
+### The rule §83 went looking for
+
+`PassingRules.exempt_from_start` implements the clause found in the
+official rulebook: *"Between the Start Line and exiting the BU Bridge,
+Non-Yield penalties for a boat being passed do not apply and will not be
+assessed."*
+
+The yield is still owed and still moves the crew — only the penalty is
+withheld — and the encounter is logged as `exempt` rather than silently
+skipped. On a 12-boat field at 50% compliance it converts **7 penalties
+into 4 penalties and 3 exemptions**. Defaults to 0.0, since a course that
+is not the Charles has no such zone.
+
+That it matters this much is not a coincidence: BU and Grand Junction sit
+almost on top of each other just above the start, so the opening stretch
+is the most congested water on the course, and it is precisely where a
+model ignorant of the exemption hands out the most penalties.
+
+### Making §72–75 change the model rather than decorate it
+
+The pacing literature had been reviewed and cited but had altered no
+behaviour. Its transferable claim is Atkinson's: **the power variation a
+physics model calls optimal exceeds what athletes can actually sustain**,
+so realised gains fall short of predicted ones. Xia reaches the same
+ordering from the other end — the crews that paced most evenly won.
+
+`optimise(max_power_scatter=...)` adds that bound. Two things had to be
+got right first, and both are corrections to the literature's transfer.
+
+**Xia's measure does not survive the move to a river.** The speed
+coefficient isolates pacing choice *because a lane is uniform*. On the
+Charles, a crew holding one power the whole way still produces a speed
+scatter of **0.089** — larger than anything the pacing choice contributes
+— because depth, shelter and stream change underneath them. Bounding that
+would reject flat pacing as unexecutable. **A crew executes watts; the
+river turns them into metres per second**, so the bound belongs on
+`PacingPlan.power_scatter`, `sd(P)/mean(P)`.
+
+**And the answer turns out to be reassuring.** Women's 4+, 6 m/s from
+250°:
+
+| power bound | achieved | saved |
+|---|---|---|
+| none | **0.0104** | **7.06 s** |
+| 0.010 | 0.0077 | 5.25 s |
+| 0.005 | 0.0050 | 1.05 s |
+| 0.002 | 0.0020 | 0.42 s |
+
+**The physics only asks for a 1% spread in power.** Atkinson's concern —
+that the optimum is unrowable — does not apply on this course. The
+conditions are gentle enough that the optimal schedule is comfortably
+executable, and a crew that can hold power to within 1% captures all of it.
+
+### A claim that did not survive its own test
+
+The obvious next assertion was that the optimum is always at least as even
+as flat pacing — true on the real Charles, where optimising takes the speed
+coefficient from 0.0890 down to **0.0855**. It is false in general. On a
+synthetic alternating 12 m / 2.2 m river the optimum eases hard in the
+shallows and pushes in the deep and **amplifies** the speed variation,
+0.0321 to 0.0356.
+
+Both are the same rule — spend where a watt buys the most seconds —
+reading different water. **Whether the result looks even is a property of
+the course, not a target**, and "winners pace evenly" is a lane finding
+that should not be carried onto a river as a prescription. The test now
+asserts the counterexample rather than the false generalisation.
+
+15 scatter tests, 61 across pacing and passing.
+
+## 85. The report as containers, not a scroll
+
+The tab strip of §(report) grouped the page by subject but left each panel
+a flat run of headings and text. The complaint was fair: structure that
+exists only as an `h2` and some whitespace is not structure a reader can
+skim by shape.
+
+Sections are now **cards** — own border, radius, shadow, and a header bar
+in the same uppercase micro-type the tab strip uses — so a panel reads as
+a stack of discrete subjects rather than one column. Tabs became **pills**
+with the active one filled, which is legible at a glance in a strip of
+nine where an underline was not. Findings and figures lost their own card
+chrome, since a card inside a card is noise.
+
+Three details worth keeping:
+
+**A shorthand ate the inset.** `section > *` supplies the horizontal
+padding, but `.detail`, `.source`, `.note` and friends all set `margin`
+as a shorthand further down the sheet, which zeroes `margin-left` and ran
+their text to the card edge while the header stayed inset. Restated after
+those rules. This is the specificity trap the design guidance warns about
+and it was visible only in the render.
+
+**Two tabs looked active and neither was wrong.** The screenshot showed
+both the first and last pill shaded; reading `aria-selected` and the
+computed background showed exactly one selected, the other merely hovered.
+Checking state beat trusting pixels, again.
+
+**The embed renders inside its tab.** The course explorer of §81 loads in
+its iframe within the report rather than only as a separate file, so the
+sliders are reachable without leaving the page.
+
+Verified in the browser across all three tab kinds — table, embed, caveats
+— in dark mode. 10 report tests pass.
+
+## 86. The raced water, the real optimiser, and where to send them
+
+Four corrections to the course explorer of §81, all of them things it was
+getting wrong rather than things it was missing.
+
+### It was showing water nobody races
+
+`charles_course` is the whole 12.4 km surveyed reach; the Head of the
+Charles races **4828 m** of it. `hocr_course` already existed, correctly,
+and **nothing called it**. `hocr_race_course` now wraps it into a `Course`
+clipped to the race and ordered **bow-first**, so station 0 is the start
+line and increasing station is the direction of travel — the opposite
+sense to the parent reach (§83).
+
+That correction alone moves a headline number: **the shallowest depth on
+the centreline is 2.41 m, not 2.04 m.** The worst water in the surveyed
+reach is not raced, so §66's `Fr_h` figures were pessimistic for the four.
+
+### The line was a guess; now it is the optimiser
+
+§81's line was a greedy depth-follower that ignored steering and swung
+56 m. It is now `optimise_route` against a `RouteEvaluator` carrying
+`ReducedModel`, which is the project's own optimiser and pays for the
+curvature it buys:
+
+| | elapsed | length | peak yaw |
+|---|---|---|---|
+| centreline | 1255.2 s | 4820 m | 2.32 °/s |
+| **optimised** | **1221.7 s** | **4646 m** | **4.12 °/s** |
+| | **−33.5 s** | −174 m | |
+
+The saving is mostly **distance**, not depth: cutting the bends takes
+174 m off, and charging for the steering changes the answer by 0.1 s. On a
+course with these bends, geometry dominates bathymetry.
+
+**A diagnostic error of mine, recorded because it nearly became a bug
+report:** I read peak yaw as 133 °/s on the centreline and 237 °/s
+optimised, and started hunting a defect in `_required_yaw`. The function
+returns **degrees** already and I called `np.degrees()` on it a second
+time. 133/57.3 = 2.32 °/s, entirely physical. The model was right and the
+instrument was wrong.
+
+### Layers now live on the straightened channel
+
+A river 4.8 km long and 100 m wide is mostly empty rectangle in plan, and
+everything that matters varies *across* it. Every field is sampled on a
+`station × offset` grid and drawn on the straightened view; the plan view
+keeps the line and the start/finish labels as a locator.
+
+Verified across all three layers and both sliders: depth 0.50–5.18 m
+shifting exactly ±0.30 with the level; current **0.00–0.02 m/s**, which is
+§66's "negligible" made visible; wind from 250° running −3.19 to +5.40 m/s
+and from 70° running −5.53 to +3.08 — a headwind from the west and a
+tailwind from the east, which is right for a race rowed east to west.
+
+### Which side to make them yield
+
+New panel, and the first thing in this project that is about *racing
+someone*. The rulebook gives the **passer** the choice of side and says
+nothing about which is better; the river does. Bars above the axis mean
+port is the worse water for them, and the worst point on the course is
+worth **2.29% of their boat speed** — legal, free, and entirely the
+passer's to choose.
+
+## 87. Splits, and what they are on Lake Sammamish
+
+`scripts/splits.py`. Split is not conserved across conditions and neither
+is speed; **power is**, so the conversion has to run
+`Charles time -> speed -> resistance -> power -> deep-still speed -> split`.
+Scaling splits by a rule of thumb would guess at exactly the
+nonlinearity (§66) that makes this interesting.
+
+Women's Veteran Fours 60+, official 4828 m:
+
+| | time | split / 500 m |
+|---|---|---|
+| fastest (2024) | 20:03.9 | **2:04.7** |
+| **median** | **20:32.3** | **2:07.6** |
+| slowest | 22:08.7 | 2:17.6 |
+
+To hold the median winning time needs **235.3 W per rower**. That same
+power on deep, still water gives 3.997 m/s:
+
+> **Sammamish equivalent: 2:05.1 per 500 m** — 2.5 s per 500 faster than
+> the river split.
+
+A crew training to the raw Charles number trains **2.5 s per 500 too
+slow**.
+
+### And a guard, because the wind answer is a trap
+
+Asking "what power holds this time in a headwind" returns 296 W at 4 m/s
+and **343 W at 6 m/s** — the latter above the sustainable ceiling of
+`CP + W'/T` = 312 W. Printing the corresponding 1:49.9 lake split as a
+training target would be actively misleading: it is not a target, it is
+proof the time is gone. The script now checks against the ceiling and says
+so, because in a real headwind the winning time itself is slower for
+everyone.
+
+## 88. Which pacing literature applies to a head race, decided by numbers
+
+`scripts/pacing_strategy.py`. §72 and §75 established that the pacing
+literature splits on **what decides the result**: tactical pacing when
+position decides (championship 5000 m, a rowing final), even pacing when
+the clock does (a time trial, a record attempt). A head race sits
+awkwardly between — the clock decides, but boats start 10–15 s apart and
+you race among them the whole way.
+
+Reviewing that split is not the same as applying it. This computes the
+three quantities that separate the two regimes.
+
+### 1. The reserve is worth three times less here
+
+Tactical pacing *is* spending `W'`. So the first question is how much
+there is to spend.
+
+| effort | seconds | `W'/T` | of CP |
+|---|---|---|---|
+| 2 km final (what the 2k literature is about) | 370 | **30.8 W** | 10.2% |
+| 5 km head race | 900 | 12.7 W | 4.2% |
+| **Head of the Charles** | **1230** | **10.1 W** | **3.3%** |
+| marathon-length piece | 3600 | 3.2 W | 1.0% |
+
+**30.8 W against 10.1 W — 3.1 times less.** That is the clearest single
+reason 2 km tactical advice does not transfer: over twenty minutes there
+is barely any reserve to be tactical *with*.
+
+### 2. Chasing costs seconds, not minutes
+
+The defining championship behaviour is abandoning your own schedule to
+stay with someone. Priced at **identical total work**, so it measures
+distribution and not effort:
+
+| chase | extra W | seconds lost |
+|---|---|---|
+| +2% for the first quarter | 6.3 | 0.35 |
+| +5% | 15.6 | 0.93 |
+| **+10%** | **31.3** | **2.06** |
+| +15% | 46.9 | 3.45 |
+
+Real, but small. Chasing is a bad habit rather than a disaster.
+
+### 3. The line dominates everything the other boats do
+
+| channel | seconds |
+|---|---|
+| **optimal line vs centreline** | **33.5** |
+| optimal vs flat pacing | 7.1 |
+| sitting in their puddles | 6.3 |
+| each yield you are made to give | ~1.0 |
+
+### The answer
+
+**The time-trial literature, and it is not close.** A head race has the
+*form* of a championship race — you can see your rivals and you race them
+— but none of the mechanics. Tactical pacing works when the reserve is a
+large fraction of what you spend and position decides the result. Here
+the reserve is 3.3% of CP, the clock decides, and the biggest lever on the
+course is not another crew at all.
+
+For a coxswain, three consequences:
+
+* **Row the course, not the boat in front.** Chasing costs seconds the
+  clock will not give back.
+* **Spend the reserve on the water, not on contact.** It is worth ~10 W,
+  and §84 found a 1% power spread captures the entire available gain.
+* **The exception is not pacing at all.** Taking a clean line past a
+  slower crew, and choosing which side to send them (§86), are *position*
+  decisions that pay in seconds. Those are worth being tactical about;
+  the pacing is not.
+
+7 tests pin the quantities, including that the chase is priced at equal
+work — otherwise it would be measuring effort rather than distribution,
+and every number above would be meaningless.
+
+## 89. Full fields, and the three targets with error bars
+
+`data/hocr_wvet4_results.csv`, `scripts/targets.py`.
+
+§77's champions scrape gave **winners only**, which cannot answer "what
+medals" or "what requalifies". Full placings live on RegattaCentral behind
+a JavaScript SPA, so they were read through the browser.
+
+### One trap, caught by cross-checking
+
+Navigating to `?job_id=9637&event_id=22` **served event 7's results** —
+the URL parameter is not what selects the event. The times looked
+plausible (a 17:55.987 winner), and only checking them against the
+champions data caught it: 17:55.987 is **Men's Grand-Master Doubles 50+**,
+exactly. The event has to be chosen by driving the dropdown, and every
+year's scrape is validated against the independently-scraped winning time
+before it is kept. All four match.
+
+**85 crews, 2022–2025**, with age bands, so 60-69 and 70+ can be separated
+in the years the regatta combines them.
+
+### The model
+
+Two sources doing different jobs, because neither suffices alone:
+
+* **Full fields (4 years)** give the *shape*: third place is
+  **1.0138 × winner** (sd 0.0090) and the top-half cut is
+  **1.0627 × winner** (sd 0.0217). As **ratios**, so they pool across
+  years whose conditions differed.
+* **Winning times (11 years)** give the *level* and its variability:
+  mean 20:41.0, trend **−6.9 s/year**, residual sd **30.4 s**.
+
+The trend is weak against the scatter, and the scatter is mostly weather —
+§77's year factor has sd 2.6%, which on a 20-minute race is **32 s**, the
+same size as the residual. Hence bounds rather than single numbers.
+
+### The three targets for 2026
+
+| target | Charles | 80% range | split/500 | **Sammamish** |
+|---|---|---|---|---|
+| **Win the category** | **19:55.9** | 19:17.0–20:34.9 | 2:03.9 | **2:00.9** |
+| **Medal (top 3)** | **20:12.4** | 19:30.6–20:54.3 | 2:05.6 | **2:02.8** |
+| **Requalify (top half)** | **21:10.9** | 20:17.8–22:03.9 | 2:11.6 | **2:09.5** |
+
+Per rower: 260 W to win, 248 W to medal, 213 W to requalify. The lake
+splits are ~3.0 s faster than the river splits (§87) — train to the lake
+number.
+
+### The finding that matters for a lottery entry
+
+**Sammamish Rowing Association finished 12th of 20 in 2024 — the 60th
+percentile, outside the top half.** That is why the boat is in the lottery
+rather than guaranteed. The top-half cut that year was 10th, at
+21:16.620 or so; Sammamish rowed **22:07.928**, about **51 s** off
+requalifying.
+
+Requalifying is the target that compounds, and it is the softest of the
+three: **21:10.9** on the river, **2:09.5** on the lake.
+
+Local crews appear throughout — Chinook has been 2nd twice, Conibear,
+Green Lake, Lake Washington, Lake Union and Montlake all raced 2022–2025 —
+so the regional field is a usable benchmark and §90 will take it further.
+
+## 90. What a lottery entry pays in traffic
+
+`scripts/traffic.py`. The regatta seeds bow numbers by the previous
+year's result, so a guaranteed entry starts near the front and a **lottery
+entry starts near the back**. That is not just a worse view: it decides
+how much of the race is spent overtaking, and overtaking costs (§80, §82).
+
+### The seeding works, but loosely
+
+Pooled over the four fields, the correlation between draw position and
+finish position is **0.590**. Strong enough that the seeding is doing
+something; loose enough that there are always slower crews ahead of you.
+The winner started from bow 1, 4, 7 and 8 in the four years — never worse
+than 40% down the draw, but never once from the back.
+
+### Traffic by where you start
+
+| start | crews | passes made | conceded | traffic cost |
+|---|---|---|---|---|
+| front third | 26 | 1.0 | 3.0 | **6.2 s** |
+| middle third | 29 | 2.7 | 4.4 | 13.0 s |
+| **back third** | 30 | **4.9** | 1.6 | **17.2 s** |
+
+Costed at half a wake exposure per pass — you sit in their water on the
+approach, not all race — plus one yield for each boat that comes by.
+
+**The difference, about 11 s, is the price of the entry route.** It is not
+a racing mistake and it is not recoverable by rowing better; it is what
+being a lottery entry costs before the crew does anything.
+
+It is also small against the **33.5 s** the line is worth (§86). Traffic
+is a tax, not the race — which is the same conclusion §88 reached from the
+pacing side, arrived at from the traffic side.
+
+### The club, in the data
+
+**Sammamish, 2024: bow 17 of 20 — 85% of the way down the draw — finished
+12th, at 60%.** Passed five boats and conceded none.
+
+That is a crew substantially out-performing its draw, and it reframes the
+51 s they were off requalifying (§89): they were not slow for the field,
+they were slow for the *top half*, having started behind almost all of it.
+
+## 91. Local races: obtained, and a comparability problem
+
+Tail of the Lake results are on RegattaCentral only as "Draw not
+available"; row2k carries them as a PDF, now at
+``data/raw/totl_2024.pdf`` (24 pages, 2024 edition).
+
+Two obstacles, one of which is substantive.
+
+**The parse is unreliable.** The PDF's text layer emits the crew names and
+the numeric columns as separate runs, and multiple events share a page, so
+naive extraction associates the wrong time with the wrong crew. The names
+come out cleanly — Sammamish Association appears four times in Womens
+Masters 4+, alongside Pocock, Conibear, Lake Washington, Mt. Baker,
+Station L, Martha's Moms and Willamette — but the row mapping does not,
+and publishing a mis-paired table would be worse than publishing none.
+
+**The times are age-handicapped, and that is the real problem.** Every row
+carries `Age:` and a correction, e.g. `18:25.5 Age: 70 -2:39.75 15:45.8`.
+Tail of the Lake ranks on the **adjusted** time; the Head of the Charles
+ranks on the **raw** time within an age band. So a local result cannot be
+compared to a Charles result without first stripping the handicap, and the
+handicap is a large term — up to **2:47** in this field, more than eight
+times the 20 s that separates first from second at the Charles.
+
+That makes the local races usable as a benchmark only after the raw times
+are recovered, which the PDF does contain (the `Raw` column). It is worth
+doing — the same clubs appear in both — but it is a parsing job with a
+correctness requirement, not a scrape.
+
+**Status: data obtained, not yet trusted.** No local-race numbers are
+used anywhere in this project until the row mapping is verified the way
+the Charles fields were, against an independently known result.
+
+## 92. Local races, made comparable
+
+`tools/parse_row2k_pdf.py`, `scripts/local_races.py`,
+`data/totl_2024.csv`. §91 recorded the data as obtained but untrusted;
+this finishes it.
+
+### Parsing the PDF correctly
+
+`extract_text` emits crew names and numeric columns as separate runs and
+interleaves several events per page, so a naive parse pairs the wrong time
+with the wrong crew. Reading text **with its coordinates** and rebuilding
+rows by `y` fixes it, because the layout is what carries the association.
+
+The parse is then checked against the regatta's own arithmetic:
+`raw − correction == adjusted` must hold for every row. **171 rows kept,
+15 rejected** — a mis-assembled row fails that almost every time, which
+turns a silent pairing bug into a loud one.
+
+### The handicap has to come off
+
+Local corrections in this file run from **15 s to 2:47**, and the Charles
+applies none of them. Tail of the Lake ranks on adjusted time; the Charles
+ranks on raw time within an age band. Raw times only.
+
+### Two matching traps, both of which produced wrong numbers first
+
+**Club name is not a crew.** Sammamish entered five boats in one event,
+ages 40 to 60. Matching on club paired their age-40 crew with their 60+
+Charles entry and manufactured a ratio of 1.40. Pairs must share an **age
+band**.
+
+**Normalisation order matters.** Stripping `" association"` before
+`" rowing association"` turns "Sammamish Rowing Association" into
+"sammamish rowing", which then fails to match "Sammamish Association" —
+silently dropping the single most relevant pair in the data.
+
+### The conversion, measured rather than assumed
+
+| club | age | local raw | Charles raw | ratio |
+|---|---|---|---|---|
+| Lake Washington | 70 | 18:25.5 | 21:51.017 | 1.1859 |
+| Sammamish | 58 | 17:43.7 | 22:07.928 | 1.2484 |
+| Sammamish | 60 | 18:02.3 | 22:07.928 | 1.2270 |
+| Conibear | 70 | 18:24.7 | 22:15.147 | 1.2086 |
+
+**Charles time ≈ 1.217 × Tail of the Lake raw time**, sd 2.2% (~29 s on a
+22-minute race). Measured from crews that rowed both, so it absorbs course
+length, conditions and the day without needing any of them looked up.
+
+### What it is for
+
+| target | Charles | **local raw needed** |
+|---|---|---|
+| win | 19:55.9 | **16:22.3** |
+| medal | 20:12.4 | **16:35.8** |
+| requalify | 21:10.9 | **17:23.9** |
+
+The §89 targets divided through by the ratio, so a crew reads its standing
+off a local race weeks before the entry list is seeded.
+
+**Caveat kept in the output:** four pairs is a small sample and two are the
+same club in adjacent age bands, so the 2.2% scatter is a **lower bound**
+on the real uncertainty.
+
+## 93. Local splits, and a course length confirmed by the data
+
+`scripts/local_races.py`. Tail of the Lake is a **4000 m** circuit of Lake
+Union.
+
+**That number was confirmed before it was looked up.** The crew-matched
+ratio of §92 implies a length of `4828 / 1.2175 = 3966 m` from the race
+results alone, and the published figure is 4000 m — **agreement to 0.9%**.
+That is a real independent check: it says the ratio is capturing the
+course length properly, and that whatever conditions term rides along with
+it is small.
+
+### The 2024 Womens Masters 4+ field, in splits
+
+| place | club | age | raw | **raw split/500** | adj split |
+|---|---|---|---|---|---|
+| 1 | Sammamish | 44 | 15:51.2 | **1:58.9** | 1:55.8 |
+| 2 | Sammamish | 49 | 16:17.2 | **2:02.2** | 1:56.9 |
+| 3 | Pocock | 51 | 16:25.4 | 2:03.2 | 1:57.0 |
+| 4 | Sammamish | 40 | 15:58.5 | 1:59.8 | 1:58.0 |
+| 5 | Conibear B | 70 | 18:24.7 | 2:18.1 | 1:58.1 |
+| 6 | Lake Washington B | 70 | 18:25.5 | 2:18.2 | 1:58.2 |
+| 10 | Conibear | 57 | 17:32.4 | 2:11.6 | 2:01.8 |
+| 12 | Sammamish | 58 | 17:43.7 | 2:13.0 | 2:02.6 |
+| **13** | **Sammamish** | **60** | **18:02.3** | **2:15.3** | 2:03.5 |
+
+The two columns are the whole point. **The raw split is what the boat did;
+the adjusted split is what the handicap turns it into for local scoring**,
+and it is the wrong number to carry to the Charles. A 70-year-old crew
+rowing 2:18.1 raw scores as 1:58.1 locally and would score as 2:18.1 at
+the Charles.
+
+### Local targets, in local splits
+
+| target | Charles | local raw | **local split/500** |
+|---|---|---|---|
+| win | 19:55.9 | 16:22.3 | **2:02.8** |
+| medal | 20:12.4 | 16:35.8 | **2:04.5** |
+| requalify | 21:10.9 | 17:23.9 | **2:10.5** |
+
+Sammamish's age-60 boat rowed **2:15.3** in 2024, so requalifying asks for
+**4.8 s per 500 m** — a number a crew can actually train against, on the
+water they train on, months before the entry list is seeded.
+
+### Still missing: sub-interval splits
+
+The user notes that intermediate times exist and would give per-crew
+pacing. They are **not** on RegattaCentral — neither the Charles results
+nor Tail of the Lake carry a split column, and the Charles page has no
+per-crew detail view. The regatta does time at the bridges, so the data
+exists; it is a matter of finding where it is published. Not yet done.
+
+## 94. Going national: the method generalises, the overlap does not
+
+The Tail of the Lake conversion (§92) is a template — find crews that
+raced both a regional head race and the Charles, match on club and age
+band, and let their ratio absorb course length and conditions. Applying it
+across the country is the obvious next step, and the obstacle turns out
+not to be the one expected.
+
+### Data acquired
+
+From row2k's 2024 index, five more regattas were downloaded as results
+PDFs, chosen for regional spread:
+
+| regatta | region | parses? |
+|---|---|---|
+| **Textile River** (Lowell MA) | New England | **yes** |
+| Head of the Ohio (Pittsburgh) | Midwest | no |
+| Head of the Port (San Diego) | SoCal | no |
+| Head of the Christina (Wilmington) | Mid-Atlantic | no |
+| Head of the Riverfront (Hartford) | New England | no |
+
+Three more are behind live-timing sites rather than PDFs — Head of the
+Hooch, Head of the Schuylkill and Head of the American are all on
+`herenow.com`, and Head of the Fish is a Google Sheet.
+
+**Textile uses the same timing vendor as Tail of the Lake**, so
+`tools/parse_row2k_pdf.py` reads it unchanged: 104 rows, 20 events, 2
+rejected by the raw-minus-handicap check.
+
+The other four are different layouts, e.g. Head of the Port emits
+`Place Crew Bow Div,Age,Stroke RawTime Adjust Time Split` — note that it
+carries a **split column**, which is the sub-interval data that would
+support per-crew pacing. Each needs its own parser: bounded work, not done.
+
+### One more normalisation bug, same family as the last
+
+"Upper Valley Rowing" and "Upper Valley" are one club, and the normaliser
+stripped `"rowing club"` and `"rowing association"` but not a bare
+trailing `"rowing"` — dropping the **only** Textile-to-Charles pair in the
+data. Also now collapses `"Westford Community,Westford Community"`, which
+some sources emit doubled. This is the second time club normalisation has
+silently destroyed the pair the exercise existed for.
+
+### The real obstacle is overlap, not access
+
+| regatta | region | pairs found | ratio |
+|---|---|---|---|
+| Tail of the Lake | Pacific NW | **4** | **1.2175 ± 2.2%** |
+| Textile River | New England | **1** | 1.1408 |
+
+**One pair is not a conversion.** Textile's single match implies a course
+length of 4232 m, which is not checkable the way Tail of the Lake's 3966 m
+was against a published 4000 m, and nothing should be built on it.
+
+That is the finding worth recording: regional head races draw *regional*
+crews, and only a handful of any field also enters the Charles. The
+method is sound and the data is obtainable, but **the binding constraint
+is how few crews race both** — which means a national predictor needs
+many regattas and several years to accumulate pairs, not one good scrape.
+
+Pooling across years is the cheapest way forward: the same clubs return
+annually, so 2022-2025 of Tail of the Lake and Textile would plausibly
+turn 5 pairs into 20 without touching a new format.
+
+## 95. As many years as the archive allows
+
+Two archives walked, with different limits.
+
+### The Charles: six comparable years, and a discontinuity before them
+
+`data/hocr_wvet4_results.csv` now holds **118 crews over 2019-2025**
+(2020 cancelled), each year's winner validated against the independently
+scraped champions list. All six match exactly.
+
+Job ids, which are not discoverable by probing and had to be found one at
+a time: 2017 = 4977, 2018 = 5656, 2019 = 6141, 2021 = 6143, 2022 = 6144,
+2023 = 8392, 2024 = 8995, 2025 = 9637.
+
+**2018 and earlier cannot be pooled with them.** In 2018 the women's 50-59,
+60-69 and 70+ fours raced as a **single** event (`W GM 4+ [50+]`), with age
+bands only as labels; the separate Veteran Fours event appears from 2019.
+That changes what the requalification rule *means*: "top half of entries"
+in a field dominated by 50-59 crews is a different bar from top half of a
+60+ field. The champions list still records a 60+ winner for those years
+because it is a category award, which is why the winning-time series runs
+to eleven years while the field series stops at six.
+
+Mixing them would have silently made the older targets easier. The scripts
+use eleven years for the *level* and six for the *shape*, which is exactly
+the split those two facts justify.
+
+### Updated targets, on six years of field shape
+
+| target | Charles | 80% range | **Sammamish** |
+|---|---|---|---|
+| win | 19:55.9 | 19:17.0-20:34.9 | 2:00.9 |
+| medal | **20:15.7** | 19:31.8-20:59.7 | **2:03.2** |
+| requalify | **21:05.9** | 20:16.0-21:55.8 | **2:08.9** |
+
+Third place moved from 1.0138 to **1.0166 × winner** and the top-half cut
+from 1.0627 to **1.0585**, so medalling got 3 s harder and requalifying
+5 s harder than the four-year estimate suggested. Both sd's are still
+under 2%.
+
+### row2k: 639 regatta-years indexed
+
+`tools/scrape_row2k_index.py` walks row2k's yearly indexes 2014-2025 and
+collects every head race, then fetches the results PDF each page embeds.
+**639 regatta-years** matched, with a clear shape to the archive: 63-76 per
+year through 2019, **4 in 2020**, and a decline from 2021 as the sport
+moved to live-timing links rather than posted PDFs — 44 in 2023, 30 in
+2024, 21 in 2025.
+
+Download is polite by construction: one request at a time, 1.2 s apart,
+indexes cached so re-runs are free.
+
+This is the fix for §94's real constraint. The conversion from a local
+head race to the Charles needs crews that raced both, and one regatta-year
+yields a handful; several hundred regatta-years is what turns that into a
+national picture.
+
+## 96. Lake Union: the model on water the crew can check
+
+`coxswain/river/seattle.py`, `tools/extract_seattle_water.py`. Tail of the
+Lake runs three weeks before the Charles with the same lineups, so it is
+the natural place to test this program on water a coxswain knows by eye.
+
+### It exercises the other half of the model
+
+The Charles results are dominated by **depth** -- its line sits near
+`Fr_h = 1` and a metre of water moves the answer by tens of seconds
+(§66-67, 79). Lake Union runs about 11-15 m, so a four at 3.9 m/s sees
+`Fr_h = 0.37`: deeply subcritical, shallow correction flat at 1.00.
+
+**The depth term is switched off**, which makes this a *cleaner* test, not
+a lesser one. What is left is distance against turning -- the geometry
+half, in isolation.
+
+### What is real and what is not
+
+**Shoreline: real**, OpenStreetMap water polygons, 961 vertices over Lake
+Union, Portage Bay and the Montlake Cut. **Depth: not**. `nominal_depth`
+is a documented shelf-and-basin profile, every course is
+`is_survey=False`, and it stays that way until soundings arrive.
+
+### Three geometry bugs, each invisible until the next was fixed
+
+**A different Lake Union.** The Overpass query filtered on name with no
+bounding box and matched every Lake Union on earth; one landed 2100 km
+east, which blew the raster extent to 2000 km and asked numpy for
+**42 GiB**. The bbox is now mandatory, with a distance filter behind it.
+
+**A centroid sweep is not a medial axis.** Tracing the wettest cell per
+angle produced an **11.6 km** "lap" of a 2.7 km lake, because Lake Union is
+3 km by 1 km and the method only works on a round pond. Replaced by the
+contour of constant clearance, which is what a circumnavigation *is*.
+
+**Marching squares walks diagonals.** The contour of a raw distance
+transform is a sawtooth: **18,288 degrees of total turning** for a lap that
+owes 360, with minimum radii in centimetres. Smoothing the polyline
+afterwards cannot undo it -- 80 m of boxcar still left 1030 degrees.
+Blurring the **clearance field** before contouring fixes it properly, and
+the same lap comes back at **737 degrees, minimum radius 15 m**.
+
+That last one is the transferable lesson: *smooth the field, not the
+curve.* The Charles never showed it because its centreline arrives
+pre-smoothed from the channel extraction.
+
+### The result
+
+| | time | length | peak yaw | split/500 |
+|---|---|---|---|---|
+| 50 m-off contour | infeasible | 2426 m | 13.12 °/s | -- |
+| **optimised** | **657.4 s** | 2553 m | **4.23 °/s** | **2:08.8** |
+
+The naive "hold 50 m off the shore" line needs 13 °/s and is **not
+steerable** by a four; the optimiser finds one at 4.23 °/s that is. The
+baseline's time is meaningless and no saving is quoted from it.
+
+**The optimised split of 2:08.8 sits inside the real 2024 Tail of the Lake
+field**, which ran 1:58.9 (winner) to 2:18.2 raw, with the Sammamish age-60
+crew at 2:15.3 (§93).
+
+Worth being precise about what that does and does not show. The **boat**
+model is calibrated -- power, drag, rate all set from elsewhere -- so this
+is not a free prediction. What is new and uncalibrated is the **course
+geometry**, and the fact that it produces a plausible mid-field split
+rather than something 30% off is a real consistency check on the
+extraction, the contour and the optimiser working together on water this
+project had never seen.
+
+### Open
+
+The lap is **2427 m**; Tail of the Lake is **4000 m**. A lap of the lake
+proper is simply shorter than the race, so the course must take in the
+ship canal towards Fremont or Portage Bay through the Montlake Cut. That
+route is not in the repository and is not guessed at.
+
+## 97. Tail of the Lake: the docks, the chop, and the rules that differ
+
+### The regatta packet, which changes two things
+
+`data/raw/totl_packet_2023.pdf`, the 29th Annual Tail of the Lake
+information packet. Two findings that matter beyond trivia.
+
+**The start interval is confirmed: ~15 s between boats in a category,
+~60 s between categories.** §90's traffic model assumed 15 s; it is right.
+
+**The passing rule is NOT the Charles rule.** At the Head of the Charles
+the *passer* names the side (§86). At Tail of the Lake the geometry names
+it, verbatim:
+
+> "On those portions of the course that are straight, a crew being
+> overtaken shall move to the **right**... Where the course turns, a crew
+> being overtaken shall move to the **outside of the turn** and allow the
+> overtaking crew to pass along the shorter path."
+
+So §86's "which side to send them" -- worth up to 2.29% of their speed on
+the Charles -- **does not exist at Tail of the Lake**. The rule already
+decided. A coxswain carrying Charles habits to Lake Union would be
+choosing a side they have no right to choose.
+
+### Docks remove 40% of the lake
+
+`rowable_mask` subtracts piers, breakwaters, marinas, floating homes and
+docks from the water, dilated by an 8 m margin for blade and rigger.
+From OpenStreetMap: **499 piers, 141 houseboats**, 7 marinas, 3 docks, 2
+breakwaters, 660 structures over 3312 vertices.
+
+| | area |
+|---|---|
+| Lake Union water | 0.592 km² |
+| **rowable after docks** | **0.353 km²** |
+| removed | **40.3%** |
+
+**The shoreline is not the constraint; the docks are.** A line optimised
+against the water polygon alone will steer through a marina, and 40% is
+not a correction — it is most of the margin a coxswain thinks they have.
+
+### Why the chop is worse than the wind
+
+`coxswain/hydro/chop.py`. Three mechanisms, and only the first is
+ordinary.
+
+**Fetch-limited growth** (JONSWAP): on a 2 km lake the fetch runs out
+before the duration does, so the waves are not big -- they are **short**.
+
+| wind | `H_s` | `T_p` | wavelength | hull spans |
+|---|---|---|---|---|
+| 6 m/s | 13.7 cm | 1.43 s | 3.19 m | 4.2 λ |
+| **10 m/s** | **22.8 cm** | **1.69 s** | **4.48 m** | **3.0 λ** |
+| 14 m/s | 32.0 cm | 1.90 s | 5.61 m | 2.4 λ |
+
+A 13.4 m four spanning three wavelengths is the **worst possible ratio
+for pitching**: too long to ride the wave, too short to ignore it.
+
+**Reflection.** A beach absorbs; a vertical bulkhead reflects, with a
+coefficient of 0.7-0.9. Lake Union is bulkhead, dock and moored hull
+nearly all the way round.
+
+**Crossing seas.** Reflections off opposite shores meet in the middle and
+add as *energy*, so the mid-lake height is `sqrt(1 + n K_r²)` times the
+incident. At 10 m/s that takes 22.8 cm to **34.5 cm** -- half again as
+rough as the fetch alone predicts, short-crested and confused rather than
+regular. That is the "concentrated" chop crews describe, and it is a
+property of the basin's shape, not of the weather.
+
+**What it costs.** Added resistance goes as `H_s²`, so chop is punishing
+out of proportion to how it looks:
+
+| wind | mid-lake `H_s` | `R_aw` | share of hull drag |
+|---|---|---|---|
+| 6 m/s | 20.7 cm | 4.7 N | 3% |
+| **10 m/s** | **34.5 cm** | **13.2 N** | **8%** |
+| 14 m/s | 48.3 cm | 25.8 N | **15%** |
+
+The coefficient is order one and unmeasured for a racing shell, so read a
+band, not a number.
+
+**And the honest limit:** the largest cost of rough water is almost
+certainly *not* hydrodynamic. It is that a crew rows worse in it --
+checked catches, lost timing, a boat that will not sit. This is the hull's
+share and should be read as a **floor**.
+
+### Does your own wake reflect back onto you?
+
+Asked directly, and the answer is clean geometry. A transverse Kelvin
+crest travels at boat speed. Reflecting off a wall `d` away costs an extra
+`2d / cos(19.47°)` of path, at the same speed:
+
+| wall | extra path | time | lands astern by |
+|---|---|---|---|
+| 25 m | 53 m | 13.6 s | 53 m |
+| 50 m | 106 m | 27.2 s | 106 m |
+| 100 m | 212 m | 54.5 s | 212 m |
+
+**Your own reflected wake can never catch you.** It travels at your speed
+and has further to go, so it always lands astern by exactly the extra
+path.
+
+It lands on **someone else**. At the packet's 15 s interval the next crew
+is 58 m back, so a reflection off a wall about 28 m away arrives right on
+top of them. On a lake ringed by walls at 25-100 m, a crew is rowing
+through the reflected wake of the boat in front for much of the race --
+which the Charles, with sloping banks and a 100 m channel, does not do.
+
+## 98. Seattle structures, real fetch, and a correction to §97
+
+### Structures, by reusing the extractor rather than writing another
+
+`tools/extract_charles_structures.py` now takes `--bounds` and `--out`;
+`structures.py` gained `load_structures` and `seattle_structures`. The
+stored footprints are latitude and longitude and are projected at load
+time, so nothing about the Charles was baked into the format and the same
+tool serves both rivers.
+
+| | buildings | canopy | trees |
+|---|---|---|---|
+| Charles | 9,463 | 216 | 2,156 |
+| **Seattle** | **23,843** | **294** | **6,272** |
+
+Seattle heights: median 9.0 m, p95 13.0 m, **max 184 m** -- the downtown
+towers, which is the skyline worth having in a render. Provenance is the
+usual OSM story: 64 tagged, 1,801 from `building:levels`, 21,978 inferred
+from building type.
+
+### The fetch is nothing like what §97 assumed
+
+§97 computed Lake Union chop from an assumed **2 km** fetch. Measuring it
+from the geometry instead -- marching upwind over the water mask from
+points on the racing lap -- gives something much smaller, because the lap
+sits 50 m off a shore and the basin is only about 1 km across:
+
+| wind from | median fetch | max fetch | `H_s` at 10 m/s | mid-lake |
+|---|---|---|---|---|
+| 45° | 210 m | 370 m | 7.4 cm | 11.2 cm |
+| 180° | 315 m | 780 m | 9.1 cm | 13.7 cm |
+| **315°** | **465 m** | **820 m** | **11.0 cm** | **16.6 cm** |
+
+Against §97's 22.8 cm and 34.5 cm. **The earlier figures were roughly
+double, and they were double because of an assumption rather than a
+measurement.** The correction runs the right way for once: the real
+racing water has *less* wind wave than the guess, not more.
+
+### Which means wind is not the story
+
+A 10-17 cm wind sea at 10 m/s is a nuisance, not a hazard, and it does not
+explain water rough enough to break a shell. The fetch-limited model is
+right and it is answering a question that turns out to be secondary.
+
+What is left is **vessel wake**. Lake Union is a working waterway --
+seaplanes, tour boats, work boats, constant motor traffic through a basin
+1 km wide -- and a single tour boat throws a wake far larger than 460 m of
+fetch ever will. Reflected off the bulkheads (§97's mechanism, which still
+stands) and crossed with itself, that is the sea state crews describe.
+
+So the physics to build next for Lake Union is **wake from other vessels**,
+not wind waves; §97's reflection and crossing machinery applies unchanged
+to it, and the fetch model stays as the floor it turned out to be.
+
+This is worth recording as a method point rather than just a number: the
+assumed fetch was reasonable-looking, sat in a module full of correct
+physics, and was wrong by a factor of two. It only fell out because the
+geometry was there to measure it against.
+
+## 99. The renders falsified the geometry twice
+
+Asked for 3-D renders of Lake Union to check the course by eye. They did
+their job immediately, and what they found was not cosmetic.
+
+### First falsification: the mask was fragments, not a lake
+
+`scripts/render_lake_union.py` drew the water and it was a narrow
+**Y-shape of 0.592 km²**. Lake Union is a basin of about **2.1 km²**
+(580 acres). Wrong by 3.5x.
+
+The cause: OpenStreetMap returns a large lake as a **multipolygon relation
+whose members are open ways**, each a piece of shoreline.
+:func:`_inside` was run on each fragment separately, so every open way was
+treated as if its two ends were joined and filled whatever that chord
+enclosed.
+
+**Every Lake Union number in §96-98 rests on that mask** -- the 2427 m
+lap, the 40.3% dock fraction, the 210-465 m fetches, the 2:08.8 split that
+looked like a validation. They are all now suspect and none should be
+quoted.
+
+What makes this worth recording is that **the mask passed every numeric
+check in the module.** A wrong lake still yields a plausible lap length, a
+plausible dock fraction and a plausible split; the error was only visible
+as a picture. This is the strongest argument in the project so far for
+rendering before believing.
+
+### Second falsification: the stitched ring cuts a chord
+
+`stitch_rings` joins the fragments by matching endpoints, which recovers a
+closed ring of **2.131 km²** by shoelace -- right on the published figure.
+But the filled mask comes back at **2.72 km²**, and the render shows why:
+a long straight diagonal down the east side that is not a shoreline.
+
+The fragments have four endpoints of degree one, i.e. **two real gaps**,
+where the lake opens into the ship canal at Fremont and towards Portage
+Bay at Montlake. The stitcher force-closes those gaps with a straight
+chord, and one of them runs across the basin instead of around it.
+
+So the ring is closed but not correct, and the honest state is:
+
+* fragments -> solid basin: **fixed**
+* basin -> *the right* basin: **not fixed**
+
+Closing a genuine gap needs the shoreline through the canal mouth, not a
+chord between the nearest endpoints. That is the next piece of work and
+the Lake Union results stay withdrawn until it is done.
+
+### What still stands
+
+Nothing about Lake Union's geometry. What does survive is method, and it
+is worth keeping separate:
+
+* The **chop physics** (§97) is independent of the mask -- fetch-limited
+  growth, wall reflection, crossing seas and `H_s²` added resistance are
+  general. Only the *fetch numbers* fed into it came from the bad mask.
+* The **wake reflection geometry** -- that your own wake lands astern by
+  the extra path and therefore falls on the crew behind, not on you -- is
+  pure kinematics and does not touch the mask at all.
+* The **regatta packet findings** (§97): 15 s intervals, and Tail of the
+  Lake's yield-right/yield-outside rule differing from the Charles.
+* The **structures** (§98): 23,843 buildings, 294 canopy polygons, 6,272
+  trees, extracted by the shared Charles tool.
+
+### And the download finished
+
+481 head-race PDFs over 2014-2025 are on disk from the row2k walk (§95).
+
+## 100. The lake, fixed: one filter in two places
+
+§99 withdrew every Lake Union number after the render showed a Y-shaped
+mask of 0.592 km². The root cause is now found, and it is smaller and
+worse than expected.
+
+### The bug
+
+`rings()` in the extractor and `load_water()` in the module **both**
+carried `if len(points) < 4: continue`.
+
+That test is right for a standalone closed way -- four points is the
+minimum to bound an area. It is **wrong for a relation member**, which is
+a *piece* of a boundary, not a boundary. Lake Union's relation has 31
+outer members with geometry sizes from 2 to 144, and the filter dropped
+the ones with 2 and 3 points.
+
+Those two segments are exactly what closes the ring. Without them the
+shoreline had two gaps, so:
+
+* point-in-polygon per fragment filled arbitrary chords -> the Y-shape;
+* `stitch_rings` force-closed across the gaps -> a chord straight across
+  the basin, visible in the render as a false diagonal;
+* a flood fill leaked to the grid edge at every barrier dilation.
+
+Three different failures, one cause.
+
+**And it lived in two places.** Fixing the extractor alone changed
+nothing, because the loader re-dropped the same segments on read. That is
+why the first fix appeared to fail and sent me looking for
+self-intersection that was not there.
+
+### Verification
+
+| | |
+|---|---|
+| fragments | 31 -> **one ring**, 646 points |
+| closing gap | **0.00 m** |
+| shoelace area | 2.349 km² |
+| filled mask | **2.348 km²** |
+| published (580 acres) | **2.347 km²** |
+
+A 0.04% agreement with the published area, from geometry the project
+extracted itself. The render now shows the main basin with the Fremont
+Cut arm to the north-west and the ship canal arm to the north-east, which
+is what Lake Union looks like.
+
+Worth noting the earlier reference figure was wrong too: I had been
+comparing against "about 2.1 km²", which is not Lake Union's area. 580
+acres is 2.347 km², and the correct number was what the fixed geometry
+produced.
+
+### Revised: docks remove 27%, not 40%
+
+| | area |
+|---|---|
+| water | **2.348 km²** |
+| rowable after docks | **1.723 km²** |
+| removed | **26.6%** |
+
+The earlier 40.3% was computed against the broken mask. The finding
+survives in substance -- docks take a quarter of the lake and are the real
+constraint on the line -- but the number was wrong and is corrected.
+
+### Verified by unit test, not by inspection
+
+`_inside` was suspected and cleared: it fills a square to 100.00 of 100,
+an L-shape to 64.00 of 64, and an unclosed square correctly. The polygon
+test was never the problem; the polygon was.
+
+### Still withdrawn
+
+The lap length, the fetch distances and the 2:08.8 split were all computed
+on the broken mask and have not yet been recomputed. §96-98 stay
+withdrawn until they are.
+
+## 101. What time wins, medals, and keeps the boat
+
+`scripts/target_times.py`. Three thresholds, from six editions of full
+Women's Veteran Fours results (2019, 2021-2025; 118 crews).
+
+### The rule that matters, verbatim
+
+Rule 3.2 of the regatta rulebook, on sweep-oared entry acceptance:
+
+> "On the basis of winning a Special Medal or finishing within the **top
+> half (based on entries)** of the sweep-oared event-division in which
+> they competed the preceding year, institutions are guaranteed entry
+> acceptance into those same event-divisions."
+
+Crews outside the top half but inside the **top 75%** are drawn first in
+the following year's lottery; outside 75%, drawn second. So the top half
+is not a nicety -- as a lottery entry this year, it is what decides
+whether there is a next year without another draw.
+
+**A wrinkle worth asking about.** The same rule adds that guaranteed entry
+for *Veteran* Fours and Eights "will be determined on the basis of
+finishing within the respective top half of all Veteran crews registered
+within the **Grand-Master** Fours and Eights." Results since 2019 show
+Women's Veteran Fours as a standalone event-division, so this uses the top
+half of the Veteran field. If the regatta scores it against Grand-Master
+entries instead, the threshold moves.
+
+### As timed
+
+| year | entries | win | medal | requalify | half-place |
+|---|---|---|---|---|---|
+| 2019 | 15 | 20:40.5 | 21:26.2 | 21:50.1 | 7 |
+| 2021 | 18 | 20:26.5 | 20:35.5 | 21:20.7 | 9 |
+| 2022 | 20 | 20:32.3 | 20:34.6 | 21:16.6 | 10 |
+| 2023 | 20 | 20:07.5 | 20:23.3 | 21:22.1 | 10 |
+| 2024 | 20 | **20:03.9** | 20:31.8 | 21:51.0 | 10 |
+| 2025 | 25 | 20:10.9 | 20:31.7 | 21:28.4 | 12 |
+
+### Prediction for 2026, 80% interval
+
+| threshold | expected | interval | field sd | total sd |
+|---|---|---|---|---|
+| **win** | **20:56.0** | 20:07.4 – 21:46.4 | 1.32% | 2.47% |
+| **medal (3rd)** | **21:16.7** | 20:21.2 – 22:14.7 | 1.84% | 2.79% |
+| **requalify (top half)** | **22:09.3** | 21:14.8 – 23:06.1 | 1.59% | 2.63% |
+
+Two variances, not one. The field spread is how much the *crews* vary
+year to year; the conditions spread (sd **2.09%**, from §77's year factor
+since 2015) is how much the *river* does. Next October has both, so the
+interval is their sum in quadrature plus the uncertainty in the mean --
+a prediction interval, not a confidence interval.
+
+**No significant trend** in any of the three over six editions: win
+−0.22%/yr (p = 0.48), medal −0.39%/yr (p = 0.36), requalify +0.19%/yr
+(p = 0.62). Six points cannot support a slope, and the honest answer is
+the adjusted mean with an interval.
+
+### The expected times are slower than recent results, on purpose
+
+Every edition since 2019 ran on a **fast** day -- year factors of −1.25%
+to −3.78%. Adjusting to neutral conditions therefore moves every threshold
+*slower* than it was timed. If 2026 is another fast year the real
+thresholds will come in quicker than the "expected" column, which is what
+the lower half of the interval is for.
+
+### The same targets at Tail of the Lake
+
+Charles time divided by 1.2175, the crew-matched conversion from §92-93:
+
+| threshold | TotL | 500 m split (TotL) | 500 m split (Charles) |
+|---|---|---|---|
+| win | 17:11.6 | **2:08.95** | 2:10.07 |
+| medal | 17:28.6 | 2:11.07 | 2:12.22 |
+| requalify | 18:11.8 | **2:16.47** | 2:17.66 |
+
+Four matched pairs is a thin conversion with a 2.2% spread of its own,
+which is **not** carried into these intervals. Indicative, not a target to
+the second.
+
+## 102. Charles to Lake Sammamish: a physics conversion, not an empirical one
+
+§101 gave Tail of the Lake equivalents. That answered the wrong question:
+Tail of the Lake is a **race**, Lake Sammamish is where the crew
+**trains**, and the question asked was what split to hold in practice to
+be on target for the Charles.
+
+It is also a different *kind* of conversion. The Tail of the Lake ratio
+(§92-93) is empirical, from four crews that raced both. Sammamish needs no
+matched crews, because the two waters differ in ways the model already
+knows:
+
+| | Charles (as modelled) | Lake Sammamish |
+|---|---|---|
+| depth | 2.07 - 7.80 m, median **3.23 m** | mean 18 m, max 32 m |
+| `Fr_h` at 3.9 m/s | up to **0.94** | **0.29** |
+| shallow factor | steeply rising | **1.000** |
+| current | −0.001 to −0.027 m/s, against | none |
+
+So the same crew at the same power goes faster on Sammamish, and the
+model can say exactly how much.
+
+### The conversion is not a constant
+
+| power (per rower) | Charles /500 | Sammamish /500 | ratio |
+|---|---|---|---|
+| 240 W | 2:06.8 | 2:04.2 | 1.0210 |
+| 300 W | 1:58.8 | 1:55.1 | 1.0327 |
+| 360 W | 1:53.1 | 1:48.1 | **1.0463** |
+
+**The gap widens with speed**, from 2.1% to 4.6%, because the Charles
+shallow-water penalty steepens as `Fr_h` climbs toward one while
+Sammamish stays flat at 1.000. A single offset would be wrong at one end
+or the other.
+
+### What to hold on Sammamish
+
+Inverting at the §101 thresholds:
+
+| target | Charles /500 | power | **Sammamish /500** | faster by |
+|---|---|---|---|---|
+| win | 2:10.1 | 221 W | **2:07.8** | 2.3 s |
+| medal | 2:12.2 | 210 W | **2:10.1** | 2.1 s |
+| requalify | 2:17.7 | 185 W | **2:15.9** | 1.7 s |
+
+**Rule of thumb: a Sammamish split needs to be about two seconds per
+500 m faster than the Charles target** -- 1.7 s at requalifying pace,
+2.3 s at winning pace.
+
+That is the opposite of the intuition that flat, deep, still water
+flatters a crew and should be discounted. It does flatter them, and this
+quantifies by how much, so a training split can be read as a Charles
+prediction instead of a hope.
+
+### Caveats
+
+The Charles side is the **12.4 km surveyed reach**, not the 4.8 km race
+course, so the *split* transfers but the absolute time does not. If the
+race section is shallower than the reach median of 3.23 m the gap is
+larger than quoted; deeper, smaller.
+
+Sammamish depth is taken from published lake statistics, not a survey in
+this repository. At `Fr_h = 0.29` that hardly matters -- anything over
+about 10 m gives a shallow factor of 1.000 -- but it is an assumption, not
+a measurement.
+
+## 103. What traffic actually costs, and it is not what the rulebook prices
+
+`scripts/traffic.py`. The passing state machine (§76) had no physics; the
+line work (§66-67, 79) had no traffic. This couples them: speed is
+tabulated over `(station, lateral)` from the real depth and current, and
+the rules are run against it, so a crew that yields is charged for the
+water it ends up in rather than for the metres it moved.
+
+### Same crew, different draw
+
+| bow (of 25) | time | vs alone | passes made | passes taken |
+|---|---|---|---|---|
+| 2 | 21:13.5 | **+0.0 s** | 1.0 | 0.0 |
+| 7 | 21:13.9 | +0.3 s | 4.6 | 0.4 |
+| 13 | 21:14.5 | +1.0 s | 2.1 | 1.9 |
+| **19** | 21:15.2 | **+1.7 s** | 0.5 | 4.4 |
+| 24 | 21:14.1 | +0.6 s | 0.0 | 0.9 |
+
+**Traffic costs a compliant crew one to two seconds.** Being passed costs
+more than passing -- bow 19 takes 4.4 yields and pays 1.7 s, bow 7 makes
+4.6 passes and pays 0.3 s -- because the crew that yields is the one
+pushed off the deep line.
+
+### The number that matters is the ratio
+
+A boat-width off the racing line costs at most **0.056 m/s** and only
+briefly, so complying costs ~1.7 s. Failing to comply costs **60 s**, then
+120, then the race.
+
+**Yielding correctly is roughly thirty-five times cheaper than not
+yielding.** There is no version of the arithmetic where obstructing is
+worth it, and a coxswain who yields early and cleanly has given up almost
+nothing.
+
+### One bug worth recording
+
+The first run reported the cost of traffic as **−58 seconds** -- traffic
+making a crew faster. The field was built with speed rising along the bow
+ramp, and our crew's speed rode that ramp too, so a higher seeding *was* a
+faster boat by construction and the script was comparing different crews
+while calling the difference a position effect.
+
+Our crew is now pinned at factor 1.0 wherever it is seeded. The
+counterfeit result was obvious only because its sign was impossible; had
+the ramp been gentler it would have produced a plausible small number and
+been believed.
+
+### What is not modelled, and why the real cost is higher
+
+* **The wash of the boat being passed.** §97's reflection geometry puts a
+  following crew in the leader's wake, and nothing here charges for it.
+  On the Charles this is the biggest missing term.
+* **Steering dynamics.** A crew moves sideways at a fixed rate and pays
+  for where it ends up, not for the rudder it used getting there. §67
+  prices helm separately and the two are not coupled.
+* **Obstruction.** Compliance is 1.0: every crew yields properly. A field
+  with one crew that will not move is a different race, and the machinery
+  supports it (`compliance` < 1) but it is not the case reported here.
+
+So 1-2 s is a **floor** on the cost of traffic, not an estimate of it.
+
+## 104. Lake Union, recomputed on the corrected mask
+
+§99-100 withdrew the Lake Union results after the render exposed the
+geometry. With the mask now at **2.348 km² against a published 2.347**,
+here is what is restored and what is not.
+
+### Restored: the chop, with real fetches
+
+Fetch marched from mid-lake along each wind direction, at 10 m/s:
+
+| wind from | fetch | `H_s` | `T_p` | mid-lake `H_s` |
+|---|---|---|---|---|
+| E | 380 m | 10.0 cm | 0.97 s | 15.0 cm |
+| N | 500 m | 11.4 cm | 1.07 s | 17.3 cm |
+| NE | 760 m | 14.1 cm | 1.23 s | 21.3 cm |
+| **NW** | 1310 m | 18.5 cm | 1.47 s | **27.9 cm** |
+| **S** | **1470 m** | **19.6 cm** | **1.53 s** | **29.6 cm** |
+
+**The lake is roughest in a southerly or a north-westerly**, along its
+long axis, and mildest across it. A southerly at 10 m/s gives a
+wavelength of 3.66 m, so a 13.4 m four spans **3.7 wavelengths** -- the
+pitching-worst ratio §97 describes, now on correct geometry.
+
+The earlier fetch figures (210-465 m) came from the broken mask and were
+all too short, so the chop was **understated**. The physics in
+`coxswain/hydro/chop.py` never depended on the mask and stands unchanged.
+
+### Not restored: the lap, and why
+
+The lap was modelled as a contour of constant clearance. On the corrected
+geometry that returns **6.1-7.9 km with 1500-2150 degrees of turning**,
+because Lake Union's north end wraps around the Gasworks Park peninsula
+and a constant-offset loop dutifully follows it in and out.
+
+Morphological opening does not help: eroding by up to 50 m leaves the lake
+a **single connected component**, so there is no narrow neck to sever.
+That is not a defect in the mask -- it is the lake. The arms are real
+water, not canal.
+
+The conclusion is about the *model*, not the geometry: **a constant-offset
+loop is the wrong shape for this race.** Tail of the Lake runs down one
+side and back up the other, which is a there-and-back, not a
+circumnavigation at fixed range. Reconstructing it needs the regatta's own
+course map, which is not in the packet (`data/raw/totl_packet_2023.pdf`
+is text only) and has not been found.
+
+So §96's lap length and split stay withdrawn. The lake, the docks (26.6%),
+the structures and the chop are all now sound.
+
+## 105. A renderer that is not the Charles
+
+`coxswain/viz/race_render.py`. `scripts/render3d.py` is wired to the
+Charles through bridge gates, arch rules and `hocr_course`, none of which
+exist on the Oklahoma, on Lake Union, or on most rivers. This takes a
+course, a water mask, optional structures and any number of lines, and
+draws four views.
+
+Proven generic by pointing it at both rivers with no changes: Lake Union
+from `water_mask` + `load_obstructions` + `seattle_structures`, and the
+Charles from `charles_channel` + `charles_structures` + `optimise_route`.
+
+### The depth profile earns its place immediately
+
+Drawing depth under the line with the boat's **critical depth** marked
+(`Fr_h = 1`, i.e. `v²/g`) turns the whole shallow-water argument into one
+picture:
+
+* For a masters **four at 3.9 m/s**, critical depth is **1.55 m**. The
+  Charles runs 2-8 m, so the line sits below critical almost everywhere
+  and only grazes it in the first 200 m.
+* For an **eight at 4.5 m/s** it is **2.07 m**, which the shallowest
+  surveyed water reaches exactly (§79).
+
+So the shallow-water penalty that dominates the eight's results is a much
+smaller effect for the four -- which is exactly what §102's 1.3-4.6%
+Sammamish gap says from the other direction, and the two now agree
+visibly rather than only numerically.
+
+The profile also shows the optimised line running deeper than the
+centreline through the second half, which is §67's steering-for-depth
+result made legible.
+
+### Why matplotlib
+
+The VTK scene in `coxswain/viz/scene3d.py` looks better and is harder to
+point at a new river. Given §99 -- where a wrong lake survived every
+numeric check and fell over the moment it was drawn -- a renderer that can
+be aimed at unfamiliar geometry in a few lines is worth more than a
+prettier one that cannot.

@@ -2,195 +2,132 @@
 <title>Charles course explorer</title>
 <style>
 :root {
-  --ink:        #10161c;
-  --ink-soft:   #4b5b68;
-  --ink-faint:  #8a9aa6;
-  --paper:      #f4f6f7;
-  --panel:      #ffffff;
-  --edge:       #dde4e8;
-  --edge-soft:  #eaeff2;
-  --accent:     #c2571a;
-  --accent-dim: #e8a877;
-  --water:      #1d3f57;
-  --shadow:     0 1px 2px rgba(16,22,28,.06), 0 8px 24px rgba(16,22,28,.06);
+  --ink:#10161c; --ink-soft:#4b5b68; --ink-faint:#8a9aa6;
+  --paper:#f4f6f7; --panel:#ffffff; --edge:#dde4e8; --edge-soft:#eaeff2;
+  --accent:#c2571a; --water:#1d3f57; --port:#2f7d54; --stbd:#8c3b6e;
+  --shadow:0 1px 2px rgba(16,22,28,.06),0 8px 24px rgba(16,22,28,.06);
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --ink:       #e6edf2;
-    --ink-soft:  #9fb0bd;
-    --ink-faint: #63757f;
-    --paper:     #0d1318;
-    --panel:     #151d24;
-    --edge:      #253039;
-    --edge-soft: #1c252c;
-    --accent:    #ff9248;
-    --accent-dim:#7a4a24;
-    --water:     #0a1c28;
-    --shadow:    0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ink:#e6edf2; --ink-soft:#9fb0bd; --ink-faint:#63757f;
+    --paper:#0d1318; --panel:#151d24; --edge:#253039; --edge-soft:#1c252c;
+    --accent:#ff9248; --water:#0a1c28; --port:#5cc08d; --stbd:#d783b4;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
   }
 }
-:root[data-theme="dark"] {
+:root[data-theme="dark"]{
   --ink:#e6edf2; --ink-soft:#9fb0bd; --ink-faint:#63757f;
   --paper:#0d1318; --panel:#151d24; --edge:#253039; --edge-soft:#1c252c;
-  --accent:#ff9248; --accent-dim:#7a4a24; --water:#0a1c28;
-  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+  --accent:#ff9248; --water:#0a1c28; --port:#5cc08d; --stbd:#d783b4;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
 }
-
-* { box-sizing: border-box; }
-body {
-  margin: 0; background: var(--paper); color: var(--ink);
-  font: 14px/1.5 ui-sans-serif, -apple-system, "Segoe UI", Roboto,
-        "Helvetica Neue", Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-}
-.wrap { max-width: 1400px; margin: 0 auto; padding: 28px 24px 64px; }
-
-header.masthead { margin-bottom: 22px; }
-.eyebrow {
-  font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
-  color: var(--ink-faint); font-weight: 600; margin-bottom: 6px;
-}
-h1 { margin: 0 0 6px; font-size: 27px; letter-spacing: -.02em;
-     font-weight: 650; text-wrap: balance; }
-.sub { color: var(--ink-soft); max-width: 68ch; margin: 0; }
-
-.layout { display: grid; grid-template-columns: 268px minmax(0,1fr);
-          gap: 20px; align-items: start; }
-@media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
-
-.panel {
-  background: var(--panel); border: 1px solid var(--edge);
-  border-radius: 12px; box-shadow: var(--shadow);
-}
-.panel + .panel { margin-top: 16px; }
-.panel > h2 {
-  margin: 0; padding: 13px 16px; font-size: 11px; font-weight: 650;
-  letter-spacing: .13em; text-transform: uppercase; color: var(--ink-faint);
-  border-bottom: 1px solid var(--edge-soft);
-}
-.panel .body { padding: 16px; }
-
-.seg { display: flex; flex-direction: column; gap: 4px; }
-.seg button {
-  appearance: none; text-align: left; cursor: pointer; font: inherit;
-  padding: 9px 11px; border-radius: 8px; color: var(--ink-soft);
-  border: 1px solid transparent; background: transparent;
-  display: flex; justify-content: space-between; align-items: baseline;
-  gap: 8px; transition: background .12s, color .12s, border-color .12s;
-}
-.seg button:hover { background: var(--edge-soft); color: var(--ink); }
-.seg button[aria-pressed="true"] {
-  background: var(--edge-soft); border-color: var(--edge);
-  color: var(--ink); font-weight: 600;
-}
-.seg button small { color: var(--ink-faint); font-weight: 400;
-                    font-size: 11px; }
-.seg button:focus-visible { outline: 2px solid var(--accent);
-                            outline-offset: 2px; }
-
-.ctl { margin-bottom: 16px; }
-.ctl:last-child { margin-bottom: 0; }
-.ctl label {
-  display: flex; justify-content: space-between; align-items: baseline;
-  font-size: 12px; color: var(--ink-soft); margin-bottom: 7px;
-}
-.ctl label b { color: var(--ink); font-weight: 600;
-               font-variant-numeric: tabular-nums; }
-input[type=range] { width: 100%; accent-color: var(--accent); }
-select {
-  width: 100%; font: inherit; padding: 7px 9px; border-radius: 8px;
-  border: 1px solid var(--edge); background: var(--panel); color: var(--ink);
-}
-
-canvas { display: block; width: 100%; border-radius: 8px; }
-.legend { display: flex; align-items: center; gap: 10px; margin-top: 12px;
-          font-size: 11px; color: var(--ink-soft); }
-.ramp { height: 9px; flex: 1; border-radius: 5px; border: 1px solid var(--edge); }
-.key { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px;
-       font-size: 12px; color: var(--ink-soft); }
-.key span { display: flex; align-items: center; gap: 6px; }
-.swatch { width: 15px; height: 3px; border-radius: 2px; }
-
-.stats { display: grid; grid-template-columns: repeat(auto-fit,minmax(120px,1fr));
-         gap: 1px; background: var(--edge-soft); border-radius: 10px;
-         overflow: hidden; border: 1px solid var(--edge); }
-.stat { background: var(--panel); padding: 12px 14px; }
-.stat .n { font-size: 19px; font-weight: 650; letter-spacing: -.01em;
-           font-variant-numeric: tabular-nums; }
-.stat .l { font-size: 11px; color: var(--ink-faint); margin-top: 2px; }
-
-.note { font-size: 12px; color: var(--ink-soft); margin: 14px 0 0;
-        padding-left: 11px; border-left: 2px solid var(--edge); }
-.note b { color: var(--ink); }
-footer { margin-top: 28px; font-size: 12px; color: var(--ink-faint);
-         max-width: 76ch; }
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font:14px/1.5 ui-sans-serif,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased}
+.wrap{max-width:1400px;margin:0 auto;padding:26px 22px 56px}
+.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--ink-faint);font-weight:600;margin-bottom:6px}
+h1{margin:0 0 6px;font-size:27px;letter-spacing:-.02em;font-weight:650}
+.sub{color:var(--ink-soft);max-width:70ch;margin:0 0 20px}
+.layout{display:grid;grid-template-columns:262px minmax(0,1fr);gap:18px;
+  align-items:start}
+@media (max-width:900px){.layout{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--edge);
+  border-radius:12px;box-shadow:var(--shadow)}
+.panel+.panel{margin-top:15px}
+.panel>h2{margin:0;padding:12px 15px;font-size:11px;font-weight:650;
+  letter-spacing:.13em;text-transform:uppercase;color:var(--ink-faint);
+  border-bottom:1px solid var(--edge-soft)}
+.panel .body{padding:15px}
+.seg{display:flex;flex-direction:column;gap:4px}
+.seg button{appearance:none;text-align:left;cursor:pointer;font:inherit;
+  padding:9px 11px;border-radius:8px;color:var(--ink-soft);
+  border:1px solid transparent;background:transparent;display:flex;
+  justify-content:space-between;align-items:baseline;gap:8px;
+  transition:background .12s,color .12s,border-color .12s}
+.seg button:hover{background:var(--edge-soft);color:var(--ink)}
+.seg button[aria-pressed="true"]{background:var(--edge-soft);
+  border-color:var(--edge);color:var(--ink);font-weight:600}
+.seg button small{color:var(--ink-faint);font-weight:400;font-size:11px}
+.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ctl{margin-bottom:15px}.ctl:last-child{margin-bottom:0}
+.ctl label{display:flex;justify-content:space-between;align-items:baseline;
+  font-size:12px;color:var(--ink-soft);margin-bottom:7px}
+.ctl label b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--accent)}
+select{width:100%;font:inherit;padding:7px 9px;border-radius:8px;
+  border:1px solid var(--edge);background:var(--panel);color:var(--ink)}
+canvas{display:block;width:100%;border-radius:8px}
+.legend{display:flex;align-items:center;gap:10px;margin-top:11px;
+  font-size:11px;color:var(--ink-soft)}
+.ramp{height:9px;flex:1;border-radius:5px;border:1px solid var(--edge)}
+.key{display:flex;gap:15px;flex-wrap:wrap;margin-top:11px;font-size:12px;
+  color:var(--ink-soft)}
+.key span{display:flex;align-items:center;gap:6px}
+.swatch{width:15px;height:3px;border-radius:2px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));
+  gap:1px;background:var(--edge-soft);border-radius:10px;overflow:hidden;
+  border:1px solid var(--edge)}
+.stat{background:var(--panel);padding:11px 13px}
+.stat .n{font-size:18px;font-weight:650;font-variant-numeric:tabular-nums}
+.stat .l{font-size:11px;color:var(--ink-faint);margin-top:2px}
+.note{font-size:12px;color:var(--ink-soft);margin:13px 0 0;padding-left:11px;
+  border-left:2px solid var(--edge)}
+.note b{color:var(--ink)}
+footer{margin-top:26px;font-size:12px;color:var(--ink-faint);max-width:78ch}
 </style>
 
 <div class="wrap">
-<header class="masthead">
-  <div class="eyebrow">Head of the Charles &middot; course explorer</div>
-  <h1>Where the good water is</h1>
-  <p class="sub">Depth, current and shelter over the surveyed reach, with the
-  depth-following line for the conditions you set. Switch the layer, drag the
-  water level, and watch the line move.</p>
-</header>
+<div class="eyebrow">Head of the Charles &middot; course explorer</div>
+<h1>Where the good water is</h1>
+<p class="sub">The raced 4828 m only, with the line the project's own route
+optimiser picks. Layers are drawn on the straightened channel, where the
+width is legible; the plan view is there to locate you.</p>
 
 <div class="layout">
   <aside>
-    <section class="panel">
-      <h2>Layer</h2>
-      <div class="body">
-        <div class="seg" id="layers">
-          <button data-layer="depth" aria-pressed="true">Depth <small>m</small></button>
-          <button data-layer="current" aria-pressed="false">Current <small>m/s</small></button>
-          <button data-layer="wind" aria-pressed="false">Wind <small>m/s at chest</small></button>
-        </div>
+    <section class="panel"><h2>Layer</h2><div class="body">
+      <div class="seg" id="layers">
+        <button data-layer="depth" aria-pressed="true">Depth <small>m</small></button>
+        <button data-layer="current" aria-pressed="false">Current <small>m/s adverse</small></button>
+        <button data-layer="wind" aria-pressed="false">Wind <small>m/s headwind</small></button>
       </div>
-    </section>
+    </div></section>
 
-    <section class="panel">
-      <h2>Conditions</h2>
-      <div class="body">
-        <div class="ctl">
-          <label for="level">Water level <b id="levelOut">0.0 m</b></label>
-          <input type="range" id="level" min="0" max="0" step="1" value="0">
-        </div>
-        <div class="ctl">
-          <label for="wind">Wind speed <b id="windOut">0 m/s</b></label>
-          <input type="range" id="wind" min="0" max="0" step="1" value="0">
-        </div>
-        <div class="ctl">
-          <label for="dir">Wind from</label>
-          <select id="dir"></select>
-        </div>
+    <section class="panel"><h2>Conditions</h2><div class="body">
+      <div class="ctl">
+        <label for="level">Water level <b id="levelOut">0.0 m</b></label>
+        <input type="range" id="level" min="0" max="0" step="1" value="0">
       </div>
-    </section>
+      <div class="ctl">
+        <label for="dir">Wind from (6 m/s)</label>
+        <select id="dir"></select>
+      </div>
+    </div></section>
 
-    <section class="panel">
-      <h2>This line</h2>
-      <div class="body">
-        <div class="stats">
-          <div class="stat"><div class="n" id="sMean">&mdash;</div>
-            <div class="l">mean offset</div></div>
-          <div class="stat"><div class="n" id="sMax">&mdash;</div>
-            <div class="l">largest swing</div></div>
-          <div class="stat"><div class="n" id="sMin">&mdash;</div>
-            <div class="l">shallowest on line</div></div>
-          <div class="stat"><div class="n" id="sFr">&mdash;</div>
-            <div class="l">peak Fr<sub>h</sub></div></div>
-        </div>
-        <p class="note">A <b>greedy</b> depth-following line: fastest water
-        station by station, smoothed. It ignores what steering costs, so read
-        it as <b>where the good water is</b>, not where to point the boat.</p>
+    <section class="panel"><h2>The optimised line</h2><div class="body">
+      <div class="stats">
+        <div class="stat"><div class="n" id="sTime">&mdash;</div>
+          <div class="l">elapsed</div></div>
+        <div class="stat"><div class="n" id="sSaved">&mdash;</div>
+          <div class="l">vs centreline</div></div>
+        <div class="stat"><div class="n" id="sLen">&mdash;</div>
+          <div class="l">length</div></div>
+        <div class="stat"><div class="n" id="sYaw">&mdash;</div>
+          <div class="l">peak yaw</div></div>
       </div>
-    </section>
+      <p class="note">From <b>optimise_route</b> with the reduced steering
+      model, so it pays for the curvature it buys. Full rudder alone gives
+      about 3.5&deg;/s; past that it needs a pressure split too.</p>
+    </div></section>
   </aside>
 
   <main>
     <section class="panel">
-      <h2>Plan view</h2>
+      <h2>Straightened &mdash; the channel, across and along</h2>
       <div class="body">
-        <canvas id="map" height="420"></canvas>
+        <canvas id="strip" height="300"></canvas>
         <div class="legend">
           <span id="rampLo">&mdash;</span>
           <div class="ramp" id="ramp"></div>
@@ -198,7 +135,7 @@ footer { margin-top: 28px; font-size: 12px; color: var(--ink-faint);
         </div>
         <div class="key">
           <span><i class="swatch" style="background:var(--accent)"></i>
-            depth-following line</span>
+            optimised line</span>
           <span><i class="swatch" style="background:var(--ink-faint)"></i>
             centreline</span>
         </div>
@@ -206,29 +143,40 @@ footer { margin-top: 28px; font-size: 12px; color: var(--ink-faint);
     </section>
 
     <section class="panel">
-      <h2>Straightened &mdash; offset from the centreline</h2>
+      <h2>Which side to make them yield</h2>
       <div class="body">
-        <canvas id="strip" height="190"></canvas>
+        <canvas id="yield" height="130"></canvas>
+        <p class="note">The rulebook gives the <b>passer</b> the choice of
+        side and says nothing about which is better. The river does: bars
+        above the axis mean <b>port is the worse water for them</b>, so
+        that is the side to name. Height is the speed they lose, in
+        percent.</p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Plan view</h2>
+      <div class="body">
+        <canvas id="map" height="300"></canvas>
       </div>
     </section>
 
     <section class="panel">
       <h2>Depth along the centreline</h2>
       <div class="body">
-        <canvas id="profile" height="170"></canvas>
-        <p class="note">The dashed line is the depth at which this boat
-        reaches <b>Fr<sub>h</sub> = 1</b>. Water shallower than that puts the
-        hull on the far side of the transcritical drag rise, where a watt
-        buys almost no speed.</p>
+        <canvas id="profile" height="160"></canvas>
+        <p class="note">Dashed line is the depth at which this boat reaches
+        <b>Fr<sub>h</sub> = 1</b>. Shallower than that puts the hull on the
+        far side of the transcritical drag rise.</p>
       </div>
     </section>
   </main>
 </div>
 
 <footer>
-Fields are the surveyed bathymetry and the modelled sheltered wind, not live
-data. The water-level slider shifts every depth by a constant, which is what a
-dry or wet year does to first order and is not a re-survey.
+Surveyed bathymetry and the modelled sheltered wind, not live data. The
+water-level slider shifts every depth by a constant, which is what a dry or
+wet year does to first order and is not a re-survey.
 </footer>
 </div>
 
@@ -236,250 +184,192 @@ dry or wet year does to first order and is not a re-survey.
 const DATA = window.__MAP_DATA__;
 const RACE_SPEED = DATA.boat === "8+" ? 4.49 : 3.895;
 const G = 9.80665;
-
 const RAMPS = {
-  depth:   [[8,32,48],[13,72,99],[26,124,143],[92,178,168],[196,216,180]],
-  current: [[16,42,62],[38,96,120],[92,150,150],[178,178,120],[232,180,90]],
-  wind:    [[26,32,54],[62,66,120],[122,102,158],[190,140,150],[238,196,140]]
+  depth:  [[8,32,48],[13,72,99],[26,124,143],[92,178,168],[196,216,180]],
+  current:[[16,42,62],[38,96,120],[92,150,150],[178,178,120],[232,180,90]],
+  wind:   [[26,32,54],[62,66,120],[122,102,158],[190,140,150],[238,196,140]]
 };
-const state = { layer: "depth", level: 0, wind: 0, dir: 0 };
+const state = {layer:"depth", level:0, dir:0};
 
-function lerp(ramp, t) {
-  t = Math.max(0, Math.min(1, t));
-  const s = t * (ramp.length - 1), i = Math.floor(s), f = s - i;
-  const a = ramp[i], b = ramp[Math.min(i + 1, ramp.length - 1)];
-  return [0,1,2].map(k => Math.round(a[k] + (b[k] - a[k]) * f));
+function lerp(ramp,t){t=Math.max(0,Math.min(1,t));
+  const s=t*(ramp.length-1),i=Math.floor(s),f=s-i;
+  const a=ramp[i],b=ramp[Math.min(i+1,ramp.length-1)];
+  return [0,1,2].map(k=>Math.round(a[k]+(b[k]-a[k])*f));}
+const css=c=>`rgb(${c[0]},${c[1]},${c[2]})`;
+
+function grid(){
+  if(state.layer==="depth")
+    return DATA.flat["depth|"+DATA.levels[state.level].toFixed(1)];
+  if(state.layer==="current") return DATA.flat.current;
+  return DATA.flat["wind|"+DATA.directions[state.dir]];
 }
-const css = c => `rgb(${c[0]},${c[1]},${c[2]})`;
+function extent(g){let lo=Infinity,hi=-Infinity;
+  for(const r of g) for(const v of r) if(v!==null){if(v<lo)lo=v;if(v>hi)hi=v;}
+  return [lo,hi];}
 
-function activeGrid() {
-  if (state.layer === "depth") {
-    const off = DATA.levels[state.level];
-    return DATA.depth.map(row => row.map(v => v === null ? null : v + off));
-  }
-  if (state.layer === "current") return DATA.current;
-  return DATA.wind[String(DATA.directions[state.dir])] || DATA.current;
-}
+function fit(c){
+  const ratio=window.devicePixelRatio||1;
+  const w=c.clientWidth, h=+c.dataset.h||+c.getAttribute("height");
+  c.dataset.h=h;
+  c.width=Math.round(w*ratio); c.height=Math.round(h*ratio);
+  c.style.height=h+"px";
+  const g=c.getContext("2d"); g.setTransform(ratio,0,0,ratio,0,0);
+  return [g,w,h];}
+const ink=n=>getComputedStyle(document.body).getPropertyValue(n).trim();
 
-function extent(grid) {
-  let lo = Infinity, hi = -Infinity;
-  for (const row of grid) for (const v of row)
-    if (v !== null) { if (v < lo) lo = v; if (v > hi) hi = v; }
-  return [lo, hi];
-}
-
-function lineKey() {
-  const lvl = DATA.levels[state.level].toFixed(1);
-  const spd = DATA.winds[state.wind].toFixed(1);
-  const dir = DATA.winds[state.wind] > 0
-    ? DATA.directions[state.dir] : DATA.directions[0];
-  return `${lvl}|${spd}|${dir}`;
-}
-function activeLine() {
-  return DATA.lines[lineKey()] || DATA.lines[Object.keys(DATA.lines)[0]];
-}
-
-function fit(canvas) {
-  // The backing store is scaled for the display, but the CSS box must be
-  // pinned in CSS pixels too: setting canvas.height alone also sets the
-  // element's layout height, which on a 2x screen left the page twice as
-  // tall as its content with a screenful of empty space under each panel.
-  const ratio = window.devicePixelRatio || 1;
-  const w = canvas.clientWidth;
-  const h = +canvas.dataset.h || +canvas.getAttribute("height");
-  canvas.dataset.h = h;
-  canvas.width = Math.round(w * ratio);
-  canvas.height = Math.round(h * ratio);
-  canvas.style.height = h + "px";
-  const g = canvas.getContext("2d");
-  g.setTransform(ratio, 0, 0, ratio, 0, 0);
-  return [g, w, h];
-}
-const ink = n => getComputedStyle(document.body)
-  .getPropertyValue(n).trim();
-
-function drawMap() {
-  const [g, W, H] = fit(document.getElementById("map"));
-  g.clearRect(0, 0, W, H);
-  const grid = activeGrid(), [lo, hi] = extent(grid);
-  const E = DATA.east, N = DATA.north;
-  // Crop to the wet cells.  The survey raster is a rectangle around a
-  // river that fills a fraction of it, and using the raster extent wastes
-  // most of the panel on dry land.
-  if (!DATA._bbox) {
-    let i0=1e9,i1=-1,j0=1e9,j1=-1;
-    for (let i=0;i<DATA.water.length;i++)
-      for (let j=0;j<DATA.water[i].length;j++)
-        if (DATA.water[i][j]) { if(i<i0)i0=i; if(i>i1)i1=i;
-                                if(j<j0)j0=j; if(j>j1)j1=j; }
-    DATA._bbox = [i0,i1,j0,j1];
-  }
-  const [bi0,bi1,bj0,bj1] = DATA._bbox;
-  const x0 = E[bj0], x1 = E[bj1], y0 = N[bi0], y1 = N[bi1];
-  const pad = 10;
-  const sx = (W - 2*pad) / (x1 - x0), sy = (H - 2*pad) / (y1 - y0);
-  const s = Math.min(sx, sy);
-  const ox = pad + ((W - 2*pad) - (x1-x0)*s)/2;
-  const oy = pad + ((H - 2*pad) - (y1-y0)*s)/2;
-  const px = x => ox + (x - x0) * s;
-  const py = y => H - oy - (y - y0) * s;
-
-  const cw = (E[1]-E[0]) * s, ch = (N[1]-N[0]) * s;
-  for (let i = 0; i < grid.length; i++)
-    for (let j = 0; j < grid[i].length; j++) {
-      const v = grid[i][j];
-      if (v === null) continue;
-      g.fillStyle = css(lerp(RAMPS[state.layer], (v - lo) / (hi - lo || 1)));
-      g.fillRect(px(E[j]) - cw/2, py(N[i]) - ch/2, cw + 1, ch + 1);
+function drawStrip(){
+  const [g,W,H]=fit(document.getElementById("strip"));
+  g.clearRect(0,0,W,H);
+  const G2=grid(),[lo,hi]=extent(G2);
+  const st=DATA.stations, off=DATA.offsets, span=st[st.length-1];
+  const padL=8, padB=20, top=8;
+  const px=s=>padL+(W-padL-8)*(s/span);
+  const lim=Math.max(...off.map(Math.abs));
+  const py=o=>top+(H-top-padB)*(0.5-o/(2*lim));
+  const cw=(W-padL-8)/(st.length-1)+1.2;
+  const ch=(H-top-padB)/(off.length-1)+1.2;
+  for(let i=0;i<off.length;i++)
+    for(let j=0;j<st.length;j++){
+      const v=G2[i][j]; if(v===null) continue;
+      g.fillStyle=css(lerp(RAMPS[state.layer],(v-lo)/(hi-lo||1)));
+      g.fillRect(px(st[j])-cw/2,py(off[i])-ch/2,cw,ch);
     }
-
-  const centre = DATA.centreline;
-  g.strokeStyle = ink("--ink-faint"); g.lineWidth = 1;
-  g.setLineDash([4, 4]); g.beginPath();
-  centre.forEach((p, i) => i ? g.lineTo(px(p[0]), py(p[1]))
-                             : g.moveTo(px(p[0]), py(p[1])));
-  g.stroke(); g.setLineDash([]);
-
-  const line = activeLine();
-  g.strokeStyle = ink("--accent"); g.lineWidth = 2.4;
-  g.lineJoin = "round"; g.beginPath();
-  for (let i = 0; i < centre.length; i++) {
-    const a = centre[Math.min(i+1, centre.length-1)];
-    const b = centre[Math.max(i-1, 0)];
-    let tx = a[0]-b[0], ty = a[1]-b[1];
-    const L = Math.hypot(tx, ty) || 1; tx /= L; ty /= L;
-    const X = centre[i][0] - ty * line[i], Y = centre[i][1] + tx * line[i];
-    i ? g.lineTo(px(X), py(Y)) : g.moveTo(px(X), py(Y));
-  }
+  g.strokeStyle=ink("--ink-faint"); g.setLineDash([4,4]); g.lineWidth=1;
+  g.beginPath(); g.moveTo(px(0),py(0)); g.lineTo(px(span),py(0)); g.stroke();
+  g.setLineDash([]);
+  g.strokeStyle=ink("--accent"); g.lineWidth=2.4; g.lineJoin="round";
+  g.beginPath();
+  st.forEach((s,i)=>i?g.lineTo(px(s),py(DATA.line[i]))
+                     :g.moveTo(px(s),py(DATA.line[i])));
   g.stroke();
-
-  const ramp = document.getElementById("ramp");
-  ramp.style.background = "linear-gradient(90deg," +
-    [0,.25,.5,.75,1].map(t => css(lerp(RAMPS[state.layer], t))).join(",") + ")";
-  const unit = state.layer === "depth" ? " m" : " m/s";
-  document.getElementById("rampLo").textContent = lo.toFixed(2) + unit;
-  document.getElementById("rampHi").textContent = hi.toFixed(2) + unit;
+  g.fillStyle=ink("--ink-faint"); g.font="11px ui-sans-serif,sans-serif";
+  g.fillText("port",3,top+10); g.fillText("stbd",3,H-padB-2);
+  for(let k=0;k<=4;k++){
+    const s=span*k/4, t=(s/1000).toFixed(1)+" km";
+    const w=g.measureText(t).width;
+    g.fillText(t,Math.min(Math.max(px(s)-w/2,padL),W-w-4),H-5);
+  }
+  const unit=state.layer==="depth"?" m":" m/s";
+  document.getElementById("rampLo").textContent=lo.toFixed(2)+unit;
+  document.getElementById("rampHi").textContent=hi.toFixed(2)+unit;
+  document.getElementById("ramp").style.background=
+    "linear-gradient(90deg,"+[0,.25,.5,.75,1]
+      .map(t=>css(lerp(RAMPS[state.layer],t))).join(",")+")";
 }
 
-function drawStrip() {
-  const [g, W, H] = fit(document.getElementById("strip"));
-  g.clearRect(0, 0, W, H);
-  const line = activeLine(), half = DATA.half_width, st = DATA.stations;
-  const pad = 26, span = st[st.length-1];
-  const lim = Math.max(...half) * 1.05;
-  const px = s => pad + (W - pad - 8) * (s / span);
-  const py = o => H/2 - (H/2 - 12) * (o / lim);
-
-  g.fillStyle = ink("--edge-soft");
-  g.beginPath(); g.moveTo(px(0), py(half[0]));
-  st.forEach((s,i) => g.lineTo(px(s), py(half[i])));
-  for (let i = st.length-1; i >= 0; i--) g.lineTo(px(st[i]), py(-half[i]));
-  g.closePath(); g.fill();
-
-  g.strokeStyle = ink("--ink-faint"); g.setLineDash([4,4]); g.lineWidth = 1;
-  g.beginPath(); g.moveTo(px(0), py(0)); g.lineTo(px(span), py(0));
-  g.stroke(); g.setLineDash([]);
-
-  g.strokeStyle = ink("--accent"); g.lineWidth = 2.2; g.beginPath();
-  st.forEach((s,i) => i ? g.lineTo(px(s), py(line[i]))
-                        : g.moveTo(px(s), py(line[i])));
-  g.stroke();
-
-  g.fillStyle = ink("--ink-faint"); g.font = "11px ui-sans-serif, sans-serif";
-  g.fillText("port", 3, 13);
-  g.fillText("stbd", 3, H - 18);
-  // Ticks sit on their own baseline below the trace, and the first one is
-  // inset so it clears the side labels instead of printing over them.
-  for (let k = 0; k <= 4; k++) {
-    const s = span * k / 4;
-    const label = (s/1000).toFixed(1) + " km";
-    const w = g.measureText(label).width;
-    let x = px(s) - w/2;
-    x = Math.max(x, pad + 2);
-    x = Math.min(x, W - w - 4);
-    g.fillText(label, x, H - 4);
+function drawYield(){
+  const [g,W,H]=fit(document.getElementById("yield"));
+  g.clearRect(0,0,W,H);
+  const v=DATA.yield_side[DATA.levels[state.level].toFixed(1)];
+  const st=DATA.stations, span=st[st.length-1];
+  const padL=8, padB=18;
+  const px=s=>padL+(W-padL-8)*(s/span);
+  const peak=Math.max(...v.map(Math.abs))||1;
+  const mid=(H-padB)/2;
+  const py=x=>mid-(mid-8)*(x/peak);
+  const bw=(W-padL-8)/v.length+1;
+  v.forEach((x,i)=>{
+    g.fillStyle=x>=0?ink("--port"):ink("--stbd");
+    const y=py(x);
+    g.fillRect(px(st[i])-bw/2,Math.min(y,mid),bw,Math.abs(y-mid));
+  });
+  g.strokeStyle=ink("--edge"); g.lineWidth=1; g.beginPath();
+  g.moveTo(padL,mid); g.lineTo(W-8,mid); g.stroke();
+  g.fillStyle=ink("--ink-faint"); g.font="11px ui-sans-serif,sans-serif";
+  g.fillText("send them to PORT",padL+3,12);
+  g.fillText("send them to STARBOARD",padL+3,H-padB-2);
+  g.fillText("worst "+peak.toFixed(2)+"%",W-92,12);
+  for(let k=0;k<=4;k++){
+    const s=span*k/4, t=(s/1000).toFixed(1)+" km";
+    const w=g.measureText(t).width;
+    g.fillText(t,Math.min(Math.max(px(s)-w/2,padL),W-w-4),H-4);
   }
 }
 
-function drawProfile() {
-  const [g, W, H] = fit(document.getElementById("profile"));
-  g.clearRect(0, 0, W, H);
-  const off = DATA.levels[state.level];
-  const d = DATA.depth_profile.map(v => v + off), st = DATA.stations;
-  const pad = 34, span = st[st.length-1];
-  const hi = Math.max(...d) * 1.05;
-  const px = s => pad + (W - pad - 8) * (s / span);
-  const py = v => H - 20 - (H - 34) * (v / hi);
-
-  g.fillStyle = ink("--water"); g.beginPath();
-  g.moveTo(px(0), py(0));
-  st.forEach((s,i) => g.lineTo(px(s), py(d[i])));
-  g.lineTo(px(span), py(0)); g.closePath(); g.fill();
-
-  const critical = RACE_SPEED * RACE_SPEED / G;
-  g.strokeStyle = ink("--accent"); g.setLineDash([5,4]); g.lineWidth = 1.5;
-  g.beginPath(); g.moveTo(px(0), py(critical));
-  g.lineTo(px(span), py(critical)); g.stroke(); g.setLineDash([]);
-
-  g.fillStyle = ink("--ink-faint"); g.font = "11px ui-sans-serif, sans-serif";
-  g.fillText(critical.toFixed(2) + " m  (Fr" + "ₕ" + " = 1)",
-             px(span) - 108, py(critical) - 5);
-  g.fillText("0", 8, py(0));
-  g.fillText(hi.toFixed(0) + " m", 8, py(hi) + 9);
+function drawMap(){
+  const [g,W,H]=fit(document.getElementById("map"));
+  g.clearRect(0,0,W,H);
+  const c=DATA.centreline;
+  const xs=c.map(p=>p[0]), ys=c.map(p=>p[1]);
+  const x0=Math.min(...xs),x1=Math.max(...xs);
+  const y0=Math.min(...ys),y1=Math.max(...ys);
+  const pad=16;
+  const s=Math.min((W-2*pad)/(x1-x0),(H-2*pad)/(y1-y0));
+  const ox=pad+((W-2*pad)-(x1-x0)*s)/2, oy=pad+((H-2*pad)-(y1-y0)*s)/2;
+  const px=x=>ox+(x-x0)*s, py=y=>H-oy-(y-y0)*s;
+  g.strokeStyle=ink("--ink-faint"); g.lineWidth=1; g.setLineDash([4,4]);
+  g.beginPath();
+  c.forEach((p,i)=>i?g.lineTo(px(p[0]),py(p[1])):g.moveTo(px(p[0]),py(p[1])));
+  g.stroke(); g.setLineDash([]);
+  g.strokeStyle=ink("--accent"); g.lineWidth=2.6; g.lineJoin="round";
+  g.beginPath();
+  for(let i=0;i<c.length;i++){
+    const a=c[Math.min(i+1,c.length-1)], b=c[Math.max(i-1,0)];
+    let tx=a[0]-b[0], ty=a[1]-b[1];
+    const L=Math.hypot(tx,ty)||1; tx/=L; ty/=L;
+    const X=c[i][0]-ty*DATA.line[i], Y=c[i][1]+tx*DATA.line[i];
+    i?g.lineTo(px(X),py(Y)):g.moveTo(px(X),py(Y));
+  }
+  g.stroke();
+  g.fillStyle=ink("--ink-faint"); g.font="11px ui-sans-serif,sans-serif";
+  g.fillText("start",px(c[0][0])+6,py(c[0][1]));
+  g.fillText("finish",px(c[c.length-1][0])+6,py(c[c.length-1][1]));
 }
 
-function stats() {
-  const line = activeLine(), off = DATA.levels[state.level];
-  const mean = line.reduce((a,b)=>a+Math.abs(b),0) / line.length;
-  const swing = Math.max(...line) - Math.min(...line);
-  const shallow = Math.min(...DATA.depth_profile.map(v => v + off));
-  const fr = RACE_SPEED / Math.sqrt(G * Math.max(shallow, 0.3));
-  document.getElementById("sMean").textContent = mean.toFixed(1) + " m";
-  document.getElementById("sMax").textContent = swing.toFixed(1) + " m";
-  document.getElementById("sMin").textContent = shallow.toFixed(2) + " m";
-  const el = document.getElementById("sFr");
-  el.textContent = fr.toFixed(2);
-  el.style.color = fr > 1 ? ink("--accent") : "";
+function drawProfile(){
+  const [g,W,H]=fit(document.getElementById("profile"));
+  g.clearRect(0,0,W,H);
+  const off=DATA.levels[state.level];
+  const d=DATA.depth_profile.map(v=>v+off), st=DATA.stations;
+  const padL=32, span=st[st.length-1], hi=Math.max(...d)*1.05;
+  const px=s=>padL+(W-padL-8)*(s/span);
+  const py=v=>H-20-(H-34)*(v/hi);
+  g.fillStyle=ink("--water"); g.beginPath(); g.moveTo(px(0),py(0));
+  st.forEach((s,i)=>g.lineTo(px(s),py(d[i])));
+  g.lineTo(px(span),py(0)); g.closePath(); g.fill();
+  const crit=RACE_SPEED*RACE_SPEED/G;
+  g.strokeStyle=ink("--accent"); g.setLineDash([5,4]); g.lineWidth=1.5;
+  g.beginPath(); g.moveTo(px(0),py(crit)); g.lineTo(px(span),py(crit));
+  g.stroke(); g.setLineDash([]);
+  g.fillStyle=ink("--ink-faint"); g.font="11px ui-sans-serif,sans-serif";
+  g.fillText(crit.toFixed(2)+" m (Frₕ = 1)",px(span)-116,py(crit)-5);
+  g.fillText("0",8,py(0)); g.fillText(hi.toFixed(0)+" m",8,py(hi)+9);
 }
 
-function render() { drawMap(); drawStrip(); drawProfile(); stats(); }
+function stats(){
+  const a=DATA.line_stats, b=DATA.centre_stats;
+  const t=s=>`${Math.floor(s/60)}:${(s%60).toFixed(1).padStart(4,"0")}`;
+  document.getElementById("sTime").textContent=t(a.elapsed);
+  document.getElementById("sSaved").textContent=
+    "-"+(b.elapsed-a.elapsed).toFixed(1)+" s";
+  document.getElementById("sLen").textContent=a.length.toFixed(0)+" m";
+  document.getElementById("sYaw").textContent=a.peak_yaw.toFixed(2)+"°/s";
+}
 
-function boot() {
-  const lv = document.getElementById("level");
-  lv.max = DATA.levels.length - 1;
-  lv.value = Math.max(0, DATA.levels.indexOf(0));
-  state.level = +lv.value;
-  const wd = document.getElementById("wind");
-  wd.max = DATA.winds.length - 1;
-  const dir = document.getElementById("dir");
-  DATA.directions.forEach((d, i) => {
-    const o = document.createElement("option");
-    o.value = i; o.textContent = d + "°";
-    dir.appendChild(o);
-  });
+function render(){drawStrip();drawYield();drawMap();drawProfile();stats();}
 
-  const sync = () => {
-    document.getElementById("levelOut").textContent =
-      (DATA.levels[state.level] >= 0 ? "+" : "") +
-      DATA.levels[state.level].toFixed(1) + " m";
-    document.getElementById("windOut").textContent =
-      DATA.winds[state.wind].toFixed(0) + " m/s";
-    render();
-  };
-  lv.addEventListener("input", e => { state.level = +e.target.value; sync(); });
-  wd.addEventListener("input", e => { state.wind = +e.target.value; sync(); });
-  dir.addEventListener("change", e => { state.dir = +e.target.value; sync(); });
-
-  document.querySelectorAll("#layers button").forEach(b => {
-    b.addEventListener("click", () => {
-      state.layer = b.dataset.layer;
-      document.querySelectorAll("#layers button").forEach(o =>
-        o.setAttribute("aria-pressed", String(o === b)));
-      render();
-    });
-  });
-  window.addEventListener("resize", render);
+(function boot(){
+  const lv=document.getElementById("level");
+  lv.max=DATA.levels.length-1;
+  lv.value=Math.max(0,DATA.levels.indexOf(0));
+  state.level=+lv.value;
+  const dir=document.getElementById("dir");
+  DATA.directions.forEach((d,i)=>{
+    const o=document.createElement("option");
+    o.value=i; o.textContent=d+"°"; dir.appendChild(o);});
+  const sync=()=>{
+    document.getElementById("levelOut").textContent=
+      (DATA.levels[state.level]>=0?"+":"")+DATA.levels[state.level].toFixed(1)+" m";
+    render();};
+  lv.addEventListener("input",e=>{state.level=+e.target.value;sync();});
+  dir.addEventListener("change",e=>{state.dir=+e.target.value;sync();});
+  document.querySelectorAll("#layers button").forEach(b=>{
+    b.addEventListener("click",()=>{
+      state.layer=b.dataset.layer;
+      document.querySelectorAll("#layers button").forEach(o=>
+        o.setAttribute("aria-pressed",String(o===b)));
+      render();});});
+  window.addEventListener("resize",render);
   sync();
-}
-boot();
+})();
 </script>

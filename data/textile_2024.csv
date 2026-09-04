@@ -1,0 +1,105 @@
+event,place,bow,club,age,raw,raw_seconds,correction_seconds,adjusted,adjusted_seconds
+Mens Masters Novice 1x,1,13,Nathan Burow,36,31:17.4,1877.4,9.11,31:08.3,1868.3
+Womens Masters Novice 1x,1,17,Phoebe Teare,59,22:55.3,1375.3,115.2,21:00.1,1260.1
+Womens Masters Novice 1x,2,18,Liz Connors,64,25:09.7,1509.7,154.01,22:35.6,1355.6
+Womens Masters Novice 1x,3,16,Suzanne Livingston,45,24:40.0,1480.0,36.45,24:03.6,1443.6
+Mens Masters 1x,1,23,Lee Greathouse,37,17:48.5,1068.5,11.25,17:37.2,1057.2
+Mens Masters 1x,2,22,Daniel Forget,33,18:15.3,1095.3,4.05,18:11.2,1091.2
+Mens Masters 1x,3,25,Tim Cotreau,41,19:23.9,1163.9,22.05,19:01.8,1141.8
+Mens Masters 1x,4,24,William Schaetzke,38,19:16.0,1156.0,13.61,19:02.4,1142.4
+Mens Masters 1x,5,21,Harout Khodaverdian,32,19:07.4,1147.4,2.81,19:04.6,1144.6
+,1,30,Michael Rooney,55,19:51.2,1191.2,88.2,18:23.0,1103.0
+,2,28,Matt Beaton,46,19:19.4,1159.4,40.61,18:38.8,1118.8
+,3,29,Michael J. Spillane,48,19:56.2,1196.2,49.61,19:06.6,1146.6
+Mens Grand Masters 1x,1,36,Sean Wolf,54,18:15.9,1095.9,82.01,16:53.9,1013.9
+Mens Grand Masters 1x,2,35,Paul Cannistraro,54,18:29.5,1109.5,82.01,17:07.5,1027.5
+Mens Grand Masters 1x,3,34,Neil Foster,54,20:03.3,1203.3,82.01,18:41.3,1121.3
+Mens Grand Masters 1x,4,37,Alan Aikens,58,20:38.0,1238.0,108.11,18:49.9,1129.9
+Mens Grand Masters 1x,5,33,Benoit Destenaves,51,20:51.8,1251.8,64.8,19:47.0,1187.0
+Mens Veterans Masters 1x,1,47,Timothy Hefferan,68,18:58.3,1138.3,189.11,15:49.2,949.2
+Mens Veterans Masters 1x,2,44,John Tracey,64,19:13.4,1153.4,154.01,16:39.4,999.4
+Mens Veterans Masters 1x,3,45,Andrew O'Brien,64,19:18.3,1158.3,154.01,16:44.3,1004.3
+Mens Veterans Masters 1x,4,42,Michael Bannister,62,19:30.7,1170.7,137.81,17:12.8,1032.8
+Mens Veterans Masters 1x,5,41,Heri Sontgerath,61,19:34.8,1174.8,130.05,17:24.8,1044.8
+Mens Veterans Masters 1x,6,43,Thomas Lowe,63,19:50.7,1190.7,145.8,17:24.9,1044.9
+Mens Veterans Masters 1x,7,50,James Raymond,73,21:52.1,1312.1,238.05,17:54.0,1074.0
+Mens Veterans Masters 1x,8,51,Tim Wheatley,75,22:29.3,1349.3,259.2,18:10.1,1090.1
+Mens Veterans Masters 1x,9,46,Gary Styskal,65,21:00.7,1260.7,162.45,18:18.2,1098.2
+Mens Veterans Masters 1x,10,48,Ed Moran,69,22:03.2,1323.2,198.45,18:44.7,1124.7
+Mens Veterans Masters 1x,11,49,Clarke Esler,72,24:04.8,1444.8,227.81,20:17.0,1217.0
+Mens Veterans Masters 1x,12,40,Albert Morrone,60,23:08.0,1388.0,122.51,21:05.5,1265.5
+Womens Masters 1x,1,63,Erin Lallemand,49,19:58.5,1198.5,54.45,19:04.1,1144.1
+Womens Grand Masters 1x,1,69,Kim Wilson,54,20:59.7,1259.7,82.01,19:37.7,1177.7
+Womens Grand Masters 1x,2,70,Christine Higgins,54,21:34.6,1294.6,82.01,20:12.6,1212.6
+Womens Grand Masters 1x,3,67,Catherine Briere,51,21:25.9,1285.9,64.8,20:21.1,1221.1
+Womens Grand Masters 1x,4,72,Colleen Carroll,58,22:36.6,1356.6,108.11,20:48.5,1248.5
+Womens Grand Masters 1x,5,66,Elissa Chesler,51,21:56.4,1316.4,64.8,20:51.6,1251.6
+Womens Grand Masters 1x,6,73,Joan Martin,59,23:39.9,1419.9,115.2,21:44.7,1304.7
+Womens Grand Masters 1x,7,68,Erin Williams,52,22:57.3,1377.3,70.31,21:46.9,1306.9
+Womens Veterans Masters 1x,1,82,Molly Tyson,67,21:38.0,1298.0,180.0,18:38.0,1118.0
+Womens Veterans Masters 1x,2,81,Charmie Curran,65,21:40.8,1300.8,162.45,18:58.3,1138.3
+Womens Veterans Masters 1x,3,84,Catherine Widgery,71,22:36.3,1356.3,217.8,18:58.5,1138.5
+Womens Veterans Masters 1x,4,83,Deb Chute,71,23:10.1,1390.1,217.8,19:32.3,1172.3
+Womens Veterans Masters 1x,5,79,Anita Verheul,62,22:21.0,1341.0,137.81,20:03.2,1203.2
+Womens Veterans Masters 1x,6,80,Naomi Butterfield,64,22:39.9,1359.9,154.01,20:05.9,1205.9
+Womens Veterans Masters 1x,7,76,Catherine Stockly,60,22:22.2,1342.2,122.51,20:19.6,1219.6
+Womens Veterans Masters 1x,8,77,Elizabeth Chen,61,24:35.7,1475.7,130.05,22:25.6,1345.6
+Mens Masters 8+,1,177,"East Bay, Inc",51,17:06.7,1026.7,51.84,16:14.8,974.8
+Mens Masters 8+,2,179,Upper Valley,57,17:51.6,1071.6,81.0,16:30.6,990.6
+Mens Masters 8+,3,176,Gentle Giant,40,17:17.0,1037.0,15.21,17:01.8,1021.8
+Mens Masters 8+,4,175,MITRC,34,17:24.6,1044.6,4.41,17:20.2,1040.2
+Mens Masters 8+,5,178,CRI,54,18:44.6,1124.6,65.61,17:39.0,1059.0
+Womens Masters 8+,1,190,Upper Valley,60,17:29.7,1049.7,98.01,15:51.7,951.7
+Womens Masters 8+,2,187,Upper Valley,53,18:58.4,1138.4,60.84,17:57.5,1077.5
+Womens Masters 8+,3,191,"Cape Cod, Inc.",65,20:27.9,1227.9,129.96,18:17.9,1097.9
+Womens Masters 8+,4,182,Greater Lawrence,56,19:46.5,1186.5,75.69,18:30.8,1110.8
+Womens Masters 8+,5,186,"East Bay, Inc",52,19:46.5,1186.5,56.25,18:50.2,1130.2
+Womens Masters 8+,6,184,MITRC,31,19:36.8,1176.8,1.44,19:35.3,1175.3
+Womens Masters 8+,7,188,Concord,56,21:01.1,1261.1,75.69,19:45.4,1185.4
+Womens Masters 8+,8,183,Gentle Giant B,29,20:12.5,1212.5,0.36,20:12.2,1212.2
+Womens Masters 8+,9,185,CRI C,45,20:59.7,1259.7,29.16,20:30.6,1230.6
+Womens Masters 8+,10,189,"Westford Community,Westford Community",58,23:59.3,1439.3,86.49,22:32.8,1352.8
+Womens Masters 4x,1,254,Duxbury Bay Maritime School,66,18:45.9,1125.9,136.89,16:29.0,989.0
+Womens Masters 4x,2,252,Amoskeag,55,18:09.8,1089.8,70.56,16:59.2,1019.2
+Womens Masters 4x,3,251,Independence,55,18:58.9,1138.9,70.56,17:48.3,1068.3
+Womens Masters 4x,4,248,Megunticook B,62,19:39.4,1179.4,110.25,17:49.1,1069.1
+Womens Masters 4x,5,250,Duxbury Bay Maritime School B,55,19:23.3,1163.3,70.56,18:12.7,1092.7
+Womens Masters 4x,6,253,Duxbury Bay Maritime School C,60,20:40.4,1240.4,98.01,19:02.4,1142.4
+Womens Masters 4x,7,249,Great Bay,44,19:32.1,1172.1,26.01,19:06.1,1146.1
+Womens Masters 4x,8,255,Duxbury Bay Maritime School D,66,22:08.8,1328.8,136.89,19:51.9,1191.9
+The Paul Wenger Mens Masters 4x,1,405,Upper Valley,64,17:17.7,1037.7,123.21,15:14.5,914.5
+The Paul Wenger Mens Masters 4x,2,403,CRI,58,17:47.2,1067.2,86.49,16:20.7,980.7
+The Paul Wenger Mens Masters 4x,3,404,Long Pond,59,18:04.7,1084.7,92.16,16:32.6,992.6
+The Paul Wenger Mens Masters 4x,4,401,Merrimac,31,17:44.5,1064.5,1.44,17:43.0,1063.0
+The Paul Wenger Mens Masters 4x,5,402,Great Bay,33,17:47.7,1067.7,3.24,17:44.4,1064.4
+Mixed Masters 8+,1,433,Yarmouth,65,18:00.4,1080.4,129.96,15:50.4,950.4
+Mixed Masters 8+,2,432,Duxbury Bay Maritime School,54,18:54.2,1134.2,65.61,17:48.6,1068.6
+Mens Masters 4+,1,438,Gentle Giant,54,17:07.2,1027.2,70.86,15:56.3,956.3
+Mens Masters 4+,2,436,Greater Lawrence,60,18:17.9,1097.9,105.85,16:32.1,992.1
+Mens Masters 4+,3,437,Concord,52,19:30.6,1170.6,60.75,18:29.9,1109.9
+Womens Masters 4+,1,455,Upper Valley,64,21:07.9,1267.9,133.07,18:54.9,1134.9
+Womens Masters 4+,2,450,Great Bay,33,19:07.3,1147.3,3.5,19:03.8,1143.8
+Womens Masters 4+,3,451,Concord,50,19:55.5,1195.5,51.42,19:04.0,1144.0
+Womens Masters 4+,4,454,Gentle Giant,60,21:14.5,1274.5,105.85,19:28.7,1168.7
+Womens Masters 4+,5,452,"East Bay, Inc",56,21:57.9,1317.9,81.75,20:36.1,1236.1
+Womens Masters 4+,6,456,"Cape Cod, Inc.",67,24:07.4,1447.4,155.52,21:31.9,1291.9
+Womens Masters 4+,7,453,"Westford Community,Westford Community",57,23:38.3,1418.3,87.48,22:10.8,1330.8
+Mixed Masters 2x,1,478,J. Tracey/C. Widgery,67,19:14.4,1154.4,155.52,16:38.8,998.8
+Mixed Masters 2x,2,477,M. Eriksen/T. Glover,59,18:54.3,1134.3,99.53,17:14.7,1034.7
+Mixed Masters 2x,3,473,S. Podlech/K. Kern,35,17:59.6,1079.6,6.22,17:53.4,1073.4
+Mixed Masters 2x,4,475,W. Mills/E. Mills,43,19:15.1,1155.1,24.88,18:50.2,1130.2
+Mixed Masters 2x,5,476,B. Collins/B. Destenaves,52,20:14.6,1214.6,60.75,19:13.9,1153.9
+,5,476,Age: 40 -16.43,52,20:14.6,1214.6,60.75,19:13.9,1153.9
+,6,474,W. Carey/C. Carey,40,20:35.6,1235.6,16.43,20:19.2,1219.2
+,7,479,A. Loew/A. Scott,72,25:25.3,1525.3,196.83,22:08.5,1328.5
+Mixed Masters 4x,1,554,Upper Valley,61,17:13.2,1033.2,104.04,15:29.2,929.2
+Mixed Masters 4x,2,552,CRI,59,18:31.3,1111.3,92.16,16:59.1,1019.1
+,3,550,Megunticook,51,18:25.9,1105.9,51.84,17:34.0,1054.0
+,4,553,CRI B,68,20:20.0,1220.0,151.29,17:48.7,1068.7
+,5,551,Gentle Giant,58,20:19.7,1219.7,86.49,18:53.2,1133.2
+,6,549,Gentle Giant,36,19:12.3,1152.3,7.29,19:05.0,1145.0
+Womens Masters 2x,1,558,J Spiro/F Smith,56,19:28.5,1168.5,81.75,18:06.8,1086.8
+Womens Masters 2x,2,559,A. Bracken/E. Dade,65,20:40.3,1240.3,140.36,18:20.0,1100.0
+Womens Masters 2x,3,557,D. Keller/C. Briere,52,20:19.0,1219.0,60.75,19:18.3,1158.3
+Mens Masters 2x,2,594,M. Mulrooney/P. Orford,53,20:44.7,1244.7,65.71,19:39.0,1179.0
+Mens Masters 2x,3,593,H. Herndon/W. Cormack,30,20:32.7,1232.7,0.87,20:31.8,1231.8

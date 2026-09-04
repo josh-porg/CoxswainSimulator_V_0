@@ -335,12 +335,33 @@ _HEAD = """<!doctype html>
  .sub{margin:0;color:var(--muted);font-size:1.05rem;max-width:46rem}
  .stamp{margin:.9rem 0 0;color:var(--muted);font-size:.8rem;
    text-transform:uppercase;letter-spacing:.09em}
- section{max-width:62rem;margin:0 auto;padding:2.2rem 0 .4rem}
- h2{font-size:1.32rem;margin:0 0 1.1rem;letter-spacing:-.005em}
+ /* Sections are CONTAINERS, not just headings with space around them.
+    A long report of flat text under h2s reads as one undifferentiated
+    scroll; giving each subject a card with its own header bar makes the
+    structure visible at a glance and lets a reader skim by shape. */
+ section{max-width:62rem;margin:0 auto 1.15rem;background:var(--card);
+   border:1px solid var(--rule);border-radius:10px;overflow:hidden;
+   box-shadow:0 1px 2px rgba(0,0,0,.04),0 8px 22px rgba(0,0,0,.035)}
+ @media (prefers-color-scheme: dark){
+   :root:not([data-theme="light"]) section{
+     box-shadow:0 1px 2px rgba(0,0,0,.5),0 8px 22px rgba(0,0,0,.35)}
+ }
+ :root[data-theme="dark"] section{
+   box-shadow:0 1px 2px rgba(0,0,0,.5),0 8px 22px rgba(0,0,0,.35)}
+ section>*{margin-left:1.35rem;margin-right:1.35rem}
+ section>h2{margin:0;padding:.85rem 1.35rem;
+   background:color-mix(in srgb,var(--rule) 26%, transparent);
+   border-bottom:1px solid var(--rule);
+   font:600 .74rem/1.2 ui-sans-serif,system-ui,sans-serif;
+   text-transform:uppercase;letter-spacing:.11em;color:var(--muted)}
+ section>*:nth-child(2){margin-top:1.25rem}
+ section>*:last-child{margin-bottom:1.35rem}
+ h2{font-size:1.32rem;letter-spacing:-.005em}
  h3{font-size:1.02rem;margin:0 0 .35rem;display:flex;gap:.6rem;
    align-items:baseline;flex-wrap:wrap}
- .finding{display:flex;gap:0;background:var(--card);border:1px solid var(--rule);
-   border-radius:3px;margin:0 0 .8rem;overflow:hidden}
+ .finding{display:flex;gap:0;background:transparent;
+   border:1px solid var(--rule);border-radius:8px;
+   margin:0 1.35rem .7rem;overflow:hidden}
  .finding .rail{width:4px;flex:0 0 4px;background:var(--accent)}
  .finding.measured .rail{background:var(--good)}
  .finding.fitted .rail{background:var(--fit)}
@@ -369,10 +390,14 @@ _HEAD = """<!doctype html>
  .note,.caption{color:var(--muted);font-size:.87rem;margin:.7rem 0 0}
  .reading{margin:.7rem 0 0;font-size:.93rem;
    border-left:2px solid var(--rule);padding-left:.9rem}
- figure{margin:0;background:var(--card);border:1px solid var(--rule);
-   border-radius:3px;padding:.7rem}
+ figure{margin:0 1.35rem;background:transparent;
+   border:1px solid var(--rule);border-radius:8px;padding:.7rem}
  img,video{width:100%;height:auto;display:block;border-radius:2px}
- .caveats{border-top:1px solid var(--rule);margin-top:2rem}
+ .caveats li{list-style:none;position:relative;padding-left:1rem}
+ .caveats li::before{content:"";position:absolute;left:0;top:.62em;
+   width:5px;height:5px;border-radius:50%;background:var(--warn);
+   opacity:.75}
+ .caveats ul{padding-left:0}
  .caveats li{margin:0 0 .55rem;color:var(--muted)}
  .missing{color:var(--warn)}
  footer{max-width:62rem;margin:2rem auto 0;padding-top:1.2rem;
@@ -386,18 +411,27 @@ _HEAD = """<!doctype html>
    scrollbar-width:none}
  .tabs::-webkit-scrollbar{display:none}
  .tabs button{flex:0 0 auto;appearance:none;cursor:pointer;
-   background:transparent;color:var(--muted);border:0;
-   border-bottom:2px solid transparent;border-radius:2px 2px 0 0;
-   padding:.5rem .85rem;white-space:nowrap;
-   font:600 .78rem/1.2 ui-sans-serif,system-ui,sans-serif;
-   text-transform:uppercase;letter-spacing:.07em}
- .tabs button:hover{color:var(--ink)}
+   background:transparent;color:var(--muted);
+   border:1px solid transparent;border-radius:999px;
+   padding:.42rem .9rem;white-space:nowrap;
+   font:600 .76rem/1.2 ui-sans-serif,system-ui,sans-serif;
+   text-transform:uppercase;letter-spacing:.07em;
+   transition:background .13s,color .13s,border-color .13s}
+ .tabs button:hover{color:var(--ink);
+   background:color-mix(in srgb,var(--rule) 34%, transparent)}
  .tabs button:focus-visible{outline:2px solid var(--accent);
-   outline-offset:-2px}
- .tabs button[aria-selected="true"]{color:var(--ink);
-   border-bottom-color:var(--accent)}
+   outline-offset:2px}
+ .tabs button[aria-selected="true"]{color:var(--page);
+   background:var(--ink);border-color:var(--ink)}
  .panel[hidden]{display:none}
- .panel>section:first-child{padding-top:1.4rem}
+ .panel>section:first-child{padding-top:0}
+ /* These all set `margin` as a shorthand further up, which zeroes the
+    horizontal inset `section>*` gives them.  Restated here, after those
+    rules, so text lines up with the section header instead of running to
+    the card edge. */
+ section>.detail,section>.source,section>.note,section>.caption,
+ section>.reading,section>p,section>ul,section>ol{
+   margin-left:1.35rem;margin-right:1.35rem}
 </style></head><body>"""
 
 _FOOT = """<footer>Generated from the live model by
