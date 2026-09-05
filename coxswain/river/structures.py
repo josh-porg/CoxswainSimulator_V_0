@@ -68,7 +68,7 @@ class Structures:
     def __init__(self, polygons, heights, sources, canopy, canopy_heights,
                  trees, tree_heights, material=None, kind=None, colour=None,
                  roof_shape=None, roof_height=None, names=None,
-                 spans=(), span_names=()):
+                 spans=(), span_names=(), water=()):
         self.polygons = polygons                  # list of (N, 2) east/north
         self.heights = np.asarray(heights, dtype=float)
         self.height_source = np.asarray(sources, dtype=int)
@@ -105,6 +105,10 @@ class Structures:
         #: crew steers *by*, and it carries no piers, arches or rules.
         self.spans = list(spans)
         self.span_names = list(span_names)
+        #: Water polygons for scenery only -- every wet thing in the
+        #: extract box, not the surveyed racing shoreline.  See
+        #: ``tools/extract_structures.py`` for why the two are separate.
+        self.water = list(water)
         self.canopy = canopy
         self.canopy_heights = np.asarray(canopy_heights, dtype=float)
         self.trees = np.asarray(trees, dtype=float).reshape(-1, 2)
@@ -243,6 +247,8 @@ def load_structures(name: str, origin: Tuple[float, float]) -> Structures:
         spans=split(blob["bridge_xy"], blob["bridge_offsets"])
         if "bridge_xy" in blob.files else [],
         span_names=list(optional("bridge_name")
-                        if optional("bridge_name") is not None else []))
+                        if optional("bridge_name") is not None else []),
+        water=split(blob["water_xy"], blob["water_offsets"])
+        if "water_xy" in blob.files else [])
     _CACHE[key] = structures
     return structures

@@ -299,37 +299,6 @@ def rowable_mask(resolution: float = 10.0, names=("Lake Union",),
     return east, north, water & ~blocked
 
 
-class _MaskChannel:
-    """Adapter so a bare water mask satisfies what ShelteredWind wants.
-
-    :class:`coxswain.hydro.canopy.ShelteredWind` marches upwind over a
-    channel raster; it needs ``water``, ``east``, ``north``,
-    ``resolution`` and ``index_of`` and nothing else.  Building a full
-    :class:`ChannelRaster` here would mean inventing bathymetry to fill
-    fields the wind model never reads.
-    """
-
-    def __init__(self, east, north, mask, resolution):
-        self.east = east
-        self.north = north
-        self.water = mask
-        self.navigable = mask
-        self.resolution = float(resolution)
-
-    def index_of(self, x, y):
-        row = int(np.clip(np.searchsorted(self.north, y), 0,
-                          len(self.north) - 1))
-        column = int(np.clip(np.searchsorted(self.east, x), 0,
-                             len(self.east) - 1))
-        return row, column
-
-
-def lake_union_channel(resolution: float = 10.0):
-    """A minimal channel object over the rowable water, for the wind model."""
-    east, north, mask = rowable_mask(resolution, names=("Lake Union",))
-    return _MaskChannel(east, north, mask, resolution)
-
-
 def fetch_at(point, bearing, resolution: float = 10.0, limit: float = 4000.0,
              mask=None):
     """Metres of open water upwind of ``point``, m.
@@ -367,6 +336,16 @@ def lake_union_channel(resolution: float = 10.0, margin: float = 8.0):
     can use that renderer rather than a second one written to avoid it.
     ``navigable`` is the water with the docks removed; ``depth`` is the
     nominal profile and is **not surveyed**.
+
+    This used to be two functions of the same name -- a ``_MaskChannel``
+    adapter for the wind model and this one for the renderer -- with the
+    second silently shadowing the first, so the wind model would have got
+    a ``ChannelRaster`` without anything saying so.  It turned out the
+    adapter was never needed: ``ChannelRaster`` already exposes the
+    ``east``/``north``/``water``/``navigable``/``resolution``/``index_of``
+    that :class:`~coxswain.hydro.canopy.ShelteredWind` marches over, and
+    the bathymetry the adapter existed to avoid inventing is invented
+    either way by :func:`nominal_depth`, which at least says so.
     """
     from scipy.ndimage import distance_transform_edt
 

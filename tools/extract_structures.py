@@ -378,6 +378,30 @@ def main(argv=None):
           % (len(part_heights), lifted,
              max(heights) if len(heights) else 0.0))
 
+    print(" water bodies, for scenery ...")
+    # Scenery water, kept apart from the racing shoreline on purpose.
+    # ``data/seattle_water.json`` is a carefully stitched set of named
+    # bodies that took several passes to get right, and the optimiser and
+    # the depth field both depend on it; this is a wider, cruder net --
+    # everything wet in the box -- and it exists only so the renderer can
+    # draw Elliott Bay and the ship canal in the distance.
+    #
+    # It is needed because elevation cannot do the job.  Lidar over water
+    # is a specular return, and on Lake Union it comes back so noisy that
+    # thresholding the DEM half a metre above the pool calls 48% of the
+    # lake dry.  A polygon knows where water is; a DEM knows where high
+    # ground is; using each for what it is good at is the same rule that
+    # caught the tile being georeferenced 2.2 km out.
+    wet = ask("[out:json][timeout:300];"
+              "(way[natural=water](%s);relation[natural=water](%s);"
+              "way[waterway=riverbank](%s););out geom;" % (box, box, box))
+    water_xy, water_offsets = [], [0]
+    for element in wet["elements"]:
+        for ring in rings(element):
+            water_xy.append(ring)
+            water_offsets.append(water_offsets[-1] + len(ring))
+    print("   %d water polygons" % (len(water_offsets) - 1))
+
     print(" named bridge decks ...")
     # A bridge is scenery here, not a gate: these are the spans a crew
     # navigates *by* rather than through.  The Aurora Bridge is 47 m over
@@ -456,6 +480,8 @@ def main(argv=None):
         bridge_offsets=np.array(bridge_offsets, dtype=np.int32),
         bridge_name=np.array(bridge_names, dtype="<U48"),
         bridge_layer=np.array(bridge_layer, dtype=np.int8),
+        water_xy=np.concatenate(water_xy) if water_xy else np.zeros((0, 2)),
+        water_offsets=np.array(water_offsets, dtype=np.int32),
         canopy_xy=np.concatenate(canopy) if canopy else np.zeros((0, 2)),
         canopy_offsets=np.array(canopy_offsets, dtype=np.int32),
         canopy_height=np.array(canopy_height, dtype=np.float32),

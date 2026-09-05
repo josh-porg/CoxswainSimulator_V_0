@@ -50,6 +50,47 @@ _WALL = "#8a8079"
 _ROOF = "#5f5a55"
 _CANOPY = "#4a6b45"
 
+#: Wall colour per building class, as RGB in 0-1.
+#:
+#: OpenStreetMap carries ``building:material`` on 1% of Seattle and
+#: ``building:colour`` on half a percent, so colouring by material would
+#: paint 99 buildings in a hundred the same unknown grey -- which is the
+#: grey the render already had.  ``building=*`` is on essentially all of
+#: them, so class is what there is to work with, and a class palette
+#: plus a per-building jitter is an honest picture of a real city block:
+#: it does not claim to know any individual building's colour, only that
+#: a houseboat and a downtown tower are not the same object.
+_KIND_COLOUR = {
+    "other":      (0.55, 0.53, 0.50),
+    "house":      (0.68, 0.63, 0.55),
+    "apartments": (0.60, 0.58, 0.57),
+    "commercial": (0.58, 0.60, 0.63),
+    "office":     (0.52, 0.58, 0.64),
+    "industrial": (0.56, 0.53, 0.47),
+    "civic":      (0.72, 0.70, 0.65),
+    "boathouse":  (0.48, 0.40, 0.32),
+    "houseboat":  (0.52, 0.45, 0.38),
+    "roof":       (0.50, 0.48, 0.46),
+    "garage":     (0.53, 0.51, 0.48),
+    "retail":     (0.62, 0.59, 0.55),
+}
+
+#: Extinction distance for aerial perspective, metres.
+#:
+#: Colour is mixed toward the horizon as ``1 - exp(-d / _HAZE)``.  This
+#: is not decoration: without it the downtown towers 4 km down the lake
+#: render at the same contrast as the boathouse 200 m away, and the eye
+#: reads them as small and near rather than large and far.  Distance on
+#: open water is judged almost entirely by haze.
+_HAZE = 2600.0
+
+#: A building this many metres tall is worth drawing at 1 m of distance.
+#:
+#: Beyond the near window only things that subtend a usable angle are
+#: drawn -- ``height / distance > _SKYLINE_ANGLE`` -- which keeps 40,000
+#: footprints from being extruded to render a horizon made of towers.
+_SKYLINE_ANGLE = 0.012
+
 
 class RiverScene(BoatScene):
     """A :class:`BoatScene` that also knows where the river is."""
@@ -68,9 +109,33 @@ class RiverScene(BoatScene):
     #: bridge in frame while the boat is still a recognisable object.
     PLAN_ALTITUDE = 260.0
 
+    #: How far the distant scenery reaches, metres.
+    #:
+    #: The near window is sized for steering -- a few hundred metres of
+    #: bank at full raster resolution.  Everything a crew *recognises* is
+    #: further off than that: rowing south down Lake Union the downtown
+    #: skyline is 3 to 5 km away and is the thing you steer by.  Drawn
+    #: from a coarse resample of the whole elevation tile, so it costs
+    #: one mesh for the render rather than one per frame.
+    SKYLINE_REACH = 7000.0
+
+    #: Points across the coarse distant surface.
+    SKYLINE_SAMPLES = 320
+
+    #: Ceiling on bank height in the near window, metres.
+    #:
+    #: Guards against a lidar return the bare-earth classifier kept,
+    #: which would otherwise put a wall on the bank.  It was 16 m, which
+    #: was quietly flattening real ground: the Charles climbs to 50 m
+    #: inside the frame and Lake Union is a trench between Queen Anne at
+    #: 139 m and Capitol Hill at 133 m.  At 16 m the near window and the
+    #: distant surface disagreed about the same hillside, leaving a step
+    #: at the edge of the window.
+    MAX_BANK_HEIGHT = 60.0
+
     def __init__(self, boat, result=None, channel=None, gates=(),
                  path=None, window: float = 420.0,
-                 show_structures: bool = True,
+                 show_structures: bool = True, show_skyline: bool = True,
                  structures=None, terrain=None, **kwargs):
         """``structures`` and ``terrain`` default to the Charles.
 
@@ -83,6 +148,7 @@ class RiverScene(BoatScene):
         """
         super().__init__(boat, result=result, **kwargs)
         self.show_structures = bool(show_structures)
+        self.show_skyline = bool(show_skyline)
         self._structures = structures
         self._terrain = terrain
         self.channel = channel
@@ -154,7 +220,8 @@ class RiverScene(BoatScene):
         try:
             bank = self.terrain().height_above_water(
                 grid_x.ravel(), grid_y.ravel()).reshape(grid_x.shape)
-            height = np.where(wet, 0.0, np.clip(bank, 0.6, 16.0))
+            height = np.where(wet, 0.0, np.clip(bank, 0.6,
+                                                self.MAX_BANK_HEIGHT))
         except Exception:
             height = np.where(wet, 0.0, 1.6)
 
@@ -169,6 +236,94 @@ class RiverScene(BoatScene):
         surface.point_data["depth"] = np.where(wet, depth, np.nan).ravel()
         surface.point_data["land"] = (~wet).astype(np.int8).ravel()
         return surface
+
+    def distant_polydata(self):
+        """The whole elevation tile, coarsely, as ground and far water.
+
+        Built once and cached: it does not depend on where the boat is,
+        because it is everything the boat is *not* near.  Water comes
+        from the terrain itself -- anything within half a metre of the
+        pool level -- rather than from the channel raster, which knows
+        only about the racing water.  That is what puts Portage Bay, the
+        ship canal and Elliott Bay in the picture without a second
+        survey.
+        """
+        pv = require_pyvista()
+        if self._distant_mesh is not None:
+            return self._distant_mesh
+        try:
+            terrain = self.terrain()
+        except Exception:
+            self._distant_mesh = False
+            return None
+
+        step = max(len(terrain.east) // self.SKYLINE_SAMPLES, 1)
+        stride = max(len(terrain.north) // self.SKYLINE_SAMPLES, 1)
+        east = terrain.east[::step]
+        north = terrain.north[::stride]
+        elevation = terrain.elevation[::stride, ::step]
+        grid_east, grid_north = np.meshgrid(east, north)
+
+        wet = elevation <= terrain.pool + 0.5
+        height = np.where(wet, 0.0, elevation - terrain.pool)
+
+        surface = pv.StructuredGrid()
+        surface.points = np.column_stack([
+            grid_east.ravel(), grid_north.ravel(),
+            height.ravel() + self.water_level
+            # Dropped a hand's breadth so the full-resolution near window
+            # sits cleanly on top of it instead of z-fighting.
+            - 0.05])
+        surface.dimensions = (len(east), len(north), 1)
+        surface.point_data["land"] = (~wet).astype(np.int8).ravel()
+        self._distant_mesh = surface
+        return surface
+
+    def span_actors(self, plotter, t: float):
+        """Landmark bridge decks -- scenery, not gates.
+
+        A bridge the course does not pass under still matters: it is how
+        a crew knows where they are.  The deck height is taken from the
+        elevation model at the two abutments rather than from a tag,
+        because OpenStreetMap almost never carries one and the ground at
+        each end of a high bridge is, by construction, deck height.
+        """
+        pv = require_pyvista()
+        try:
+            structures = self.structures()
+            terrain = self.terrain()
+        except Exception:
+            return
+        if not getattr(structures, "spans", None):
+            return
+        state = self.state_at(t)
+        origin = self._origin(state)
+        centre = np.asarray(state.position, dtype=float)[:2]
+
+        for name, deck in zip(structures.span_names, structures.spans):
+            if len(deck) < 3:
+                continue
+            length = float(np.hypot(*np.diff(deck, axis=0).T).sum())
+            gap = float(np.linalg.norm(deck.mean(axis=0) - centre))
+            # Only spans big enough to read at the distance they are.
+            if length < 120.0 or gap > self.SKYLINE_REACH:
+                continue
+            if length / max(gap, 1.0) < 0.02:
+                continue
+            ends = terrain.at(deck[[0, -1], 0], deck[[0, -1], 1])
+            level = float(max(ends.max(), terrain.pool + 3.0))
+            points = np.column_stack([
+                deck[:, 0] - origin[0], deck[:, 1] - origin[1],
+                np.full(len(deck), level)])
+            try:
+                ribbon = pv.lines_from_points(points).tube(
+                    radius=max(4.0, 0.012 * length), n_sides=4)
+            except Exception:
+                continue
+            plotter.add_mesh(ribbon, color=_DECK, name="span-%s" % name,
+                             ambient=0.30, diffuse=0.75)
+
+    _distant_mesh = None
 
     def bridge_actors(self, plotter, t: float):
         """Decks, piers and arch markers within sight of the boat."""
@@ -222,23 +377,97 @@ class RiverScene(BoatScene):
                             name="arch-%s-%d%s" % (gate.name, arch.index,
                                                    side))
 
-    def structure_polydata(self, t: float):
-        """Buildings and tree canopy within sight, as one merged mesh.
+    def building_colours(self, structures, index, distance):
+        """Wall and roof colour for one building, as RGB in 0-1.
 
-        The DEM is bare earth, so without this the coxswain view shows a
-        river running through empty fields -- which is not what steering
-        the Charles looks like and, more to the point, hides the only
-        landmarks a crew has between bridges.
+        Three inputs, in order of how much they are trusted.  A tagged
+        ``building:colour`` wins outright, because somebody looked.
+        Failing that the class palette, because ``building=*`` is on
+        almost everything.  On top of either, a deterministic jitter
+        keyed to the footprint's own position -- so the same building is
+        the same colour in every frame, and a street is not one flat
+        slab, without pretending to know which house is cream.
 
-        Everything is merged into a single mesh rather than added as one
-        actor per building.  Forty separate actors per frame is what
-        turned a render of the Powerhouse Stretch into a slideshow.
+        Finally the whole thing is mixed toward the horizon by distance.
         """
+        rgb = structures.colour[index]
+        if rgb[0] < 0.0:
+            kind = structures.KINDS[int(structures.kind[index])]
+            rgb = np.array(_KIND_COLOUR.get(kind, _KIND_COLOUR["other"]))
+        else:
+            rgb = np.asarray(rgb, dtype=float)
+
+        # Jitter from the coordinates themselves: stable across frames
+        # and across runs, and free of any per-frame random state.
+        east, north = structures.centres[index]
+        seed = (np.sin(east * 12.9898 + north * 78.233) * 43758.5453) % 1.0
+        rgb = np.clip(rgb * (0.86 + 0.28 * seed), 0.0, 1.0)
+
+        # A roof is seen at a glancing angle from a seat 0.7 m off the
+        # water and nearly face-on from the skyline; either way it is the
+        # edge that separates one building from the next.
+        roof = np.clip(rgb * 0.72, 0.0, 1.0)
+
+        haze = 1.0 - np.exp(-max(distance, 0.0) / _HAZE)
+        sky = np.array([0.62, 0.72, 0.78])
+        return (rgb + (sky - rgb) * haze, roof + (sky - roof) * haze)
+
+    def _extrude(self, structures, index, terrain, distance):
+        """One building as a coloured solid, or ``None``."""
         pv = require_pyvista()
+        ring = structures.polygons[index]
+        if len(ring) < 4:
+            return None
+        base = float(terrain.at(*ring.mean(axis=0))[0])
+        height = float(structures.heights[index])
+        points = np.column_stack([ring[:, 0], ring[:, 1],
+                                  np.full(len(ring), base)])
+        face = np.concatenate([[len(points)], np.arange(len(points))])
+        try:
+            solid = pv.PolyData(points, faces=face).extrude(
+                (0.0, 0.0, height), capping=True)
+        except Exception:
+            return None
+        wall, roof = self.building_colours(structures, index, distance)
+        # The cap sits at the top; the walls are quads spanning the
+        # height, so their centres are at mid-height.  Splitting on the
+        # centre height is enough to tell them apart and does not need
+        # normals computed over the merged mesh.
+        try:
+            centres = solid.cell_centers().points[:, 2]
+        except Exception:
+            centres = np.zeros(solid.n_cells)
+        is_roof = centres > base + height - max(0.15 * height, 0.2)
+        colours = np.where(is_roof[:, None], roof[None, :], wall[None, :])
+        solid.cell_data["rgb"] = (colours * 255).astype(np.uint8)
+        return solid
+
+    def structure_polydata(self, t: float):
+        """Buildings within sight, as one merged mesh with colour.
+
+        Two tiers, because "within sight" means two different things.
+
+        **Near**, out to the terrain window: everything, because at 200 m
+        a boathouse is a landmark and the DEM is bare earth, so without
+        this the coxswain view is a river through empty fields.
+
+        **Skyline**, out to :attr:`SKYLINE_REACH`: only what subtends a
+        real angle, ``height / distance > _SKYLINE_ANGLE``.  Rowing down
+        Lake Union you are looking straight at downtown Seattle 4 km
+        away, and it is both the most recognisable thing in the frame and
+        far too much geometry to draw in full -- 40,000 footprints, of
+        which about a hundred are actually visible from the water.
+
+        Everything is merged into a single mesh rather than one actor per
+        building.  Forty separate actors per frame is what turned a
+        render of the Powerhouse Stretch into a slideshow.
+        """
+        require_pyvista()
         state = self.state_at(t)
         origin = self._origin(state)
         centre = np.asarray(state.position, dtype=float)[:2]
-        key = (round(centre[0] / 60.0), round(centre[1] / 60.0))
+        key = (round(centre[0] / 60.0), round(centre[1] / 60.0),
+               bool(self.show_skyline))
         if self._structure_key == key and self._structure_mesh is not None:
             return self._structure_mesh, origin
 
@@ -250,22 +479,25 @@ class RiverScene(BoatScene):
             return None, origin
 
         reach = self.window * 1.4
+        near = structures.near(centre[0], centre[1], reach)
+        chosen = list(near)
+        if self.show_skyline and len(structures.centres):
+            offset = structures.centres - centre
+            gap = np.hypot(offset[:, 0], offset[:, 1])
+            visible = ((gap > reach) & (gap < self.SKYLINE_REACH)
+                       & (structures.heights > gap * _SKYLINE_ANGLE))
+            # Tallest first, and capped: past a few hundred the silhouette
+            # stops changing and the render time does not.
+            far = np.nonzero(visible)[0]
+            far = far[np.argsort(-structures.heights[far])][:400]
+            chosen.extend(far.tolist())
+
         parts = []
-        for index in structures.near(centre[0], centre[1], reach):
-            ring = structures.polygons[index]
-            if len(ring) < 4:
-                continue
-            base = float(terrain.at(*ring.mean(axis=0))[0])
-            points = np.column_stack([ring[:, 0], ring[:, 1],
-                                      np.full(len(ring), base)])
-            face = np.concatenate([[len(points)], np.arange(len(points))])
-            try:
-                solid = pv.PolyData(points, faces=face).extrude(
-                    (0.0, 0.0, float(structures.heights[index])),
-                    capping=True)
-            except Exception:
-                continue
-            parts.append(solid)
+        for index in chosen:
+            gap = float(np.linalg.norm(structures.centres[index] - centre))
+            solid = self._extrude(structures, index, terrain, gap)
+            if solid is not None:
+                parts.append(solid)
         if not parts:
             self._structure_key, self._structure_mesh = key, None
             return None, origin
@@ -352,6 +584,14 @@ class RiverScene(BoatScene):
         if view == "cox":
             plotter.camera_position = self.cox_camera(self._camera_time)
             plotter.camera.view_angle = 70.0     # roughly human, seated
+            # VTK derives the clipping range from the visible bounds only
+            # when the camera is reset, and this camera is placed by hand.
+            # Left alone the far plane lands a few hundred metres out and
+            # silently removes the skyline -- the geometry is built, sent
+            # and then clipped, which looks exactly like not having built
+            # it.  The near plane stays small because the stroke coach is
+            # about a metre from the eye.
+            plotter.camera.clipping_range = (0.35, self.SKYLINE_REACH * 1.6)
             return
         if view == "plan":
             state = self.state_at(self._camera_time)
@@ -373,6 +613,7 @@ class RiverScene(BoatScene):
             focus = state.position - origin
             plotter.camera_position = [tuple(eye), tuple(focus),
                                        (0.0, 0.0, 1.0)]
+            plotter.camera.clipping_range = (1.0, self.SKYLINE_REACH * 1.6)
             return
         super()._camera(plotter, view=view, zoom=zoom)
 
@@ -409,6 +650,18 @@ class RiverScene(BoatScene):
         except Exception:
             pass
 
+        if self.show_skyline:
+            distant = self.distant_polydata()
+            if distant:
+                state = self.state_at(t)
+                shifted = distant.copy()
+                shifted.points = shifted.points - np.array(
+                    [self._origin(state)[0], self._origin(state)[1], 0.0])
+                plotter.add_mesh(shifted, scalars="land",
+                                 cmap=[_WATER, _BANK], show_scalar_bar=False,
+                                 name="distant", smooth_shading=True,
+                                 ambient=0.45, diffuse=0.60, specular=0.0)
+
         terrain = self.terrain_polydata(t)
         if terrain is not None:
             plotter.add_mesh(terrain, scalars="land", cmap=[_WATER, _BANK],
@@ -421,8 +674,14 @@ class RiverScene(BoatScene):
                 shifted = solids.copy()
                 shifted.points = shifted.points - np.array(
                     [origin[0], origin[1], 0.0])
-                plotter.add_mesh(shifted, color=_WALL, name="buildings",
-                                 ambient=0.30, diffuse=0.80, specular=0.02)
+                if "rgb" in shifted.cell_data:
+                    plotter.add_mesh(shifted, scalars="rgb", rgb=True,
+                                     name="buildings", ambient=0.42,
+                                     diffuse=0.70, specular=0.04)
+                else:
+                    plotter.add_mesh(shifted, color=_WALL, name="buildings",
+                                     ambient=0.30, diffuse=0.80,
+                                     specular=0.02)
             crowns = self.canopy_polydata(t)
             if crowns is not None:
                 shifted = crowns.copy()
@@ -431,6 +690,8 @@ class RiverScene(BoatScene):
                 plotter.add_mesh(shifted, color=_CANOPY, name="trees",
                                  ambient=0.35, diffuse=0.70, specular=0.0)
         self.bridge_actors(plotter, t)
+        if self.show_skyline:
+            self.span_actors(plotter, t)
         line = self.path_polydata(t)
         if line is not None:
             plotter.add_mesh(line, color=_LINE, line_width=4,
