@@ -118,9 +118,15 @@ _OBSTRUCTION_STYLE = {
 #: Lighting it again -- and PyVista's default "light kit" is a warm key
 #: with a cool fill -- double-lights it and shifts the colour: Lake
 #: Union's water is (0.13, 0.22, 0.26) in the photograph, blue, and came
-#: out (16, 45, 40) on screen, green.  A little diffuse is kept so the
-#: hills still read as hills.
-_PHOTO_LIGHTING = {"ambient": 0.92, "diffuse": 0.12, "specular": 0.0}
+#: out (16, 45, 40) on screen, green.
+#:
+#: Turned off entirely rather than turned down.  Keeping 12% diffuse for
+#: the sake of the hills still left the water at (6, 42, 43) against a
+#: photographic (15, 37, 48) -- the shift is small but it is a shift in
+#: *hue*, which the eye reads far more readily than brightness.  The
+#: hills do not need it: the photograph already has the slope shading
+#: and the shadows in it, because the sun was out when it was taken.
+_PHOTO_LIGHTING = {"lighting": False}
 
 #: A building this many metres tall is worth drawing at 1 m of distance.
 #:

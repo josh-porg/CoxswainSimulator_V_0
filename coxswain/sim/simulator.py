@@ -443,7 +443,15 @@ class RowingSimulator:
         # dominate at large amplitude; this is what actually damps small
         # motions, and without it a mode with any energy going into it
         # grows unopposed.  See :mod:`coxswain.hydro.radiation`.
-        linear = self.damping_matrix
+        linear = self.damping_matrix.copy()
+        # Ikeda's roll lift is linear in forward speed and independent of
+        # roll frequency, so it belongs here against the speed the boat
+        # actually has, not frozen into the cached matrix.  At 4 m/s it
+        # is the largest roll damping term there is; at rest it is zero
+        # and only Kato friction remains, which is why a stationary shell
+        # is so much harder to balance than a moving one.
+        linear[3, 3] = linear[3, 3] + self._strip_damping.roll_lift(
+            float(velocity_hull[0]), boat.water.density)
         rates = np.concatenate([velocity_hull, np.asarray(state.omega_hull)])
         # Surge is deliberately zero in the matrix: the longitudinal wave
         # making is already Michell's integral above, and adding a
@@ -612,7 +620,7 @@ class RowingSimulator:
 
     @property
     def damping_matrix(self) -> np.ndarray:
-        """Linear 6x6 hull damping, built once per boat.
+        r"""Linear 6x6 hull damping, built once per boat.
 
         Each mode is evaluated at **its own** natural frequency, because
         radiation damping goes as :math:`\omega^{-3}` and using one
@@ -631,13 +639,15 @@ class RowingSimulator:
                 boat.offsets, boat.total_mass, self.pitch_inertia, rho)
             heave = modes["heave"] or 0.0
             pitch = modes["pitch"] or heave
-            speed = float(getattr(self, "_reference_speed", 0.0) or 0.0)
-
             # Assemble mode by mode so each is evaluated at its own
-            # frequency, then take the terms that belong to it.
+            # frequency, then take the terms that belong to it.  Speed is
+            # left at zero here: the only speed-dependent term is Ikeda's
+            # roll lift, which is linear in U and therefore has to be
+            # added per step against the instantaneous speed rather than
+            # frozen into a cached matrix.
             matrix = np.zeros((6, 6))
-            at_heave = self._strip_damping.matrix(heave, rho, speed=speed)
-            at_pitch = self._strip_damping.matrix(pitch, rho, speed=speed)
+            at_heave = self._strip_damping.matrix(heave, rho, speed=0.0)
+            at_pitch = self._strip_damping.matrix(pitch, rho, speed=0.0)
             matrix[1, 1] = at_heave[1, 1]
             matrix[2, 2] = at_heave[2, 2]
             matrix[5, 5] = at_heave[5, 5]
@@ -646,7 +656,7 @@ class RowingSimulator:
             # Coupling at the mean of the two, which is the honest
             # compromise for a term that belongs to both modes.
             mean = 0.5 * (heave + pitch)
-            at_mean = self._strip_damping.matrix(mean, rho, speed=speed)
+            at_mean = self._strip_damping.matrix(mean, rho, speed=0.0)
             matrix[2, 4] = matrix[4, 2] = at_mean[2, 4]
             matrix[1, 5] = matrix[5, 1] = at_mean[1, 5]
             self._damping_matrix = matrix

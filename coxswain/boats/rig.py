@@ -194,13 +194,20 @@ class Rig:
     def coxswain_eye_height(self) -> float:
         """Height of the coxswain's eye above their seat reference, m.
 
-        0.70 m seated upright; 0.25 m for a bow-loader, who is lying on
-        their back with their head raised just enough to see over the
-        bow.  This is why bow-loading is hard to steer from and why the
-        3-D scene is worth having: from there the crew is behind you and
-        there is nothing in the frame but water.
+        0.70 m seated upright.  0.40 m for a bow-loader, who is lying on
+        their back with their head propped just clear of the gunwale --
+        which on this hull is 0.25 m of freeboard, so the eye sits about
+        0.17 m above the deck edge and no higher.  Set at 0.25 m first,
+        which put the eye two centimetres over the gunwale and rendered
+        the inside of the boat: a bow-loader sees over the bow, not along
+        the bilge.
+
+        This is why bow-loading is hard to steer from, and why the 3-D
+        scene is worth having: from there the crew is behind you, the
+        view is a hand's breadth off the water, and there is nothing in
+        the frame to steer by but the far shore.
         """
-        return 0.25 if self.coxswain_reclined else 0.70
+        return 0.40 if self.coxswain_reclined else 0.70
 
     @property
     def n_seats(self) -> int:
