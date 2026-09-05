@@ -163,9 +163,9 @@ def main(argv=None):
     rows = np.clip(np.searchsorted(grid_north, north), 0, len(grid_north) - 1)
     columns = np.clip(np.searchsorted(grid_east, east), 0, len(grid_east) - 1)
     keep = (wet[rows, columns] & (depth > MIN_DEPTH) & (depth < MAX_DEPTH))
-    print("  %d inside Lake Union and believable" % keep.sum())
+    print("  %d inside the ship canal and believable" % keep.sum())
     if not keep.sum():
-        raise SystemExit("nothing inside the lake -- check the survey")
+        raise SystemExit("nothing inside the canal -- check the survey")
     east, north, depth = east[keep], north[keep], depth[keep]
 
     # Thin to a grid, median per cell.

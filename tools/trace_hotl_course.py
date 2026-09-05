@@ -157,8 +157,11 @@ def _iou(small, mask, r, c):
     a = flipped[gr0 - r:gr1 - r, gc0 - c:gc1 - c]
     b = mask[gr0:gr1, gc0:gc1]
     inter = np.logical_and(a, b).sum()
-    union = np.logical_or(a, b).sum() + (flipped.sum() - a.sum()) \
-        + (mask.sum() - b.sum())
+    # Union over the map's own footprint only.  The shoreline mask runs
+    # a kilometre further into Lake Washington than the map's east edge;
+    # water the map cannot show is not evidence against where it sits.
+    # Map water that falls off the grid still counts against it.
+    union = np.logical_or(a, b).sum() + (flipped.sum() - a.sum())
     return inter / union if union else 0.0
 
 
@@ -188,9 +191,13 @@ def main(argv=None):
           % (x1 - x0, x0, x1, y, metres_per_pixel))
 
     map_water = band(image, "water")
-    # The legend box and the inset are drawn on the same blue; cut them.
-    map_water[700:, :1350] = False        # legend, lower left
-    map_water[560:, 1360:] = False        # Pocock inset, lower right
+    # The legend box and the inset are drawn on the same blue; cut them
+    # -- and only them.  The first version blanked everything below row
+    # 700 on the left, which took the legend and the entire south lobe
+    # of Lake Union with it, and the registration then had 2.8 km2 of
+    # map water to match against 6 km2 of shoreline.
+    map_water[725:1215, 655:1335] = False     # legend box
+    map_water[570:1205, 1360:1995] = False    # Pocock Turn inset
     # Anti-aliased edges of every road and label leave single blue
     # pixels all over the land; an opening removes anything under about
     # 10 m across and leaves the water, which is thousands of pixels.
