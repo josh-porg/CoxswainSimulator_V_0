@@ -52,6 +52,8 @@ from typing import Tuple
 import numpy as np
 
 from .course import Course, CurrentField, DepthField
+from .osm import is_closed
+from .osm import stitch_rings as _stitch_rings
 
 __all__ = ["SEATTLE_ORIGIN", "water_path", "load_water", "water_mask",
            "nominal_depth", "lake_union_course", "TOTL_LENGTH",
@@ -131,50 +133,6 @@ def load_water(path: str = None):
     return tuple(payload["origin"]), tuple(pieces)
 
 
-def stitch_rings(fragments, tolerance: float = 5.0):
-    """Join open ways into closed rings.
-
-    OpenStreetMap returns a large lake as a **multipolygon relation whose
-    members are open ways**, each a piece of the shoreline.  Running
-    point-in-polygon on a fragment treats it as if its two ends were
-    joined, which fills whatever that chord happens to enclose.
-
-    That is not a subtle failure.  Doing it to Lake Union produced a
-    narrow Y-shape of 0.592 km2 against the lake's real 2.1 km2 -- and it
-    survived every numeric check in this module, because a wrong mask
-    still yields a plausible-looking lap, fetch and dock fraction.  It
-    fell over the moment somebody drew a picture of it.
-    """
-    remaining = [np.asarray(f, dtype=float) for f in fragments
-                 if len(f) >= 2]
-    rings = []
-    while remaining:
-        chain = remaining.pop(0)
-        extended = True
-        while extended and not _closed(chain, tolerance):
-            extended = False
-            for index, candidate in enumerate(remaining):
-                for piece in (candidate, candidate[::-1]):
-                    if np.hypot(*(piece[0] - chain[-1])) <= tolerance:
-                        chain = np.vstack([chain, piece[1:]])
-                    elif np.hypot(*(piece[-1] - chain[0])) <= tolerance:
-                        chain = np.vstack([piece[:-1], chain])
-                    else:
-                        continue
-                    remaining.pop(index)
-                    extended = True
-                    break
-                if extended:
-                    break
-        if len(chain) >= 4:
-            rings.append(chain)
-    return rings
-
-
-def _closed(ring: np.ndarray, tolerance: float) -> bool:
-    return len(ring) >= 4 and np.hypot(*(ring[-1] - ring[0])) <= tolerance
-
-
 def _inside(polygon: np.ndarray, points: np.ndarray) -> np.ndarray:
     """Ray-crossing point-in-polygon, vectorised over ``points``."""
     x, y = points[:, 0], points[:, 1]
@@ -189,6 +147,17 @@ def _inside(polygon: np.ndarray, points: np.ndarray) -> np.ndarray:
             crossing = ax + (y - ay) * (bx - ax) / (by - ay)
         inside ^= straddles & (x < crossing)
     return inside
+
+
+#: Re-exported from :mod:`coxswain.river.osm`, where it lives because it
+#: is a fact about OpenStreetMap rather than about Lake Union.  Imported
+#: rather than copied: the last time a shoreline filter existed in two
+#: places, fixing one of them changed nothing.
+stitch_rings = _stitch_rings
+
+
+def _closed(ring, tolerance):
+    return is_closed(ring, tolerance)
 
 
 def water_mask(resolution: float = 10.0, names=("Lake Union",

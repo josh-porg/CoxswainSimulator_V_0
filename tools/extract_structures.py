@@ -47,6 +47,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from coxswain.river.osm import stitch_rings              # noqa: E402
 from coxswain.river.terrain import DEM_BOUNDS            # noqa: E402
 
 ENDPOINT = "https://overpass-api.de/api/interpreter"
@@ -396,11 +397,29 @@ def main(argv=None):
               "(way[natural=water](%s);relation[natural=water](%s);"
               "way[waterway=riverbank](%s););out geom;" % (box, box, box))
     water_xy, water_offsets = [], [0]
+    fragments = 0
     for element in wet["elements"]:
-        for ring in rings(element):
+        if element["type"] == "way":
+            pieces = rings(element)
+        else:
+            # A relation's outer members are open ways -- pieces of one
+            # shoreline, not polygons.  Filling each on its own closes it
+            # across a chord and encloses whatever that chord happens to
+            # cut off; done to Lake Union it recovered a fifth of the
+            # lake.  Stitch first, then fill.  Tolerance is in degrees
+            # here, since these are still latitude and longitude: 5e-5
+            # is about 5 m.
+            members = [np.array([(p["lat"], p["lon"]) for p in geom])
+                       for geom in (m.get("geometry") for m in
+                                    element.get("members", ()))
+                       if geom and len(geom) >= 2]
+            fragments += len(members)
+            pieces = stitch_rings(members, tolerance=5e-5)
+        for ring in pieces:
             water_xy.append(ring)
             water_offsets.append(water_offsets[-1] + len(ring))
-    print("   %d water polygons" % (len(water_offsets) - 1))
+    print("   %d water polygons (%d relation fragments stitched)"
+          % (len(water_offsets) - 1, fragments))
 
     print(" named bridge decks ...")
     # A bridge is scenery here, not a gate: these are the spans a crew

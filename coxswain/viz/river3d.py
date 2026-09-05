@@ -237,16 +237,54 @@ class RiverScene(BoatScene):
         surface.point_data["land"] = (~wet).astype(np.int8).ravel()
         return surface
 
+    def distant_water(self, east, north):
+        """Boolean water over a coarse grid, from polygons not elevation.
+
+        Lidar over water is a specular return and comes back badly
+        behaved: over Lake Union the bare-earth product scatters from the
+        pool level up past 7 m, so calling anything within half a metre
+        of the pool "water" marks **48% of the lake as dry land** -- which
+        is exactly what the first render showed, a four sitting on a tan
+        plain.  No threshold fixes it either: loose enough to recover the
+        lake (pool + 3 m) drowns 5.6% of the surrounding land.
+
+        So the elevation model is not asked.  OpenStreetMap's water
+        polygons are, and the DEM is left to do the thing it is good at,
+        which is the shape of the ground.
+        """
+        try:
+            structures = self.structures()
+        except Exception:
+            return None
+        polygons = getattr(structures, "water", None)
+        if not polygons:
+            return None
+        from matplotlib.path import Path
+
+        grid_east, grid_north = np.meshgrid(east, north)
+        points = np.column_stack([grid_east.ravel(), grid_north.ravel()])
+        wet = np.zeros(len(points), dtype=bool)
+        for ring in polygons:
+            if len(ring) < 3:
+                continue
+            low, high = ring.min(axis=0), ring.max(axis=0)
+            inside = np.nonzero(~wet
+                                & (points[:, 0] >= low[0])
+                                & (points[:, 0] <= high[0])
+                                & (points[:, 1] >= low[1])
+                                & (points[:, 1] <= high[1]))[0]
+            if not len(inside):
+                continue
+            wet[inside] = Path(ring).contains_points(points[inside])
+        return wet.reshape(grid_east.shape)
+
     def distant_polydata(self):
         """The whole elevation tile, coarsely, as ground and far water.
 
         Built once and cached: it does not depend on where the boat is,
         because it is everything the boat is *not* near.  Water comes
-        from the terrain itself -- anything within half a metre of the
-        pool level -- rather than from the channel raster, which knows
-        only about the racing water.  That is what puts Portage Bay, the
-        ship canal and Elliott Bay in the picture without a second
-        survey.
+        from :meth:`distant_water`, which puts Portage Bay, the ship
+        canal and Elliott Bay in the picture without a second survey.
         """
         pv = require_pyvista()
         if self._distant_mesh is not None:
@@ -264,8 +302,13 @@ class RiverScene(BoatScene):
         elevation = terrain.elevation[::stride, ::step]
         grid_east, grid_north = np.meshgrid(east, north)
 
-        wet = elevation <= terrain.pool + 0.5
-        height = np.where(wet, 0.0, elevation - terrain.pool)
+        wet = self.distant_water(east, north)
+        if wet is None:
+            # Nothing else to go on.  Generous, because on this fallback
+            # a lake drawn as land is a worse picture than a low field
+            # drawn as water.
+            wet = elevation <= terrain.pool + 2.0
+        height = np.where(wet, 0.0, np.maximum(elevation - terrain.pool, 0.0))
 
         surface = pv.StructuredGrid()
         surface.points = np.column_stack([
