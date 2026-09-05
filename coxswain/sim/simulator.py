@@ -142,8 +142,11 @@ class RowingSimulator:
         #: :meth:`coxswain.hydro.addedmass.AddedMass.coriolis`.
         self.munk_factor = float(munk_factor)
         from ..hydro.crossflow import CrossFlowHull
+        from ..hydro.heaveflow import HeaveFlowHull
         #: Station table for the distributed cross-flow integral.
         self._cross_flow = CrossFlowHull(boat.offsets)
+        self._heave_flow = HeaveFlowHull(boat.offsets)
+        self._heave_frequency = None
         if added_mass is True:
             from ..hydro.addedmass import AddedMass
             self._added_mass = AddedMass.from_offsets(
@@ -403,6 +406,36 @@ class RowingSimulator:
         resistance_hull[1] = sway_force
         resistance_moment_hull[2] = yaw_moment
 
+        # The same thing again, in the vertical plane, where it had never
+        # been done.  The heave force was lumped at the origin, and a
+        # force at the origin exerts no moment about it, so the hull had
+        # **no pitch damping at all**.
+        #
+        # A coxed four at rate 30 went unstable on that: the response was
+        # at 0.867 Hz, no harmonic of the 0.5 Hz stroke, so it was the
+        # boat's own heave/pitch mode growing unopposed -- 25 degrees of
+        # pitch and 1.5 m of heave over a race leg.  Rates 30 and 32
+        # diverged and 18, 22, 26, 28, 36 did not, and a resonance that
+        # narrow is itself the symptom: a real hull's pitch response is
+        # broad because it is well damped.
+        #
+        # The linear radiation term matters as much as the moment does.
+        # Quadratic damping goes as ``w|w|`` and so dies faster than the
+        # energy going in as the amplitude falls, leaving small motions
+        # effectively undamped.  See :mod:`coxswain.hydro.heaveflow`.
+        plan_design = self._heave_flow.plan_area
+        vertical_immersion = 1.0
+        if plan_design > 0.0:
+            vertical_immersion = float(submerged.plan_area) / plan_design
+        heave_force, pitch_moment = self._heave_flow.load(
+            velocity_hull[2], float(state.omega_hull[1]),
+            boat.water.density, boat.resistance.cross_flow_vertical,
+            vertical_immersion,
+            frequency=self.heave_frequency,
+        )
+        resistance_hull[2] = heave_force
+        resistance_moment_hull[1] = pitch_moment
+
         deflection = float(self.coxswain.rudder(t, state))
         appendage_force_hull = np.zeros(3)
         appendage_moment_hull = np.zeros(3)
@@ -526,6 +559,41 @@ class RowingSimulator:
         return out
 
     # -- dynamics ---------------------------------------------------------
+    @property
+    def heave_frequency(self) -> float:
+        """Undamped heave natural frequency of the hull, rad/s.
+
+        Wanted because wave-radiation damping is frequency dependent and
+        a time-domain model cannot carry that without a convolution.
+        Evaluating it once at the natural frequency is the standard
+        constant-coefficient simplification, and it is the right
+        frequency here because that mode is the one that was going
+        unstable.
+
+        Computed from the project's own numbers rather than assumed:
+        restoring stiffness is :math:`\rho g A_{wp}` with the waterplane
+        area the integral of waterline beam, and the mass is the boat
+        plus the strip-theory heave added mass from
+        :mod:`coxswain.hydro.addedmass`.  Both are already used
+        elsewhere, so this introduces no new coefficient.
+        """
+        if self._heave_frequency is None:
+            import numpy as _np
+
+            from ..hydro.addedmass import sectional_heave
+            boat = self.boat
+            rho = boat.water.density
+            table = self._heave_flow
+            waterplane = table.plan_area
+            added = float(_np.trapezoid(
+                sectional_heave(table.beam, rho), table.station))
+            mass = float(boat.total_mass) + added
+            stiffness = rho * 9.80665 * waterplane
+            self._heave_frequency = (
+                float(_np.sqrt(stiffness / mass)) if mass > 0.0
+                and stiffness > 0.0 else 0.0)
+        return self._heave_frequency
+
     def derivative(self, t: float, y: np.ndarray) -> np.ndarray:
         """State derivative, in the form ``solve_ivp`` expects."""
         state = State.from_vector(y)

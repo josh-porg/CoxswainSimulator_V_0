@@ -112,6 +112,16 @@ _OBSTRUCTION_STYLE = {
     "breakwater": (1.8, "#5d5c58", 3.0),
 }
 
+#: Lighting for a surface that already carries its own.
+#:
+#: An orthophoto was taken in real sunlight and has the shadows in it.
+#: Lighting it again -- and PyVista's default "light kit" is a warm key
+#: with a cool fill -- double-lights it and shifts the colour: Lake
+#: Union's water is (0.13, 0.22, 0.26) in the photograph, blue, and came
+#: out (16, 45, 40) on screen, green.  A little diffuse is kept so the
+#: hills still read as hills.
+_PHOTO_LIGHTING = {"ambient": 0.92, "diffuse": 0.12, "specular": 0.0}
+
 #: A building this many metres tall is worth drawing at 1 m of distance.
 #:
 #: Beyond the near window only things that subtend a usable angle are
@@ -924,8 +934,7 @@ class RiverScene(BoatScene):
                 if photo is not None:
                     plotter.add_mesh(shifted, texture=photo,
                                      name="distant", smooth_shading=True,
-                                     ambient=0.65, diffuse=0.45,
-                                     specular=0.0)
+                                     **_PHOTO_LIGHTING)
                 else:
                     plotter.add_mesh(shifted, scalars="land",
                                      cmap=[_WATER, _BANK],
@@ -939,7 +948,7 @@ class RiverScene(BoatScene):
             if photo is not None:
                 plotter.add_mesh(terrain, texture=photo, name="terrain",
                                  smooth_shading=True, opacity=1.0,
-                                 ambient=0.60, diffuse=0.50, specular=0.02)
+                                 **_PHOTO_LIGHTING)
             else:
                 plotter.add_mesh(terrain, scalars="land",
                                  cmap=[_WATER, _BANK],

@@ -48,7 +48,8 @@ def totl_course(resolution: float = 10.0) -> Course:
 
     Half-width comes from the distance transform of the **rowable** water,
     so the corridor the optimiser is allowed to use already has the docks
-    taken out of it.
+    taken out of it -- with no floor under it, which is the whole point.
+    See the note at the half-width computation below.
     """
     from scipy.ndimage import distance_transform_edt, label
 
@@ -60,7 +61,33 @@ def totl_course(resolution: float = 10.0) -> Course:
 
     columns = np.clip(np.searchsorted(east, line[:, 0]), 0, len(east) - 1)
     rows = np.clip(np.searchsorted(north, line[:, 1]), 0, len(north) - 1)
-    half = np.maximum(clearance[rows, columns], 8.0)
+
+    # The corridor is the clearance, and **only** the clearance.
+    #
+    # This used to read ``np.maximum(clearance, 8.0)``, a floor put there
+    # to stop the corridor collapsing to nothing where the traced line
+    # grazes a dock.  What it actually did was hand the optimiser eight
+    # metres of room in exactly the places there was none: 23% of the
+    # optimised line came out with under 5 m to the nearest pier, and the
+    # 3-D render showed a marina passing through the boat.  A floor on a
+    # constraint is not a safety margin, it is the constraint switched
+    # off where it binds hardest.
+    #
+    # Where the traced line itself is inside a structure the clearance is
+    # zero and the corridor is zero, which pins the route to the drawn
+    # line there rather than inventing water.  That is the honest answer:
+    # the map says the race goes here, and the dock survey says there is
+    # no room, and this code cannot settle which is wrong.
+    # Half a metre, not zero, because ``Course`` requires a positive
+    # width -- and not eight, which is what was there.  At 0.5 m the
+    # route is pinned to the traced line where the docks bind, which is
+    # the honest answer rather than a comfortable one.
+    half = np.maximum(clearance[rows, columns], 0.5)
+    pinched = int((half < 8.0).sum())
+    if pinched:
+        print("  NOTE: %d of %d stations (%.0f%%) have under 8 m of "
+              "clearance;" % (pinched, len(half), 100.0 * pinched / len(half)))
+        print("        the corridor is pinned to the traced line there.")
 
     # -- buoys as ONE-SIDED limits ------------------------------------
     # "Keep red triangle buoys to port, green to starboard."  A buoy does

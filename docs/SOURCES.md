@@ -8053,3 +8053,99 @@ crew benchmarks itself before the entry deadline against opponents it has
 raced locally. **Tail of the Lake × 1.2175** and **Textile × 1.1237** give
 a predicted Charles time; §101's thresholds say whether that wins, medals
 or requalifies.
+
+## 109. The world the boat rows through: elevation, imagery, and 53,710 measured buildings
+
+Everything in a 3-D render that is not the boat is data, and until this
+section it was data with no provenance page. Full guide in
+[SCENERY.md](SCENERY.md); this records what was fetched, what it cost,
+and the three ways it failed silently first.
+
+**Elevation.** USGS 3DEP bare-earth DEM, public domain, via the
+`3DEPElevation` ImageServer. `tools/fetch_dem.py` is new and generic; the
+Charles tile had been exported by hand with the recipe only in a
+docstring, so the second course had no way to get the same product.
+Stored as int16 centimetres rather than float32 GeoTIFF -- 5.9 MiB
+against 19.1, for a quantisation error of 5 mm against a product whose
+own vertical accuracy is nearer 10 cm. Seattle: 47.590-47.670 N,
+-122.375 to -122.300 W, 2.7 x 4.0 m per pixel, -0.5 to 143.3 m.
+
+**Imagery.** USGS/USDA NAIP plus high-resolution orthoimagery, public
+domain, 2 m per pixel, 2.3 MiB. The scene previously had two ground
+colours, one for water and one for land, which is a diagram. A coxswain
+recognises a shore by its colour and texture.
+
+**Buildings.** City of Seattle *Building Outlines 2015*, lidar-derived,
+with `BP99_APEX` the measured roof apex elevation. This replaces the OSM
+heights, of which **92% were a guess from the building type** -- every
+untagged building in Seattle was nine metres tall. 53,710 buildings now
+carry a measured height, median 6.8 m, tallest 281 m. Validated before
+use: Columbia Center 280.4 m against a published 284, Amazon Doppler
+156.3 against 160.
+
+`BP99_APEX` is in feet and the DEM in metres, both NAVD88, and nothing in
+the service says so. Settled by computing two known buildings both ways.
+
+OSM is still the source of the building *class* and *name*, carried
+across by point-in-polygon; lidar sees a roof and does not know it is a
+boathouse. 41,428 of 53,641 outlines matched. Unmatched OSM buildings
+over 25 m are kept rather than dropped -- the Space Needle is a tower and
+is not a building outline anywhere.
+
+### Three silent failures
+
+**The bounding box that moved.** `exportImage` honours `size` exactly and
+changes the bbox to match its aspect ratio, announcing it only in a JSON
+field. Asking for 47.590-47.670 N at a size computed in metres returned
+47.571-47.689 -- a 2.2 km shift that put Lake Union's shoreline 700 m up
+a hillside. 43% of the lake came back as ground above 10 m and no check
+in this repository noticed, because no single dataset can notice: OSM
+knows where the shore is, 3DEP knows where the low ground is, and only
+drawing them on top of each other settles it.
+`tests/test_terrain_registration.py` now does exactly that, and pins the
+tile in both axes against Queen Anne and Capitol Hill.
+
+**Lidar over water is not water.** Thresholding the DEM half a metre
+above the pool called 48% of Lake Union dry land; the specular return
+scatters from the pool level past 7 m. No threshold works -- loose enough
+to recover the lake drowns 5.6% of the surrounding land. Water now comes
+from OSM polygons, stitched from relation members first (the same trap as
+sec. 100, and it recovered a fifth of the lake before stitching against
+98.8% after).
+
+**A photograph already has its light in it.** PyVista's default warm-key
+lighting on an orthophoto shifted Lake Union from (0.13, 0.22, 0.26) blue
+in the source to (16, 45, 40) green on screen.
+
+### Two bugs the renders found, which is now three times
+
+Rendering has caught what numbers hid three times in this project: the
+Lake Union mask (sec. 99), the DEM registration above, and these.
+
+**Buildings floating.** Ground height was computed twice, once for the
+terrain mesh (clipped to 60 m) and once for building bases (true
+elevation). More than half of Seattle's footprints stood in the air over
+a flattened hillside. There is now one function, `RiverScene.bank_height`,
+and both go through it. Buildings also extrude from the **lowest** ground
+under the footprint rather than the centroid, so one on a slope is buried
+into the hill; the gap runs to 1.8 m at the ninth decile.
+
+**The corridor floor that switched off the constraint.** `totl_course`
+computed the half-width as `np.maximum(clearance, 8.0)`. The floor was
+meant to stop the corridor collapsing where the traced line grazes a
+dock. What it did was hand the optimiser eight metres of room in exactly
+the places there was none: **23% of the optimised line came out with
+under 5 m to the nearest pier**, and the render showed a marina passing
+through the boat. A floor on a constraint is not a safety margin; it is
+the constraint switched off where it binds hardest.
+
+Removed. The line is now 80.5% on navigable water against 77.0%, and
+19.5% within 5 m of a structure against 23.0%. The optimised time is
+unchanged at 952.3 s against 971.1 s down the middle -- 18.8 s saved.
+
+**This does not close the question.** The residue is upstream: the
+centreline traced from the 2024 regatta map is itself only 87.8%
+navigable, with 12% of its stations under 8 m from a mapped structure.
+Either the trace is offset or the dock polygons over-reach, and nothing
+here can settle which. The corridor is pinned to the traced line where
+they conflict, which is the honest answer rather than a comfortable one.
