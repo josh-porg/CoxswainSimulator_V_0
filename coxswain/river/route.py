@@ -94,10 +94,21 @@ class Route:
         return interpolator(np.asarray(station, dtype=float))
 
     def clip_to_channel(self, course, margin: float = 0.0) -> "Route":
-        """Pull the control points inside the navigable channel."""
-        limit = np.array([course.half_width_at(s) for s in self.stations])
-        limit = np.maximum(limit - margin, 0.0)
-        return Route(self.stations, np.clip(self.offsets, -limit, limit),
+        """Pull the control points inside the navigable channel.
+
+        Uses the **asymmetric** limits, because a buoy forbids one side
+        and leaves the other alone.  Clipping symmetrically to
+        ``half_width`` throws that away, and the optimiser then rounds
+        inside a turning mark and reports a saving it would be penalised
+        for.
+        """
+        port, starboard = course.limits_at(np.asarray(self.stations,
+                                                      dtype=float))
+        port = np.maximum(np.asarray(port, dtype=float) - margin, 0.0)
+        starboard = np.maximum(np.asarray(starboard, dtype=float) - margin,
+                               0.0)
+        return Route(self.stations,
+                     np.clip(self.offsets, -starboard, port),
                      name=self.name)
 
     def path(self, course, n: int = 400) -> np.ndarray:
@@ -879,12 +890,19 @@ def optimise_route(evaluator: RouteEvaluator, n_control: int = 9,
     """
     course = evaluator.course
     stations = np.linspace(0.0, course.length, n_control)
-    limits = np.array([max(course.half_width_at(s) - evaluator.margin, 0.0)
-                       for s in stations])
+    # **Asymmetric.** A buoy forbids one side and leaves the other alone,
+    # so the box is not centred on the centreline. Optimising against a
+    # symmetric half-width lets the line round inside a turning mark and
+    # report a saving the crew would be penalised 60 s for.
+    port, starboard = course.limits_at(stations)
+    port = np.maximum(np.asarray(port, dtype=float) - evaluator.margin, 0.0)
+    starboard = np.maximum(np.asarray(starboard, dtype=float)
+                           - evaluator.margin, 0.0)
+    limits = np.maximum(port, starboard)          # sets the step size only
 
     offsets = np.zeros(n_control) if initial is None \
         else initial.offset_at(stations)
-    offsets = np.clip(offsets, -limits, limits)
+    offsets = np.clip(offsets, -starboard, port)
 
     best = evaluator.evaluate(Route(stations, offsets, name="optimised"))
     step = float(np.median(limits)) * 0.6
@@ -898,7 +916,7 @@ def optimise_route(evaluator: RouteEvaluator, n_control: int = 9,
             for direction in (+1.0, -1.0):
                 trial = offsets.copy()
                 trial[index] = np.clip(trial[index] + direction * step,
-                                       -limits[index], limits[index])
+                                       -starboard[index], port[index])
                 if trial[index] == offsets[index]:
                     continue
                 candidate = evaluator.evaluate(
