@@ -285,3 +285,102 @@ def render_all(scene, out_dir, dpi=150):
     written.append(path)
 
     return written
+
+
+def write_video(scene, path, frames=240, fps=24, dpi=110, trail=90):
+    """Fly the boat down the reference line, plan view beside cox view.
+
+    Deliberately matplotlib rather than the VTK scene the Charles uses:
+    :mod:`coxswain.viz.scene3d` is wired to bridge gates and arch rules,
+    which is exactly the course-specific machinery this renderer exists to
+    avoid. A race that has buoys instead of bridges needs a renderer that
+    does not know what a bridge is.
+
+    Writes mp4 where ``imageio-ffmpeg`` is available and falls back to GIF
+    rather than failing after every frame has been drawn.
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import imageio.v2 as imageio
+
+    if not scene.lines:
+        raise ValueError("nothing to fly down: scene has no lines")
+    line = scene.lines[-1].points
+    step = np.hypot(*np.diff(line, axis=0).T)
+    along = np.concatenate([[0.0], np.cumsum(step)])
+    marks = np.linspace(0.0, along[-1], frames)
+    track = np.column_stack([np.interp(marks, along, line[:, 0]),
+                             np.interp(marks, along, line[:, 1])])
+
+    images = []
+    for index in range(frames):
+        figure, axes = plt.subplots(1, 2, figsize=(11.0, 6.2))
+        _style(axes[0])
+        axes[0].pcolormesh(scene.east, scene.north,
+                           np.where(scene.water, 1.0, np.nan),
+                           cmap="Blues_r", vmin=0.0, vmax=2.0,
+                           shading="auto")
+        for polygon in scene.obstructions:
+            axes[0].plot(polygon[:, 0], polygon[:, 1], color=OBSTRUCTION,
+                         linewidth=0.5, alpha=0.85)
+        axes[0].plot(line[:, 0], line[:, 1], color=PALETTE[0], linewidth=1.0,
+                     alpha=0.35)
+        start = max(0, index - trail)
+        axes[0].plot(track[start:index + 1, 0], track[start:index + 1, 1],
+                     color=PALETTE[0], linewidth=2.4)
+        axes[0].plot(track[index, 0], track[index, 1], "o", color="white",
+                     markersize=6)
+        axes[0].set_title("%s -- %.0f m of %.0f"
+                          % (scene.name, marks[index], along[-1]),
+                          color=INK, fontsize=9)
+
+        ahead = min(index + 3, frames - 1)
+        heading = np.arctan2(track[ahead, 1] - track[index, 1],
+                             track[ahead, 0] - track[index, 0])
+        forward = np.array([np.cos(heading), np.sin(heading)])
+        side = np.array([-forward[1], forward[0]])
+        here = track[index]
+
+        def project(points, _here=here, _f=forward, _s=side):
+            delta = np.asarray(points, dtype=float) - _here
+            depth = delta @ _f
+            lateral = delta @ _s
+            keep = depth > 4.0
+            return lateral[keep] / depth[keep], 1.0 / depth[keep]
+
+        panel = axes[1]
+        panel.set_facecolor("#0a1218")
+        grid_east, grid_north = np.meshgrid(scene.east, scene.north)
+        wet = np.column_stack([grid_east[scene.water],
+                               grid_north[scene.water]])
+        x, y = project(wet)
+        panel.scatter(x, y * 30.0, s=1.2, color="#2a5f80", alpha=0.5,
+                      linewidths=0)
+        for polygon in scene.obstructions:
+            if np.abs(polygon - here).max() > 800:
+                continue
+            px, py = project(polygon)
+            if len(px):
+                panel.plot(px, py * 30.0, color=OBSTRUCTION, linewidth=1.0,
+                           alpha=0.9)
+        lx, ly = project(line)
+        panel.plot(lx, ly * 30.0, color=PALETTE[0], linewidth=2.0)
+        panel.set_xlim(-1.1, 1.1)
+        panel.set_ylim(0.0, 1.4)
+        panel.set_xticks([])
+        panel.set_yticks([])
+        panel.set_title("from the coxswain's seat", color=INK, fontsize=9)
+
+        figure.patch.set_facecolor(DRY)
+        figure.tight_layout()
+        figure.canvas.draw()
+        images.append(np.asarray(figure.canvas.buffer_rgba())[:, :, :3].copy())
+        plt.close(figure)
+
+    try:
+        imageio.mimsave(path, images, fps=fps)
+    except Exception:
+        path = os.path.splitext(path)[0] + ".gif"
+        imageio.mimsave(path, images, duration=1.0 / fps)
+    return path
