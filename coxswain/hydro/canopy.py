@@ -208,7 +208,22 @@ def internal_boundary_layer(fetch, z0_upwind: float, z0_downwind: float):
     that is why the two disagree.
     """
     fetch = np.maximum(np.asarray(fetch, dtype=float), 0.1)
-    scale = max(float(z0_upwind), float(z0_downwind), 1e-4)
+    # The **downwind** roughness sets the scale, not the larger of the
+    # two.  This function's own paragraph above says the transition here
+    # is rough-to-smooth -- a bank onto water -- and for that direction
+    # the layer grows into the new, smoother surface and scales on its
+    # roughness.  ``max`` is the smooth-to-rough convention and it was
+    # the one implemented.
+    #
+    # It was not a small error.  With a wooded bank at z0 = 1.5 m it put
+    # the internal layer 78 m deep against a blending height of 80,
+    # which collapses the two-layer profile onto a single one and makes
+    # the sheltered wind come out **higher** the rougher the bank is:
+    # 13.3 m/s behind a hedge and 14.1 m/s behind a wood. Shelter ran
+    # backwards, and nothing noticed until 470,000 trees were added to
+    # the bank and the wind went up. On the downwind scaling the same
+    # case gives 12.2 and 9.0 m/s, and the layer is 13 m deep.
+    scale = max(float(z0_downwind), 1e-4)
     return 0.75 * scale * (fetch / scale) ** 0.8
 
 
@@ -297,6 +312,17 @@ def open_water_equivalent(height, reference_speed: float,
     return aloft * np.log(height / z0_water) / np.log(blending / z0_water)
 
 
+#: How much of a tree's silhouette actually blocks the wind.
+#:
+#: A building is solid and a canopy is not: measured optical porosity of
+#: a leafed broadleaf crown runs 0.2-0.5, so roughly half to four fifths
+#: of the frontal area is doing something.  0.5 is the middle, and it is
+#: a **parameter, not a result** -- this project has no measurement of it
+#: for the species on this bank, and a winter crew rows past bare
+#: branches at maybe half this.
+CANOPY_POROSITY = 0.5
+
+
 class ShelteredWind:
     """A wind field over the reach, from the banks either side of it.
 
@@ -332,8 +358,18 @@ class ShelteredWind:
 
     def __init__(self, structures, channel, reference_speed: float,
                  wind_from: float, radius: float = 250.0,
-                 height: float = 1.5, reference_height: float = 10.0):
+                 height: float = 1.5, reference_height: float = 10.0,
+                 trees=None):
         self.structures = structures
+        #: Optional :class:`~coxswain.river.structures.TreeStand`.
+        #:
+        #: Trees were left out of the roughness entirely, which is
+        #: defensible on a city bank and wrong on a wooded one.  This
+        #: module's own docstring says shelter on the Powerhouse Stretch
+        #: is "three storeys of Cambridge **and a line of plane trees on
+        #: the bank**", and only the first half was in the sum.  Lake
+        #: Union has 470,000 mapped trees on its banks, up to 39 m.
+        self.trees = trees
         self.channel = channel
         self.reference_speed = float(reference_speed)
         #: Meteorological bearing the wind comes *from*, degrees.
@@ -361,19 +397,57 @@ class ShelteredWind:
         return travelled
 
     def roughness(self, east: float, north: float) -> Roughness:
-        """Raupach roughness of the upwind bank seen from a point."""
+        """Raupach roughness of the upwind bank seen from a point.
+
+        Buildings and, where a stand is supplied, trees.  A tree is
+        charged its crown as a frontal area -- ``0.6 * height`` wide,
+        which is the crown width a broadleaf of a given height reaches --
+        and it is a **porous** obstacle, so it is discounted by
+        :data:`CANOPY_POROSITY`.  A wall stops the wind; a canopy slows
+        it and lets some through.
+        """
         index = self.structures.near(east, north, self.radius)
-        if not len(index):
+        areas, heights = [], []
+        if len(index):
+            centres = self.structures.centres[index] - np.array([east, north])
+            upwind = np.einsum("ij,j->i", centres, -self._towards) > 0.0
+            index = index[upwind] if upwind.any() else index
+            for i in index:
+                areas.append(self.structures.frontal_width(i, self.bearing)
+                             * self.structures.heights[i])
+                heights.append(float(self.structures.heights[i]))
+
+        if self.trees is not None and len(self.trees):
+            found = self.trees.near(east, north, self.radius)
+            if len(found):
+                offset = self.trees.points[found] - np.array([east, north])
+                upwind = np.einsum("ij,j->i", offset, -self._towards) > 0.0
+                found = found[upwind] if upwind.any() else found
+                crown = self.trees.heights[found].astype(float)
+                areas.extend((CANOPY_POROSITY * 0.6 * crown * crown).tolist())
+                heights.extend(crown.tolist())
+
+        if not heights:
             return Roughness(z0=Z0_OPEN, d=0.0, height=1.0,
                              frontal_index=1e-6)
-        centres = self.structures.centres[index] - np.array([east, north])
-        upwind = np.einsum("ij,j->i", centres, -self._towards) > 0.0
-        index = index[upwind] if upwind.any() else index
-        frontal = float(sum(self.structures.frontal_width(i, self.bearing)
-                            * self.structures.heights[i] for i in index))
+        areas = np.asarray(areas, dtype=float)
+        heights = np.asarray(heights, dtype=float)
         ground = 0.5 * np.pi * self.radius ** 2
-        mean_height = float(np.average(self.structures.heights[index]))
-        return raupach_roughness(frontal / ground, mean_height)
+
+        # Canopy height weighted by **frontal area**, not by count.
+        #
+        # Raupach's formulation is for a canopy of uniform height h, and
+        # h sets the displacement height -- how far up the profile is
+        # pushed.  Averaging a mixed bank by count lets four hundred
+        # thousand nine-metre trees outvote the buildings and drag the
+        # effective canopy from 14.5 m to 9.3 m, which *lowers* the
+        # displacement height and comes out as the wind getting stronger
+        # when trees are added.  What sets the displacement is where the
+        # drag is, and the drag is the frontal area.
+        weight = areas.sum()
+        height = (float(np.average(heights, weights=areas)) if weight > 0
+                  else float(heights.mean()))
+        return raupach_roughness(weight / ground, height)
 
     # -- the interface ----------------------------------------------------
     def speed_at(self, east: float, north: float) -> float:
