@@ -161,6 +161,76 @@ class BoatScene:
         return np.array([state.position[0], state.position[1], 0.0])
 
     # -- geometry builders -------------------------------------------------
+    def deck_polydata(self, t: float):
+        """The foredeck and stern deck, as a surface over the hull.
+
+        **Rendering only.**  It adds no buoyancy, no wetted area and no
+        mass; the physics mesh is untouched, because a deck that is
+        always above the waterline changes none of them.
+
+        A racing shell is not an open trough.  It is decked fore and aft
+        with a cockpit cut out of the middle, and a bow-loaded four is
+        decked *over the coxswain* as well, leaving only enough opening
+        for their head and shoulders.  Without this the hull renders as
+        an open shell, and from the one viewpoint that matters -- a
+        bow-loader's eye, a hand's breadth above the deck -- you look
+        straight down inside the boat and the frame fills with two pale
+        walls that are the inside of the hull.
+
+        The cockpit runs from a little behind the sternmost seat to a
+        little ahead of the bowmost one, which is where the slides are.
+        A bow-loading coxswain sits outside that, under their own deck,
+        with a separate opening.
+        """
+        pv = require_pyvista()
+        offsets = self.boat.offsets
+        station = np.asarray(offsets.station, dtype=float)
+        beam = np.asarray(offsets.beam, dtype=float)
+        freeboard = float(getattr(offsets, "freeboard", 0.25))
+
+        seats = np.array([seat.station_x for seat in self.boat.rig.seats],
+                         dtype=float)
+        if not len(seats):
+            return None
+        # The slides run about a metre either way from a seat's own
+        # station, so the cockpit is wider than the seats themselves.
+        open_from = float(seats.min()) - 1.10
+        open_to = float(seats.max()) + 0.90
+
+        rig = self.boat.rig
+        cockpit = []
+        if rig.has_coxswain:
+            cox = float(rig.coxswain_position[0])
+            if cox > open_to or cox < open_from:
+                # Bow-loaded (or stern-loaded) coxswain: their own hole,
+                # big enough for a head and shoulders and no bigger.
+                cockpit.append((cox - 0.55, cox + 0.35))
+        cockpit.append((open_from, open_to))
+
+        def decked(x):
+            return not any(low <= x <= high for low, high in cockpit)
+
+        faces, points = [], []
+        fine = np.linspace(station[0], station[-1], 121)
+        width = np.interp(fine, station, beam)
+        for index in range(len(fine) - 1):
+            middle = 0.5 * (fine[index] + fine[index + 1])
+            if not decked(middle):
+                continue
+            # Deck edge is slightly inboard of the waterline beam: the
+            # topsides tumble home a little on a racing shell.
+            a, b = 0.46 * width[index], 0.46 * width[index + 1]
+            base = len(points)
+            points.extend([
+                (fine[index], -a, freeboard), (fine[index], a, freeboard),
+                (fine[index + 1], b, freeboard),
+                (fine[index + 1], -b, freeboard)])
+            faces.extend([4, base, base + 1, base + 2, base + 3])
+        if not faces:
+            return None
+        return pv.PolyData(np.asarray(points, dtype=float),
+                           faces=np.asarray(faces, dtype=int))
+
     def hull_polydata(self, t: float):
         """Hull surface at time ``t``, with a ``wet`` cell array."""
         pv = require_pyvista()
@@ -306,6 +376,17 @@ class BoatScene:
                          show_scalar_bar=False, show_edges=True,
                          edge_color="#0b1a26", line_width=0.4,
                          smooth_shading=False)
+
+        deck = self.deck_polydata(t)
+        if deck is not None:
+            state = self.state_at(t)
+            rotation = hull_to_abs(state.attitude)
+            moved = deck.copy()
+            moved.points = (np.asarray(moved.points) @ rotation.T
+                            + state.position - self._origin(state))
+            plotter.add_mesh(moved, color=style.hull_dry, name="deck",
+                             show_edges=True, edge_color="#0b1a26",
+                             line_width=0.4, smooth_shading=False)
 
         skeleton, centres, masses = self.crew_polydata(t)
         if skeleton.n_points:
