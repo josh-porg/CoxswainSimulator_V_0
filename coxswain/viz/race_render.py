@@ -189,11 +189,89 @@ def draw_oblique(scene, axis, limit=900):
     axis.set_title("%s -- oblique" % scene.name, color=INK, fontsize=11)
 
 
+#: Effective eye height for the forward view, m.  **Deliberately not the
+#: real 0.7 m.**  A coxswain's actual eye is so close to the water that
+#: everything beyond a boat length sits within four degrees of the
+#: horizon: drawn to scale the entire course is one line of pixels.
+#: Raising the viewpoint spreads the geometry out enough to read, at the
+#: cost of the view being a diagram rather than a photograph.
+COX_EYE = 9.0
+#: Nearest distance drawn, m.  Must satisfy ``COX_EYE / COX_NEAR <= the
+#: top of the frame``, or near geometry projects off the top -- which is
+#: exactly what a mismatched pair of these numbers did: a 3 m near clip
+#: against a frame that could only show beyond 21 m sent the racing line,
+#: which passes under the boat, straight out of the picture.
+COX_NEAR = 12.0
+#: Half the horizontal field of view, as a tangent.  1.0 is 90 degrees.
+COX_FOV = 1.0
+#: Farthest water drawn, m.  Beyond this it is a pixel on the horizon.
+COX_FAR = 900.0
+
+
+def _cox_project(points, here, forward, side, close=False):
+    """Pinhole projection onto the forward view, with the frame clipped.
+
+    Returns ``(x, y, distance)`` with ``nan`` inserted wherever a polyline
+    leaves the view, so matplotlib breaks the line instead of drawing a
+    chord across the picture.  Without that, a dock a few metres ahead and
+    fifty to the side is joined to whatever came next by a long horizontal
+    streak.
+    """
+    delta = np.asarray(points, dtype=float) - here
+    along = delta @ forward
+    across = delta @ side
+    with np.errstate(divide="ignore", invalid="ignore"):
+        x = np.where(along > 0, across / np.maximum(along, 1e-9), np.nan)
+        y = np.where(along > 0, COX_EYE / np.maximum(along, 1e-9), np.nan)
+    outside = (along < COX_NEAR) | (np.abs(x) > COX_FOV * 1.3)
+    x = np.where(outside, np.nan, x)
+    y = np.where(outside, np.nan, y)
+    return x, y, along
+
+
+def _cox_water(scene, here, forward, side, top, width=420, height=260):
+    """The water as the coxswain sees it, by inverting the projection.
+
+    For each pixel: ``along = COX_EYE / y`` and ``across = x * along``
+    give the patch of water that pixel looks at, which is then tested
+    against the mask.  Shaded by distance so the eye reads depth.
+    """
+    xs = np.linspace(-COX_FOV, COX_FOV, width)
+    # Row 0 must be the FAR end: with ``origin="upper"`` imshow puts the
+    # first row at the top of the extent, which is the horizon.  Running
+    # this the other way drew the near water along the skyline and the
+    # far water under the bow -- a picture that looked like sky.
+    ys = np.linspace(COX_EYE / COX_FAR, top, height)
+    gx, gy = np.meshgrid(xs, ys)
+    along = COX_EYE / np.maximum(gy, 1e-9)
+    across = gx * along
+    east = here[0] + forward[0] * along + side[0] * across
+    north = here[1] + forward[1] * along + side[1] * across
+    column = np.searchsorted(scene.east, east)
+    row = np.searchsorted(scene.north, north)
+    inside = ((column > 0) & (column < len(scene.east))
+              & (row > 0) & (row < len(scene.north)))
+    image = np.full(gx.shape, np.nan)
+    wet = np.zeros(gx.shape, dtype=bool)
+    wet[inside] = scene.water[row[inside] - 1, column[inside] - 1]
+    # nearer water darker, so distance reads
+    image[wet] = np.clip(np.log10(along[wet]) / 1.6, 0.0, 1.0) * 2.0
+    return image
+
+
 def draw_cox_view(scene, axes, fractions=(0.05, 0.4, 0.75)):
-    """Forward view from the stern at several points down the course."""
-    reference = scene.lines[0].points
+    """Forward view from the stern at several points down the course.
+
+    The viewpoint is the **last** line, which is the one being flown --
+    the same convention :func:`write_video` uses.  Sitting on the first
+    line instead puts the camera on the drawn course while the optimised
+    line runs thirty metres off to one side, so the line the picture is
+    about leaves the frame within a boat length of the bow.
+    """
+    reference = scene.lines[-1].points
     grid_east, grid_north = np.meshgrid(scene.east, scene.north)
     wet = np.column_stack([grid_east[scene.water], grid_north[scene.water]])
+    top = COX_EYE / COX_NEAR
 
     for panel, fraction in zip(axes, fractions):
         index = int(fraction * (len(reference) - 1))
@@ -203,32 +281,39 @@ def draw_cox_view(scene, axes, fractions=(0.05, 0.4, 0.75)):
         forward = np.array([np.cos(heading), np.sin(heading)])
         side = np.array([-forward[1], forward[0]])
 
-        def project(points):
-            delta = np.asarray(points) - here
-            along = delta @ forward
-            across = delta @ side
-            keep = along > 3.0
-            return across[keep] / along[keep], 1.0 / along[keep], along[keep]
-
         panel.set_facecolor("#0a1218")
-        x, y, distance = project(wet)
-        panel.scatter(x, y * 30.0, s=1.4, c=distance, cmap="Blues_r",
-                      alpha=0.55, linewidths=0)
+        # the horizon, so the view has a reference the eye can hold
+        panel.axhline(0.0, color="#2a3640", linewidth=0.8)
+
+        # **Sample in SCREEN space, not world space.**  Near water
+        # subtends a wide angle, so a world-space grid puts only two or
+        # three cells inside the frame and the whole foreground comes out
+        # empty while everything distant piles up on the horizon.
+        # Inverting the projection instead -- pick a pixel, work out which
+        # patch of water it looks at -- fills the view evenly by
+        # construction.
+        panel.imshow(_cox_water(scene, here, forward, side, top),
+                     extent=(-COX_FOV, COX_FOV, top, 0.0),
+                     origin="upper", aspect="auto", cmap="Blues_r",
+                     vmin=0.0, vmax=2.2, interpolation="nearest")
+
         for points in scene.obstructions:
             points = np.asarray(points)
             if len(points) < 2 or np.abs(points - here).max() > 900:
                 continue
-            ox, oy, _d = project(points)
-            if len(ox):
-                panel.plot(ox, oy * 30.0, color=OBSTRUCTION, linewidth=1.1,
+            ox, oy, _d = _cox_project(points, here, forward, side)
+            if np.isfinite(ox).any():
+                panel.plot(ox, oy, color=OBSTRUCTION, linewidth=1.1,
                            alpha=0.9)
+
         for order, line in enumerate(scene.lines):
-            lx, ly, _d = project(line.points)
-            panel.plot(lx, ly * 30.0,
+            lx, ly, _d = _cox_project(line.points, here, forward, side)
+            panel.plot(lx, ly,
                        color=line.colour or PALETTE[order % len(PALETTE)],
                        linewidth=2.0)
-        panel.set_xlim(-1.1, 1.1)
-        panel.set_ylim(0.0, 1.4)
+
+        panel.set_xlim(-COX_FOV, COX_FOV)
+        panel.set_ylim(top, 0.0)          # horizon at the top, near water low
         panel.set_xticks([])
         panel.set_yticks([])
         panel.set_title("%.0f%% along" % (100 * fraction), color=MUTED,

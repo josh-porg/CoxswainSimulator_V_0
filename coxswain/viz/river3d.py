@@ -70,15 +70,41 @@ class RiverScene(BoatScene):
 
     def __init__(self, boat, result=None, channel=None, gates=(),
                  path=None, window: float = 420.0,
-                 show_structures: bool = True, **kwargs):
+                 show_structures: bool = True,
+                 structures=None, terrain=None, **kwargs):
+        """``structures`` and ``terrain`` default to the Charles.
+
+        They are injectable because nothing in this renderer is actually
+        about the Charles -- it draws a boat, a channel raster, some
+        footprints and a bank.  Hard-coding the providers made it look
+        course-specific, which is why a second matplotlib renderer got
+        written for Lake Union instead of this one.  Pass Seattle's and
+        the same code draws Seattle.
+        """
         super().__init__(boat, result=result, **kwargs)
         self.show_structures = bool(show_structures)
+        self._structures = structures
+        self._terrain = terrain
         self.channel = channel
         self.gates = tuple(gates)
         self.path = None if path is None else np.asarray(path, float)[:, :2]
         self.window = float(window)
 
     # -- scenery ----------------------------------------------------------
+    def structures(self):
+        """Footprints to draw. Defaults to the Charles."""
+        if self._structures is None:
+            from ..river.structures import charles_structures
+            self._structures = charles_structures()
+        return self._structures
+
+    def terrain(self):
+        """Bank heights. Defaults to the Charles."""
+        if self._terrain is None:
+            from ..river.terrain import charles_terrain
+            self._terrain = charles_terrain()
+        return self._terrain
+
     def terrain_window(self, centre):
         """Grid indices for a window of raster around ``centre``.
 
@@ -126,8 +152,7 @@ class RiverScene(BoatScene):
         # Capped so the odd building the lidar kept does not put a wall on
         # the bank; the fallback shelf survives for anything off the DEM.
         try:
-            from ..river.terrain import charles_terrain
-            bank = charles_terrain().height_above_water(
+            bank = self.terrain().height_above_water(
                 grid_x.ravel(), grid_y.ravel()).reshape(grid_x.shape)
             height = np.where(wet, 0.0, np.clip(bank, 0.6, 16.0))
         except Exception:
@@ -218,10 +243,8 @@ class RiverScene(BoatScene):
             return self._structure_mesh, origin
 
         try:
-            from ..river.structures import charles_structures
-            from ..river.terrain import charles_terrain
-            structures = charles_structures()
-            terrain = charles_terrain()
+            structures = self.structures()
+            terrain = self.terrain()
         except Exception:
             self._structure_key, self._structure_mesh = key, None
             return None, origin
@@ -262,10 +285,8 @@ class RiverScene(BoatScene):
         state = self.state_at(t)
         centre = np.asarray(state.position, dtype=float)[:2]
         try:
-            from ..river.structures import charles_structures
-            from ..river.terrain import charles_terrain
-            structures = charles_structures()
-            terrain = charles_terrain()
+            structures = self.structures()
+            terrain = self.terrain()
         except Exception:
             return None
         if not len(structures.trees):

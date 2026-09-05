@@ -4,7 +4,7 @@ The stored DEM is bare earth: 3DEP strips the first returns, so the
 roofs and the trees -- the only things on this reach tall enough to
 shelter anything -- are exactly what it does not contain.  This module
 carries them, from OpenStreetMap footprints fetched by
-``tools/extract_charles_structures.py``.
+``tools/extract_structures.py``.
 
 Two consumers, one dataset
 --------------------------
@@ -52,11 +52,59 @@ class Structures:
     #: footprint so a polygon lands in few cells.
     CELL = 100.0
 
+    #: Wall material classes, indexed by :attr:`material`.  Mirrors
+    #: ``tools/extract_structures.py``; kept as a class rather than a
+    #: colour because what brick looks like is the renderer's business.
+    MATERIALS = ("unknown", "brick", "concrete", "glass", "metal", "wood",
+                 "stone", "plaster", "tile")
+    #: Roof shapes, indexed by :attr:`roof_shape`.
+    ROOF_SHAPES = ("flat", "gabled", "hipped", "pyramidal", "skillion",
+                   "dome", "round", "mansard", "gambrel", "half-hipped")
+    #: Building classes, indexed by :attr:`kind`.
+    KINDS = ("other", "house", "apartments", "commercial", "office",
+             "industrial", "civic", "boathouse", "houseboat", "roof",
+             "garage", "retail")
+
     def __init__(self, polygons, heights, sources, canopy, canopy_heights,
-                 trees, tree_heights):
+                 trees, tree_heights, material=None, kind=None, colour=None,
+                 roof_shape=None, roof_height=None, names=None,
+                 spans=(), span_names=()):
         self.polygons = polygons                  # list of (N, 2) east/north
         self.heights = np.asarray(heights, dtype=float)
         self.height_source = np.asarray(sources, dtype=int)
+        count = len(polygons)
+
+        def column(values, fill, dtype=int):
+            if values is None or len(values) != count:
+                return np.full(count, fill, dtype=dtype)
+            return np.asarray(values, dtype=dtype)
+
+        #: Index into :attr:`MATERIALS`.  Almost always ``0`` -- only 1%
+        #: of Seattle carries ``building:material`` -- which is a fact
+        #: about OpenStreetMap, not a placeholder to be filled in.  Any
+        #: renderer leaning on this must have an unknown case that looks
+        #: deliberate, because that is the common case.
+        self.material = column(material, 0, np.int8)
+        #: Index into :attr:`KINDS`.  Well populated, because it comes
+        #: from ``building=*`` itself rather than an optional extra.
+        self.kind = column(kind, 0, np.int8)
+        #: Index into :attr:`ROOF_SHAPES`.
+        self.roof_shape = column(roof_shape, 0, np.int8)
+        #: Roof height in metres above the wall top; ``0`` for flat.
+        self.roof_height = column(roof_height, 0.0, float)
+        #: Tagged wall colour as RGB in 0-1, or ``-1`` where untagged.
+        if colour is None or len(colour) != count:
+            self.colour = np.full((count, 3), -1.0)
+        else:
+            self.colour = np.asarray(colour, dtype=float).reshape(-1, 3)
+        self.names = (np.asarray(names, dtype="<U48") if names is not None
+                      and len(names) == count
+                      else np.full(count, "", dtype="<U48"))
+        #: Named bridge decks as ``(N, 2)`` east/north polylines, and
+        #: their names.  Scenery, not gates: a landmark bridge is one a
+        #: crew steers *by*, and it carries no piers, arches or rules.
+        self.spans = list(spans)
+        self.span_names = list(span_names)
         self.canopy = canopy
         self.canopy_heights = np.asarray(canopy_heights, dtype=float)
         self.trees = np.asarray(trees, dtype=float).reshape(-1, 2)
@@ -150,7 +198,7 @@ def load_structures(name: str, origin: Tuple[float, float]) -> Structures:
         return _CACHE[key]
     if not os.path.exists(path):
         raise FileNotFoundError(
-            "%s is missing -- run tools/extract_charles_structures.py "
+            "%s is missing -- run tools/extract_structures.py "
             "with --out %s, which fetches it from OpenStreetMap"
             % (path, name))
 
@@ -172,10 +220,29 @@ def load_structures(name: str, origin: Tuple[float, float]) -> Structures:
     else:
         trees = np.zeros((0, 2))
 
+    def optional(key):
+        """Fields added after the first extracts were stored.
+
+        A stored file predating them is not corrupt, it is older, and it
+        should keep working -- so a missing field becomes the default
+        rather than an exception.
+        """
+        return blob[key] if key in blob.files else None
+
     structures = Structures(
         polygons=polygons, heights=blob["building_height"],
         sources=blob["building_height_source"], canopy=canopy,
         canopy_heights=blob["canopy_height"], trees=trees,
-        tree_heights=blob["tree_height"])
+        tree_heights=blob["tree_height"],
+        material=optional("building_material"),
+        kind=optional("building_kind"),
+        colour=optional("building_colour"),
+        roof_shape=optional("building_roof_shape"),
+        roof_height=optional("building_roof_height"),
+        names=optional("building_name"),
+        spans=split(blob["bridge_xy"], blob["bridge_offsets"])
+        if "bridge_xy" in blob.files else [],
+        span_names=list(optional("bridge_name")
+                        if optional("bridge_name") is not None else []))
     _CACHE[key] = structures
     return structures

@@ -32,7 +32,8 @@ from typing import Tuple
 
 import numpy as np
 
-__all__ = ["Terrain", "charles_terrain"]
+__all__ = ["Terrain", "charles_terrain", "seattle_terrain",
+           "load_terrain", "pool_level_from"]
 
 #: Bounding box the stored DEM was exported with, (south, west, north, east).
 DEM_BOUNDS = (42.3480, -71.1450, 42.3790, -71.1000)
@@ -41,17 +42,59 @@ DEM_BOUNDS = (42.3480, -71.1450, 42.3790, -71.1000)
 #: water (or the odd construction pit the lidar caught).
 POOL_LEVEL = 0.6
 
+#: Bounding box of ``seattle_dem.tif``, (south, west, north, east).
+#:
+#: Deliberately wider than the lake.  Lake Union ends at 47.62 N and the
+#: downtown towers stand near 47.60, so a box drawn around the racing
+#: water alone would put the skyline -- the thing a crew actually steers
+#: by looking down the lake -- outside the terrain entirely.
+SEATTLE_DEM_BOUNDS = (47.590, -122.375, 47.670, -122.300)
+
+#: Pool elevation of Lake Union, metres NAVD88.
+#:
+#: **Measured off the tile, not converted.**  The Ship Canal holds Lake
+#: Union between 20 and 22 feet above Puget Sound MLLW, and carrying that
+#: through the Seattle tide-station datum into NAVD88 is exactly the kind
+#: of two-step arithmetic that silently drops a metre.  Instead this is
+#: the 5th percentile of the DEM over the OpenStreetMap lake polygon --
+#: 5.10 m, against a median of 5.47 -- so it is the waterline the same
+#: two datasets agree on rather than a number from a third source that
+#: might be registered differently from either.
+SEATTLE_POOL_LEVEL = 5.1
+
 _CACHE = {}
+
+
+def pool_level_from(elevation, quantile: float = 0.02) -> float:
+    """Waterline of the flattest low ground in a tile, metres.
+
+    An impounded lake is the largest dead-flat surface in any urban DEM,
+    so its elevation is the low mode of the histogram.  Taking a low
+    quantile rather than the minimum keeps the odd dredged pit or lidar
+    dropout from dragging the waterline down with it.
+    """
+    values = np.asarray(elevation, dtype=float)
+    values = values[np.isfinite(values) & (values > -50.0)]
+    if not len(values):
+        return 0.0
+    return float(np.quantile(values, quantile))
 
 
 class Terrain:
     """Elevation over the reach, in the model's tangent plane."""
 
     def __init__(self, elevation: np.ndarray, east: np.ndarray,
-                 north: np.ndarray):
+                 north: np.ndarray, pool: float = POOL_LEVEL):
         self.elevation = elevation
         self.east = east
         self.north = north
+        #: Waterline for this tile, metres in the tile's own vertical
+        #: datum.  Carried per-terrain because it is a fact about the
+        #: water body, not about the class: the Charles basin sits at 0.6
+        #: m NAVD88 and Lake Union, impounded 20 feet above Puget Sound,
+        #: sits near 4.3.  Hard-coding the Charles' value put Lake Union
+        #: nearly four metres under its own banks.
+        self.pool = float(pool)
 
     def at(self, east, north, outside=None) -> np.ndarray:
         """Elevation in metres at tangent-plane coordinates.
@@ -71,30 +114,52 @@ class Terrain:
         values = self.elevation[row, column].copy()
         beyond = ((east < self.east[0]) | (east > self.east[-1])
                   | (north < self.north[0]) | (north > self.north[-1]))
-        values[beyond] = POOL_LEVEL if outside is None else float(outside)
+        values[beyond] = self.pool if outside is None else float(outside)
         return values
 
     def height_above_water(self, east, north) -> np.ndarray:
-        return np.maximum(self.at(east, north) - POOL_LEVEL, 0.0)
+        return np.maximum(self.at(east, north) - self.pool, 0.0)
 
 
-def charles_terrain(origin: Tuple[float, float] = None) -> Terrain:
-    """The stored DEM, resampled onto the model's tangent plane."""
-    from .charles import CHARLES_ORIGIN
+def load_terrain(name: str, bounds, origin, pool=None) -> "Terrain":
+    """Load a stored 3DEP tile onto the tangent plane at ``origin``.
+
+    ``pool`` may be a number, or ``None`` to measure the waterline off
+    the tile with :func:`pool_level_from`.
+    """
     from .course import local_tangent_plane
 
-    origin = CHARLES_ORIGIN if origin is None else origin
-    if origin in _CACHE:
-        return _CACHE[origin]
+    key = (name, tuple(origin), pool)
+    if key in _CACHE:
+        return _CACHE[key]
 
-    from PIL import Image
     path = os.path.join(os.path.dirname(os.path.dirname(
-        os.path.abspath(__file__))), "data", "charles_dem.tif")
-    grid = np.array(Image.open(path), dtype=float)
-    # lidar no-data and water returns come back hugely negative
-    grid = np.where(np.isfinite(grid) & (grid > -50.0), grid, POOL_LEVEL)
+        os.path.abspath(__file__))), "data", name)
+    if not os.path.exists(path):
+        raise FileNotFoundError(
+            "%s is missing -- run tools/fetch_dem.py --bounds %s --out %s"
+            % (path, " ".join("%g" % b for b in bounds), name))
 
-    south, west, north_edge, east_edge = DEM_BOUNDS
+    fill = POOL_LEVEL if pool is None else float(pool)
+    if path.endswith(".npz"):
+        # Written by tools/fetch_dem.py: centimetres in int16, plus the
+        # extent the service actually served.  That extent is the
+        # authority -- ``exportImage`` moves the box to match the pixel
+        # aspect and says so only in its JSON reply, and believing the
+        # box that was *asked* for put Lake Union 2.2 km from itself.
+        blob = np.load(path)
+        raw = blob["elevation"]
+        grid = raw.astype(float) * float(blob["scale"])
+        grid[raw == blob["nodata"]] = fill
+        bounds = tuple(float(v) for v in blob["bounds"])
+    else:
+        from PIL import Image
+        grid = np.array(Image.open(path), dtype=float)
+        # lidar no-data and water returns come back hugely negative
+        grid = np.where(np.isfinite(grid) & (grid > -50.0), grid, fill)
+    level = pool_level_from(grid) if pool is None else float(pool)
+
+    south, west, north_edge, east_edge = bounds
     rows, columns = grid.shape
     latitudes = np.linspace(north_edge, south, rows)     # row 0 is north
     longitudes = np.linspace(west, east_edge, columns)
@@ -106,6 +171,31 @@ def charles_terrain(origin: Tuple[float, float] = None) -> Terrain:
 
     # flip so both axes ascend, which is what searchsorted needs
     terrain = Terrain(elevation=grid[::-1, :], east=np.asarray(east_axis),
-                      north=np.asarray(north_axis)[::-1])
-    _CACHE[origin] = terrain
+                      north=np.asarray(north_axis)[::-1], pool=level)
+    _CACHE[key] = terrain
     return terrain
+
+
+def charles_terrain(origin: Tuple[float, float] = None) -> Terrain:
+    """The stored Charles DEM, resampled onto the model's tangent plane."""
+    from .charles import CHARLES_ORIGIN
+
+    origin = CHARLES_ORIGIN if origin is None else origin
+    return load_terrain("charles_dem.tif", DEM_BOUNDS, origin,
+                        pool=POOL_LEVEL)
+
+
+def seattle_terrain(origin: Tuple[float, float] = None) -> Terrain:
+    """Lake Union, Queen Anne, Capitol Hill and downtown.
+
+    Same product and same loader as the Charles -- a different tile and a
+    different waterline, and nothing else.  The tile reaches south to the
+    downtown towers on purpose: rowing down Lake Union you are looking
+    straight at them, so they have to stand on ground the model knows
+    about rather than float at zero.
+    """
+    from .seattle import SEATTLE_ORIGIN
+
+    origin = SEATTLE_ORIGIN if origin is None else origin
+    return load_terrain("seattle_dem.npz", SEATTLE_DEM_BOUNDS, origin,
+                        pool=SEATTLE_POOL_LEVEL)

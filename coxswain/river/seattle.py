@@ -360,6 +360,30 @@ def fetch_at(point, bearing, resolution: float = 10.0, limit: float = 4000.0,
     return travelled
 
 
+def lake_union_channel(resolution: float = 10.0, margin: float = 8.0):
+    """Lake Union as a :class:`~coxswain.river.channel.ChannelRaster`.
+
+    The same object the Charles hands to the 3-D renderer, so Lake Union
+    can use that renderer rather than a second one written to avoid it.
+    ``navigable`` is the water with the docks removed; ``depth`` is the
+    nominal profile and is **not surveyed**.
+    """
+    from scipy.ndimage import distance_transform_edt
+
+    from .channel import ChannelRaster
+
+    east, north, water = water_mask(resolution, names=("Lake Union",))
+    _e, _n, rowable = rowable_mask(resolution, names=("Lake Union",),
+                                   margin=margin)
+    depth = np.full(water.shape, np.nan)
+    reach = distance_transform_edt(water) * resolution
+    depth[water] = nominal_depth(reach[water])
+    clearance = distance_transform_edt(rowable) * resolution
+    return ChannelRaster(east=east, north=north, water=water,
+                         navigable=rowable, depth=depth,
+                         clearance=clearance)
+
+
 def nominal_depth(distance_from_shore) -> np.ndarray:
     """Depth from distance to the nearest shore, m.  **Not surveyed.**
 
