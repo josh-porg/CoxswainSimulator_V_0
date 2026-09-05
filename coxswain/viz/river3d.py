@@ -61,18 +61,22 @@ _CANOPY = "#4a6b45"
 #: it does not claim to know any individual building's colour, only that
 #: a houseboat and a downtown tower are not the same object.
 _KIND_COLOUR = {
-    "other":      (0.55, 0.53, 0.50),
-    "house":      (0.68, 0.63, 0.55),
-    "apartments": (0.60, 0.58, 0.57),
-    "commercial": (0.58, 0.60, 0.63),
-    "office":     (0.52, 0.58, 0.64),
-    "industrial": (0.56, 0.53, 0.47),
-    "civic":      (0.72, 0.70, 0.65),
-    "boathouse":  (0.48, 0.40, 0.32),
-    "houseboat":  (0.52, 0.45, 0.38),
-    "roof":       (0.50, 0.48, 0.46),
-    "garage":     (0.53, 0.51, 0.48),
-    "retail":     (0.62, 0.59, 0.55),
+    # Warm, light, and varied: Seattle's residential stock is painted
+    # timber, and a street of it is the least grey thing on the lake.
+    "house":      (0.72, 0.66, 0.56),
+    "apartments": (0.63, 0.61, 0.60),
+    "retail":     (0.66, 0.60, 0.53),
+    # Cool and pale, because the ones tall enough to matter are glass.
+    "commercial": (0.55, 0.60, 0.65),
+    "office":     (0.50, 0.58, 0.66),
+    "civic":      (0.76, 0.73, 0.67),
+    # Ship canal industry: rust, timber and corrugated metal.
+    "industrial": (0.51, 0.47, 0.41),
+    "boathouse":  (0.46, 0.36, 0.28),
+    "houseboat":  (0.55, 0.45, 0.36),
+    "garage":     (0.50, 0.49, 0.47),
+    "roof":       (0.47, 0.45, 0.43),
+    "other":      (0.58, 0.55, 0.51),
 }
 
 #: Extinction distance for aerial perspective, metres.
@@ -82,7 +86,13 @@ _KIND_COLOUR = {
 #: render at the same contrast as the boathouse 200 m away, and the eye
 #: reads them as small and near rather than large and far.  Distance on
 #: open water is judged almost entirely by haze.
-_HAZE = 2600.0
+#:
+#: 5200 m puts downtown at just over half-way to the sky colour, which
+#: is about right for a clear day here.  At 2600 it was four fifths of
+#: the way and the towers came out nearly white -- readable as far, but
+#: too washed out to pick a landmark off, which is the whole use a
+#: coxswain has for them.
+_HAZE = 5200.0
 
 #: A building this many metres tall is worth drawing at 1 m of distance.
 #:
@@ -353,8 +363,9 @@ class RiverScene(BoatScene):
                 continue
             if length / max(gap, 1.0) < 0.02:
                 continue
-            ends = terrain.at(deck[[0, -1], 0], deck[[0, -1], 1])
-            level = float(max(ends.max(), terrain.pool + 3.0))
+            ends = terrain.height_above_water(deck[[0, -1], 0],
+                                              deck[[0, -1], 1])
+            level = float(max(ends.max(), 3.0))
             points = np.column_stack([
                 deck[:, 0] - origin[0], deck[:, 1] - origin[1],
                 np.full(len(deck), level)])
@@ -441,15 +452,23 @@ class RiverScene(BoatScene):
             rgb = np.asarray(rgb, dtype=float)
 
         # Jitter from the coordinates themselves: stable across frames
-        # and across runs, and free of any per-frame random state.
+        # and across runs, and free of any per-frame random state.  Two
+        # independent draws, because varying brightness alone still
+        # reads as one material lit unevenly -- it is the small shifts
+        # of hue between neighbours that make a row of buildings look
+        # like a row of buildings.
         east, north = structures.centres[index]
         seed = (np.sin(east * 12.9898 + north * 78.233) * 43758.5453) % 1.0
-        rgb = np.clip(rgb * (0.86 + 0.28 * seed), 0.0, 1.0)
+        tint = (np.sin(east * 39.3467 + north * 11.1357) * 24634.6345) % 1.0
+        rgb = rgb * (0.80 + 0.42 * seed)
+        rgb = rgb * np.array([1.0 + 0.10 * (tint - 0.5), 1.0,
+                              1.0 - 0.10 * (tint - 0.5)])
+        rgb = np.clip(rgb, 0.0, 1.0)
 
         # A roof is seen at a glancing angle from a seat 0.7 m off the
         # water and nearly face-on from the skyline; either way it is the
         # edge that separates one building from the next.
-        roof = np.clip(rgb * 0.72, 0.0, 1.0)
+        roof = np.clip(rgb * 0.62, 0.0, 1.0)
 
         haze = 1.0 - np.exp(-max(distance, 0.0) / _HAZE)
         sky = np.array([0.62, 0.72, 0.78])
@@ -461,7 +480,14 @@ class RiverScene(BoatScene):
         ring = structures.polygons[index]
         if len(ring) < 4:
             return None
-        base = float(terrain.at(*ring.mean(axis=0))[0])
+        # Height above the waterline, not raw elevation.  The scene's
+        # z = 0 is the water surface, and the elevation model is in its
+        # own vertical datum -- NAVD88 -- where Lake Union's surface is
+        # 5.1 m.  Using the raw value floated every building in Seattle
+        # five metres off the ground.  On the Charles the pool sits at
+        # 0.6 m, so the same bug was there all along and was too small
+        # to see.
+        base = float(terrain.height_above_water(*ring.mean(axis=0))[0])
         height = float(structures.heights[index])
         points = np.column_stack([ring[:, 0], ring[:, 1],
                                   np.full(len(ring), base)])
@@ -573,7 +599,7 @@ class RiverScene(BoatScene):
         for index in within[:220]:
             east, north = structures.trees[index]
             height = float(structures.tree_heights[index])
-            base = float(terrain.at(east, north)[0])
+            base = float(terrain.height_above_water(east, north)[0])
             crowns.append(pv.Sphere(radius=0.30 * height,
                                     center=(east, north,
                                             base + 0.72 * height),

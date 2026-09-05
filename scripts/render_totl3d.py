@@ -105,8 +105,12 @@ def main(argv=None):
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--from", dest="start", type=float, default=200.0)
-    parser.add_argument("--to", dest="finish", type=float, default=900.0)
+    # 1150-1850 m by default: the one stretch of the course that runs
+    # almost due south, so the crew is looking straight down the lake at
+    # downtown Seattle.  Any leg renders; this is the one that shows what
+    # the skyline work was for.
+    parser.add_argument("--from", dest="start", type=float, default=1150.0)
+    parser.add_argument("--to", dest="finish", type=float, default=1850.0)
     parser.add_argument("--view", default="cox",
                         choices=("cox", "chase3d", "plan", "iso"))
     parser.add_argument("--frames", type=int, default=180)
@@ -140,8 +144,10 @@ def main(argv=None):
             when = fraction * scene.duration
             target = os.path.join(args.out,
                                   "%s_t%03d.png" % (stem, int(when)))
+            # No axis widget: this is a picture of a lake, and an
+            # x/y/z triad in the corner of a coxswain's view is noise.
             scene.snapshot(t=when, path=target, view=args.view,
-                           window_size=(1100, 620))
+                           window_size=(1100, 620), axes=False)
             print("wrote", target)
         return 0
 
