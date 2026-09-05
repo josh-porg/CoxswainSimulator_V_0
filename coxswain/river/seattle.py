@@ -324,12 +324,66 @@ def lake_union_channel(resolution: float = 10.0, margin: float = 8.0):
     _e, _n, rowable = rowable_mask(resolution, names=("Lake Union",),
                                    margin=margin)
     depth = np.full(water.shape, np.nan)
-    reach = distance_transform_edt(water) * resolution
-    depth[water] = nominal_depth(reach[water])
+    try:
+        # Charted depth where there is one: nearest surveyed value, which
+        # is honest about being an interpolation of 676 points rather
+        # than a continuous survey.
+        points, values = surveyed_depth()
+        grid_east, grid_north = np.meshgrid(east, north)
+        wet_points = np.column_stack([grid_east[water], grid_north[water]])
+        from scipy.spatial import cKDTree
+        _distance, index = cKDTree(points).query(wet_points)
+        depth[water] = values[index]
+    except Exception:
+        reach = distance_transform_edt(water) * resolution
+        depth[water] = nominal_depth(reach[water])
     clearance = distance_transform_edt(rowable) * resolution
     return ChannelRaster(east=east, north=north, water=water,
                          navigable=rowable, depth=depth,
                          clearance=clearance)
+
+
+#: Shallowest depth the model will report, metres -- a racing shell's
+#: draft.  See :func:`surveyed_depth`.
+MINIMUM_DEPTH = 0.16
+
+
+def surveyed_depth():
+    """Charted depth for Lake Union as ``(points, depths)`` in metres.
+
+    From NOAA ENC cell ``US5SEAGL`` -- Lake Union is part of the Lake
+    Washington Ship Canal, a federal navigation project, so it is
+    charted.  676 values inside the lake: point soundings plus the
+    shallower bound of each charted depth area.
+
+    This replaces :func:`nominal_depth`, which was invented.  The
+    invented profile ran **4.0 m too deep on average**, 4.9 m rms, and
+    13.2 m at worst, and put the depth Froude number at 0.32 where the
+    survey says 0.41.
+
+    Raises :class:`FileNotFoundError` if the survey has not been
+    fetched, so a caller can fall back on the nominal profile knowingly
+    rather than by accident.
+    """
+    from .course import local_tangent_plane
+
+    path = os.path.join(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))), "data", "lake_union_depth.npz")
+    if not os.path.exists(path):
+        raise FileNotFoundError(
+            "%s is missing -- run tools/fetch_noaa_soundings.py" % path)
+    blob = np.load(path)
+    xy = blob["depth_xy"]
+    east, north = local_tangent_plane(xy[:, 0], xy[:, 1], SEATTLE_ORIGIN)
+    points = np.column_stack([np.asarray(east), np.asarray(north)])
+    depths = blob["depth"].astype(float)
+    # The chart's shallowest depth areas run from zero -- "between 0 and
+    # 1.8 m" is a real charted statement about the water against a
+    # seawall.  Zero is not a usable depth downstream: the depth Froude
+    # number divides by its square root.  Floored at the shell's own
+    # draft, which is the shallowest water in which the question even
+    # means anything; a boat there is aground, not slow.
+    return points, np.maximum(depths, MINIMUM_DEPTH)
 
 
 def nominal_depth(distance_from_shore) -> np.ndarray:

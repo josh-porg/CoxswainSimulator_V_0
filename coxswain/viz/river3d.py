@@ -128,6 +128,53 @@ _OBSTRUCTION_STYLE = {
 #: and the shadows in it, because the sun was out when it was taken.
 _PHOTO_LIGHTING = {"lighting": False}
 
+#: Landmark spans, by the name OpenStreetMap gives the *road*:
+#: ``(display name, deck height above water, deck half-width, pier
+#: spacing)``, all metres.
+#:
+#: The deck height is **published, not derived**, and it has to be.  A
+#: bridge way in OpenStreetMap runs out onto its approach embankment, and
+#: 3DEP is bare earth so under the span it reads the water.  Taking the
+#: height from the way's own endpoints gave the Ship Canal Bridge a 37 m
+#: deck against a published 57, and the Aurora Bridge a 61 m one against
+#: a published 51 -- one end of it lands on the Queen Anne bluff, which
+#: is well above the roadway.
+#:
+#: This follows the pattern :data:`coxswain.river.bridges.BRIDGE_STRUCTURE`
+#: already sets for the Charles: where a bridge's dimensions are a matter
+#: of record, they are recorded rather than inferred.
+_LANDMARK_SPANS = {
+    # I-5 over Portage Bay: 1,350 m, 41 m navigation clearance, upper
+    # roadway near 57 m.  The tallest thing on this water and visible
+    # from most of the lake.
+    "Ship Canal Bridge": ("Ship Canal Bridge (I-5)", 55.0, 11.0, 130.0),
+    # George Washington Memorial Bridge, which nobody calls that: 898 m,
+    # deck 51 m, clearance 41 m.  OSM names the way after the road.
+    "Aurora Avenue North": ("Aurora Bridge", 51.0, 8.0, 90.0),
+    "Portage Bay Viaduct": ("Portage Bay Viaduct", 20.0, 9.0, 60.0),
+    # The bascules sit low, which is why they open.
+    "University Bridge": ("University Bridge", 9.0, 9.0, 45.0),
+    "Fremont Avenue North": ("Fremont Bridge", 9.0, 7.0, 45.0),
+    "Montlake Boulevard East": ("Montlake Bridge", 9.0, 8.0, 45.0),
+}
+
+#: Colour and crown geometry per growth form:
+#: ``(colour, crown radius / height, crown centre / height)``.
+#:
+#: A conifer is a cone and a maple is a ball, and on this shore that is
+#: not a detail.  The banks of Lake Union are Douglas fir, western red
+#: cedar and Sitka spruce among the bigleaf maple, and 5,678 of the
+#: 92,656 trees in the city inventory are conifers.  Drawn as identical
+#: green spheres -- which is what the scene did -- it is a different
+#: place.
+_TREE_STYLE = {
+    "broadleaf": ("#4a6b45", 0.34, 0.70),
+    # Darker, narrower, and carried further down the trunk.
+    "conifer":   ("#2f4a35", 0.20, 0.55),
+    "columnar":  ("#3c5a3e", 0.11, 0.55),
+    "palm":      ("#5a7a4a", 0.26, 0.88),
+}
+
 #: A building this many metres tall is worth drawing at 1 m of distance.
 #:
 #: Beyond the near window only things that subtend a usable angle are
@@ -189,7 +236,7 @@ class RiverScene(BoatScene):
                  path=None, window: float = 420.0,
                  show_structures: bool = True, show_skyline: bool = True,
                  structures=None, terrain=None, imagery=None,
-                 obstructions=(), **kwargs):
+                 obstructions=(), trees=None, **kwargs):
         """``structures`` and ``terrain`` default to the Charles.
 
         They are injectable because nothing in this renderer is actually
@@ -206,6 +253,7 @@ class RiverScene(BoatScene):
         self._terrain = terrain
         self._imagery = imagery
         self.obstructions = tuple(obstructions)
+        self._trees = trees
         self._imagery_tried = imagery is not None
         self.channel = channel
         self.gates = tuple(gates)
@@ -291,8 +339,14 @@ class RiverScene(BoatScene):
                         & (east <= centre[0] + half))[0]
         iy = np.nonzero((north >= centre[1] - half)
                         & (north <= centre[1] + half))[0]
-        step = max(len(ix) // 150, 1)
-        return ix[::step], iy[::step]
+        # 260 across the window, not 150.  The elevation model under
+        # this is 2.7 m and the shoreline mask 4 m, so 150 samples over a
+        # 640 m window was throwing away more than half the detail that
+        # had already been fetched -- the mesh, not the data, was what
+        # made the bank look like a staircase.
+        step = max(len(ix) // 260, 1)
+        stride = max(len(iy) // 260, 1)
+        return ix[::step], iy[::stride]
 
     def terrain_polydata(self, t: float):
         """Bed and bank around the boat, as a surface with a depth array.
@@ -481,18 +535,19 @@ class RiverScene(BoatScene):
                              ambient=0.40, diffuse=0.70, specular=0.02)
 
     def span_actors(self, plotter, t: float):
-        """Landmark bridge decks -- scenery, not gates.
+        """Landmark bridge decks and their piers -- scenery, not gates.
 
         A bridge the course does not pass under still matters: it is how
-        a crew knows where they are.  The deck height is taken from the
-        elevation model at the two abutments rather than from a tag,
-        because OpenStreetMap almost never carries one and the ground at
-        each end of a high bridge is, by construction, deck height.
+        a crew knows where they are, and on Lake Union the Ship Canal
+        Bridge is 55 m up and visible from most of the water.
+
+        Drawn as a slab on columns rather than a tube, because from the
+        water a bridge is a horizontal line held up by verticals, and the
+        verticals are most of what makes it read as a bridge.
         """
         pv = require_pyvista()
         try:
             structures = self.structures()
-            terrain = self.terrain()
         except Exception:
             return
         if not getattr(structures, "spans", None):
@@ -501,28 +556,54 @@ class RiverScene(BoatScene):
         origin = self._origin(state)
         centre = np.asarray(state.position, dtype=float)[:2]
 
+        pieces = []
         for name, deck in zip(structures.span_names, structures.spans):
-            if len(deck) < 3:
+            if len(deck) < 2:
                 continue
+            style = _LANDMARK_SPANS.get(str(name))
+            if style is None:
+                continue
+            label, level, half, spacing = style
             length = float(np.hypot(*np.diff(deck, axis=0).T).sum())
             gap = float(np.linalg.norm(deck.mean(axis=0) - centre))
-            # Only spans big enough to read at the distance they are.
             if length < 120.0 or gap > self.SKYLINE_REACH:
                 continue
-            if length / max(gap, 1.0) < 0.02:
-                continue
-            ends = self.bank_height(deck[[0, -1], 0], deck[[0, -1], 1])
-            level = float(max(ends.max(), 3.0))
-            points = np.column_stack([
+
+            shifted = np.column_stack([
                 deck[:, 0] - origin[0], deck[:, 1] - origin[1],
                 np.full(len(deck), level)])
             try:
-                ribbon = pv.lines_from_points(points).tube(
-                    radius=max(4.0, 0.012 * length), n_sides=4)
+                slab = pv.lines_from_points(shifted).tube(
+                    radius=half, n_sides=4)
+                pieces.append(slab.extrude((0.0, 0.0, 2.5), capping=True))
             except Exception:
                 continue
-            plotter.add_mesh(ribbon, color=_DECK, name="span-%s" % name,
-                             ambient=0.30, diffuse=0.75)
+
+            # Piers, spaced along the span and stopping at whatever is
+            # under them -- ground on the approaches, water mid-channel.
+            station = np.concatenate([[0.0], np.cumsum(
+                np.hypot(*np.diff(deck, axis=0).T))])
+            for where in np.arange(spacing, max(length - spacing, 0.0),
+                                   spacing):
+                east = float(np.interp(where, station, deck[:, 0]))
+                north = float(np.interp(where, station, deck[:, 1]))
+                try:
+                    foot = float(self.bank_height(east, north)[0])
+                except Exception:
+                    foot = 0.0
+                if level - foot < 4.0:
+                    continue
+                pieces.append(pv.Cylinder(
+                    center=(east - origin[0], north - origin[1],
+                            0.5 * (level + foot)),
+                    direction=(0.0, 0.0, 1.0), radius=1.8,
+                    height=level - foot, resolution=8))
+
+        if not pieces:
+            return
+        merged = pieces[0].merge(pieces[1:]) if len(pieces) > 1 else pieces[0]
+        plotter.add_mesh(merged, color=_DECK, name="landmark-spans",
+                         ambient=0.32, diffuse=0.72, specular=0.02)
 
     _distant_mesh = None
 
@@ -595,7 +676,23 @@ class RiverScene(BoatScene):
         east, north = structures.centres[index]
         photo = self.imagery()
         if rgb[0] >= 0.0:
-            rgb = np.asarray(rgb, dtype=float)          # somebody tagged it
+            # Somebody tagged it -- but a tag is a *label*, not a
+            # measurement.  Of the 226 tagged buildings here the most
+            # saturated carry pure primaries: (1, 0, 0), (1, 1, 0),
+            # (0, 1, 1).  No facade is #FF0000; a contributor typed
+            # "red".  Believed literally, one of them put a fluorescent
+            # red box in the middle of the Seattle skyline.
+            #
+            # So the hue is kept and the saturation is capped at what a
+            # painted building actually reaches.  A red building still
+            # reads red; it stops glowing.
+            rgb = np.asarray(rgb, dtype=float)
+            level = float(rgb.mean())
+            spread = float(rgb.max() - rgb.min())
+            if spread > self.MAX_TAGGED_SATURATION:
+                rgb = level + (rgb - level) * (self.MAX_TAGGED_SATURATION
+                                               / spread)
+            rgb = np.clip(rgb, 0.0, 1.0)
         elif photo is not None:
             rgb = self._photo_colour(photo, structures.polygons[index])
         else:
@@ -621,8 +718,21 @@ class RiverScene(BoatScene):
         # edge that separates one building from the next.
         roof = np.clip(rgb * (0.62 if photo is None else 0.80), 0.0, 1.0)
 
-        haze = 1.0 - np.exp(-max(distance, 0.0) / _HAZE)
         sky = np.array([0.62, 0.72, 0.78])
+
+        # Glass reflects the sky, and above about 40 m a Seattle building
+        # is mostly glass.  This matters for legibility, not prettiness:
+        # Columbia Center is a **black** tower, its roof photographs
+        # near-black, and painted with that colour it disappeared against
+        # the water at four kilometres.  What makes a black glass tower
+        # visible from a distance is not its own colour -- it is the sky
+        # in its windows.
+        height = float(structures.heights[index])
+        glass = np.clip((height - 40.0) / 160.0, 0.0, 0.55)
+        rgb = rgb + (sky - rgb) * glass
+        roof = roof + (sky - roof) * (0.5 * glass)
+
+        haze = 1.0 - np.exp(-max(distance, 0.0) / _HAZE)
         return (rgb + (sky - rgb) * haze, roof + (sky - roof) * haze)
 
     #: Lightness band the sampled roof colour is squeezed into.
@@ -635,6 +745,13 @@ class RiverScene(BoatScene):
     #: colours, which is what makes one building distinguishable from
     #: the next, and drops the contrast that was never about the walls.
     PHOTO_RANGE = (0.30, 0.78)
+
+    #: Most saturated a ``building:colour`` tag is allowed to render.
+    #:
+    #: Measured as ``max(rgb) - min(rgb)``.  Painted brick and rendered
+    #: stucco reach maybe 0.3; the pure primaries OpenStreetMap carries
+    #: are 1.0, and they are labels rather than measurements.
+    MAX_TAGGED_SATURATION = 0.30
 
     def _photo_colour(self, photo, ring):
         """Wall colour for a footprint, from the orthophoto over it.
@@ -774,17 +891,104 @@ class RiverScene(BoatScene):
         self._structure_key, self._structure_mesh = key, merged
         return merged, origin
 
-    def canopy_polydata(self, t: float):
-        """Mapped trees within sight, as crowns on the bank.
+    def trees(self):
+        """The tree inventory to draw, or ``None`` to fall back on OSM."""
+        return self._trees
 
-        Individual OSM trees only -- the park polygons are the better
-        record of where canopy *is*, but they say nothing about where the
-        trunks are, and a park drawn as a solid green slab looks worse
-        than no trees at all.
+    def canopy_actors(self, plotter, t: float):
+        """Trees within sight, shaped by species.
+
+        One actor per growth form rather than per tree: there are 92,656
+        trees in the Seattle inventory and a few hundred are in frame at
+        any moment, but four actors a frame is the difference between a
+        render and a slideshow.
+
+        Falls back to the OpenStreetMap points -- all spheres, because
+        that is all OSM knows -- when no inventory is supplied, so the
+        Charles still draws.
         """
         pv = require_pyvista()
         state = self.state_at(t)
+        origin = self._origin(state)
         centre = np.asarray(state.position, dtype=float)[:2]
+        reach = self.window * 1.4
+
+        stand = self.trees()
+        if stand is None:
+            mesh = self._osm_canopy(centre, reach)
+            if mesh is not None:
+                shifted = mesh.copy()
+                shifted.points = shifted.points - np.array(
+                    [origin[0], origin[1], 0.0])
+                plotter.add_mesh(shifted, color=_CANOPY, name="trees",
+                                 ambient=0.35, diffuse=0.70, specular=0.0)
+            return
+
+        within = stand.near(centre[0], centre[1], reach)
+        if not len(within):
+            return
+        # Ranked by **apparent** size, not height, and capped.
+        #
+        # Sorting by height alone picked the tallest trees in the window,
+        # which from a seat 0.55 m off the water are the ones on the
+        # hillside four hundred metres inland -- so the Westlake bank,
+        # with 2,275 seeded trees on it, rendered bare while Queen Anne
+        # got a forest nobody can see. A 10 m tree sixty metres away
+        # subtends more than a 24 m one at four hundred.
+        offset = stand.points[within] - centre
+        gap = np.maximum(np.hypot(offset[:, 0], offset[:, 1]), 1.0)
+        within = within[np.argsort(-stand.heights[within] / gap)][:700]
+
+        grouped = {}
+        for index in within:
+            form = stand.FORMS[int(stand.form[index])]
+            height = float(stand.heights[index])
+            if height < 2.0:
+                continue
+            east, north = stand.points[index]
+            try:
+                base = float(self.bank_height(east, north)[0])
+            except Exception:
+                base = 0.0
+            _colour, radius, level = _TREE_STYLE.get(
+                form, _TREE_STYLE["broadleaf"])
+            top = base + height
+            if form == "conifer":
+                crown = pv.Cone(center=(east, north,
+                                        base + level * height),
+                                direction=(0.0, 0.0, 1.0),
+                                height=height * 0.85,
+                                radius=radius * height, resolution=9)
+            elif form == "columnar":
+                crown = pv.Cylinder(center=(east, north,
+                                            base + level * height),
+                                    direction=(0.0, 0.0, 1.0),
+                                    height=height * 0.80,
+                                    radius=max(radius * height, 0.6),
+                                    resolution=8)
+            else:
+                crown = pv.Sphere(radius=radius * height,
+                                  center=(east, north,
+                                          base + level * height),
+                                  theta_resolution=10, phi_resolution=8)
+            grouped.setdefault(form, []).append(crown)
+            del top
+
+        for form, crowns in grouped.items():
+            merged = crowns[0].merge(crowns[1:]) if len(crowns) > 1 \
+                else crowns[0]
+            shifted = merged.copy()
+            shifted.points = shifted.points - np.array(
+                [origin[0], origin[1], 0.0])
+            plotter.add_mesh(shifted,
+                             color=_TREE_STYLE.get(
+                                 form, _TREE_STYLE["broadleaf"])[0],
+                             name="trees-%s" % form,
+                             ambient=0.35, diffuse=0.70, specular=0.0)
+
+    def _osm_canopy(self, centre, reach):
+        """The old all-spheres fallback, for a course with no inventory."""
+        pv = require_pyvista()
         try:
             structures = self.structures()
             terrain = self.terrain()
@@ -794,7 +998,7 @@ class RiverScene(BoatScene):
             return None
         offset = structures.trees - centre
         within = np.nonzero(np.einsum("ij,ij->i", offset, offset)
-                            < (self.window * 1.2) ** 2)[0]
+                            < reach ** 2)[0]
         crowns = []
         for index in within[:220]:
             east, north = structures.trees[index]
@@ -982,13 +1186,7 @@ class RiverScene(BoatScene):
                     plotter.add_mesh(shifted, color=_WALL, name="buildings",
                                      ambient=0.30, diffuse=0.80,
                                      specular=0.02)
-            crowns = self.canopy_polydata(t)
-            if crowns is not None:
-                shifted = crowns.copy()
-                shifted.points = shifted.points - np.array(
-                    [origin[0], origin[1], 0.0])
-                plotter.add_mesh(shifted, color=_CANOPY, name="trees",
-                                 ambient=0.35, diffuse=0.70, specular=0.0)
+            self.canopy_actors(plotter, t)
         self.obstruction_actors(plotter, t)
         self.bridge_actors(plotter, t)
         if self.show_skyline:

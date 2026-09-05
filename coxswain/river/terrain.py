@@ -243,9 +243,9 @@ class Imagery:
         rows, columns = self.image.shape[:2]
         u, v = self.texture_coordinates(east, north).T
         column = np.clip((u * (columns - 1)).astype(int), 0, columns - 1)
-        # ``image`` was flipped at load so row 0 is the south edge, which
-        # is exactly what ``v`` counts from.
-        row = np.clip((v * (rows - 1)).astype(int), 0, rows - 1)
+        # Row 0 is the north edge and ``v`` counts up from the south, so
+        # this is the one place the flip belongs.
+        row = np.clip(((1.0 - v) * (rows - 1)).astype(int), 0, rows - 1)
         return self.image[row, column].astype(float) / 255.0
 
 
@@ -276,10 +276,18 @@ def load_imagery(name: str, origin) -> "Imagery":
     with open(sidecar) as handle:
         south, west, north, east = json.load(handle)["bounds"]
 
-    # Row 0 of the file is the north edge; VTK's v axis counts up from
-    # the south.  Flipping once here keeps every later transform a
-    # straight rescale.
-    image = np.asarray(Image.open(path).convert("RGB"))[::-1]
+    # Stored as it comes off disk: row 0 is the north edge.  It is NOT
+    # flipped here.
+    #
+    # It was, once, on the reasoning that VTK's v axis counts up from the
+    # south.  PyVista flips the array itself when it builds the texture,
+    # so doing it here as well mirrored the photograph about the middle
+    # of the tile -- and that hid for a long time, because a point
+    # mid-lake reflects to another point mid-lake and the water still
+    # looked like water.  It only showed when the boat moved far enough
+    # north that its reflection landed on Capitol Hill, and the lake
+    # rendered pale grey.
+    image = np.asarray(Image.open(path).convert("RGB"))
 
     east_axis, _ = local_tangent_plane(
         np.full(2, 0.5 * (south + north)), np.array([west, east]), origin)

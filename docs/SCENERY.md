@@ -20,7 +20,8 @@ and it needed no new renderer.
 | Building shape and height | City of Seattle *Building Outlines 2015* (lidar) | City of Seattle open data | `tools/fetch_seattle_buildings.py` |
 | Building class and name | OpenStreetMap | ODbL | `tools/extract_structures.py` |
 | Shoreline, docks, houseboats | OpenStreetMap | ODbL | `tools/extract_seattle_water.py` |
-| Bridges, trees, canopy | OpenStreetMap | ODbL | `tools/extract_structures.py` |
+| Bridges, canopy, water | OpenStreetMap | ODbL | `tools/extract_structures.py` |
+| Tree species and height | Seattle SPR Tree View + SDOT Trees | City of Seattle open data | `tools/fetch_seattle_trees.py` |
 
 To rebuild Seattle from nothing:
 
@@ -29,6 +30,7 @@ python tools/fetch_dem.py --bounds 47.590 -122.375 47.670 -122.300 --out seattle
 python tools/fetch_imagery.py --bounds 47.590 -122.375 47.670 -122.300 --out seattle_imagery.jpg
 python tools/extract_structures.py --bounds 47.590,-122.375,47.670,-122.300 --out seattle_structures.npz
 python tools/fetch_seattle_buildings.py
+python tools/fetch_seattle_trees.py
 ```
 
 Order matters for the last one: it *merges over* the OSM extract rather
@@ -160,11 +162,22 @@ ninth decile, which is a storey of daylight under a house.
 ## Known limits — read before trusting a picture
 
 **These are massing models, not buildings.** A footprint extruded to a
-measured height. The Space Needle is a round footprint pulled up 184 m,
-so it renders as a cylinder; it has no saucer because nothing in either
-dataset says it has one. The Gas Works machinery *is* present — 18
-structures, 14–21 m tall and 3–9 m wide, which are the cracking towers —
-because the lidar saw them, but they are boxes.
+measured height, or for a tower, one prism per `building:part` between
+its own `min_height` and `height`. That is enough for the Space Needle to
+come out as three legs, a shaft, a saucer at 152–156 m and a deck at
+158–161 m — a needle rather than the cylinder it was — but it is still
+boxes and prisms, not architecture. The Gas Works machinery is present
+(18 structures, 14–21 m tall, 3–9 m wide, the cracking towers) for the
+same reason and with the same limit.
+
+**Trees are three primitives.** A cone, a sphere, a cylinder, sized by
+species and measured height. Good enough for a silhouette at 200 m,
+which is the distance that matters; not a tree.
+
+**The tree inventory is street and park trees only.** Nothing on private
+land, which on the Eastlake and Westlake shores is most of it. The
+`Seattle Tree Canopy 2021` polygons (49,876 in this box) would fill that
+in and are fetched by nothing yet.
 
 **The imagery is one day in the year NAIP flew.** Moored boats, wakes and
 sun glint are baked into the water. Nothing in the render moves with the
@@ -184,3 +197,67 @@ settle which. The corridor is therefore *pinned to the traced line* where
 they conflict, rather than being given the 8 m of invented room it used to
 get — that floor was letting the optimiser route 23% of the raced line
 within 5 m of a pier. See §109 of [SOURCES.md](SOURCES.md).
+
+---
+
+## Trees: species, form and measured height
+
+The scene drew every tree as an identical green sphere from OpenStreetMap
+points that carry no species and almost no height. On this shore that is
+wrong in a way a coxswain notices: the banks are Douglas fir, western red
+cedar and Sitka spruce among bigleaf maple and London plane, and a
+conifer is a **cone**.
+
+Two city datasets, fetched by `tools/fetch_seattle_trees.py`:
+
+| | count in box | has species | has height |
+|---|---|---|---|
+| SPR Tree View (Parks) | 5,648 | yes | **yes, measured, 89% populated** |
+| SDOT Trees (Transportation) | 87,008 | yes | no |
+
+Heights come from Parks and are carried to Transportation **by species**:
+the median measured height of every *Thuja plicata* in the park data
+becomes the height of a *Thuja plicata* on a street. That is an
+inference from measurements, not a field guide, and the per-tree
+provenance is stored — 5,000 measured, 51,713 from a species median,
+35,943 from the genus or a default.
+
+92,656 trees: 86,240 broadleaf, 5,678 conifer, 610 columnar, 128 palm.
+Form is decided by genus, which both datasets give. The tallest is a
+Lombardy poplar at 39.6 m, correctly classified columnar.
+
+**A fault in the city's data:** `SPECIES` carries the literal string
+`trigger_error` on 142 records — their pipeline, not a plant. The heights
+on those rows are fine and are kept; the name is blanked at load.
+
+## Landmark bridges
+
+`_LANDMARK_SPANS` records deck height and width for the Ship Canal Bridge
+(I-5), the Aurora Bridge, the Portage Bay Viaduct and the three bascules,
+drawn as a slab on piers — from the water a bridge is a horizontal line
+held up by verticals, and the verticals are most of what makes it read.
+
+**The deck height is published, not derived, and it has to be.** An OSM
+bridge way runs out onto its approach embankment, and 3DEP is bare earth
+so under the span it reads the water. Taking the height from the way's
+own endpoints gave the Ship Canal Bridge a 37 m deck against a published
+57, and the Aurora Bridge a 61 m one against a published 51 — one end of
+it lands on the Queen Anne bluff, well above the roadway. This follows
+the pattern `bridges.BRIDGE_STRUCTURE` already sets for the Charles.
+
+## A fourth silent failure: the mirrored orthophoto
+
+The imagery was flipped at load, on the reasoning that VTK's *v* axis
+counts up from the south. PyVista flips the array itself when it builds
+the texture, so doing it here as well **mirrored the photograph about the
+middle of the tile**.
+
+It hid for a long time, and the reason is worth recording: a point
+mid-lake reflects to another point mid-lake, so the water still looked
+like water. It only showed when the boat moved far enough north that its
+reflection landed on Capitol Hill and the lake rendered pale grey. The
+rendered water now matches the photograph to within one unit in 255.
+
+The lesson is the same one for the fourth time — **rendering catches what
+numbers hide** — with a corollary: a symmetric error hides longest,
+because half the scene checks out.

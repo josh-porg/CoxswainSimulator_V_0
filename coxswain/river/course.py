@@ -82,6 +82,21 @@ def local_tangent_plane(latitude, longitude, origin: Tuple[float, float]):
     return east, north
 
 
+def inverse_tangent_plane(east, north, origin: Tuple[float, float]):
+    """Undo :func:`local_tangent_plane`: metres back to ``(lat, lon)``.
+
+    Exact, because the forward map is linear -- it is worth having as a
+    function rather than a calibration, which is how it was first done
+    and which fails silently the moment the data it is calibrated on does
+    not span the area being converted.
+    """
+    lat0, lon0 = np.radians(origin[0]), np.radians(origin[1])
+    latitude = lat0 + np.asarray(north, dtype=float) / EARTH_RADIUS
+    longitude = lon0 + (np.asarray(east, dtype=float)
+                        / (EARTH_RADIUS * np.cos(lat0)))
+    return np.degrees(latitude), np.degrees(longitude)
+
+
 class DepthField:
     """Water depth as a function of absolute-frame position.
 

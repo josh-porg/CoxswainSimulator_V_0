@@ -121,21 +121,38 @@ def totl_course(resolution: float = 10.0) -> Course:
         port = np.maximum(port, 2.0)
         starboard = np.maximum(starboard, 2.0)
 
-    grid_east, grid_north = np.meshgrid(east, north)
-    depths = nominal_depth(distance_transform_edt(main) * resolution)
-    samples = np.column_stack([grid_east[main], grid_north[main]])
+    # Charted depth from NOAA ENC cell US5SEAGL where it is available.
+    # Lake Union is part of the Lake Washington Ship Canal, a federal
+    # navigation project, so it is surveyed -- and the shelf profile this
+    # used before was invented, ran 4.0 m too deep on average, and put
+    # the depth Froude number at 0.32 where the chart says 0.41.
+    surveyed = True
+    try:
+        from coxswain.river.seattle import surveyed_depth
+        samples, depths = surveyed_depth()
+    except Exception as error:
+        print("  (no chart depth: %s); falling back on the nominal shelf"
+              % str(error)[:60])
+        surveyed = False
+        grid_east, grid_north = np.meshgrid(east, north)
+        grid = nominal_depth(distance_transform_edt(main) * resolution)
+        samples = np.column_stack([grid_east[main], grid_north[main]])
+        depths = grid[main]
 
     return Course(
         centreline=line,
         half_width=half,
         port_limit=port,
         starboard_limit=starboard,
-        depth=DepthField(points=samples, depths=depths[main],
-                         is_survey=False),
+        depth=DepthField(points=samples, depths=depths,
+                         is_survey=surveyed),
         current=CurrentField.still(),
         name="Tail of the Lake",
         is_survey=False,
         notes="course traced from the 2024 regatta map; shoreline from "
+              "OpenStreetMap; depth from NOAA ENC US5SEAGL"
+              if surveyed else
+              "course traced from the 2024 regatta map; shoreline from "
               "OpenStreetMap; DEPTH IS NOMINAL, not surveyed",
     )
 

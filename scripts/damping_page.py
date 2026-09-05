@@ -172,10 +172,11 @@ def build(out_dir, dt=0.01):
 
     finding = Finding(
         title="The hull had no pitch damping at all",
-        headline=("A coxed four at rate 30 pitched %.0f degrees and rode "
-                  "1.5 m clear of its own waterline. With the damping "
-                  "derived properly it peaks at %.1f degrees, which is "
-                  "what a shell does."
+        headline=("A coxed four at rate 30 reached %.1f degrees of pitch "
+                  "inside 45 seconds and 25 degrees over a race leg, "
+                  "riding 1.5 m clear of its own waterline. With the "
+                  "damping derived properly it peaks at %.1f degrees, "
+                  "which is what a shell does."
                   % (worst_before, worst_after)),
         detail=(
             "Vertical resistance was a single lumped force at the origin, "
@@ -218,11 +219,16 @@ def build(out_dir, dt=0.01):
     figures = [Figure(
         path=path,
         title="What linear damping does",
-        caption=("Left: peak pitch against stroke rate, log scale, with "
-                 "and without the linear term. Right: the same boat at "
-                 "rate 30 over a minute. Both curves are run, not "
-                 "remembered -- the counterfactual is the same simulator "
-                 "with its damping matrix zeroed."),
+        caption=("Left: peak pitch against stroke rate, log scale, over "
+                 "45 seconds. Right: the same boat at rate 30 over a "
+                 "minute. Both curves are run, not remembered -- the "
+                 "counterfactual is the same simulator with the vertical "
+                 "force put back to a lumped resultant and the linear "
+                 "matrix zeroed, which is the model as it was. Note the "
+                 "window: 45 s catches the divergence starting, not "
+                 "where it ends. Left to run a full race leg the same "
+                 "boat reaches 25 degrees of pitch and rides 1.5 m clear "
+                 "of its waterline."),
         reading=("The band 30-32 is the one that mattered, and it is "
                  "narrow: 18, 22, 26, 28 and 36 were always stable. A "
                  "resonance that sharp is itself the diagnosis, because a "

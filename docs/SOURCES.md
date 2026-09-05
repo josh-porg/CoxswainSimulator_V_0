@@ -8213,3 +8213,110 @@ moves from -1.063 m to +0.597 m and the static trim flips from -0.364
 degrees stern-down to +0.202 bow-down. The renderer also now draws the
 fore and stern decks, because a bow-loading coxswain sees out over a
 deck, and an open shell put the inside of the hull across half the frame.
+
+## 111. Trees by species, bridges by record, and a photograph on backwards
+
+**Trees.** 92,656 of them, from the city's own inventory rather than
+OpenStreetMap: SPR Tree View (5,648 park trees, species *and* measured
+height) and SDOT Trees (87,008 street trees, species only). Heights are
+carried from the measured set to the unmeasured one by species. 5,678 are
+conifers and are now drawn as cones; the scene previously drew every tree
+as the same green sphere, on a shore that is Douglas fir and western red
+cedar. Per-tree provenance stored: 5,000 measured, 51,713 species median,
+35,943 genus or default. The city's `SPECIES` field carries the literal
+string `trigger_error` on 142 records; blanked at load.
+
+**Building parts.** OpenStreetMap describes a tower under Simple 3D
+Buildings -- an outline plus one ``building:part`` per massing step, each
+with ``min_height``. Reading the parts but ignoring ``min_height``
+extruded all twelve parts of the Space Needle from the ground and gave a
+160 m cylinder. 296 outlines are now replaced by their 1,242 parts, 545
+of which start above the ground.
+
+**Bridges.** Deck heights are published values, recorded, because they
+cannot be derived: an OSM bridge way runs onto its approach embankment
+and bare-earth lidar under a span reads the water. Endpoint heights gave
+the Ship Canal Bridge 37 m against a published 57.
+
+**A photograph on backwards.** The orthophoto was flipped at load *and*
+by PyVista, mirroring it about the middle of the tile. It survived
+several rounds of inspection because a point mid-lake reflects to another
+point mid-lake -- the water still looked like water. It only showed when
+the boat moved far enough north that its reflection landed on Capitol
+Hill. Rendered water now matches the source to one unit in 255.
+
+**A geometry audit**, `tools/audit_structures.py`, because the Space
+Needle was caught by eye and pictures do not scale to 41,332 footprints.
+Over Seattle: 504 footprints stand in the water (correct -- houseboats,
+*Virginia V*, USCGC *Tiburon*), 49 are needle-thin (mostly real masts and
+spires), 52 parts float, 6 buildings are drawn twice, 7 rings are
+degenerate. Also 226 buildings carry a `building:colour`, and the most
+saturated are pure primaries -- (1,0,0), (1,1,0), (0,1,1). Nobody's
+facade is #FF0000; a contributor typed "red", and believed literally one
+put a fluorescent red box in the Seattle skyline. Saturation is now
+capped at 0.30.
+
+**Checked and not usable.** Washington DNR aquatic use authorisations and
+Seattle Parks' Docks/Piers/Floats are both **point** datasets -- a lease
+location and an acreage, not a structure outline. DNR freshwater lake
+bathymetry has no Lake Union coverage, so the depth field stays nominal.
+The best dock geometry available is what is already in: OpenStreetMap's
+660 piers, houseboats, marinas and breakwaters, plus the 2015 lidar
+shells, which already carry 504 overwater structures with real outlines
+and measured heights.
+
+## 112. Lake Union is a federal navigation project, so it is charted
+
+`nominal_depth` was a shelf profile **invented** so the course object had
+a depth field at all. Its own docstring said so, and the course had been
+declaring `is_survey=False` ever since. Depth is not decoration here: the
+shallow-water resistance rise goes with the depth Froude number
+:math:`Fr_h = v/\sqrt{gh}`, and on the Charles that correction is worth
+about 82 seconds.
+
+Lake Union is part of the **Lake Washington Ship Canal**, so both NOAA
+and USACE survey it.
+
+**NOAA ENC cell US5SEAGL**, via ENC Direct, is queryable as REST and is
+what is used: 672 point soundings with `Z` in metres, plus 353 charted
+depth areas with `DRVAL1`/`DRVAL2` depth ranges. 676 of those values fall
+inside Lake Union. Each depth area contributes its **shallower** bound,
+which is the conservative direction -- shallower means a higher Froude
+number and a slower predicted boat, so the choice makes the model
+pessimistic rather than flattering.
+
+**USACE eHydro** also has four condition surveys of the ship canal, the
+newest 13 January 2026 covering 0.8 km2. Downloaded and inspected; the
+payload is an Esri file geodatabase and nothing in this environment can
+read one, so it is recorded here as available rather than used. It would
+be the better source if a geodatabase reader is ever added -- it is a
+full-coverage multibeam survey where the ENC is 676 points.
+
+### What the invented profile was worth
+
+| | median | mean | max |
+|---|---|---|---|
+| surveyed | 9.4 m | 8.5 m | 15.2 m |
+| nominal | 15.0 m | 12.5 m | 15.0 m |
+
+The invented profile ran **4.0 m too deep on average**, 4.9 m rms, 13.2 m
+at worst, and put the depth Froude number at 0.32 where the chart says
+**0.41**.
+
+`nominal_depth`'s docstring claimed that "at Fr_h = 0.32 the shallow-water
+correction is 1.00 regardless, so a better profile would change no answer
+this module is used for". Checked rather than inherited: the factor is
+1.0000 at both 0.32 and 0.41, 1.0009 at the all-water median of 6 m, and
+1.012 at the 4 m shoal the line actually crosses near station 1800. The
+optimised time moved 952.3 s to 952.0 s. **The claim held** -- but it now
+rests on a survey instead of on the guess that motivated it, and the
+depth profile under the line has real structure where it used to be a
+smooth shelf.
+
+Chart depths are below the sounding datum, which for the canal is its
+maintained low-water level -- the surface the model calls the pool -- so
+no datum conversion is needed. `VERDAT` comes back null from this
+service, so that is reasoning rather than a value read off the chart, and
+it is recorded as such. The shallowest charted areas run from zero; those
+are floored at a shell's 0.16 m draft, because zero divides badly and a
+boat there is aground rather than slow.

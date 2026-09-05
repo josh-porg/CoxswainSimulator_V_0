@@ -32,7 +32,8 @@ from typing import Tuple
 
 import numpy as np
 
-__all__ = ["Structures", "charles_structures",
+__all__ = [
+    "TreeStand", "seattle_trees","Structures", "charles_structures",
            "seattle_structures", "load_structures"]
 
 _CACHE = {}
@@ -198,6 +199,69 @@ def seattle_structures(origin: Tuple[float, float] = None) -> Structures:
 
     origin = SEATTLE_ORIGIN if origin is None else origin
     return load_structures("seattle_structures.npz", origin)
+
+
+class TreeStand:
+    """Trees as points, with a species, a height and a growth form.
+
+    Kept apart from :class:`Structures` because it comes from a different
+    place and is a different kind of thing: the city's own inventory,
+    with heights measured by an arborist, against OpenStreetMap's
+    volunteer points that carry neither species nor height.
+    """
+
+    #: Growth forms, indexed by :attr:`form`.
+    FORMS = ("broadleaf", "conifer", "columnar", "palm")
+    #: Height provenance: measured, species median, genus or default.
+    SOURCES = ("measured", "species median", "genus or default")
+
+    def __init__(self, points, heights, forms, species, sources):
+        self.points = np.asarray(points, dtype=float).reshape(-1, 2)
+        self.heights = np.asarray(heights, dtype=float)
+        self.form = np.asarray(forms, dtype=int)
+        self.species = np.asarray(species, dtype="<U48")
+        self.height_source = np.asarray(sources, dtype=int)
+
+    def __len__(self):
+        return len(self.points)
+
+    def near(self, east: float, north: float, radius: float):
+        """Indices within ``radius``.  A plain scan: 92,000 points is one
+        millisecond in numpy and a grid index would be premature."""
+        offset = self.points - np.array([east, north])
+        return np.nonzero(np.einsum("ij,ij->i", offset, offset)
+                          <= radius * radius)[0]
+
+
+def seattle_trees(origin: Tuple[float, float] = None) -> TreeStand:
+    """The city's tree inventory, projected into the tangent plane."""
+    from .course import local_tangent_plane
+    from .seattle import SEATTLE_ORIGIN
+
+    origin = SEATTLE_ORIGIN if origin is None else origin
+    key = ("trees", tuple(origin))
+    if key in _CACHE:
+        return _CACHE[key]
+
+    path = os.path.join(os.path.dirname(_PATH), "seattle_trees.npz")
+    if not os.path.exists(path):
+        raise FileNotFoundError(
+            "%s is missing -- run tools/fetch_seattle_trees.py" % path)
+    blob = np.load(path)
+    xy = blob["tree_xy"]
+    east, north = local_tangent_plane(xy[:, 0], xy[:, 1], origin)
+    # The city's own species field carries the literal string
+    # "trigger_error" on 142 records -- a fault in their pipeline, not a
+    # plant.  The height on those rows is fine and is kept; only the name
+    # is blanked, so nothing downstream reports a species that does not
+    # exist.
+    species = np.asarray(blob["tree_species"], dtype="<U48").copy()
+    species[np.char.find(np.char.lower(species), "trigger_error") >= 0] = ""
+    stand = TreeStand(np.column_stack([np.asarray(east), np.asarray(north)]),
+                      blob["tree_height"], blob["tree_form"],
+                      species, blob["tree_height_source"])
+    _CACHE[key] = stand
+    return stand
 
 
 def load_structures(name: str, origin: Tuple[float, float]) -> Structures:

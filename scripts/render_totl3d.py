@@ -52,7 +52,8 @@ from coxswain.river.route import (Route, RouteEvaluator,  # noqa: E402
                                   optimise_route)
 from coxswain.river.seattle import (lake_union_channel,   # noqa: E402
                                     load_obstructions)
-from coxswain.river.structures import seattle_structures  # noqa: E402
+from coxswain.river.structures import (seattle_structures,  # noqa: E402
+                                       seattle_trees)
 from coxswain.river.terrain import (seattle_imagery,       # noqa: E402
                                     seattle_terrain)
 from coxswain.river.trajectory import ReducedModel        # noqa: E402
@@ -141,12 +142,16 @@ def main(argv=None):
     result, leg = simulate(path, boat, args.start, args.finish)
 
     scene = RiverScene(
-        boat, result=result, channel=lake_union_channel(),
+        # 4 m rather than the 10 m default: the waterline in the near
+        # window comes straight off this mask, so 10 m cells were
+        # quantising the shore into ten-metre steps regardless of how
+        # good the elevation model under them was.
+        boat, result=result, channel=lake_union_channel(resolution=4.0),
         path=path, window=320.0, follow=True,
         show_skyline=not args.no_skyline,
         structures=seattle_structures(), terrain=seattle_terrain(),
         imagery=None if args.no_imagery else seattle_imagery(),
-        obstructions=load_obstructions())
+        obstructions=load_obstructions(), trees=seattle_trees())
 
     os.makedirs(args.out, exist_ok=True)
     stem = "totl_%04d_%04d_%s" % (args.start, args.finish, args.view)
