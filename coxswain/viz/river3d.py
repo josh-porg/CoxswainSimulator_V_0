@@ -682,7 +682,11 @@ class RiverScene(BoatScene):
         # a house.
         corners = self.bank_height(ring[:, 0], ring[:, 1])
         centre = float(self.bank_height(*ring.mean(axis=0))[0])
-        base = float(np.min(corners))
+        ground = float(np.min(corners))
+        # ``base`` is how far up the footprint starts -- zero for a whole
+        # building, and the massing step's own level for a tower's parts.
+        start = float(getattr(structures, "base", np.zeros(1))[index])             if hasattr(structures, "base") else 0.0
+        base = ground + start
         top = centre + float(structures.heights[index])
         height = max(top - base, 0.5)
         points = np.column_stack([ring[:, 0], ring[:, 1],

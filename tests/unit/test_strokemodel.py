@@ -508,15 +508,23 @@ def test_heel_pushes_the_boat_sideways(boat):
     assert abs(hydro.sway_from_roll) > 500.0
 
 
-def test_hull_roll_damping_is_absent(boat):
-    """Recorded because it is a gap, not because it is right.
+def test_hull_roll_damping_is_present(boat):
+    """This test used to assert the opposite, and said why.
 
-    The 6-DOF model has no hull roll damping at all, so every bit of it
-    comes from the crew.  A real hull damps roll through the wetted
-    surface and the blades.
+    It read: "Recorded because it is a gap, not because it is right.  The
+    6-DOF model has no hull roll damping at all, so every bit of it comes
+    from the crew.  A real hull damps roll through the wetted surface and
+    the blades."
+
+    The gap is closed.  :mod:`coxswain.hydro.radiation` supplies it from
+    Ikeda's component method -- lift, which dominates at racing speed and
+    is linear in forward speed, plus Kato friction, which is what is left
+    at rest.  The coefficient is derived rather than fitted, so the thing
+    worth asserting is its **sign and existence**, not its value: roll
+    rate must produce a moment opposing the roll.
     """
     hydro = HydroCoefficients.from_boat(boat)
-    assert hydro.roll_from_roll_rate == pytest.approx(0.0, abs=1e-9)
+    assert hydro.roll_from_roll_rate < 0.0
 
 
 def test_roll_state_responds_to_a_split(model, boat):

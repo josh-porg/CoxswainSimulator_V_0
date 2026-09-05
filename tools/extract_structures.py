@@ -227,66 +227,90 @@ def roof_of(tags, wall_height):
     return index, float(max(min(height, 0.6 * wall_height), 0.0))
 
 
-def tallest_parts(box, ask_fn):
-    """``building:part`` heights, as ``(centroid, height)`` pairs.
+def building_parts(box, ask_fn):
+    """``building:part`` polygons with their tops **and their bottoms**.
 
-    OpenStreetMap maps a skyscraper under the Simple 3D Buildings
-    schema: a plain ``building`` outline at ground level, plus one
-    ``building:part`` polygon per massing step, and **the height lives
-    on the parts**.  Reading only the outlines gives Columbia Center as
-    a four-storey podium, which is what it literally is -- the other
-    280 m are in the parts.
+    OpenStreetMap maps a tower under the Simple 3D Buildings schema: a
+    plain ``building`` outline at ground level, plus one
+    ``building:part`` polygon per massing step, each carrying ``height``
+    and -- the part that matters -- ``min_height``, the level it starts
+    at.
 
-    Returned as centroids rather than polygons because all the caller
-    needs is to raise each outline to the tallest thing standing on it.
+    Reading only the outlines gives Columbia Center as a four-storey
+    podium.  Reading the parts but ignoring ``min_height`` is worse in a
+    different way: the Space Needle is twelve parts, and extruding every
+    one of them from the ground gives three concentric prisms 160 m tall,
+    which renders as a fat cylinder rather than a needle with a saucer on
+    it.  The saucer starts at 150 m and it has to be told so.
     """
     data = ask_fn("[out:json][timeout:300];"
                   "(way[\"building:part\"](%s);"
                   "relation[\"building:part\"](%s););out geom;"
                   % (box, box))
-    centres, heights = [], []
+    rings, tops, bottoms = [], [], []
     for element in data["elements"]:
         tags = element.get("tags", {})
+        if str(tags.get("building:part", "yes")).lower() == "no":
+            continue
         height = parse_height(tags.get("height"))
         if height is None:
             levels = parse_height(tags.get("building:levels"))
             height = None if levels is None else levels * 3.5
         if height is None or not (2.0 < height < 600.0):
             continue
-        for ring in rings(element):
-            centres.append(ring.mean(axis=0))
-            heights.append(float(height))
-    return np.array(centres) if centres else np.zeros((0, 2)), \
-        np.array(heights, dtype=float)
+        base = parse_height(tags.get("min_height"))
+        if base is None:
+            levels = parse_height(tags.get("building:min_level"))
+            base = 0.0 if levels is None else levels * 3.5
+        base = float(min(max(base, 0.0), height - 0.5))
+        for ring in rings_of(element):
+            rings.append(ring)
+            tops.append(float(height))
+            bottoms.append(base)
+    return rings, np.array(tops, dtype=float), np.array(bottoms, dtype=float)
+
+
+def rings_of(element):
+    """Outer rings of a way or relation, as (lat, lon) arrays."""
+    return rings(element)
 
 
 def raise_to_parts(polygons, heights, centres, part_heights):
     """Lift each outline to the tallest ``building:part`` standing in it.
 
+    Returns ``(heights, lifted, covered)`` where ``covered`` counts the
+    parts sitting inside each outline.  An outline with several parts is
+    a real massing model and its own ground-to-roof prism should not be
+    drawn as well -- that is what made the Space Needle a cylinder.
+
     Point-in-polygon for every part against every outline is 40k x 3k
     tests; the bounding-box prefilter takes it to a few per part.
     """
     if not len(centres):
-        return heights, 0
+        return heights, 0, np.zeros(len(polygons), dtype=int)
     from matplotlib.path import Path
 
     heights = np.asarray(heights, dtype=float).copy()
     lows = np.array([ring.min(axis=0) for ring in polygons])
     highs = np.array([ring.max(axis=0) for ring in polygons])
+    covered = np.zeros(len(polygons), dtype=int)
+    owner = np.full(len(centres), -1, dtype=int)
     lifted = 0
-    for centre, height in zip(centres, part_heights):
+    for index, (centre, height) in enumerate(zip(centres, part_heights)):
         inside = np.nonzero((lows[:, 0] <= centre[0])
                             & (highs[:, 0] >= centre[0])
                             & (lows[:, 1] <= centre[1])
                             & (highs[:, 1] >= centre[1]))[0]
-        for index in inside:
-            if height <= heights[index]:
+        for candidate in inside:
+            if not Path(polygons[candidate]).contains_point(centre):
                 continue
-            if Path(polygons[index]).contains_point(centre):
-                heights[index] = height
+            covered[candidate] += 1
+            owner[index] = candidate
+            if height > heights[candidate]:
+                heights[candidate] = height
                 lifted += 1
-                break
-    return heights, lifted
+            break
+    return heights, lifted, covered, owner
 
 
 def rings(element):
@@ -372,12 +396,56 @@ def main(argv=None):
           % (sum(1 for c in colours if c[0] >= 0.0),
              sum(1 for s in roof_shapes if s), sum(1 for n in named if n)))
 
-    print(" building parts (the real height of every tower) ...")
-    centres, part_heights = tallest_parts(box, ask)
-    heights, lifted = raise_to_parts(polygons, heights, centres, part_heights)
+    print(" building parts (the real shape of every tower) ...")
+    part_rings, part_tops, part_bottoms = building_parts(box, ask)
+    part_centres = (np.array([r.mean(axis=0) for r in part_rings])
+                    if part_rings else np.zeros((0, 2)))
+    heights, lifted, covered, owner = raise_to_parts(
+        polygons, heights, part_centres, part_tops)
     print("   %d parts; %d outlines raised, tallest now %.0f m"
-          % (len(part_heights), lifted,
-             max(heights) if len(heights) else 0.0))
+          % (len(part_tops), lifted, max(heights) if len(heights) else 0.0))
+
+    # Where an outline is described by two or more parts, draw the parts
+    # and drop the outline: keeping both puts a solid ground-to-roof
+    # prism inside the massing model, which is what turned the Space
+    # Needle -- twelve parts, saucer starting at 150 m -- into a
+    # 160 m cylinder.
+    modelled = covered >= 2
+    bases = np.zeros(len(polygons), dtype=float)
+    keep = ~modelled
+    print("   %d outlines replaced by their own parts" % int(modelled.sum()))
+
+    polygons = [p for p, k in zip(polygons, keep) if k]
+    heights = np.asarray(heights)[keep].tolist()
+    sources = [v for v, k in zip(sources, keep) if k]
+    materials = [v for v, k in zip(materials, keep) if k]
+    kinds = [v for v, k in zip(kinds, keep) if k]
+    roof_shapes = [v for v, k in zip(roof_shapes, keep) if k]
+    roof_heights = [v for v, k in zip(roof_heights, keep) if k]
+    named = [v for v, k in zip(named, keep) if k]
+    colours = [v for v, k in zip(colours, keep) if k]
+    bases = bases[keep].tolist()
+
+    # Append the parts of those buildings as geometry in their own right.
+    inherited = 0
+    for index, ring in enumerate(part_rings):
+        parent = int(owner[index])
+        if parent < 0 or not modelled[parent]:
+            continue
+        polygons.append(ring)
+        heights.append(float(part_tops[index]))
+        bases.append(float(part_bottoms[index]))
+        sources.append(0)                    # a tagged height, measured
+        materials.append(0)
+        kinds.append(0)
+        roof_shapes.append(0)
+        roof_heights.append(0.0)
+        colours.append((-1.0, -1.0, -1.0))
+        named.append("")
+        inherited += 1
+    offsets = np.cumsum([0] + [len(p) for p in polygons]).astype(np.int32)
+    print("   %d parts drawn as geometry (%d start above the ground)"
+          % (inherited, int((np.asarray(bases) > 0.5).sum())))
 
     print(" water bodies, for scenery ...")
     # Scenery water, kept apart from the racing shoreline on purpose.
@@ -494,6 +562,7 @@ def main(argv=None):
         building_roof_shape=np.array(roof_shapes, dtype=np.int8),
         building_roof_height=np.array(roof_heights, dtype=np.float32),
         building_name=np.array(named, dtype="<U48"),
+        building_base=np.array(bases, dtype=np.float32),
         bridge_xy=np.concatenate(bridge_xy) if bridge_xy
         else np.zeros((0, 2)),
         bridge_offsets=np.array(bridge_offsets, dtype=np.int32),

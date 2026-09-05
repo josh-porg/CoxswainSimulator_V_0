@@ -68,7 +68,7 @@ class Structures:
     def __init__(self, polygons, heights, sources, canopy, canopy_heights,
                  trees, tree_heights, material=None, kind=None, colour=None,
                  roof_shape=None, roof_height=None, names=None,
-                 spans=(), span_names=(), water=()):
+                 spans=(), span_names=(), water=(), base=None):
         self.polygons = polygons                  # list of (N, 2) east/north
         self.heights = np.asarray(heights, dtype=float)
         self.height_source = np.asarray(sources, dtype=int)
@@ -92,6 +92,14 @@ class Structures:
         self.roof_shape = column(roof_shape, 0, np.int8)
         #: Roof height in metres above the wall top; ``0`` for flat.
         self.roof_height = column(roof_height, 0.0, float)
+        #: Height above ground at which the footprint *starts*, metres.
+        #:
+        #: Non-zero only for OpenStreetMap ``building:part`` geometry
+        #: carrying ``min_height`` -- the massing steps of a tower.  The
+        #: Space Needle's saucer starts at 150 m, and extruding it from
+        #: the ground like everything else is what rendered the Needle as
+        #: a 160 m cylinder.
+        self.base = column(base, 0.0, float)
         #: Tagged wall colour as RGB in 0-1, or ``-1`` where untagged.
         if colour is None or len(colour) != count:
             self.colour = np.full((count, 3), -1.0)
@@ -244,6 +252,7 @@ def load_structures(name: str, origin: Tuple[float, float]) -> Structures:
         roof_shape=optional("building_roof_shape"),
         roof_height=optional("building_roof_height"),
         names=optional("building_name"),
+        base=optional("building_base"),
         spans=split(blob["bridge_xy"], blob["bridge_offsets"])
         if "bridge_xy" in blob.files else [],
         span_names=list(optional("bridge_name")

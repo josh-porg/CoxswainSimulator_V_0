@@ -31,6 +31,7 @@ import time
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from coxswain.boats import catalog                        # noqa: E402
 from coxswain.progress import progress, stage            # noqa: E402
@@ -810,6 +811,22 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
                "hides behind the near one -- geometry every plan view "
                "flatters.", group="Watch it row"),
     ])
+    # -- boat dynamics ------------------------------------------------
+    # The damping page runs its own counterfactual -- the same boat with
+    # the damping put back the way it was -- so it costs a couple of
+    # minutes of integration and is skipped under --quick.
+    if not args.quick:
+        overall.set_description("boat dynamics")
+        try:
+            from damping_page import build as build_damping
+            finding, tables, damping_figures = build_damping(figures_dir,
+                                                             dt=args.dt)
+            report.findings.append(finding)
+            report.tables.extend(tables)
+            figures.extend(damping_figures)
+        except Exception as error:                       # pragma: no cover
+            print("  (no damping page: %s)" % error)
+
     report.figures = figures
     # The explorer is built separately (scripts/export_map.py writes the
     # data, then the template is filled), so it is embedded only when it
