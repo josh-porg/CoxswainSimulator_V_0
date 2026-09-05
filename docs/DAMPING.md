@@ -189,19 +189,25 @@ than *validated*, and the difference should not be glossed.
 Rate sweep for the coxed four, 60 s, no steering, pitch rms first fifth →
 last fifth:
 
-| rate | before | after |
-|---|---|---|
-| 18 | 0.28 → 0.28 | 0.27 → 0.27 |
-| 22 | 0.45 → 0.67 | 0.28 → 0.28 |
-| 26 | 0.29 → 0.28 | 0.28 → 0.28 |
-| 28 | 0.33 → 0.34 | 0.28 → 0.28 |
-| **30** | **0.72 → 4.99** | **0.29 → 0.30** |
-| **32** | **0.89 → 3.44** | **0.31 → 0.31** |
-| 36 | 0.36 → 0.34 | 0.30 → 0.30 |
+| rate | before | after | max pitch after |
+|---|---|---|---|
+| 18 | 0.28 → 0.28 | 0.34 → 0.33 | 0.52° |
+| 24 | — | 0.35 → 0.35 | 0.55° |
+| 28 | 0.33 → 0.34 | 0.35 → 0.35 | 0.55° |
+| **30** | **0.72 → 4.99** | **0.38 → 0.38** | **0.66°** |
+| **32** | **0.89 → 3.44** | **0.40 → 0.42** | **0.79°** |
+| 36 | 0.36 → 0.34 | 0.37 → 0.37 | 0.68° |
 
-The instability is gone and **the rates that were already stable are
-unchanged**, which is the check that matters: this added the missing
-physics rather than damping the model into submission.
+The instability is gone, **the rates that were already stable are
+unchanged**, and peak pitch across the whole range is 0.5–0.8° — which is
+what a shell does. Roll peaks at 0.38°.
+
+The most telling number is what it took. The first attempt at a fix used
+a crude estimate giving ζ_pitch ≈ 0.25; the properly derived value is
+**0.041**, six times smaller, and it stabilises the boat just as
+completely. The defect was never that the damping was too *weak*. It was
+that in pitch there was none at all, and that what existed elsewhere was
+quadratic and therefore absent at small amplitude.
 
 ---
 

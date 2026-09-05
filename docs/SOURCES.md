@@ -8149,3 +8149,67 @@ navigable, with 12% of its stations under 8 m from a mapped structure.
 Either the trace is offset or the dock polygons over-reach, and nothing
 here can settle which. The corridor is pinned to the traced line where
 they conflict, which is the honest answer rather than a comfortable one.
+
+## 110. Damping: three degrees of freedom had none, and the rest was the wrong kind
+
+A women's veteran coxed four at rate 30 rode 1.5 m clear of its own
+waterline and pitched **25 degrees**. Found by rendering it, which is now
+the fourth time a picture has caught what the numbers hid.
+
+Full treatment in [DAMPING.md](DAMPING.md). In short:
+
+**The response was at 0.867 Hz.** The stroke at rate 30 is 0.500 Hz and
+its harmonics are 1.0, 1.5, 2.0. So this was not the crew forcing the
+boat; it was the boat's own coupled heave/pitch mode growing, which is
+self-excitation and means net negative damping. Rates 30 and 32 diverged
+while 18, 22, 26, 28 and 36 did not, and a band that narrow is itself the
+diagnosis: a real hull's pitch response is broad because it is damped.
+
+**Two defects, both structural.** `hull_resistance` returned forces and
+no moments, and the vertical term was a single resultant at the origin --
+which exerts no moment about the origin, so the hull had **no pitch
+damping at all**. This is the identical defect `crossflow.py` had already
+fixed for yaw ("the hull's yaw moment was set to zero outright"), never
+applied to the vertical plane. And every damping term in the model was
+quadratic, which vanishes faster than the energy going in as amplitude
+falls, so small motions were effectively undamped in every degree of
+freedom.
+
+**What replaced it.** `coxswain/hydro/heaveflow.py` distributes the
+vertical load over stations for the moment -- a strict extension, since
+at zero pitch rate the integral of waterline beam *is* the plan area.
+`coxswain/hydro/radiation.py` adds the linear part for all six degrees of
+freedom from strip-theory potential flow (Salvesen, Tuck & Faltinsen
+1970; Newman 1977), with Ikeda's ITTC-recommended component method for
+roll, where potential flow gives essentially nothing because a 0.155 m
+deep section radiates no waves when it rolls.
+
+Natural frequencies and generalised inertias are derived from the model's
+own geometry, not assumed, and each mode is evaluated at **its own**
+frequency because radiation damping goes as omega^-3.
+
+| | heave | pitch | roll |
+|---|---|---|---|
+| coxed four | 0.065 | 0.041 | 0.043 |
+| eight | 0.071 | 0.044 | 0.037 |
+
+Roll sits inside the published 0.02-0.10 band for ships. Heave and pitch
+come out below the ship band of 0.1-0.4, which is the expected direction
+for a hull of L/B near 27 against a ship's 6-8, but expected is not
+verified. The weak number is the radiated wave amplitude ratio, published
+at 0.4-0.7 and taken at 0.55; this project has no measurement of it for a
+racing shell and it is a parameter, not a result.
+
+**What it took is the interesting part.** A first crude estimate gave a
+pitch damping ratio of 0.25; the properly derived figure is 0.041, six
+times smaller, and stabilises the boat just as completely. The problem
+was never that damping was too weak. It was that in pitch there was none.
+
+**Related, found alongside.** `catalog.coxed_four` had the coxswain at
+station -4.00 m, behind the stern seat like an eight. Nearly every 4+
+raced today is a bow-loader and the coxswain lies ahead of the bow seat,
+now +4.30 m. That is 8.3 m for a 55-90 kg mass: the crew centre of mass
+moves from -1.063 m to +0.597 m and the static trim flips from -0.364
+degrees stern-down to +0.202 bow-down. The renderer also now draws the
+fore and stern decks, because a bow-loading coxswain sees out over a
+deck, and an open shell put the inside of the hull across half the frame.
