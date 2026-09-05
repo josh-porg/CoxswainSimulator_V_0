@@ -94,6 +94,24 @@ _KIND_COLOUR = {
 #: coxswain has for them.
 _HAZE = 5200.0
 
+#: How each kind of waterside structure is drawn: ``(deck height in
+#: metres, colour, half-width in metres)``.
+#:
+#: These matter more than the shoreline does.  What a coxswain steers off
+#: is not where the land legally starts -- it is the end of the dock, the
+#: outermost moored hull, the breakwater.  Lake Union has 499 piers and
+#: 141 houseboats, they remove 40% of the lake, and drawing the water's
+#: edge without them shows a lake nobody rows on.
+_OBSTRUCTION_STYLE = {
+    "pier":       (1.4, "#8a6b4a", 1.8),
+    "dock":       (1.4, "#8a6b4a", 2.5),
+    "marina":     (1.2, "#7f6446", 1.4),
+    "floating":   (1.0, "#7d6a55", 2.0),
+    # A floating home is a house, and from the water it is a wall.
+    "houseboat":  (5.5, "#6f5b48", 3.5),
+    "breakwater": (1.8, "#5d5c58", 3.0),
+}
+
 #: A building this many metres tall is worth drawing at 1 m of distance.
 #:
 #: Beyond the near window only things that subtend a usable angle are
@@ -132,21 +150,30 @@ class RiverScene(BoatScene):
     #: Points across the coarse distant surface.
     SKYLINE_SAMPLES = 320
 
-    #: Ceiling on bank height in the near window, metres.
+    #: Ceiling on bank height, metres.
     #:
-    #: Guards against a lidar return the bare-earth classifier kept,
-    #: which would otherwise put a wall on the bank.  It was 16 m, which
-    #: was quietly flattening real ground: the Charles climbs to 50 m
-    #: inside the frame and Lake Union is a trench between Queen Anne at
-    #: 139 m and Capitol Hill at 133 m.  At 16 m the near window and the
-    #: distant surface disagreed about the same hillside, leaving a step
-    #: at the edge of the window.
-    MAX_BANK_HEIGHT = 60.0
+    #: A backstop against a gross artifact in the elevation model, not a
+    #: modelling choice.  It was 16 m and then 60 m, and both were too
+    #: low: the Charles climbs to 50 m inside the frame and Lake Union is
+    #: a trench between Queen Anne at 139 m and Capitol Hill at 133 m.
+    #:
+    #: More to the point, it must not disagree with where the buildings
+    #: are put.  Clipping the *ground* to 60 m while standing buildings
+    #: on their true elevation left more than half of Seattle's
+    #: footprints hanging in the air over a flattened hillside.  Both now
+    #: go through :meth:`bank_height`, so they cannot disagree.
+    MAX_BANK_HEIGHT = 250.0
+
+    #: Floor on bank height, metres.  A hand's breadth, so the shoreline
+    #: reads as an edge from a camera 0.7 m off the water rather than as
+    #: a change of colour.
+    MIN_BANK_HEIGHT = 0.25
 
     def __init__(self, boat, result=None, channel=None, gates=(),
                  path=None, window: float = 420.0,
                  show_structures: bool = True, show_skyline: bool = True,
-                 structures=None, terrain=None, **kwargs):
+                 structures=None, terrain=None, imagery=None,
+                 obstructions=(), **kwargs):
         """``structures`` and ``terrain`` default to the Charles.
 
         They are injectable because nothing in this renderer is actually
@@ -161,6 +188,9 @@ class RiverScene(BoatScene):
         self.show_skyline = bool(show_skyline)
         self._structures = structures
         self._terrain = terrain
+        self._imagery = imagery
+        self.obstructions = tuple(obstructions)
+        self._imagery_tried = imagery is not None
         self.channel = channel
         self.gates = tuple(gates)
         self.path = None if path is None else np.asarray(path, float)[:, :2]
@@ -180,6 +210,57 @@ class RiverScene(BoatScene):
             from ..river.terrain import charles_terrain
             self._terrain = charles_terrain()
         return self._terrain
+
+    def bank_height(self, east, north):
+        """Dry ground above the water, **as the scene draws it**.
+
+        The single place that answers "how high is the ground here".
+        Terrain meshes and building bases both come through it, because
+        when they were computed separately they disagreed and every
+        building on a hill floated.
+        """
+        bank = self.terrain().height_above_water(east, north)
+        return np.clip(bank, self.MIN_BANK_HEIGHT, self.MAX_BANK_HEIGHT)
+
+    def imagery(self):
+        """Orthophoto to drape, or ``None`` to fall back on flat colour.
+
+        Optional on purpose.  Two ground colours -- one for water, one
+        for land -- is a diagram; a photograph is how a coxswain
+        recognises a shore.  But a course with no imagery must still
+        render, so this returns ``None`` rather than raising and the
+        caller keeps the two-colour scheme.
+        """
+        return self._imagery
+
+    def _drape(self, surface, east, north):
+        """Attach texture coordinates for ``imagery()``, if there is any.
+
+        Coordinates are computed from **absolute** tangent-plane
+        positions, before the scene shifts everything to keep the boat at
+        the origin.  Computing them after the shift would slide the
+        photograph across the ground as the boat moved, which is the kind
+        of error that looks like bad imagery rather than a bad transform.
+        """
+        imagery = self.imagery()
+        if imagery is None:
+            return False
+        grid_east, grid_north = np.meshgrid(east, north)
+        surface.active_texture_coordinates = \
+            imagery.texture_coordinates(grid_east, grid_north)
+        return True
+
+    def texture(self):
+        """The draped photograph as a VTK texture, built once."""
+        if self._texture is None:
+            imagery = self.imagery()
+            if imagery is None:
+                return None
+            pv = require_pyvista()
+            self._texture = pv.Texture(imagery.image)
+        return self._texture
+
+    _texture = None
 
     def terrain_window(self, centre):
         """Grid indices for a window of raster around ``centre``.
@@ -228,10 +309,9 @@ class RiverScene(BoatScene):
         # Capped so the odd building the lidar kept does not put a wall on
         # the bank; the fallback shelf survives for anything off the DEM.
         try:
-            bank = self.terrain().height_above_water(
-                grid_x.ravel(), grid_y.ravel()).reshape(grid_x.shape)
-            height = np.where(wet, 0.0, np.clip(bank, 0.6,
-                                                self.MAX_BANK_HEIGHT))
+            bank = self.bank_height(grid_x.ravel(),
+                                    grid_y.ravel()).reshape(grid_x.shape)
+            height = np.where(wet, 0.0, bank)
         except Exception:
             height = np.where(wet, 0.0, 1.6)
 
@@ -245,6 +325,7 @@ class RiverScene(BoatScene):
         surface.dimensions = (len(ix), len(iy), 1)
         surface.point_data["depth"] = np.where(wet, depth, np.nan).ravel()
         surface.point_data["land"] = (~wet).astype(np.int8).ravel()
+        self._drape(surface, east[ix], north[iy])
         return surface
 
     def distant_water(self, east, north):
@@ -318,7 +399,10 @@ class RiverScene(BoatScene):
             # a lake drawn as land is a worse picture than a low field
             # drawn as water.
             wet = elevation <= terrain.pool + 2.0
-        height = np.where(wet, 0.0, np.maximum(elevation - terrain.pool, 0.0))
+        height = np.where(wet, 0.0,
+                          np.clip(elevation - terrain.pool,
+                                  self.MIN_BANK_HEIGHT,
+                                  self.MAX_BANK_HEIGHT))
 
         surface = pv.StructuredGrid()
         surface.points = np.column_stack([
@@ -329,8 +413,56 @@ class RiverScene(BoatScene):
             - 0.05])
         surface.dimensions = (len(east), len(north), 1)
         surface.point_data["land"] = (~wet).astype(np.int8).ravel()
+        self._drape(surface, east, north)
         self._distant_mesh = surface
         return surface
+
+    def obstruction_actors(self, plotter, t: float):
+        """Piers, houseboats and breakwaters within sight.
+
+        Grouped by kind into one mesh each rather than one actor per
+        structure: there are 660 of them around Lake Union and 660
+        actors a frame is a slideshow.
+        """
+        pv = require_pyvista()
+        if not self.obstructions:
+            return
+        state = self.state_at(t)
+        origin = self._origin(state)
+        centre = np.asarray(state.position, dtype=float)[:2]
+        reach = self.window * 1.6
+
+        grouped = {}
+        for kind, points in self.obstructions:
+            points = np.asarray(points, dtype=float)
+            if len(points) < 2:
+                continue
+            if np.linalg.norm(points.mean(axis=0) - centre) > reach:
+                continue
+            deck, _colour, half = _OBSTRUCTION_STYLE.get(
+                kind, _OBSTRUCTION_STYLE["pier"])
+            shifted = np.column_stack([
+                points[:, 0] - origin[0], points[:, 1] - origin[1],
+                np.full(len(points), self.water_level)])
+            try:
+                # A deck is a slab, so the polyline is given width and
+                # then thickness.  Four sides on the tube, because these
+                # are boards and pontoons, not pipes.
+                piece = pv.lines_from_points(shifted).tube(
+                    radius=half, n_sides=4).extrude(
+                    (0.0, 0.0, deck), capping=True)
+            except Exception:
+                continue
+            grouped.setdefault(kind, []).append(piece)
+
+        for kind, pieces in grouped.items():
+            merged = pieces[0].merge(pieces[1:]) if len(pieces) > 1 \
+                else pieces[0]
+            plotter.add_mesh(merged,
+                             color=_OBSTRUCTION_STYLE.get(
+                                 kind, _OBSTRUCTION_STYLE["pier"])[1],
+                             name="obstruction-%s" % kind,
+                             ambient=0.40, diffuse=0.70, specular=0.02)
 
     def span_actors(self, plotter, t: float):
         """Landmark bridge decks -- scenery, not gates.
@@ -363,8 +495,7 @@ class RiverScene(BoatScene):
                 continue
             if length / max(gap, 1.0) < 0.02:
                 continue
-            ends = terrain.height_above_water(deck[[0, -1], 0],
-                                              deck[[0, -1], 1])
+            ends = self.bank_height(deck[[0, -1], 0], deck[[0, -1], 1])
             level = float(max(ends.max(), 3.0))
             points = np.column_stack([
                 deck[:, 0] - origin[0], deck[:, 1] - origin[1],
@@ -445,11 +576,15 @@ class RiverScene(BoatScene):
         Finally the whole thing is mixed toward the horizon by distance.
         """
         rgb = structures.colour[index]
-        if rgb[0] < 0.0:
+        east, north = structures.centres[index]
+        photo = self.imagery()
+        if rgb[0] >= 0.0:
+            rgb = np.asarray(rgb, dtype=float)          # somebody tagged it
+        elif photo is not None:
+            rgb = self._photo_colour(photo, structures.polygons[index])
+        else:
             kind = structures.KINDS[int(structures.kind[index])]
             rgb = np.array(_KIND_COLOUR.get(kind, _KIND_COLOUR["other"]))
-        else:
-            rgb = np.asarray(rgb, dtype=float)
 
         # Jitter from the coordinates themselves: stable across frames
         # and across runs, and free of any per-frame random state.  Two
@@ -457,10 +592,10 @@ class RiverScene(BoatScene):
         # reads as one material lit unevenly -- it is the small shifts
         # of hue between neighbours that make a row of buildings look
         # like a row of buildings.
-        east, north = structures.centres[index]
         seed = (np.sin(east * 12.9898 + north * 78.233) * 43758.5453) % 1.0
         tint = (np.sin(east * 39.3467 + north * 11.1357) * 24634.6345) % 1.0
-        rgb = rgb * (0.80 + 0.42 * seed)
+        spread = 0.42 if photo is None else 0.14
+        rgb = rgb * (1.0 - 0.5 * spread + spread * seed)
         rgb = rgb * np.array([1.0 + 0.10 * (tint - 0.5), 1.0,
                               1.0 - 0.10 * (tint - 0.5)])
         rgb = np.clip(rgb, 0.0, 1.0)
@@ -468,11 +603,45 @@ class RiverScene(BoatScene):
         # A roof is seen at a glancing angle from a seat 0.7 m off the
         # water and nearly face-on from the skyline; either way it is the
         # edge that separates one building from the next.
-        roof = np.clip(rgb * 0.62, 0.0, 1.0)
+        roof = np.clip(rgb * (0.62 if photo is None else 0.80), 0.0, 1.0)
 
         haze = 1.0 - np.exp(-max(distance, 0.0) / _HAZE)
         sky = np.array([0.62, 0.72, 0.78])
         return (rgb + (sky - rgb) * haze, roof + (sky - roof) * haze)
+
+    #: Lightness band the sampled roof colour is squeezed into.
+    #:
+    #: A roof photographed from above spans nearly the whole range --
+    #: white membrane to black asphalt -- and a wall does not.  Mapping
+    #: the sample straight onto the walls put a solid black block on the
+    #: east shore, which is what one dark industrial roof looks like when
+    #: it is believed literally.  The band keeps the *ordering* of the
+    #: colours, which is what makes one building distinguishable from
+    #: the next, and drops the contrast that was never about the walls.
+    PHOTO_RANGE = (0.30, 0.78)
+
+    def _photo_colour(self, photo, ring):
+        """Wall colour for a footprint, from the orthophoto over it.
+
+        Sampled over a grid across the footprint and taken as a median,
+        not read from the centroid.  One pixel is one pixel: a skylight,
+        a rooftop unit, the shadow of the next building along, or a tree
+        overhanging the eaves, and any of them decides the colour of the
+        whole building if it is the only sample taken.
+        """
+        low, high = ring.min(axis=0), ring.max(axis=0)
+        east = np.linspace(low[0], high[0], 5)
+        north = np.linspace(low[1], high[1], 5)
+        grid_east, grid_north = np.meshgrid(east, north)
+        seen = np.asarray(photo.sample(grid_east.ravel(), grid_north.ravel()),
+                          dtype=float).reshape(-1, 3)
+        rgb = np.median(seen, axis=0)
+
+        floor, ceiling = self.PHOTO_RANGE
+        level = float(rgb.mean())
+        if level > 1e-6:
+            rgb = rgb * ((floor + (ceiling - floor) * level) / level)
+        return np.clip(rgb, 0.0, 1.0)
 
     def _extrude(self, structures, index, terrain, distance):
         """One building as a coloured solid, or ``None``."""
@@ -487,8 +656,19 @@ class RiverScene(BoatScene):
         # five metres off the ground.  On the Charles the pool sits at
         # 0.6 m, so the same bug was there all along and was too small
         # to see.
-        base = float(terrain.height_above_water(*ring.mean(axis=0))[0])
-        height = float(structures.heights[index])
+        #
+        # The roof goes where the survey says, at the ground under the
+        # middle plus the measured height.  The **base** goes to the
+        # lowest ground anywhere under the footprint, so a building on a
+        # slope is buried into the hill rather than hanging off its
+        # downhill corner.  Seattle is built on hills and the gap runs to
+        # 1.8 m at the ninth decile, which is a storey of daylight under
+        # a house.
+        corners = self.bank_height(ring[:, 0], ring[:, 1])
+        centre = float(self.bank_height(*ring.mean(axis=0))[0])
+        base = float(np.min(corners))
+        top = centre + float(structures.heights[index])
+        height = max(top - base, 0.5)
         points = np.column_stack([ring[:, 0], ring[:, 1],
                                   np.full(len(ring), base)])
         face = np.concatenate([[len(points)], np.arange(len(points))])
@@ -599,7 +779,7 @@ class RiverScene(BoatScene):
         for index in within[:220]:
             east, north = structures.trees[index]
             height = float(structures.tree_heights[index])
-            base = float(terrain.height_above_water(east, north)[0])
+            base = float(self.bank_height(east, north)[0])
             crowns.append(pv.Sphere(radius=0.30 * height,
                                     center=(east, north,
                                             base + 0.72 * height),
@@ -622,7 +802,21 @@ class RiverScene(BoatScene):
         near = np.linalg.norm(self.path - centre, axis=1) < self.window * 1.5
         if near.sum() < 2:
             return None
-        points = self.path[near]
+        # Take the *contiguous run* through the boat, not every point
+        # within reach.  On a course that turns back on itself -- which
+        # Tail of the Lake does, twice -- the distance test also catches
+        # the return leg, and joining the two drew a purple chord clean
+        # across the lake at the waterline.
+        index = int(np.argmin(np.linalg.norm(self.path - centre, axis=1)))
+        first = index
+        while first > 0 and near[first - 1]:
+            first -= 1
+        last = index
+        while last < len(near) - 1 and near[last + 1]:
+            last += 1
+        if last - first < 1:
+            return None
+        points = self.path[first:last + 1]
         return pv.lines_from_points(np.column_stack([
             points[:, 0] - origin[0], points[:, 1] - origin[1],
             np.full(len(points), self.water_level + 0.05)]))
@@ -726,17 +920,32 @@ class RiverScene(BoatScene):
                 shifted = distant.copy()
                 shifted.points = shifted.points - np.array(
                     [self._origin(state)[0], self._origin(state)[1], 0.0])
-                plotter.add_mesh(shifted, scalars="land",
-                                 cmap=[_WATER, _BANK], show_scalar_bar=False,
-                                 name="distant", smooth_shading=True,
-                                 ambient=0.45, diffuse=0.60, specular=0.0)
+                photo = self.texture()
+                if photo is not None:
+                    plotter.add_mesh(shifted, texture=photo,
+                                     name="distant", smooth_shading=True,
+                                     ambient=0.65, diffuse=0.45,
+                                     specular=0.0)
+                else:
+                    plotter.add_mesh(shifted, scalars="land",
+                                     cmap=[_WATER, _BANK],
+                                     show_scalar_bar=False, name="distant",
+                                     smooth_shading=True, ambient=0.45,
+                                     diffuse=0.60, specular=0.0)
 
         terrain = self.terrain_polydata(t)
         if terrain is not None:
-            plotter.add_mesh(terrain, scalars="land", cmap=[_WATER, _BANK],
-                             show_scalar_bar=False, name="terrain",
-                             smooth_shading=True, opacity=1.0,
-                             ambient=0.35, diffuse=0.75, specular=0.05)
+            photo = self.texture()
+            if photo is not None:
+                plotter.add_mesh(terrain, texture=photo, name="terrain",
+                                 smooth_shading=True, opacity=1.0,
+                                 ambient=0.60, diffuse=0.50, specular=0.02)
+            else:
+                plotter.add_mesh(terrain, scalars="land",
+                                 cmap=[_WATER, _BANK],
+                                 show_scalar_bar=False, name="terrain",
+                                 smooth_shading=True, opacity=1.0,
+                                 ambient=0.35, diffuse=0.75, specular=0.05)
         if self.show_structures:
             solids, origin = self.structure_polydata(t)
             if solids is not None:
@@ -758,6 +967,7 @@ class RiverScene(BoatScene):
                     [origin[0], origin[1], 0.0])
                 plotter.add_mesh(shifted, color=_CANOPY, name="trees",
                                  ambient=0.35, diffuse=0.70, specular=0.0)
+        self.obstruction_actors(plotter, t)
         self.bridge_actors(plotter, t)
         if self.show_skyline:
             self.span_actors(plotter, t)

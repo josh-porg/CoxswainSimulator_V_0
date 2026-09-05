@@ -26,6 +26,11 @@ It is in the picture because it is the landmark on this lake, and its
 deck height is taken from the elevation model at its abutments rather
 than from a tag OpenStreetMap does not carry.
 
+**The docks** -- 499 piers, 141 houseboats, the marinas and the
+breakwaters -- are drawn because they, and not the shoreline, are what a
+crew steers off.  They already removed 40% of the lake from the
+optimiser's corridor; this puts them in the picture too.
+
 **The line** is the optimised one, from the same optimiser the Charles
 uses, inside a corridor that already has the docks and the course buoys
 taken out of it.
@@ -45,9 +50,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from coxswain.boats import catalog                        # noqa: E402
 from coxswain.river.route import (Route, RouteEvaluator,  # noqa: E402
                                   optimise_route)
-from coxswain.river.seattle import lake_union_channel     # noqa: E402
+from coxswain.river.seattle import (lake_union_channel,   # noqa: E402
+                                    load_obstructions)
 from coxswain.river.structures import seattle_structures  # noqa: E402
-from coxswain.river.terrain import seattle_terrain        # noqa: E402
+from coxswain.river.terrain import (seattle_imagery,       # noqa: E402
+                                    seattle_terrain)
 from coxswain.river.trajectory import ReducedModel        # noqa: E402
 from coxswain.sim.control import Coxswain                 # noqa: E402
 from coxswain.sim.guidance import PathFollower            # noqa: E402
@@ -118,6 +125,8 @@ def main(argv=None):
     parser.add_argument("--stills", action="store_true")
     parser.add_argument("--no-skyline", action="store_true",
                         help="draw only the near bank, for comparison")
+    parser.add_argument("--no-imagery", action="store_true",
+                        help="flat colour instead of the draped orthophoto")
     parser.add_argument("--out", default="out/totl3d")
     args = parser.parse_args(argv)
 
@@ -135,7 +144,9 @@ def main(argv=None):
         boat, result=result, channel=lake_union_channel(),
         path=path, window=320.0, follow=True,
         show_skyline=not args.no_skyline,
-        structures=seattle_structures(), terrain=seattle_terrain())
+        structures=seattle_structures(), terrain=seattle_terrain(),
+        imagery=None if args.no_imagery else seattle_imagery(),
+        obstructions=load_obstructions())
 
     os.makedirs(args.out, exist_ok=True)
     stem = "totl_%04d_%04d_%s" % (args.start, args.finish, args.view)

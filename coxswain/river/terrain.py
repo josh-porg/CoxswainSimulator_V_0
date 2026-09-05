@@ -33,7 +33,8 @@ from typing import Tuple
 import numpy as np
 
 __all__ = ["Terrain", "charles_terrain", "seattle_terrain",
-           "load_terrain", "pool_level_from"]
+           "load_terrain", "pool_level_from", "Imagery",
+           "seattle_imagery"]
 
 #: Bounding box the stored DEM was exported with, (south, west, north, east).
 DEM_BOUNDS = (42.3480, -71.1450, 42.3790, -71.1000)
@@ -199,3 +200,100 @@ def seattle_terrain(origin: Tuple[float, float] = None) -> Terrain:
     origin = SEATTLE_ORIGIN if origin is None else origin
     return load_terrain("seattle_dem.npz", SEATTLE_DEM_BOUNDS, origin,
                         pool=SEATTLE_POOL_LEVEL)
+
+
+class Imagery:
+    """An orthophoto and the ground it covers.
+
+    Held as the image plus its bounding box in the tangent plane, so a
+    renderer can turn a coordinate into a texture coordinate without
+    knowing anything about projections.
+    """
+
+    def __init__(self, image, east, north):
+        self.image = image
+        #: ``(min, max)`` of the covered ground, metres.
+        self.east = tuple(float(v) for v in east)
+        self.north = tuple(float(v) for v in north)
+
+    def texture_coordinates(self, east, north) -> np.ndarray:
+        """``(u, v)`` in 0-1 for tangent-plane coordinates.
+
+        ``v`` counts up from the south edge, which is what VTK wants and
+        the opposite of the image's own row order -- the image is flipped
+        once at load rather than here, so this stays a pure rescale.
+        """
+        u = ((np.asarray(east, dtype=float) - self.east[0])
+             / max(self.east[1] - self.east[0], 1e-9))
+        v = ((np.asarray(north, dtype=float) - self.north[0])
+             / max(self.north[1] - self.north[0], 1e-9))
+        return np.column_stack([np.clip(u, 0.0, 1.0).ravel(),
+                                np.clip(v, 0.0, 1.0).ravel()])
+
+
+    def sample(self, east, north) -> np.ndarray:
+        """Colour of the ground at a point, RGB in 0-1.
+
+        Used to paint building roofs their actual colour.  An orthophoto
+        is a picture of roofs seen from directly above, so this is not an
+        approximation of the roof colour -- it *is* the roof colour, for
+        every one of the fifty thousand buildings in the scene, from a
+        source that already had to be fetched for the ground.
+        """
+        rows, columns = self.image.shape[:2]
+        u, v = self.texture_coordinates(east, north).T
+        column = np.clip((u * (columns - 1)).astype(int), 0, columns - 1)
+        # ``image`` was flipped at load so row 0 is the south edge, which
+        # is exactly what ``v`` counts from.
+        row = np.clip((v * (rows - 1)).astype(int), 0, rows - 1)
+        return self.image[row, column].astype(float) / 255.0
+
+
+def load_imagery(name: str, origin) -> "Imagery":
+    """Load a stored orthophoto onto the tangent plane at ``origin``.
+
+    The bounds come from the ``.json`` sidecar written by
+    ``tools/fetch_imagery.py`` -- the extent the service actually served,
+    not the one it was asked for.
+    """
+    from .course import local_tangent_plane
+
+    key = ("imagery", name, tuple(origin))
+    if key in _CACHE:
+        return _CACHE[key]
+
+    import json
+
+    from PIL import Image
+    folder = os.path.join(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))), "data")
+    path = os.path.join(folder, name)
+    sidecar = os.path.splitext(path)[0] + ".json"
+    if not (os.path.exists(path) and os.path.exists(sidecar)):
+        raise FileNotFoundError(
+            "%s (or its .json) is missing -- run tools/fetch_imagery.py"
+            % path)
+    with open(sidecar) as handle:
+        south, west, north, east = json.load(handle)["bounds"]
+
+    # Row 0 of the file is the north edge; VTK's v axis counts up from
+    # the south.  Flipping once here keeps every later transform a
+    # straight rescale.
+    image = np.asarray(Image.open(path).convert("RGB"))[::-1]
+
+    east_axis, _ = local_tangent_plane(
+        np.full(2, 0.5 * (south + north)), np.array([west, east]), origin)
+    _, north_axis = local_tangent_plane(
+        np.array([south, north]), np.full(2, 0.5 * (west + east)), origin)
+
+    imagery = Imagery(image, east_axis, north_axis)
+    _CACHE[key] = imagery
+    return imagery
+
+
+def seattle_imagery(origin=None) -> Imagery:
+    """NAIP orthoimagery over Lake Union and downtown, public domain."""
+    from .seattle import SEATTLE_ORIGIN
+
+    origin = SEATTLE_ORIGIN if origin is None else origin
+    return load_imagery("seattle_imagery.jpg", origin)
