@@ -268,7 +268,8 @@ def eight(rate: float = 32.0, rower_mass: float = 88.0,
 def coxed_four(rate: float = 32.0, rower_mass: float = 88.0,
                rower_stature: float = 1.90, coxswain_mass: float = 55.0,
                water: WaterProperties = FRESH_WATER,
-               crew_phase_offsets: Sequence[float] = None, **kwargs) -> Boat:
+               crew_phase_offsets: Sequence[float] = None,
+               bow_loaded: bool = True, **kwargs) -> Boat:
     """Coxed four (4+).
 
     13.4 m, 0.50 m waterline beam, 51 kg minimum hull mass.  Sweep
@@ -276,6 +277,15 @@ def coxed_four(rate: float = 32.0, rower_mass: float = 88.0,
     beamier hull than the eight for its displacement, so it sits deeper
     and is relatively draggier -- which the model reproduces rather than
     being told.
+
+    **Bow-loaded by default**, because nearly every 4+ raced today is:
+    the coxswain lies supine ahead of the bow seat rather than sitting
+    behind the stern seat.  This was previously modelled stern-loaded
+    like the eight, which put a 55-90 kg coxswain 8.3 m -- most of a
+    quarter of the hull -- from where they actually are.  That is a real
+    change to the trim and the pitch inertia, not a cosmetic one.
+
+    Pass ``bow_loaded=False`` for the older stern-coxed layout.
     """
     length, beam, draft = 13.40, 0.50, 0.155
     hull_mass = 51.0
@@ -284,11 +294,15 @@ def coxed_four(rate: float = 32.0, rower_mass: float = 88.0,
     rig = build_sweep_rig(
         n_seats=4, spacing=1.22, stern_station=-2.20, span=0.83,
         oarlock_height=0.38, oar=SWEEP_OAR, stroke_side=PORT,
-        coxswain_position=np.array([-4.00, 0.0, 0.10]),
+        # Ahead of the bow seat at +1.46 m, in the taper, lying down --
+        # hence the lower reference height than a seated coxswain.
+        coxswain_position=(np.array([4.30, 0.0, 0.02]) if bow_loaded
+                           else np.array([-4.00, 0.0, 0.10])),
         coxswain_mass=coxswain_mass,
+        coxswain_reclined=bool(bow_loaded),
     )
     return Boat(
-        name="coxed four (4+)",
+        name="coxed four (4+)" + ("" if bow_loaded else ", stern-coxed"),
         oar_sweep=SWEEP_ARC,
         offsets=offsets,
         rig=rig,

@@ -843,7 +843,10 @@ class RiverScene(BoatScene):
         state = self.state_at(t)
         rotation = hull_to_abs(state.attitude)
         seat = np.asarray(self.boat.rig.coxswain_position, dtype=float).copy()
-        seat[2] += self.EYE_HEIGHT
+        # The boat's own eye height, not the scene's: a bow-loader lies
+        # down and sees from 0.25 m, a stern coxswain sits up at 0.70.
+        seat[2] += float(getattr(self.boat.rig, "coxswain_eye_height",
+                                 self.EYE_HEIGHT))
 
         origin = self._origin(state)
         eye = rotation @ seat + state.position - origin

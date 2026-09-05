@@ -181,6 +181,26 @@ class Rig:
     seats: Tuple[Seat, ...]
     coxswain_position: np.ndarray = None  # (3,) or None for a coxless boat
     coxswain_mass: float = 0.0
+    #: True where the coxswain lies supine in the bow rather than sitting
+    #: upright in the stern.  Nearly every modern 4+ is a bow-loader, and
+    #: it is not a detail: the coxswain's mass moves from behind the
+    #: stern seat to ahead of the bow seat -- eight metres, a quarter of
+    #: the boat's length -- which changes the trim and the pitch inertia,
+    #: and it moves the only viewpoint that matters from four metres
+    #: behind the crew to four metres in front of them, lying down.
+    coxswain_reclined: bool = False
+
+    @property
+    def coxswain_eye_height(self) -> float:
+        """Height of the coxswain's eye above their seat reference, m.
+
+        0.70 m seated upright; 0.25 m for a bow-loader, who is lying on
+        their back with their head raised just enough to see over the
+        bow.  This is why bow-loading is hard to steer from and why the
+        3-D scene is worth having: from there the crew is behind you and
+        there is nothing in the frame but water.
+        """
+        return 0.25 if self.coxswain_reclined else 0.70
 
     @property
     def n_seats(self) -> int:
@@ -247,6 +267,7 @@ def build_sweep_rig(n_seats: int, spacing: float, stern_station: float,
                     stroke_side: int = PORT,
                     coxswain_position=None,
                     coxswain_mass: float = 0.0,
+                    coxswain_reclined: bool = False,
                     sides=None) -> Rig:
     """Lay out a sweep rig.
 
@@ -282,14 +303,16 @@ def build_sweep_rig(n_seats: int, spacing: float, stern_station: float,
                coxswain_position=(None if coxswain_position is None
                                   else np.asarray(coxswain_position,
                                                   dtype=float)),
-               coxswain_mass=coxswain_mass)
+               coxswain_mass=coxswain_mass,
+               coxswain_reclined=coxswain_reclined)
 
 
 def build_sculling_rig(n_seats: int, spacing: float, stern_station: float,
                        span: float, oarlock_height: float,
                        oar: Oar = SCULLING_OAR,
                        coxswain_position=None,
-                       coxswain_mass: float = 0.0) -> Rig:
+                       coxswain_mass: float = 0.0,
+                       coxswain_reclined: bool = False) -> Rig:
     """Lay out a sculling rig: two oarlocks per seat, one each side."""
     seats: List[Seat] = []
     for index in range(n_seats):
@@ -311,4 +334,5 @@ def build_sculling_rig(n_seats: int, spacing: float, stern_station: float,
                coxswain_position=(None if coxswain_position is None
                                   else np.asarray(coxswain_position,
                                                   dtype=float)),
-               coxswain_mass=coxswain_mass)
+               coxswain_mass=coxswain_mass,
+               coxswain_reclined=coxswain_reclined)

@@ -143,10 +143,13 @@ class RowingSimulator:
         self.munk_factor = float(munk_factor)
         from ..hydro.crossflow import CrossFlowHull
         from ..hydro.heaveflow import HeaveFlowHull
+        from ..hydro.radiation import StripDamping
         #: Station table for the distributed cross-flow integral.
         self._cross_flow = CrossFlowHull(boat.offsets)
         self._heave_flow = HeaveFlowHull(boat.offsets)
+        self._strip_damping = StripDamping(boat.offsets)
         self._heave_frequency = None
+        self._damping_matrix = None
         if added_mass is True:
             from ..hydro.addedmass import AddedMass
             self._added_mass = AddedMass.from_offsets(
@@ -431,10 +434,23 @@ class RowingSimulator:
             velocity_hull[2], float(state.omega_hull[1]),
             boat.water.density, boat.resistance.cross_flow_vertical,
             vertical_immersion,
-            frequency=self.heave_frequency,
         )
         resistance_hull[2] = heave_force
         resistance_moment_hull[1] = pitch_moment
+
+        # Linear damping, from potential flow in all six degrees of
+        # freedom at once.  The quadratic terms above are viscous and
+        # dominate at large amplitude; this is what actually damps small
+        # motions, and without it a mode with any energy going into it
+        # grows unopposed.  See :mod:`coxswain.hydro.radiation`.
+        linear = self.damping_matrix
+        rates = np.concatenate([velocity_hull, np.asarray(state.omega_hull)])
+        # Surge is deliberately zero in the matrix: the longitudinal wave
+        # making is already Michell's integral above, and adding a
+        # radiation term here would count it twice.
+        load = -linear @ rates
+        resistance_hull = resistance_hull + load[:3]
+        resistance_moment_hull = resistance_moment_hull + load[3:]
 
         deflection = float(self.coxswain.rudder(t, state))
         appendage_force_hull = np.zeros(3)
@@ -593,6 +609,72 @@ class RowingSimulator:
                 float(_np.sqrt(stiffness / mass)) if mass > 0.0
                 and stiffness > 0.0 else 0.0)
         return self._heave_frequency
+
+    @property
+    def damping_matrix(self) -> np.ndarray:
+        """Linear 6x6 hull damping, built once per boat.
+
+        Each mode is evaluated at **its own** natural frequency, because
+        radiation damping goes as :math:`\omega^{-3}` and using one
+        frequency for all of them is a large error, not a small one.
+        Roll has no restoring force this model can derive -- a shell's
+        metacentric height is set by the crew, not the hull -- so its
+        radiation term is evaluated at the heave frequency and its real
+        damping comes from Ikeda's lift and friction components, which
+        do not depend on frequency anyway.
+        """
+        if self._damping_matrix is None:
+            from ..hydro.radiation import natural_frequencies
+            boat = self.boat
+            rho = boat.water.density
+            modes = natural_frequencies(
+                boat.offsets, boat.total_mass, self.pitch_inertia, rho)
+            heave = modes["heave"] or 0.0
+            pitch = modes["pitch"] or heave
+            speed = float(getattr(self, "_reference_speed", 0.0) or 0.0)
+
+            # Assemble mode by mode so each is evaluated at its own
+            # frequency, then take the terms that belong to it.
+            matrix = np.zeros((6, 6))
+            at_heave = self._strip_damping.matrix(heave, rho, speed=speed)
+            at_pitch = self._strip_damping.matrix(pitch, rho, speed=speed)
+            matrix[1, 1] = at_heave[1, 1]
+            matrix[2, 2] = at_heave[2, 2]
+            matrix[5, 5] = at_heave[5, 5]
+            matrix[3, 3] = at_heave[3, 3]
+            matrix[4, 4] = at_pitch[4, 4]
+            # Coupling at the mean of the two, which is the honest
+            # compromise for a term that belongs to both modes.
+            mean = 0.5 * (heave + pitch)
+            at_mean = self._strip_damping.matrix(mean, rho, speed=speed)
+            matrix[2, 4] = matrix[4, 2] = at_mean[2, 4]
+            matrix[1, 5] = matrix[5, 1] = at_mean[1, 5]
+            self._damping_matrix = matrix
+        return self._damping_matrix
+
+    @property
+    def pitch_inertia(self) -> np.ndarray:
+        """Boat inertia including the crew as point masses at their seats.
+
+        The hull of a four is 51 kg and its own pitch inertia is 611
+        kg m^2; four rowers at their stations add most of what actually
+        resists pitching, and a coxswain 4.3 m up the bow adds more.
+        Reporting a damping ratio against the bare hull said pitch was
+        1.37 of critical -- over-damped, which it is emphatically not.
+        """
+        boat = self.boat
+        inertia = np.asarray(boat.hull_inertia, dtype=float).copy()
+        seats = np.array([seat.station_x for seat in boat.rig.seats],
+                         dtype=float)
+        if len(seats):
+            per_seat = boat.crew_mass / len(seats)
+            inertia[1, 1] += float((per_seat * seats ** 2).sum())
+            inertia[2, 2] += float((per_seat * seats ** 2).sum())
+        if boat.rig.has_coxswain:
+            arm = float(boat.rig.coxswain_position[0]) ** 2
+            inertia[1, 1] += boat.rig.coxswain_mass * arm
+            inertia[2, 2] += boat.rig.coxswain_mass * arm
+        return inertia
 
     def derivative(self, t: float, y: np.ndarray) -> np.ndarray:
         """State derivative, in the form ``solve_ivp`` expects."""
