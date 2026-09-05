@@ -49,7 +49,10 @@ POOL_LEVEL = 0.6
 #: downtown towers stand near 47.60, so a box drawn around the racing
 #: water alone would put the skyline -- the thing a crew actually steers
 #: by looking down the lake -- outside the terrain entirely.
-SEATTLE_DEM_BOUNDS = (47.590, -122.375, 47.670, -122.300)
+#: Widened east in September 2026 for Head of the Lake, which runs
+#: through the Montlake Cut into Union Bay -- the old east edge of
+#: -122.300 fell on the Cut itself, with the whole finish outside it.
+SEATTLE_DEM_BOUNDS = (47.590, -122.375, 47.675, -122.265)
 
 #: Pool elevation of Lake Union, metres NAVD88.
 #:

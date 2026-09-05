@@ -152,7 +152,14 @@ def main(argv=None):
     north = np.asarray(north)
 
     # Only what is actually inside the lake, and only believable depths.
-    grid_east, grid_north, wet = water_mask(10.0, names=("Lake Union",))
+    # The whole ship canal system, not the lake alone.  The federal
+    # channel -- and the USACE survey with it -- runs from the Fremont
+    # Cut across the north of Lake Union, through Portage Bay and the
+    # Montlake Cut into Union Bay, and Head of the Lake follows exactly
+    # that: most of its course is water the Corps is responsible for.
+    grid_east, grid_north, wet = water_mask(
+        10.0, names=("Lake Union", "Portage Bay", "Montlake Cut",
+                     "Union Bay"))
     rows = np.clip(np.searchsorted(grid_north, north), 0, len(grid_north) - 1)
     columns = np.clip(np.searchsorted(grid_east, east), 0, len(grid_east) - 1)
     keep = (wet[rows, columns] & (depth > MIN_DEPTH) & (depth < MAX_DEPTH))

@@ -76,18 +76,32 @@ STRUCTURE_QUERY = """
 out geom;
 """
 
+#: Union Bay, as OpenStreetMap does *not* have it.
+#:
+#: There is no water body named Union Bay in OSM.  It is a lobe of the
+#: **Lake Washington** relation (2793848), and the first version of this
+#: query asked for it by name and silently got nothing -- which is why
+#: Head of the Lake's finish was outside every dataset this project
+#: held.  So the Lake Washington relation is fetched instead, with its
+#: geometry clipped to this box, and the clipped chain is closed along
+#: the box edge by :func:`water_mask` to make a polygon.  The Montlake
+#: Cut likewise: the earlier query took the ``waterway=canal`` *way*,
+#: which is a centreline, not the ``natural=water`` relation (2793830)
+#: that is the actual channel.
+UNION_BAY_BOX = "47.638,-122.312,47.668,-122.262"
+
 QUERY = """
-[out:json][timeout:180];
+[out:json][timeout:240];
 (
   way[name="Lake Union"][natural=water](%(bbox)s);
   relation[name="Lake Union"][natural=water](%(bbox)s);
   relation[name="Portage Bay"][natural=water](%(bbox)s);
-  way[name="Montlake Cut"](%(bbox)s);
-  way[name="Union Bay"][natural=water](%(bbox)s);
-  relation[name="Union Bay"][natural=water](%(bbox)s);
+  relation[name="Montlake Cut"][natural=water](%(bbox)s);
 );
 out geom;
-""" % {"bbox": BBOX}
+relation(2793848);
+out geom(%(union_bay)s);
+""" % {"bbox": BBOX, "union_bay": UNION_BAY_BOX}
 
 
 def local_plane(lat, lon, origin):
@@ -133,7 +147,8 @@ def rings(payload, origin):
             for member in element.get("members") or []:
                 if member.get("type") != "way":
                     continue
-                geometry = member.get("geometry") or []
+                geometry = [p for p in (member.get("geometry") or [])
+                            if p is not None]
                 # **Two points is a valid shoreline segment.**  A
                 # standalone way needs 4 points to bound an area, but a
                 # relation MEMBER is a piece of a boundary, and the
@@ -143,12 +158,28 @@ def rings(payload, origin):
                 # basin and made a flood fill leak to the grid edge.
                 if len(geometry) < 2:
                     continue
-                lat = [p["lat"] for p in geometry]
-                lon = [p["lon"] for p in geometry]
-                east, north = local_plane(lat, lon, origin)
-                out.append({"name": name,
-                            "role": member.get("role") or "outer",
-                            "points": np.column_stack([east, north])})
+                raw = member.get("geometry") or []
+                # Split at every null vertex so a member that leaves the
+                # clip box and comes back does not get a chord drawn
+                # straight across the gap it left.
+                runs, run = [], []
+                for point in raw:
+                    if point is None:
+                        if len(run) >= 2:
+                            runs.append(run)
+                        run = []
+                    else:
+                        run.append(point)
+                if len(run) >= 2:
+                    runs.append(run)
+                label = "Union Bay" if name == "Lake Washington" else name
+                for run in runs:
+                    lat = [p["lat"] for p in run]
+                    lon = [p["lon"] for p in run]
+                    east, north = local_plane(lat, lon, origin)
+                    out.append({"name": label,
+                                "role": member.get("role") or "outer",
+                                "points": np.column_stack([east, north])})
     return out
 
 

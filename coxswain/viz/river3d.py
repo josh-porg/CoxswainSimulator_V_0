@@ -128,35 +128,62 @@ _OBSTRUCTION_STYLE = {
 #: and the shadows in it, because the sun was out when it was taken.
 _PHOTO_LIGHTING = {"lighting": False}
 
-#: Landmark spans, by the name OpenStreetMap gives the *road*:
-#: ``(display name, deck height above water, deck half-width, pier
-#: spacing)``, all metres.
+#: OpenStreetMap's name for the *road* against the National Bridge
+#: Inventory's name for the *crossing*.
 #:
-#: The deck height is **published, not derived**, and it has to be.  A
-#: bridge way in OpenStreetMap runs out onto its approach embankment, and
-#: 3DEP is bare earth so under the span it reads the water.  Taking the
-#: height from the way's own endpoints gave the Ship Canal Bridge a 37 m
-#: deck against a published 57, and the Aurora Bridge a 61 m one against
-#: a published 51 -- one end of it lands on the Queen Anne bluff, which
-#: is well above the roadway.
-#:
-#: This follows the pattern :data:`coxswain.river.bridges.BRIDGE_STRUCTURE`
-#: already sets for the Charles: where a bridge's dimensions are a matter
-#: of record, they are recorded rather than inferred.
-_LANDMARK_SPANS = {
-    # I-5 over Portage Bay: 1,350 m, 41 m navigation clearance, upper
-    # roadway near 57 m.  The tallest thing on this water and visible
-    # from most of the lake.
-    "Ship Canal Bridge": ("Ship Canal Bridge (I-5)", 55.0, 11.0, 130.0),
-    # George Washington Memorial Bridge, which nobody calls that: 898 m,
-    # deck 51 m, clearance 41 m.  OSM names the way after the road.
-    "Aurora Avenue North": ("Aurora Bridge", 51.0, 8.0, 90.0),
-    "Portage Bay Viaduct": ("Portage Bay Viaduct", 20.0, 9.0, 60.0),
-    # The bascules sit low, which is why they open.
-    "University Bridge": ("University Bridge", 9.0, 9.0, 45.0),
-    "Fremont Avenue North": ("Fremont Bridge", 9.0, 7.0, 45.0),
-    "Montlake Boulevard East": ("Montlake Bridge", 9.0, 8.0, 45.0),
+#: The two datasets are joined by hand here because nothing joins them:
+#: OSM names a way after the street it carries and NBI records the
+#: feature the bridge goes over.  Nobody calls it "SR 99 over Lake
+#: Union" and nobody calls it "Aurora Avenue North" either -- it is the
+#: Aurora Bridge.
+_SPAN_TO_NBI = {
+    "Ship Canal Bridge": ("LAKE WASH SHIP CANAL", "Ship Canal Bridge (I-5)"),
+    "Aurora Avenue North": ("LAKE UNION", "Aurora Bridge"),
+    "Montlake Boulevard East": ("MONTLAKE CUT", "Montlake Bridge"),
+    "Montlake Boulevard Northeast": ("MONTLAKE CUT", "Montlake Bridge"),
+    "Fremont Avenue North": ("SHIP CANAL", "Fremont Bridge"),
+    "Eastlake Avenue East": ("PORTAGE BAY", "University Bridge"),
 }
+
+#: NBI item 43B values whose structure hangs *below* the deck and is
+#: therefore visible from the water: deck trusses and deck arches.
+_DECK_SPANNING = (9, 10, 11, 12)
+
+#: Spacing of the spandrel posts between an arch rib and the deck, m.
+_SPANDREL_SPACING = 22.0
+
+#: Structural form, from OpenStreetMap's ``bridge:structure`` on the
+#: ``man_made=bridge`` outline -- which distinguishes these two where
+#: NBI does not.  Both are item 43B code 9, "truss, deck", because both
+#: carry their structure below the deck; only OSM says that one of them
+#: is an arch.
+#:
+#: The Aurora Bridge really is: HAER WA-107 photograph 1 shows arch ribs
+#: springing from short piers and rising to just under the deck.  The
+#: Ship Canal Bridge is a continuous deck truss of roughly constant
+#: depth, and being a 1962 structure it has no HAER survey at all -- too
+#: new for the Historic American Engineering Record -- so there is no
+#: elevation photograph of it to trace and its form is taken from the
+#: tag alone.
+_SPAN_FORM = {
+    "LAKE UNION": "arch",              # OSM bridge:structure=arch
+    "LAKE WASH SHIP CANAL": "truss",   # OSM bridge:structure=truss
+    "SHIP CANAL": "truss",             # Fremont, bascule with a truss
+}
+
+#: How tall the piers under an arch are, as a fraction of the deck
+#: height above the ground.
+#:
+#: **Measured, and it was badly wrong before.** The first version gave
+#: the arch a depth of span/20 -- twelve metres on a fifty-metre deck --
+#: which put the springing forty metres up and left the piers as forty
+#: metre columns holding a shallow curve. In HAER WA-107 the arch reaches
+#: about 40 image rows below a deck that stands 40 rows above the water:
+#: the ribs spring at very nearly ground level and the piers are stubs.
+#: An arch bridge carries its load *through the arch to the ground*, so
+#: short piers are not a detail of appearance, they are what the
+#: structure is.
+_PIER_FRACTION = 0.10
 
 #: Colour and crown geometry per growth form:
 #: ``(colour, crown radius / height, crown centre / height)``.
@@ -534,16 +561,33 @@ class RiverScene(BoatScene):
                              name="obstruction-%s" % kind,
                              ambient=0.40, diffuse=0.70, specular=0.02)
 
+    def bridge_records(self):
+        """National Bridge Inventory rows, keyed by the crossing name."""
+        if self._bridge_records is None:
+            import os
+            path = os.path.join(os.path.dirname(os.path.dirname(
+                os.path.abspath(__file__))), "data", "seattle_bridges.npz")
+            try:
+                rows = np.load(path)["bridges"]
+                self._bridge_records = {str(r["crosses"]): r for r in rows}
+            except Exception:
+                self._bridge_records = {}
+        return self._bridge_records
+
     def span_actors(self, plotter, t: float):
-        """Landmark bridge decks and their piers -- scenery, not gates.
+        """Landmark bridges, built to what the federal inventory says.
 
-        A bridge the course does not pass under still matters: it is how
-        a crew knows where they are, and on Lake Union the Ship Canal
-        Bridge is 55 m up and visible from most of the water.
+        Not a slab on columns.  The Ship Canal Bridge and the Aurora
+        Bridge are **steel deck trusses** -- NBI item 43B code 9 -- and a
+        truss is the thing you recognise them by from the water.  So a
+        truss is what gets drawn: two chords and a zig-zag web hanging
+        under the deck, with the depth taken from the main span and the
+        deck width, span count and navigational clearance read straight
+        off the inventory.
 
-        Drawn as a slab on columns rather than a tube, because from the
-        water a bridge is a horizontal line held up by verticals, and the
-        verticals are most of what makes it read as a bridge.
+        The Aurora Bridge's 244 m main span was the longest of its type
+        in the world in 1931, and at 41 m of clearance it stands over the
+        northwest corner of the lake in plain view of most of the course.
         """
         pv = require_pyvista()
         try:
@@ -552,58 +596,200 @@ class RiverScene(BoatScene):
             return
         if not getattr(structures, "spans", None):
             return
+        records = self.bridge_records()
         state = self.state_at(t)
         origin = self._origin(state)
         centre = np.asarray(state.position, dtype=float)[:2]
 
-        pieces = []
+        pieces, drawn = [], set()
         for name, deck in zip(structures.span_names, structures.spans):
-            if len(deck) < 2:
+            joined = _SPAN_TO_NBI.get(str(name))
+            if joined is None or len(deck) < 2:
                 continue
-            style = _LANDMARK_SPANS.get(str(name))
-            if style is None:
+            record = records.get(joined[0])
+            if record is None:
                 continue
-            label, level, half, spacing = style
             length = float(np.hypot(*np.diff(deck, axis=0).T).sum())
             gap = float(np.linalg.norm(deck.mean(axis=0) - centre))
-            if length < 120.0 or gap > self.SKYLINE_REACH:
+            if length < 100.0 or gap > self.SKYLINE_REACH:
                 continue
 
-            shifted = np.column_stack([
-                deck[:, 0] - origin[0], deck[:, 1] - origin[1],
-                np.full(len(deck), level)])
-            try:
-                slab = pv.lines_from_points(shifted).tube(
-                    radius=half, n_sides=4)
-                pieces.append(slab.extrude((0.0, 0.0, 2.5), capping=True))
-            except Exception:
-                continue
+            level = float(record["deck_height"])
+            depth = float(record["structure_depth"])
+            # NBI's deck width is the whole structure; an OSM way is one
+            # carriageway, so several ways share it.  Halve it once and
+            # let the ways overlap rather than drawing it three times
+            # over.
+            half = max(float(record["deck_width"]) / 4.0, 3.0)
+            form = _SPAN_FORM.get(joined[0])
+            if form is None:
+                form = ("truss" if int(record["design"]) in _DECK_SPANNING
+                        else "beam")
 
-            # Piers, spaced along the span and stopping at whatever is
-            # under them -- ground on the approaches, water mid-channel.
-            station = np.concatenate([[0.0], np.cumsum(
-                np.hypot(*np.diff(deck, axis=0).T))])
-            for where in np.arange(spacing, max(length - spacing, 0.0),
-                                   spacing):
-                east = float(np.interp(where, station, deck[:, 0]))
-                north = float(np.interp(where, station, deck[:, 1]))
-                try:
-                    foot = float(self.bank_height(east, north)[0])
-                except Exception:
-                    foot = 0.0
-                if level - foot < 4.0:
-                    continue
-                pieces.append(pv.Cylinder(
-                    center=(east - origin[0], north - origin[1],
-                            0.5 * (level + foot)),
-                    direction=(0.0, 0.0, 1.0), radius=1.8,
-                    height=level - foot, resolution=8))
+            pieces.extend(self._span_geometry(
+                deck, origin, level, depth, half, form, length,
+                arch_span=float(record["max_span"])))
+            drawn.add(joined[1])
 
         if not pieces:
             return
         merged = pieces[0].merge(pieces[1:]) if len(pieces) > 1 else pieces[0]
         plotter.add_mesh(merged, color=_DECK, name="landmark-spans",
                          ambient=0.32, diffuse=0.72, specular=0.02)
+
+    def _span_geometry(self, deck, origin, level, depth, half, form,
+                       length, arch_span=0.0):
+        """Deck, structure and piers for one crossing.
+
+        ``form`` is ``"arch"``, ``"truss"`` or ``"beam"``, and the three
+        are genuinely different objects rather than three colours of the
+        same one.
+
+        **Arch** -- the Aurora Bridge. HAER WA-107 photograph 1 shows
+        ribs springing from **short** piers at very nearly ground level
+        and rising to within about a fifth of the deck height of the
+        underside, with vertical spandrel posts filling the gap. The
+        depth is greatest at the piers and least at midspan, which is
+        the opposite of a parallel-chord truss, and the piers are stubs
+        because an arch carries its load through the arch to the ground.
+
+        **Truss** -- the Ship Canal Bridge. Parallel chords of roughly
+        constant depth with a zig-zag web, on tall piers, because a truss
+        *is* carried on its piers.
+
+        **Beam** -- a plain girder.
+        """
+        pv = require_pyvista()
+        pieces = []
+        shifted = np.column_stack([
+            deck[:, 0] - origin[0], deck[:, 1] - origin[1],
+            np.full(len(deck), level)])
+        try:
+            pieces.append(pv.lines_from_points(shifted).tube(
+                radius=half, n_sides=4).extrude((0.0, 0.0, 2.0),
+                                                capping=True))
+        except Exception:
+            return pieces
+
+        station = np.concatenate([[0.0], np.cumsum(
+            np.hypot(*np.diff(deck, axis=0).T))])
+
+        def at(where):
+            return np.array([float(np.interp(where, station, deck[:, 0])),
+                             float(np.interp(where, station, deck[:, 1]))])
+
+        def ground(point):
+            try:
+                return float(self.bank_height(point[0], point[1])[0])
+            except Exception:
+                return 0.0
+
+        if form == "beam" or depth <= 1.5:
+            pieces.extend(self._piers(at, origin, level, max(length / 8.0,
+                                                             60.0), length))
+            return pieces
+
+        span = arch_span if arch_span > 20.0 else length
+        count = max(int(round(length / span)), 1)
+        span = length / count
+        member = max(0.05 * depth, 1.1)
+
+        if form == "truss":
+            # Parallel chords, constant depth, zig-zag web, tall piers.
+            bottom = np.column_stack([shifted[:, 0], shifted[:, 1],
+                                      np.full(len(deck), level - depth)])
+            try:
+                pieces.append(pv.lines_from_points(bottom).tube(
+                    radius=member, n_sides=4))
+            except Exception:
+                pass
+            step = max(span / 8.0, 14.0)
+            up = True
+            for where in np.arange(0.0, length, step):
+                a, b = at(where), at(min(where + step, length))
+                p0 = np.array([a[0] - origin[0], a[1] - origin[1],
+                               level if up else level - depth])
+                p1 = np.array([b[0] - origin[0], b[1] - origin[1],
+                               level - depth if up else level])
+                up = not up
+                pieces.append(pv.Cylinder(
+                    center=0.5 * (p0 + p1), direction=p1 - p0,
+                    radius=0.8 * member,
+                    height=float(np.linalg.norm(p1 - p0)), resolution=6))
+            pieces.extend(self._piers(at, origin, level - depth, span,
+                                      length))
+            return pieces
+
+        # -- arch ---------------------------------------------------------
+        for index in range(count):
+            begin = index * span
+            foot = ground(at(begin + 0.5 * span))
+            # Springing just above the ground, crown just under the deck.
+            springing = foot + _PIER_FRACTION * max(level - foot, 1.0)
+            crown = level - depth
+            rise = max(crown - springing, 2.0)
+
+            samples = np.linspace(0.0, 1.0, 21)
+            rib = []
+            for u in samples:
+                point = at(begin + u * span)
+                height = springing + rise * (1.0 - (2.0 * u - 1.0) ** 2)
+                rib.append([point[0] - origin[0], point[1] - origin[1],
+                            height])
+            try:
+                pieces.append(pv.lines_from_points(
+                    np.asarray(rib)).tube(radius=member, n_sides=5))
+            except Exception:
+                continue
+
+            step = _SPANDREL_SPACING / span
+            for u in np.arange(step, 1.0, step):
+                point = at(begin + u * span)
+                top = springing + rise * (1.0 - (2.0 * u - 1.0) ** 2)
+                if level - top < 1.5:
+                    continue
+                pieces.append(pv.Cylinder(
+                    center=(point[0] - origin[0], point[1] - origin[1],
+                            0.5 * (level + top)),
+                    direction=(0.0, 0.0, 1.0), radius=0.7 * member,
+                    height=level - top, resolution=5))
+
+            # The pier under the springing: short, because the arch
+            # carries the load to the ground rather than the pier
+            # carrying the arch.
+            for edge in (begin, begin + span):
+                point = at(min(edge, length))
+                base = ground(point)
+                if springing - base < 1.0:
+                    continue
+                pieces.append(pv.Cylinder(
+                    center=(point[0] - origin[0], point[1] - origin[1],
+                            0.5 * (springing + base)),
+                    direction=(0.0, 0.0, 1.0), radius=3.0,
+                    height=springing - base, resolution=8))
+        return pieces
+
+    def _piers(self, at, origin, top, spacing, length):
+        """Columns from ``top`` down to whatever is under them."""
+        pv = require_pyvista()
+        out = []
+        for where in np.arange(spacing, max(length - 0.5 * spacing, 0.0),
+                               spacing):
+            point = at(where)
+            try:
+                foot = float(self.bank_height(point[0], point[1])[0])
+            except Exception:
+                foot = 0.0
+            if top - foot < 4.0:
+                continue
+            out.append(pv.Cylinder(
+                center=(point[0] - origin[0], point[1] - origin[1],
+                        0.5 * (top + foot)),
+                direction=(0.0, 0.0, 1.0), radius=2.4,
+                height=top - foot, resolution=8))
+        return out
+
+    _bridge_records = None
 
     _distant_mesh = None
 

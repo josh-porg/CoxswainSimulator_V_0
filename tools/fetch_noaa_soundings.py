@@ -67,7 +67,7 @@ DEPTH_AREAS = 227
 AGENT = "CoxswainSimulator/0.1 (rowing research; NOAA ENC, public domain)"
 
 #: Lake Union plus Portage Bay and the cut, a little wider than the lake.
-BOUNDS = (47.620, -122.360, 47.665, -122.300)
+BOUNDS = (47.620, -122.360, 47.670, -122.265)
 
 
 def ask(layer: int, params, tries: int = 4):

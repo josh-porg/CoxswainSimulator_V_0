@@ -161,51 +161,71 @@ def _closed(ring, tolerance):
 
 
 def water_mask(resolution: float = 10.0, names=("Lake Union",
-                                                "Portage Bay")):
-    """``(east, north, mask)`` for the named water bodies.
+                                                "Portage Bay"),
+               pad: float = 0.0):
+    """``(east, north, mask)`` for the named water bodies, **unioned**.
 
     Point-in-polygon rather than the alpha shape
     :func:`coxswain.river.channel.build_channel` uses, because here the
     shoreline is given as an actual polygon.  Reconstructing a boundary
     that is already known would only add error.
+
+    Each name is resolved to its own largest stitched ring and the rings
+    are unioned on one grid.  That is a change: the first version
+    stitched *every* piece of every name together and kept the single
+    largest ring, which is right for one lake and silently wrong for
+    four -- asked for the whole ship canal it returned Union Bay alone,
+    the biggest of them, and Head of the Lake's start and finish were on
+    different lakes.
+
+    ``pad`` grows the grid beyond the water by that many metres so a
+    caller drawing a bank has somewhere to draw it.
     """
     _origin, pieces = load_water()
-    wanted = [(name, points) for name, points in pieces
-              if not names or name in names]
-    if not wanted:
-        raise ValueError("no water pieces named %r" % (names,))
+    wanted_names = list(names) if names else sorted({n for n, _p in pieces})
+    rings_by_name = []
+    for name in wanted_names:
+        fragments = [points for n, points in pieces if n == name]
+        if not fragments:
+            raise ValueError("no water pieces named %r" % (name,))
+        # Stitch first: the fragments are pieces of one shoreline, not
+        # polygons in their own right.  Then keep the LARGEST ring for
+        # this body.  Stitching a lake's members yields the lake plus
+        # whatever smaller loops the relation carries; unioning them all
+        # inflated Lake Union from its true 2.13 km2 to 2.74.  Force it
+        # closed, because a ring that fails to meet by a few metres still
+        # fills wrongly -- and a bbox-clipped chain, which is what Union
+        # Bay is, never meets at all and must be closed across the box.
+        rings = stitch_rings(fragments)
+        if not rings:
+            raise ValueError("no ring could be stitched for %r" % (name,))
+        ring = max(rings, key=_ring_area)
+        if np.hypot(*(ring[-1] - ring[0])) > 1e-9:
+            ring = np.vstack([ring, ring[:1]])
+        rings_by_name.append((name, ring))
 
-    # Stitch first: the fragments are pieces of one shoreline, not
-    # polygons in their own right.  Then keep the LARGEST ring only.
-    # Stitching a lake's members yields the lake plus whatever smaller
-    # loops the relation carries; unioning them all inflated Lake Union
-    # from its true 2.13 km2 to 2.74.  Force it closed, because a ring
-    # that fails to meet by a few metres still fills wrongly.
-    rings = stitch_rings([points for _n, points in wanted])
-    if not rings:
-        raise ValueError("no ring could be stitched")
-
-    def _area(ring):
-        return abs(0.5 * np.sum(ring[:-1, 0] * ring[1:, 1]
-                                - ring[1:, 0] * ring[:-1, 1]))
-
-    ring = max(rings, key=_area)
-    if np.hypot(*(ring[-1] - ring[0])) > 1e-9:
-        ring = np.vstack([ring, ring[:1]])
-    wanted = [(names[0] if names else "water", ring)]
-
-    stacked = np.vstack([points for _n, points in wanted])
-    east = np.arange(stacked[:, 0].min(), stacked[:, 0].max() + resolution,
-                     resolution)
-    north = np.arange(stacked[:, 1].min(), stacked[:, 1].max() + resolution,
-                      resolution)
+    stacked = np.vstack([ring for _n, ring in rings_by_name])
+    east = np.arange(stacked[:, 0].min() - pad,
+                     stacked[:, 0].max() + pad + resolution, resolution)
+    north = np.arange(stacked[:, 1].min() - pad,
+                      stacked[:, 1].max() + pad + resolution, resolution)
     grid_east, grid_north = np.meshgrid(east, north)
     query = np.column_stack([grid_east.ravel(), grid_north.ravel()])
 
     mask = np.zeros(len(query), dtype=bool)
-    for _name, points in wanted:
-        mask |= _inside(points, query)
+    for _name, ring in rings_by_name:
+        mask |= _inside(ring, query)
     return east, north, mask.reshape(grid_east.shape)
+
+
+def _ring_area(ring):
+    return abs(0.5 * np.sum(ring[:-1, 0] * ring[1:, 1]
+                            - ring[1:, 0] * ring[:-1, 1]))
+
+
+#: Every body Head of the Lake is rowed on, west to east.  The federal
+#: navigation channel runs through all four and so does the course.
+SHIP_CANAL = ("Lake Union", "Portage Bay", "Montlake Cut", "Union Bay")
 
 
 def obstruction_path() -> str:
@@ -298,7 +318,21 @@ def fetch_at(point, bearing, resolution: float = 10.0, limit: float = 4000.0,
     return travelled
 
 
-def lake_union_channel(resolution: float = 10.0, margin: float = 8.0):
+def ship_canal_channel(resolution: float = 10.0, margin: float = 8.0,
+                       names=SHIP_CANAL):
+    """The whole ship canal as one :class:`~coxswain.river.channel.ChannelRaster`.
+
+    Lake Union, Portage Bay, the Montlake Cut and Union Bay, unioned --
+    the water Head of the Lake is rowed on, which is also the water the
+    federal navigation channel runs through.  :func:`lake_union_channel`
+    is the Lake Union-only case and is what Tail of the Lake uses.
+    """
+    return lake_union_channel(resolution=resolution, margin=margin,
+                              names=names)
+
+
+def lake_union_channel(resolution: float = 10.0, margin: float = 8.0,
+                       names=("Lake Union",)):
     """Lake Union as a :class:`~coxswain.river.channel.ChannelRaster`.
 
     The same object the Charles hands to the 3-D renderer, so Lake Union
@@ -320,9 +354,8 @@ def lake_union_channel(resolution: float = 10.0, margin: float = 8.0):
 
     from .channel import ChannelRaster
 
-    east, north, water = water_mask(resolution, names=("Lake Union",))
-    _e, _n, rowable = rowable_mask(resolution, names=("Lake Union",),
-                                   margin=margin)
+    east, north, water = water_mask(resolution, names=names)
+    _e, _n, rowable = rowable_mask(resolution, names=names, margin=margin)
     depth = np.full(water.shape, np.nan)
     try:
         # Charted depth where there is one: nearest surveyed value, which

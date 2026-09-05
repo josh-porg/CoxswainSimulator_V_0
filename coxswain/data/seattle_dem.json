@@ -1,0 +1,21 @@
+{
+  "bounds": [
+    47.59,
+    -122.37501058873357,
+    47.675,
+    -122.26498941126641
+  ],
+  "requested": [
+    47.59,
+    -122.375,
+    47.675,
+    -122.265
+  ],
+  "size": [
+    3056,
+    2361
+  ],
+  "source": "https://elevation.nationalmap.gov/arcgis/rest/services/3DEPElevation/ImageServer/exportImage",
+  "units": "centimetres, int16",
+  "note": "bounds are what the service served, not what was asked for"
+}

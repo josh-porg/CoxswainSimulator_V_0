@@ -1,19 +1,19 @@
 {
   "bounds": [
-    47.58999377888376,
-    -122.375,
-    47.67000622111625,
-    -122.3
+    47.59,
+    -122.37500242718446,
+    47.675,
+    -122.26499757281553
   ],
   "requested": [
     47.59,
     -122.375,
-    47.67,
-    -122.3
+    47.675,
+    -122.265
   ],
   "size": [
-    2813,
-    3001
+    3999,
+    3090
   ],
   "source": "https://imagery.nationalmap.gov/arcgis/rest/services/USGSNAIPPlus/ImageServer/exportImage",
   "licence": "public domain (USGS/USDA, The National Map)",

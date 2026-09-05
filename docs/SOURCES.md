@@ -8391,3 +8391,183 @@ the NOAA ENC is the authoritative charted depth and is already in
 (sec. 112). CoNED would become the right source the moment this model
 touches salt water -- an Elliott Bay course, or the approach below the
 locks -- where the ENC thins out and CoNED's multibeam does not.
+
+## 115. The wind ran backwards, and nothing noticed until the bank had trees on it
+
+Re-running the wind and chop analyses on the surveyed data found a sign
+error in the wind model that had been there from the start.
+
+**Trees were not in the roughness at all.** `ShelteredWind.roughness`
+summed buildings only, on a module whose own docstring says shelter on
+the Powerhouse Stretch is "three storeys of Cambridge **and a line of
+plane trees on the bank**". Adding the 470,350 mapped trees made the
+sheltered wind go **up**, which is impossible.
+
+Two faults, one real:
+
+**The canopy height was averaged by count.** Raupach's formulation is for
+a canopy of uniform height, and that height sets the displacement height.
+Averaging a mixed bank by count let four hundred thousand nine-metre
+trees outvote the buildings and pull the effective canopy from 14.5 m to
+9.3 m. Now weighted by frontal area, because what sets the displacement
+is where the drag is.
+
+**The internal boundary layer used the wrong roughness.**
+`internal_boundary_layer` scaled Elliott's law on
+`max(z0_upwind, z0_downwind)` -- the *smooth-to-rough* convention --
+while its own paragraph says the transition here is rough-to-smooth, a
+bank onto water. With a wooded bank at z0 = 1.5 m that put the internal
+layer **78 m deep against a blending height of 80**, collapsing the
+two-layer profile onto one and making shelter run backwards:
+
+| bank z0 | IBL depth | crew wind |
+|---|---|---|
+| 0.05 m | 39.5 m | 13.27 m/s |
+| 1.50 m | 78.0 m | 14.10 m/s |
+
+On the downwind scaling the same case gives 12.18 and 8.97 m/s, and the
+layer is 13 m deep. Shelter now behaves like shelter, and trees reduce
+the wind along the course by 4.3 to 7.2%.
+
+### And the chop model's assumption, finally checkable
+
+`chop.py` uses the JONSWAP fetch-limited relations, which are
+**deep-water** relations. Waves stop being deep-water below half a
+wavelength of depth. With an invented shelf profile that test could not
+be run; with 14,871 surveyed depths it can:
+
+| wind | H_s | T_p | wavelength | shallowest h/L | deep water? |
+|---|---|---|---|---|---|
+| 6 m/s | 0.15 m | 1.17 s | 2.15 m | 1.91 | yes |
+| 10 m/s | 0.26 m | 1.39 s | 3.02 m | 1.36 | yes |
+| 14 m/s | 0.36 m | 1.56 s | 3.78 m | 1.09 | yes |
+
+The shallowest water under the racing line is 4.1 m and the longest wave
+is 3.8 m, so the relations are inside their range by a factor of two --
+**a checked statement rather than an assumption.** Added resistance runs
+1.4% of hull drag at 6 m/s to 7.9% at 14.
+
+## 116. Bridges: ask the inventory, not a model shop
+
+The renderer drew every landmark bridge as a slab on round columns with a
+deck height typed in by hand. The Ship Canal Bridge and the Aurora Bridge
+are **steel deck trusses**, and a truss is what you recognise them by.
+
+Rather than find a mesh of one, ask what they are. The FHWA **National
+Bridge Inventory** is served as a queryable layer by USDOT BTS and
+records material, type of design, span counts, deck width and
+navigational clearance for every bridge in the country. This project
+already treats NBI as authoritative for the Charles
+(`bridges.BRIDGE_STRUCTURE`); those numbers were transcribed by hand and
+these are fetched.
+
+| Crossing | Carries | Type (43A/43B) | Spans | Max span | Deck | Nav clear | Built |
+|---|---|---|---|---|---|---|---|
+| Lake Wash Ship Canal | I-5 | steel cont. / truss, deck | 6 + 28 | 168.2 m | 55.5 m wide | 39.0 m | 1962 |
+| Lake Union | SR 99 | steel / truss, deck | 8 + 15 | 243.8 m | 21.2 m wide | 41.1 m | 1931 |
+| Montlake Cut | SR 513 | steel / movable, bascule | 1 + 6 | 47.5 m | 18.3 m wide | 9.1 m | 1924 |
+| Ship Canal | Fremont Ave | steel / movable, bascule | 1 | 73.5 m | 13.2 m wide | 9.1 m | 1917 |
+| Portage Bay | Eastlake Ave | steel / movable, bascule | 1 | 65.5 m | 23.1 m wide | 13.4 m | 1915 |
+
+The Aurora Bridge's 243.8 m main span was the longest of its type in the
+world when it opened.
+
+**One number has to be derived.** NBI gives the navigational clearance --
+the underside of the structure, which is what a mariner needs -- and the
+renderer needs the deck, which on a deck truss sits on top. The
+structural depth is estimated at span/20, the middle of the 1/15 to 1/25
+range for deck trusses, and checked against the one published deck
+height: Aurora comes out 53.3 m against a published 51 m. Two metres in
+fifty, from one stated ratio, recorded as an estimate.
+
+Member sizes are the other thing that had to be real rather than
+plausible. Chords at 0.9 m and diagonals at 0.55 m looked like sensible
+numbers and came out **below one pixel** at the kilometre and a half from
+which the Aurora Bridge is actually seen -- the truss was built, sent to
+the renderer, and invisible. Sized to the structure (5% and 3.5% of the
+truss depth) it reads.
+
+## 117. The bridge was the wrong shape, and a photograph said so
+
+A generic `bridge:structure=truss` tag buys you a Warren truss --
+parallel chords, zig-zag web -- and that is what was drawn. It is not the
+Aurora Bridge.
+
+**HAER WA-107**, photograph 1, "General view of Aurora Bridge looking
+west up the Washington Ship Canal", is very close to a true side
+elevation and settles it: a level deck carried on a series of **arch
+ribs**, each springing from a pier at its deepest and rising to within a
+fraction of the deck at midspan, with vertical spandrel posts filling the
+gap. The depth is greatest **at the piers** and least at midspan -- the
+exact opposite of a parallel-chord truss.
+
+Both datasets agree with the photograph once you read them properly: NBI
+item 43B says `09`, deck truss, meaning the structure is *below* the
+deck; OSM says `bridge:structure=arch` and `bridge=cantilever;truss`.
+The HAER record calls it "a nearly 3,000-foot steel cantilever
+structure". Historic American Engineering Record material is a US
+Government work and public domain.
+
+### Tracing it, and what failed
+
+`tools/trace_bridge_profile.py` extracts the silhouette from the
+photograph. The **deck line traces cleanly** -- it is genuinely dark
+against a smooth sky, and the trace follows it across all 604 columns.
+
+The **bottom chord does not**, and the reason is worth recording. The
+first attempt looked for the structure as a *dark* band under the deck,
+on the reasoning that a bridge is dark against a bright sky. That is true
+of the top of the bridge and false of the bottom: the lower chord hangs
+against a wooded hillside, and against a hillside the sunlit steel is the
+**bright** thing. Rewriting the discriminator as brightness above a local
+median got the arches to show, but at 604 pixels across a 900 m bridge
+the chord trace is still too noisy to use as a profile directly.
+
+So the split is stated rather than blurred: **the form comes from the
+photograph and the dimensions from the inventory.** A photograph has
+perspective in it and no scale bar; it is a good witness to shape and a
+poor one to size. The arch count comes from NBI's main span length, the
+structural depth from span/20, and the deck width and navigational
+clearance straight off NBI.
+
+### The arch was the right form and the wrong proportions
+
+First attempt gave the arch a depth of span/20 -- twelve metres under a
+fifty-metre deck -- which put the springing forty metres up and left the
+piers as forty-metre columns carrying a shallow curve. That is a truss
+drawn with a bent chord, not an arch.
+
+The photograph says otherwise, and it can be measured: the arch reaches
+about **40 image rows below a deck that stands 40 rows above the water**.
+The ribs spring at very nearly ground level and the piers are **stubs**.
+That is not a detail of appearance -- an arch carries its load *through
+the arch to the ground*, so short piers are what the structure is. The
+springing is now set at 10% of the deck height and the crown at NBI's
+own (deck minus navigational clearance): for the Aurora Bridge, ribs
+springing 5.3 m above the ground and crowning 12.2 m under a 53.3 m deck,
+in four spans of 244 m.
+
+### Arch and truss are different objects
+
+NBI calls both the Aurora and the Ship Canal bridges item 43B code 9,
+"truss, deck" -- both carry their structure below the deck. Only
+**OpenStreetMap's `bridge:structure`** separates them: `arch` for the
+Aurora, `truss` for the Ship Canal. So the two datasets are used for what
+each knows, and the renderer builds genuinely different geometry: deep
+ribs on short piers for the arch, parallel chords of constant depth on
+tall piers for the truss, because a truss really is carried on its piers.
+
+**The Ship Canal Bridge has no HAER survey.** It was built in 1962 and
+the Historic American Engineering Record does not reach it, so there is
+no elevation photograph to trace and its form rests on the OSM tag and
+the NBI dimensions alone. That is a weaker footing than the Aurora
+Bridge's and is recorded as such.
+
+### What is still not right
+
+Arch ribs, spandrel posts and piers -- the silhouette, not the bridge.
+No lattice in the ribs, no cantilever articulation, and the approach
+viaducts are drawn as more of the same arches rather than as the
+plate-girder spans they are. At the kilometre and a half from which this
+bridge is seen from the course, the silhouette is what reaches the eye;
+closer than that it would not hold up.
