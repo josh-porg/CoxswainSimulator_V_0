@@ -220,6 +220,19 @@ class Course:
     #: Continuity integrates over this; the boat is bounded by the other.
     #: ``None`` falls back to the navigable width.
     water_half_width: np.ndarray = None
+    #: **The racing corridor is not symmetric.**  Head of the Charles Rule
+    #: 6.2: "The Race Course is bounded by a continuous line of orange
+    #: buoys to port (Boston side) and an intermittent line of green buoys
+    #: to starboard (Cambridge side).  Where there are no green buoys, the
+    #: Cambridge shore is the right side boundary."  Rule 7.2 makes it an
+    #: offence to be left of the orange line at any time.
+    #:
+    #: So the limit to port is a buoy line and the limit to starboard is
+    #: usually the bank, and they are different distances from the
+    #: centreline.  ``half_width`` alone cannot say that.  Both default to
+    #: ``half_width``, so a course that does not care is unaffected.
+    port_limit: np.ndarray = None
+    starboard_limit: np.ndarray = None
 
     def __post_init__(self) -> None:
         self.centreline = np.asarray(self.centreline, dtype=float)
@@ -233,6 +246,18 @@ class Course:
             (len(self.centreline),)).astype(float)
         if np.any(self.half_width <= 0):
             raise ValueError("half_width must be positive")
+
+        for side in ("port_limit", "starboard_limit"):
+            value = getattr(self, side)
+            if value is None:
+                setattr(self, side, self.half_width.copy())
+            else:
+                value = np.broadcast_to(
+                    np.asarray(value, dtype=float),
+                    (len(self.centreline),)).astype(float)
+                if np.any(value <= 0):
+                    raise ValueError("%s must be positive" % side)
+                setattr(self, side, value)
 
         segments = np.diff(self.centreline, axis=0)
         lengths = np.hypot(segments[:, 0], segments[:, 1])
@@ -300,12 +325,40 @@ class Course:
         return float(self.station[best]
                      + t[best] * np.sqrt(lengths_sq[best]))
 
+    def limits_at(self, station):
+        """``(port, starboard)`` limits in metres, both positive."""
+        return (np.interp(station, self.station, self.port_limit),
+                np.interp(station, self.station, self.starboard_limit))
+
+    def clip_offset(self, station, offset, margin: float = 0.0):
+        """Clamp an offset into the corridor.  Positive offset is to port.
+
+        The asymmetry matters: on the Charles a crew may sit close to the
+        Cambridge bank and may **not** cross the orange line to Boston, so
+        clipping symmetrically either forbids legal water or permits a
+        60-second penalty.
+        """
+        port, starboard = self.limits_at(station)
+        return np.clip(offset,
+                       -np.maximum(starboard - margin, 0.0),
+                       np.maximum(port - margin, 0.0))
+
     def is_inside(self, x, y) -> bool:
         """Whether a position lies within the navigable channel."""
         station = self.nearest_station(x, y)
         centre = self.position_at(np.array(station))
-        return bool(np.hypot(x - centre[0], y - centre[1])
-                    <= self.half_width_at(station))
+        offset = self.offset_of(x, y, station)
+        port, starboard = self.limits_at(station)
+        return bool(-starboard <= offset <= port)
+
+    def offset_of(self, x, y, station=None) -> float:
+        """Signed offset of a point from the centreline, positive to port."""
+        if station is None:
+            station = self.nearest_station(x, y)
+        centre = self.position_at(np.array(station))
+        heading = float(self.heading_at(station))
+        normal = np.array([-np.sin(heading), np.cos(heading)])
+        return float(np.dot(np.array([x, y]) - centre, normal))
 
     # -- fields -----------------------------------------------------------
     def depth_at(self, x, y) -> float:

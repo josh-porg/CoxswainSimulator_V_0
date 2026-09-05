@@ -7954,3 +7954,102 @@ point at a new river. Given §99 -- where a wrong lake survived every
 numeric check and fell over the moment it was drawn -- a renderer that can
 be aimed at unfamiliar geometry in a few lines is worth more than a
 prettier one that cannot.
+
+## 106. Buoys: the corridor is not symmetric
+
+Rule 6.2, verbatim:
+
+> "The Race Course is bounded by a **continuous line of orange buoys to
+> port (Boston side)** and an **intermittent line of green buoys to
+> starboard (Cambridge side)**. Where there are no green buoys, the
+> Cambridge shore is the right side boundary of the course."
+
+And Rule 7.2: "Boats must keep to the right (coxswain's view) of the
+orange buoys **at all times**."
+
+So the two sides of the racing corridor are different things -- a buoy
+line to port, a bank to starboard -- at different distances from the
+centreline. `Course` had a single symmetric `half_width` and
+`is_inside` tested `|offset| <= half_width`, which cannot express that:
+it simultaneously forbids legal water near the Cambridge shore and
+permits a 60-second buoy penalty on the Boston side.
+
+`Course` now carries `port_limit` and `starboard_limit`, both defaulting
+to `half_width` so nothing that does not care is affected, plus
+`limits_at`, `clip_offset` and `offset_of`. `is_inside` tests the signed
+offset against the two limits rather than the magnitude against one. 90
+route/charles/river tests pass unchanged.
+
+**What is still missing is the buoy line's coordinates.** The regatta
+publishes the course as a map image, not as positions, so the *mechanism*
+is in and the *data* is not. Until it is, the honest default is the
+symmetric fallback, and any claim that a line is legal is a claim about
+the channel, not about the buoys.
+
+## 107. The renderer, proven on three waters
+
+`coxswain/viz/race_render.py` was pointed at three different bodies of
+water with **no code changes**:
+
+| water | source | result |
+|---|---|---|
+| Lake Union | `water_mask` + `load_obstructions` + `seattle_structures` | 2.348 km² |
+| Charles | `charles_channel` + `charles_structures` + `optimise_route` | full reach |
+| **Oklahoma River** | Overpass, stitched with `stitch_rings` | **1.913 km², 16.4 km reach** |
+
+The Oklahoma took one Overpass query and the same ring-stitching written
+for Lake Union. That is the generality the Head of the Oklahoma request
+asked for.
+
+**Its centreline is poor and that is worth saying.** The throwaway
+extraction here -- wettest cell per easting column -- covers only the
+western end, because the river turns north and a column-wise scan cannot
+follow it. Exactly the failure mode Lake Union's centroid sweep had
+(§99). Drawing a new river is now a few lines; *finding its racing line*
+is still a real job per venue, and nothing in this session has made that
+part general.
+
+## 108. Pooling the local races across years
+
+§94 found the binding constraint was crew overlap, not data, and suggested
+pooling years as the cheapest fix. The row2k walk (§95) put **481
+head-race PDFs** on disk, so this tests that.
+
+### What parses
+
+Of the Tail of the Lake and Textile River editions on disk, **2021-2024
+parse with the existing tool** and 2014-2019 do not -- the older editions
+use a different timing-vendor layout. That yields 964 rows across eight
+files.
+
+### What pooling bought
+
+| race | before | after | ratio | spread | implied course |
+|---|---|---|---|---|---|
+| Tail of the Lake | n=4 | **n=4** | 1.2175 | 2.2% | 3966 m |
+| **Textile River** | n=1 | **n=3** | **1.1237** | **1.6%** | 4297 m |
+
+Textile went from one pair -- which was not a conversion -- to three, with
+a 1.6% spread, and the pooled ratio moved from the single observation's
+1.1408 to **1.1237**. That is now usable for benchmarking a New England
+crew.
+
+Tail of the Lake did **not** improve: every match still comes from 2024,
+because the 2021-2023 editions have no women's masters four that also
+raced the Charles. Pooling helps where the overlap exists and cannot
+manufacture it.
+
+### An honesty note on the effective sample
+
+Two of the three Textile pairs are the *same* local Narragansett crew
+matched against *two different* Charles entries from that club in 2021 --
+the club sent two boats. Those are not independent observations, so the
+effective n is nearer two than three, and the quoted spread is optimistic.
+
+### What the ratios are for
+
+They convert a local result into a Charles expectation, which is how a
+crew benchmarks itself before the entry deadline against opponents it has
+raced locally. **Tail of the Lake × 1.2175** and **Textile × 1.1237** give
+a predicted Charles time; §101's thresholds say whether that wins, medals
+or requalifies.

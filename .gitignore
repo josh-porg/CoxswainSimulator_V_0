@@ -10,3 +10,8 @@ __pycache__/
 out/
 *.mp4
 *.gif
+
+# downloaded source material -- re-fetchable with tools/scrape_row2k_index.py
+# and the other extractors. 190 MB of PDFs has no business in git.
+data/raw/
+data/local/
