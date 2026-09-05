@@ -8320,3 +8320,74 @@ service, so that is reasoning rather than a value read off the chart, and
 it is recorded as such. The shallowest charted areas run from zero; those
 are floored at a shell's 0.16 m draft, because zero divides badly and a
 boat there is aground rather than slow.
+
+## 113. Canopy, a sharper waterline, and what the tree count was hiding
+
+**Canopy.** The city tree inventory is street and park trees, so it stops
+at the property line -- and on the Westlake and Eastlake shores that is
+most of the bank. `Seattle Tree Canopy 2021` is the other half: polygons
+that say **where canopy is** and nothing else, no species, no height, one
+attribute reading `gridcode = 1`.
+
+The two are combined. The polygons say where; the inventory says how tall
+and what shape, taken **locally** -- the median height and conifer
+fraction of inventoried trees within 160 m. A canopy blob on a hillside
+of Douglas fir fills with fir-sized cones; the same blob in a street of
+maples fills with maples. 36,272 polygons found a local inventory; 834
+fell back on the city-wide median and are marked as such.
+
+376,694 seeded trees from 95,664 polygons, on top of 92,656 inventoried:
+**469,350 total, 30,361 conifers**. Seeded trees carry height source 3
+and are **not observations** -- nothing here knows a particular tree
+exists, only that a particular 300 m2 of ground is under canopy.
+
+Two things this cost before it worked:
+
+*The obvious implementation does not finish.* Scanning all 92,656
+inventoried trees for each of 49,876 polygons is 4.6 billion distance
+computations; the first version ran fifty minutes without printing a
+line. A `cKDTree` takes it to about a minute.
+
+*Ranking by height drew the wrong trees.* The renderer took the tallest
+700 crowns in the window, which from a seat 0.55 m off the water are the
+ones four hundred metres inland on Queen Anne -- so the Westlake bank,
+with 2,275 seeded trees on it, still rendered bare while a hillside
+nobody can see got a forest. Ranked by `height / distance` instead, which
+is the same apparent-angle test the skyline buildings already used.
+
+**A sharper waterline.** The near window's shore came off the channel
+raster at 10 m, so the waterline was quantised into ten-metre steps
+regardless of the 2.7 m elevation model under it, and the render mesh
+took only 150 samples across a 640 m window. Now 4 m and 260. The
+limiting factor was never the data.
+
+**A note on what is still coarse.** 3DEP's native resolution is 1 m and
+its service will serve 8000 px, so the stored 2.7 x 4.0 m tile is a
+choice about repository size, not a limit of the source. A finer strip
+over the lake alone would be the next gain if the bank ever needs it.
+
+## 114. PSNERP, CoNED, and why the chart still wins here
+
+Suggested as a source for refining the model: the merged
+topographic-bathymetric data from the Puget Sound Nearshore Ecosystem
+Restoration Project.
+
+The product is the **USGS CoNED Topobathymetric Model of Puget Sound,
+1887-2017** (DOI 10.5066/P95N6CIT) -- an integrated **1 m** DEM built
+from 186 sources including topographic and bathymetric lidar,
+hydrographic surveys, and single- and multi-beam acoustic surveys from
+USGS, NOAA, USACE, the Puget Sound Lidar Consortium and Washington DNR.
+
+Its bounding box is -123.207 to -121.979 E, 46.780 to 49.052 N, which
+**does contain Lake Union**. But a bounding box is not coverage. CoNED is
+a *nearshore* product and Lake Union sits above the Ballard Locks, in
+fresh water; whether the model carries real bathymetry there or only the
+same lidar topography already held from 3DEP cannot be settled without
+downloading the raster, and no ArcGIS service for it was found -- it is a
+data release, not a served layer.
+
+So it is recorded as a candidate, not used. For Lake Union specifically
+the NOAA ENC is the authoritative charted depth and is already in
+(sec. 112). CoNED would become the right source the moment this model
+touches salt water -- an Elliott Bay course, or the approach below the
+locks -- where the ENC thins out and CoNED's multibeam does not.
