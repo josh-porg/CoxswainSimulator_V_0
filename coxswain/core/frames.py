@@ -114,6 +114,13 @@ def cross3(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     """
     a = np.asarray(a, dtype=float)
     b = np.asarray(b, dtype=float)
+    if a.shape == (3,) and b.shape == (3,):
+        # The overwhelmingly common case, and the one ``np.stack`` is
+        # slowest at: three multiplies and three subtracts into a fresh
+        # 3-vector, no stacking, no broadcasting machinery.
+        return np.array([a[1] * b[2] - a[2] * b[1],
+                         a[2] * b[0] - a[0] * b[2],
+                         a[0] * b[1] - a[1] * b[0]])
     a0, a1, a2 = a[..., 0], a[..., 1], a[..., 2]
     b0, b1, b2 = b[..., 0], b[..., 1], b[..., 2]
     return np.stack([a1 * b2 - a2 * b1,

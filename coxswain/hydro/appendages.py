@@ -82,7 +82,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
-from ..core.vector import cross3
+from ..core.vector import clip
+from ..core.frames import cross3
 
 from .resistance import FRESH_WATER, WaterProperties
 
@@ -277,7 +278,7 @@ def flap_effectiveness_ratio(chord_ratio: float) -> float:
     [R85]  Roskam, J. (1985). *Airplane Design Part VI*, for the empirical
            corrections to the inviscid value.
     """
-    ratio = float(np.clip(chord_ratio, 1e-6, 1.0))
+    ratio = float(clip(chord_ratio, 1e-6, 1.0))
     theta = np.arccos(2.0 * ratio - 1.0)
     return float(1.0 - (theta - np.sin(theta)) / np.pi)
 

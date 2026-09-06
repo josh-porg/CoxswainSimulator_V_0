@@ -65,7 +65,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
-from ..core.vector import cross3
+from ..core.frames import cross3
 
 __all__ = ["WindField", "UniformWind", "AeroModel", "AIR_DENSITY",
            "log_profile_factor", "WATER_ROUGHNESS", "ANEMOMETER_HEIGHT"]

@@ -45,7 +45,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
-from ..core.vector import cross3
+from ..core.vector import clip
+from ..core.frames import cross3
 
 from .stroke import StrokeTiming
 
@@ -147,7 +148,7 @@ class OarForceProfile:
         if timing is not None and self.shift_per_spm:
             shift += self.shift_per_spm * (float(timing.rate)
                                            - self.reference_rate)
-        return float(np.clip(base - shift, 0.05, 0.95))
+        return float(clip(base - shift, 0.05, 0.95))
 
     @staticmethod
     def _exponents(peak: float, total: float):
@@ -165,7 +166,7 @@ class OarForceProfile:
         t = np.asarray(t, dtype=float)
         phase_time = np.mod(t, timing.period)
         active = phase_time <= timing.drive_duration
-        u = np.clip(phase_time / timing.drive_duration, 0.0, 1.0)
+        u = clip(phase_time / timing.drive_duration, 0.0, 1.0)
         if self.shape == "half_sine" and not (self.peak_shift
                                               or self.shift_per_spm):
             curve = np.sin(np.pi * u)
@@ -256,8 +257,8 @@ class OarAngleSweep:
         drive = timing.drive_fraction
 
         on_drive = phase < drive
-        drive_progress = np.clip(phase / drive, 0.0, 1.0)
-        recovery_progress = np.clip((phase - drive) / (1.0 - drive), 0.0, 1.0)
+        drive_progress = clip(phase / drive, 0.0, 1.0)
+        recovery_progress = clip((phase - drive) / (1.0 - drive), 0.0, 1.0)
         if self.recovery_arrival != 1.0:
             from .stroke import recovery_warp
             recovery_progress = recovery_warp(recovery_progress,
@@ -278,7 +279,7 @@ class OarAngleSweep:
         """
         progress = np.clip(np.asarray(progress, dtype=float), 0.0, 1.0)
         cosine = 0.5 * (1.0 - np.cos(np.pi * progress))
-        flatness = float(np.clip(self.flatness, 0.0, 1.0))
+        flatness = float(clip(self.flatness, 0.0, 1.0))
         return (1.0 - flatness) * cosine + flatness * progress
 
     def rate(self, t, timing: StrokeTiming):
@@ -303,8 +304,8 @@ class OarAngleSweep:
         span = self.finish_angle - self.catch_angle
 
         on_drive = phase < drive
-        drive_progress = np.clip(phase / drive, 0.0, 1.0)
-        recovery_progress = np.clip((phase - drive) / (1.0 - drive), 0.0, 1.0)
+        drive_progress = clip(phase / drive, 0.0, 1.0)
+        recovery_progress = clip((phase - drive) / (1.0 - drive), 0.0, 1.0)
         warp_slope = 1.0
         if self.recovery_arrival != 1.0:
             from .stroke import recovery_warp, recovery_warp_slope
@@ -324,7 +325,7 @@ class OarAngleSweep:
         """Derivative of :meth:`_ramp` with respect to its argument."""
         progress = np.clip(np.asarray(progress, dtype=float), 0.0, 1.0)
         cosine = 0.5 * np.pi * np.sin(np.pi * progress)
-        flatness = float(np.clip(self.flatness, 0.0, 1.0))
+        flatness = float(clip(self.flatness, 0.0, 1.0))
         return (1.0 - flatness) * cosine + flatness
 
     @property

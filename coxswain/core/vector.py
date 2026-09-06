@@ -2,6 +2,9 @@
 
 Why this exists
 ---------------
+The cross product lives in :func:`coxswain.core.frames.cross3`, which was
+already here; this module holds the scalar clamp.
+
 :func:`numpy.cross` spends most of its time deciding what it was asked.
 Profiling one second of rowing at ``dt = 0.02``: **26,000 calls to
 ``np.cross`` costing 0.87 s**, of which 0.53 s was ``moveaxis`` and
@@ -21,29 +24,7 @@ from __future__ import annotations
 
 import numpy as np
 
-__all__ = ["cross3", "clip"]
-
-
-def cross3(a, b):
-    """Cross product of 3-vectors, or of stacks of them.
-
-    Accepts ``(3,)`` or ``(..., 3)`` on either side and broadcasts, which
-    covers every call in the force path: ``lever x force``,
-    ``arm x component``, ``centroid x panel_force`` over a hull mesh.
-    """
-    a = np.asarray(a, dtype=float)
-    b = np.asarray(b, dtype=float)
-    if a.shape == (3,) and b.shape == (3,):
-        # The common case by a wide margin, and the one np.cross handles
-        # worst: three multiplies and three subtracts, no dispatch.
-        return np.array([a[1] * b[2] - a[2] * b[1],
-                         a[2] * b[0] - a[0] * b[2],
-                         a[0] * b[1] - a[1] * b[0]])
-    a0, a1, a2 = a[..., 0], a[..., 1], a[..., 2]
-    b0, b1, b2 = b[..., 0], b[..., 1], b[..., 2]
-    return np.stack([a1 * b2 - a2 * b1,
-                     a2 * b0 - a0 * b2,
-                     a0 * b1 - a1 * b0], axis=-1)
+__all__ = ["clip"]
 
 
 def clip(value: float, low: float, high: float) -> float:
@@ -51,9 +32,15 @@ def clip(value: float, low: float, high: float) -> float:
 
     ``np.clip`` on a Python float costs about 3.7 us of dispatch for
     something the CPU does in nanoseconds, and the force path called it
-    98,024 times per second of rowing.  Identical for finite input; NaN
-    propagates here where ``np.clip`` would also return NaN.
+    98,024 times per second of rowing.  Identical for finite input.
+
+    Anything that is not a scalar is handed straight to ``np.clip``, so
+    swapping a call site can never change what it means -- several of
+    these are scalar in the force path and arrays in the analysis code
+    that plots the same quantity over a time base.
     """
+    if not isinstance(value, (float, int)):
+        return np.clip(value, low, high)
     if value < low:
         return low
     return high if value > high else value

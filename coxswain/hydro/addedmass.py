@@ -66,7 +66,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
-from ..core.vector import cross3
+from ..core.frames import cross3
 
 __all__ = ["DEFAULT_MUNK_FACTOR", "AddedMass", "sectional_sway", "sectional_heave",
            "surge_coefficient"]

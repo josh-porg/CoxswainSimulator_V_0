@@ -32,7 +32,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import math
+
 import numpy as np
+from ..core.vector import clip
 
 from ..core.taylor import Jet2
 
@@ -349,26 +352,60 @@ class FourierProfile:
         return float(self.cos_coefficients[0])
 
     # -- evaluation ------------------------------------------------------
-    def __call__(self, t) -> Jet2:
-        """Evaluate at time ``t`` (seconds), returning value/rate/accel."""
-        t = np.asarray(t, dtype=float)
-        omega = 2.0 * np.pi / self.period
+    def _terms(self):
+        """``(w, a, b)`` for the harmonics that are actually present.
 
+        Cached on the instance: the coefficients do not change between
+        calls, and the derivative evaluates this 30,000 times per second
+        of rowing.  Skipping the zero harmonics here rather than in the
+        loop is most of the win for a series that is mostly zeros.
+        """
+        cached = getattr(self, "_term_cache", None)
+        if cached is not None and cached[0] == self.period:
+            return cached[1]
+        omega = 2.0 * math.pi / self.period
+        terms = tuple(
+            (k * omega, float(self.cos_coefficients[k]),
+             float(self.sin_coefficients[k]))
+            for k in range(1, len(self.cos_coefficients))
+            if self.cos_coefficients[k] != 0.0
+            or self.sin_coefficients[k] != 0.0)
+        object.__setattr__(self, "_term_cache", (self.period, terms))
+        return terms
+
+    def __call__(self, t) -> Jet2:
+        """Evaluate at time ``t`` (seconds), returning value/rate/accel.
+
+        Two paths for one formula.  ``t`` is a Python float on every call
+        the force model makes, and ``np.cos`` of a float costs about a
+        microsecond of dispatch against ``math.cos``'s fifty nanoseconds
+        -- the same trap as ``np.cross`` on a 3-vector.  The array path
+        is kept for the plotting and analysis code that passes a whole
+        time base at once.  The terms are summed in the same order in
+        both, so the two agree to the bit.
+        """
+        terms = self._terms()
+        if isinstance(t, (float, int)):
+            value = float(self.cos_coefficients[0])
+            first = 0.0
+            second = 0.0
+            for w, a, b in terms:
+                cos_wt, sin_wt = math.cos(w * t), math.sin(w * t)
+                value = value + a * cos_wt + b * sin_wt
+                first = first + w * (-a * sin_wt + b * cos_wt)
+                second = second + w ** 2 * (-a * cos_wt - b * sin_wt)
+            return Jet2(value, first, second)
+
+        t = np.asarray(t, dtype=float)
         # zeros_like(t) broadcasts correctly for 0-d and n-d inputs alike
         value = np.zeros_like(t) + self.cos_coefficients[0]
         first = np.zeros_like(value)
         second = np.zeros_like(value)
-
-        for k in range(1, len(self.cos_coefficients)):
-            a, b = self.cos_coefficients[k], self.sin_coefficients[k]
-            if a == 0.0 and b == 0.0:
-                continue
-            w = k * omega
+        for w, a, b in terms:
             cos_wt, sin_wt = np.cos(w * t), np.sin(w * t)
             value = value + a * cos_wt + b * sin_wt
             first = first + w * (-a * sin_wt + b * cos_wt)
             second = second + w ** 2 * (-a * cos_wt - b * sin_wt)
-
         return Jet2(value, first, second)
 
     def value_at_phase(self, phase):
@@ -420,7 +457,7 @@ class FourierProfile:
         within each phase, which is a large part of what "good sequencing"
         means.  See :data:`DEFAULT_FLATNESS`.
         """
-        flatness = float(np.clip(flatness, 0.0, 1.0))
+        flatness = float(clip(flatness, 0.0, 1.0))
         cosine = 0.5 * (1.0 - np.cos(np.pi * progress))
         return (1.0 - flatness) * cosine + flatness * progress
 
@@ -593,7 +630,7 @@ class FourierProfile:
         # rings around them, so the reconstruction stops passing through
         # the measured angles.  See the note below.
         flatness = 0.0 if flatness is None else float(flatness)
-        flatness = float(np.clip(flatness, 0.0, 1.0))
+        flatness = float(clip(flatness, 0.0, 1.0))
         if flatness > 0.0:
             # Straight-line traverse between the same keyframes: constant
             # rate within each interval, sharp reversal at each one.  The

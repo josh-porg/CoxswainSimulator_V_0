@@ -31,7 +31,7 @@ from dataclasses import dataclass, field
 from typing import List, Sequence, Tuple
 
 import numpy as np
-from ..core.vector import cross3
+from ..core.frames import cross3
 
 from ..crew.anthropometry import PORT, STARBOARD, RowerAnthropometry
 from ..crew.kinematics import JointDrivenRower, RowerStation

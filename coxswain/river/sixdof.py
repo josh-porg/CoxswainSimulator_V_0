@@ -48,7 +48,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
-from ..core.vector import cross3
+from ..core.frames import cross3
 
 from .strokemodel import StrokePeriodicFit, _oar_load
 from ..hydro.addedmass import DEFAULT_MUNK_FACTOR
