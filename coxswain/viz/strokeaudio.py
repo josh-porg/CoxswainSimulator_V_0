@@ -89,16 +89,57 @@ def events_between(t0: float, t1: float, period: float,
 #: the recording cannot say what is there.  A log-linear ramp between the
 #: two lobes is assumed; reproducing the measured hole would put a notch
 #: in the synthesis that the real boat does not have.
+#: Spectral envelope of a catch, ``(low Hz, high Hz, dB)``, measured.
+#:
+#: Recovered by :mod:`tools.dmd_stroke` from 88 phase-normalised stroke
+#: cycles of a masters eight -- **with no voice notch at all**.  The
+#: stroke is locked to the cycle and a coxswain's call is not, so
+#: stacking cycles on a common phase grid and taking the persistent
+#: dynamic-mode-decomposition mode separates them: 1 persistent mode
+#: against 11 transient, with 36% of the amplitude in the transient part
+#: (the voice, the wind, a passing boat).  Cross-checked against a plain
+#: phase-locked median, which it matches to 1.3 dB.
+#:
+#: This replaces a table whose whole 306-3137 Hz midrange was
+#: interpolated across the notch, and the guess was wrong by up to 10 dB:
+#: the real stroke carries far more energy at 300-1000 Hz than a
+#: log-linear ramp between the two lobes suggests.
 CATCH_BANDS = (
-    (60, 76, -12.4), (76, 96, -9.5), (96, 121, -7.7), (121, 152, 0.0),
-    (152, 192, -3.6), (192, 242, -7.7), (242, 306, -13.7),
-    # interpolated across the voice notch
-    (306, 620, -17.0), (620, 1250, -21.0), (1250, 2100, -24.0),
-    (2100, 3137, -26.5),
-    (3137, 3959, -27.9), (3959, 4997, -29.1), (4997, 6307, -42.8),
-    (6307, 7959, -51.3), (7959, 10045, -57.9), (10045, 12678, -61.7),
-    (12678, 16000, -65.4),
+    (60, 75, -14.0),
+    (75, 95, -10.7),
+    (95, 120, -8.0),
+    (120, 152, -1.8),
+    (152, 192, 0.0),
+    (192, 242, -2.4),
+    (242, 306, -5.4),
+    (306, 386, -5.8),
+    (386, 487, -8.1),
+    (487, 615, -9.5),
+    (615, 776, -8.7),
+    (776, 979, -10.9),
+    (979, 1236, -13.9),
+    (1236, 1560, -19.2),
+    (1560, 1969, -21.0),
+    (1969, 2485, -20.8),
+    (2485, 3137, -22.3),
+    (3137, 3959, -24.8),
+    (3959, 4997, -28.2),
+    (4997, 6306, -41.1),
+    (6306, 7959, -48.0),
+    (7959, 10045, -54.2),
+    (10045, 12677, -60.0),
+    (12677, 16000, -66.6),
 )
+
+#: Level between the catches, relative to the catch itself.
+#:
+#: Measured from the same decomposition: the cycle peaks at 1.00 at the
+#: catch and sits at 0.61 for the rest of it.  **A boat is a continuous
+#: sound with a bump in it, not two bangs in silence** -- a ratio of
+#: about 1.6 to 1, where the synthesis had been putting a sharp transient
+#: over near-silence.  That, more than any timbre, is what made it sound
+#: like a drum machine.
+CYCLE_FLOOR = 0.61
 
 #: The release is the same water an instant later and much less of it.
 RELEASE_TILT = 6.0          # dB a decade, brighter than the catch
@@ -149,13 +190,18 @@ def synthesise():
     # in it rather than two events in silence -- which is what made it a
     # stomp.
     n = int(RATE * 0.5)
-    flat = tuple((a, b, min(d, -6.0) * 0.35 - 8.0) for a, b, d in CATCH_BANDS)
+    # The bed is the catch spectrum with the peak flattened: the same
+    # water, without the transient.
+    flat = tuple((a, b, d * 0.55 - 4.0) for a, b, d in CATCH_BANDS)
     rumble = _shaped_noise(0.5, flat, decay=0.0, attack=0.001, seed=4)
     edge = int(0.02 * RATE)
     ramp = np.ones(n)
     ramp[:edge] = np.linspace(0.0, 1.0, edge)
     ramp[-edge:] = np.linspace(1.0, 0.0, edge)
-    slide = 0.5 * rumble[:n] * ramp
+    # Loud enough to carry the cycle: the measurement says the boat sits
+    # at CYCLE_FLOOR of the catch level between catches, so the bed is
+    # not an afterthought under two bangs -- it is most of what you hear.
+    slide = CYCLE_FLOOR * rumble[:n] * ramp
     return {"catch": catch, "release": release, "slide": slide}
 
 
