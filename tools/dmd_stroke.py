@@ -199,6 +199,72 @@ def dmd_background(cycles, rank: int = 12, tolerance: float = 0.06):
     return 10.0 ** background, moving, values
 
 
+def mrdmd(cycle, levels: int = 4, rank: int = 8, slow: float = 1.2):
+    """Multi-resolution DMD across the **phase** of one stroke.
+
+    :func:`dmd_background` separates the stroke from the voice by asking
+    what persists from cycle to cycle.  That gives one stationary
+    spectrum per phase and nothing else, and synthesising from it is why
+    ``--audio full`` comes out as a recognisable catch followed by
+    undifferentiated noise: within a cycle the catch and the feather are
+    **transients**, and a stationary description of a transient is a
+    smear.
+
+    Multi-resolution DMD (Kutz, Fu and Brunton, 2016) is the tool for
+    that.  The phase axis is split in half recursively; at each level a
+    DMD is fitted and only the modes slow enough to be resolved in that
+    window are kept and subtracted, so slow structure is captured at
+    coarse levels and fast, localised events fall through to fine ones.
+    What comes back is the bed at level 0 and the catch and the feather
+    click at levels 3-4, each localised to the phase where it happens.
+
+    ``cycle`` is ``(bins, phases)``.  Returns a list of levels, each a
+    dict with ``level``, ``window`` (phases per segment) and
+    ``detail`` -- the energy this level contributes at each phase.
+    """
+    data = np.log10(np.maximum(cycle, 1e-8))
+    residual = data - data.mean(axis=1, keepdims=True)
+    out = []
+    for level in range(levels):
+        segments = 2 ** level
+        width = residual.shape[1] // segments
+        if width < 4:
+            break
+        captured = np.zeros_like(residual)
+        for k in range(segments):
+            piece = residual[:, k * width:(k + 1) * width]
+            if piece.shape[1] < 4:
+                continue
+            first, second = piece[:, :-1], piece[:, 1:]
+            u, sv, vh = np.linalg.svd(first, full_matrices=False)
+            use = int(min(rank, np.sum(sv > sv[0] * 1e-8)))
+            if use < 1:
+                continue
+            u, sv, vh = u[:, :use], sv[:use], vh[:use]
+            reduced = u.T @ second @ vh.T.conj() @ np.diag(1.0 / sv)
+            values, vectors = np.linalg.eig(reduced)
+            modes = second @ vh.T.conj() @ np.diag(1.0 / sv) @ vectors
+            amps = np.linalg.pinv(modes) @ piece[:, 0]
+            # "Slow" means it goes round less than `slow` times inside
+            # this window; anything faster belongs to a finer level.
+            omega = np.abs(np.angle(values)) * piece.shape[1] / (2 * np.pi)
+            keep = omega <= slow
+            if not keep.any():
+                continue
+            steps = np.arange(piece.shape[1])
+            fit = (modes[:, keep]
+                   * amps[keep]) @ np.power.outer(values[keep], steps)
+            captured[:, k * width:(k + 1) * width] = fit.real
+        out.append({"level": level, "window": width,
+                    "detail": np.abs(captured).mean(axis=0),
+                    "field": captured.copy()})
+        residual = residual - captured
+    out.append({"level": len(out), "window": 1,
+                "detail": np.abs(residual).mean(axis=0),
+                "field": residual})
+    return out
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description=__doc__,
@@ -254,11 +320,44 @@ def main(argv=None):
         print("    %5.0f-%5.0f  %6.1f dB  %s"
               % (lo, hi, db, "#" * max(int(40 + db / 1.2), 0)))
 
+    # -- multi-resolution: where in the cycle the transients are -------
+    scales = mrdmd(background)
+    phases = np.linspace(0.0, 1.0, background.shape[1], endpoint=False)
+    print("\n  mrDMD across the phase of the stroke:")
+    print("    level  window   where its energy sits")
+    for scale in scales:
+        detail = scale["detail"]
+        if detail.max() <= 1e-9:
+            continue
+        peak = phases[int(np.argmax(detail))]
+        share = detail / detail.sum()
+        # Concentrated or spread?  A transient puts its energy in a few
+        # phases; the bed spreads it evenly.
+        spread = float(np.exp(-(share * np.log(share + 1e-12)).sum())
+                       / len(share))
+        print("    %5d  %6d   peak at phase %.2f, spread %.2f  %s"
+              % (scale["level"], scale["window"], peak, spread,
+                 "the bed" if spread > 0.85 else "a transient"))
+    finest = scales[-2] if len(scales) > 1 else scales[-1]
+    detail = finest["detail"]
+    order = np.argsort(-detail)
+    picked, seen = [], []
+    for index in order:
+        if all(abs(phases[index] - p) > 0.12 for p in seen):
+            picked.append(index)
+            seen.append(phases[index])
+        if len(picked) == 3:
+            break
+    print("    strongest transients at phases: %s"
+          % ", ".join("%.2f" % phases[i] for i in sorted(picked)))
+
     os.makedirs(args.out, exist_ok=True)
     target = os.path.join(args.out, "stroke_dmd.npz")
     np.savez(target, background=background, freq=freq,
              phase=np.linspace(0.0, 1.0, PHASE_POINTS, endpoint=False),
-             period=period)
+             period=period,
+             transient=np.stack([s["detail"] for s in scales]),
+             transient_levels=np.array([s["level"] for s in scales]))
     print("\n  wrote %s (spectral envelope against stroke phase)" % target)
     return 0
 
