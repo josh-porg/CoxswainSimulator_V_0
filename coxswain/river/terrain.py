@@ -32,7 +32,7 @@ from typing import Tuple
 
 import numpy as np
 
-__all__ = ["Terrain", "charles_terrain", "seattle_terrain",
+__all__ = ["Terrain", "charles_terrain", "charles_imagery", "seattle_terrain",
            "load_terrain", "pool_level_from", "Imagery",
            "seattle_imagery"]
 
@@ -300,6 +300,20 @@ def load_imagery(name: str, origin) -> "Imagery":
     imagery = Imagery(image, east_axis, north_axis)
     _CACHE[key] = imagery
     return imagery
+
+
+def charles_imagery(origin=None) -> Imagery:
+    """NAIP orthoimagery over the racing reach, public domain.
+
+    Fetched over exactly :data:`DEM_BOUNDS`, so the photograph and the
+    elevation model register against each other by construction -- and
+    the service reported zero box drift on the fetch, which is the check
+    that matters (SOURCES sec. 105).
+    """
+    from .charles import CHARLES_ORIGIN
+
+    origin = CHARLES_ORIGIN if origin is None else origin
+    return load_imagery("charles_imagery.jpg", origin)
 
 
 def seattle_imagery(origin=None) -> Imagery:

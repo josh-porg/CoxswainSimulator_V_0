@@ -33,7 +33,8 @@ from typing import Tuple
 import numpy as np
 
 __all__ = [
-    "TreeStand", "seattle_trees","Structures", "charles_structures",
+    "TreeStand", "seattle_trees", "charles_trees", "Structures",
+           "charles_structures",
            "seattle_structures", "load_structures"]
 
 _CACHE = {}
@@ -231,6 +232,38 @@ class TreeStand:
         offset = self.points - np.array([east, north])
         return np.nonzero(np.einsum("ij,ij->i", offset, offset)
                           <= radius * radius)[0]
+
+
+def charles_trees(origin: Tuple[float, float] = None) -> TreeStand:
+    """Cambridge's inventory and Boston's canopy, in the tangent plane.
+
+    Replaces the 2,156 OpenStreetMap points the Charles scene used to
+    draw, every one of which was between 14.0 and 15.0 m tall with no
+    species.  Heights here are modelled from measured trunk diameter and
+    carry ``height_source = 4`` to say so; see
+    ``tools/fetch_charles_trees.py`` for what the model is worth.
+    """
+    from .course import local_tangent_plane
+    from .charles import CHARLES_ORIGIN
+
+    origin = CHARLES_ORIGIN if origin is None else origin
+    key = ("charles-trees", tuple(origin))
+    if key in _CACHE:
+        return _CACHE[key]
+
+    path = os.path.join(os.path.dirname(_PATH), "charles_trees.npz")
+    if not os.path.exists(path):
+        raise FileNotFoundError(
+            "%s is missing -- run tools/fetch_charles_trees.py" % path)
+    blob = np.load(path)
+    xy = blob["tree_xy"]
+    east, north = local_tangent_plane(xy[:, 0], xy[:, 1], origin)
+    stand = TreeStand(np.column_stack([np.asarray(east), np.asarray(north)]),
+                      blob["tree_height"], blob["tree_form"],
+                      np.asarray(blob["tree_species"], dtype="<U48"),
+                      blob["tree_height_source"])
+    _CACHE[key] = stand
+    return stand
 
 
 def seattle_trees(origin: Tuple[float, float] = None) -> TreeStand:

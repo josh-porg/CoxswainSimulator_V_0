@@ -321,7 +321,22 @@ class RiverScene(BoatScene):
         recognises a shore.  But a course with no imagery must still
         render, so this returns ``None`` rather than raising and the
         caller keeps the two-colour scheme.
+
+        Defaults to the Charles, the way :meth:`terrain` and
+        :meth:`structures` do.  Until there was a Charles orthophoto the
+        default could only be "none", so every Charles render came out as
+        the diagram while the Seattle ones -- which pass their own --
+        came out as photographs; the asymmetry was in the data, not in
+        anyone's intent, and it outlived the data by exactly as long as
+        nobody looked.
         """
+        if self._imagery is None and not self._imagery_tried:
+            self._imagery_tried = True
+            try:
+                from ..river.terrain import charles_imagery
+                self._imagery = charles_imagery()
+            except Exception:
+                self._imagery = None
         return self._imagery
 
     def _drape(self, surface, east, north):
@@ -526,6 +541,38 @@ class RiverScene(BoatScene):
         self._drape(surface, east, north)
         self._distant_mesh = surface
         return surface
+
+    def _water_actor(self, plotter, terrain):
+        """Paint the wet cells as water, over the photograph.
+
+        **A photograph of water is a photograph of that day's sun.**
+        Over Lake Union the orthophoto's water is a dark navy and passes
+        for water; over the Charles the same product renders the basin a
+        pale grey, and the coxswain's view came out as a grey plain with
+        a boat on it.  Neither is a fact about the river -- one tile was
+        flown into the glare and the other was not -- so the water is
+        drawn as water on both, and the photograph is kept for the land,
+        which is what it is good for.
+
+        Cheap: the mesh is already built and this reuses it, taking the
+        cells the channel raster called wet.  Skipped silently if the
+        mesh carries no ``land`` array.
+        """
+        if "land" not in terrain.point_data:
+            return
+        try:
+            wet = terrain.threshold(0.5, scalars="land", invert=True)
+        except Exception:
+            return
+        if wet is None or wet.n_points == 0:
+            return
+        # A hand's breadth up, so it sits on the photograph rather than
+        # fighting it for the same depth value.
+        lifted = wet.copy()
+        lifted.points[:, 2] += 0.03
+        plotter.add_mesh(lifted, color=_WATER, name="water",
+                         smooth_shading=True, ambient=0.38, diffuse=0.70,
+                         specular=0.03)
 
     def obstruction_actors(self, plotter, t: float):
         """Piers, houseboats and breakwaters within sight.
@@ -1393,6 +1440,7 @@ class RiverScene(BoatScene):
                 plotter.add_mesh(terrain, texture=photo, name="terrain",
                                  smooth_shading=True, opacity=1.0,
                                  **_PHOTO_LIGHTING)
+                self._water_actor(plotter, terrain)
             else:
                 plotter.add_mesh(terrain, scalars="land",
                                  cmap=[_WATER, _BANK],

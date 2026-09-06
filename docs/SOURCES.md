@@ -8758,3 +8758,154 @@ resampling and a 61 m smoothing window; the regatta says 3 miles, 4828
 m. The 2.5% is what chaining dash centroids round two turns does; the
 further 1.3% is the smoothing cutting the same corners. Both are short,
 not long, which was the sign in sec. 118 that the scale was right.
+
+## 120. The Charles was the course with the least data on it
+
+The Charles is where this project started and it ended up the least
+surveyed of its three courses, because every improvement made for
+Seattle was made *in Seattle*. Set side by side:
+
+| | Lake Union / ship canal | Charles, before |
+|---|---|---|
+| Building heights | 81,022, lidar-measured apex | 9,463, **7,101 guessed from the building type** |
+| Trees | 742,517, species and measured height | 2,156, **every one 14.0-15.0 m**, no species |
+| Orthophoto | NAIP draped on the DEM | **none** |
+| Docks and floats | 660, and they took 40% of the corridor | **none** |
+| Plan / depth / oblique / cox maps | four, from `race_render` | **none** |
+| Bathymetry | NOAA ENC + USACE multibeam | CRAB/MIT Sea Grant sonar -- **as good** |
+| Bridge gates, piers, arch rules | not needed | **better than either** |
+
+Nothing here was hidden. Each gap was a file that did not exist, and the
+code read the file that did.
+
+**Sources added.** USGS NAIP orthoimagery over exactly the DEM's box,
+public domain, fetched with the same tool and the same extent check as
+Seattle's -- the service reported zero box drift
+(`tools/fetch_imagery.py`, `coxswain/river/terrain.py::charles_imagery`).
+OpenStreetMap piers over the reach, ODbL
+(`tools/extract_charles_obstructions.py`). Cambridge Street Trees and
+Boston's 2019 canopy polygons, both city open data
+(`tools/fetch_charles_trees.py`). Overture Maps buildings,
+CDLA-Permissive-2.0 (`tools/fetch_charles_buildings.py`).
+
+**The docks.** 19 mapped piers -- DeWolfe, BU, Riverside, Weld, Newell,
+the Cambridge Boat Club. They take only 0.3% of the navigable water,
+which sounds like nothing until you ask where: they narrow **52 of 732
+stations on the racing line, worst 10.5 m**, and they do it mostly in
+the first 400 m, between the BU boathouses and the bridge, which is
+exactly where a crew is already squeezed. Lake Union's docks took 40% of
+the lake; the Charles' take a tenth of the corridor where it is
+tightest. Both numbers are the answer to "what is a shell allowed to
+row through", and neither was in the model.
+
+**The boat's own beam, again.** The corridor is the clearance from the
+*centreline* to the nearest thing a boat cannot row through, so a shell
+with 3.5 m of blade either side may legally sit half a metre off a dock.
+The same defect was found on the ship canal the day before (sec. 119)
+and it was in the Charles too. Corridor is now clearance less 3.5 m on
+all three courses.
+
+**A latent bug the parity work exposed.** `charles_course()` assigned
+`water_half_width` only inside the branch that *derived* the centreline
+and the corridor. No caller had ever passed both, so no caller had ever
+hit it; the first course to supply a line and a corridor of its own --
+one with the docks and the beam taken out -- raised `UnboundLocalError`
+on a variable the constructor needs. The wetted half-width is a fact
+about the river and the corridor is a rule about the boat, so the first
+is now always taken from the raster regardless of what the caller
+supplies.
+
+**Result.** 4,826 m against a published 4,828 -- the course length is
+derived from the official three miles, so this is a consistency check
+and not an independent one. As drawn 1,261.9 s for a women's veteran
+four at 3.9 m/s; optimised 1,238.6 s, 23.3 s, no grounding. Seven
+bridges on the course, from the Grand Junction railway at 126 m to
+Eliot at 3,967 m.
+
+## 121. What real building heights and real trees do to the Charles wind
+
+**Buildings.** Overture Maps carries a height for 9,138 of the 9,587
+buildings over this box, against the 25% of ours that had anything but a
+guess; 9,310 of 9,463 footprints matched one within 25 m. It is **not**
+the same claim Seattle's file makes -- Seattle's are a city lidar
+product, an apex elevation off a point cloud minus bare earth, while
+Overture's are a consolidation of city data and modelled estimates. They
+are stored as `height_source = 3`, distinct from the measured 0 and the
+guessed 2, so a reader and a test can tell the three apart.
+
+The median height barely moved, 9.0 m to 8.9 m, which is the useful
+detail: **the guess was a good guess about the average and told you
+nothing about any individual building.** 8,131 of 9,463 heights changed,
+the spread went from 60 distinct values to 2,269, and buildings over
+20 m went from 111 to 194.
+
+**Trees.** Neither Cambridge nor Boston publishes a measured tree
+height. Cambridge publishes species and **trunk diameter**, so height is
+modelled:
+
+    h = 1.3 + a * D^b     conifer a=23.07 b=0.793;  broadleaf a=19.02 b=0.723
+
+fitted on **11,727 Seattle trees that carry both a measured height and a
+measured diameter** -- RMSE 6.1 m and 5.7 m, R2 0.38 and 0.45. Say what
+that is: a functional form with real coefficients from real paired
+measurements, beating a constant by about a quarter of the residual
+spread, fitted in the Pacific Northwest and applied in New England.
+Stored as `height_source = 4` so it can never be read as measured. Four
+Cambridge records carry a trunk diameter of 89 or 945 inches, which the
+power law turned into 190 m of timber; they are rejected by name in the
+run.
+
+11,187 inventory trees, plus 13,205 seeded into Boston's canopy
+polygons with heights copied from the nearest inventory tree, against
+2,156 constants. Median 8.4 m -- **lower than the old 14-15 m**, and
+that is a property of what is measured: a street-tree inventory is
+mostly young street trees, where the old constant was a guess at mature
+riverbank canopy.
+
+**What it changed.** The wind analysis, run on the reach for the first
+time:
+
+| wind from | buildings only | + trees | change |
+|---|---|---|---|
+| N | 5.98 | 4.88 | -18.5% |
+| E | 5.22 | 3.94 | -24.5% |
+| S | 6.49 | 4.65 | -28.3% |
+| W | 5.70 | 4.18 | -26.6% |
+
+**The trees are worth 18-28% of the wind on the Charles, against 4-7% on
+Lake Union and 6-12% on the ship canal.** That is the geometry, not the
+data: the Charles is a 200 m river between two treed embankments and the
+canopy is most of what the wind has to cross, where Lake Union is a
+kilometre of open water and the trees are a fringe. A model that had
+every tree at one height could not have found it.
+
+The chop is small, as expected: fetch 125-302 m depending on direction,
+significant wave height 0.08-0.19 m over 6-14 m/s of wind, added
+resistance 0.4-2.2% of hull drag, and the deep-water relations hold at
+every wind reported (2.1 m of water under the shallowest point of the
+line against a 1.6 m longest wave). **The Charles' problem is depth, not
+chop** (secs. 66-67), and this establishes the size of the wind term
+rather than discovering a new one.
+
+## 122. A photograph of water is a photograph of that day's sun
+
+Draping the orthophoto over the Charles gave a coxswain's view of a grey
+plain with a boat on it. Everything was working: the imagery registered
+with the DEM to the metre, the texture bound, the texture coordinates
+were sane. The NAIP tile over the Charles basin is simply **pale grey**,
+where the Lake Union tile's water is a dark navy that passes for water.
+One tile was flown into the glare and the other was not.
+
+So the water is drawn as water on all three courses and the photograph
+is kept for the land, which is what it is good for
+(`RiverScene._water_actor`). Lake Union and the Montlake Cut were
+re-rendered to confirm the change reads as water there too, which it
+does.
+
+Two smaller things fell out of the same look. The Charles scene passed
+no imagery, so `RiverScene.imagery()` returned `None` and the render was
+the two-colour diagram -- while `terrain()` and `structures()` had
+defaulted to the Charles all along. Imagery now defaults the same way,
+so the asymmetry cannot come back. And `scripts/render3d.py` drew no
+docks and no tree inventory; it now passes both, and drops the axis
+triad, which is noise in a coxswain's view.

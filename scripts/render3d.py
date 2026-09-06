@@ -128,8 +128,19 @@ def main(argv=None):
     boat, result, raster, gates, path, driver = simulate(
         args.start, args.finish, args.controller)
 
+    # The docks go in.  The reach is lined with boathouse floats and the
+    # scene had none of them -- so a line that grazed the Riverside dock
+    # drew clean water where a coxswain would have seen a float and a
+    # row of eights.  Same layer the corridor now uses.
+    trees = None
+    try:
+        from coxswain.river.structures import charles_trees
+        trees = charles_trees()
+    except Exception as error:
+        print("   (no tree inventory: %s)" % str(error)[:60])
     scene = RiverScene(boat, result=result, channel=raster, gates=gates,
-                       path=path, window=300.0, follow=True)
+                       path=path, window=300.0, follow=True,
+                       obstructions=charles.load_obstructions(), trees=trees)
     if not os.path.isdir(args.out):
         os.makedirs(args.out)
 
@@ -139,7 +150,10 @@ def main(argv=None):
         for fraction in (0.0, 0.25, 0.5, 0.75, 0.98):
             when = fraction * scene.duration
             target = os.path.join(args.out, "%s_t%03d.png" % (stem, int(when)))
-            scene.snapshot(t=when, path=target, view=args.view)
+            # No axis widget: this is a picture of a river, and an
+            # x/y/z triad in the corner of a coxswain's view is noise.
+            scene.snapshot(t=when, path=target, view=args.view,
+                           window_size=(1100, 620), axes=False)
             print("wrote", target)
         return 0
 

@@ -45,7 +45,21 @@ python scripts/render_totl3d.py --view cox          # the video
 python scripts/render_totl3d.py --no-imagery        # flat colour, for comparison
 python scripts/render_hotl3d.py --stills            # Head of the Lake: the Montlake Cut
 python scripts/render_hotl3d.py --from 3600 --to 4600 --stills   # the Big Turn and the flats
+python scripts/render3d.py --from 2100 --to 2600 --stills        # the Charles, above Weeks
 ```
+
+To rebuild the Charles the same way:
+
+```bash
+python tools/fetch_imagery.py --bounds 42.3480 -71.1450 42.3790 -71.1000 --out charles_imagery.jpg
+python tools/extract_charles_obstructions.py
+python tools/fetch_charles_trees.py
+python tools/fetch_charles_buildings.py
+```
+
+`fetch_charles_buildings.py` merges *over* `charles_structures.npz` and
+refuses to run twice, the way the Seattle canopy tool does; re-run
+`tools/extract_structures.py` first if you need to start again.
 
 The box is wider than Lake Union because Head of the Lake needs
 Portage Bay, the Cut and Union Bay (SOURCES secs. 118-119); the three
@@ -251,6 +265,27 @@ own endpoints gave the Ship Canal Bridge a 37 m deck against a published
 57, and the Aurora Bridge a 61 m one against a published 51 — one end of
 it lands on the Queen Anne bluff, well above the roadway. This follows
 the pattern `bridges.BRIDGE_STRUCTURE` already sets for the Charles.
+
+## Water is drawn as water, not photographed
+
+Draping the orthophoto over the Charles produced a coxswain's view of a
+grey plain. Nothing was broken: the photograph registered with the
+elevation model to the metre, the texture bound, the coordinates were
+sane. **The NAIP tile over the Charles basin is pale grey**, where the
+Lake Union tile's water is a dark navy that passes for water. One was
+flown into the glare and the other was not, and neither is a fact about
+the river.
+
+So `RiverScene._water_actor` paints the wet cells with the water colour
+over the photograph, on every course, and the photograph is kept for the
+land — which is what it is good for. Lake Union and the Montlake Cut
+were re-rendered to confirm it reads as water there too.
+
+The same look found two more: the Charles scene passed no imagery, so
+`imagery()` returned `None` and every Charles render was the two-colour
+diagram while `terrain()` and `structures()` had defaulted to the
+Charles all along — imagery now defaults the same way. And
+`scripts/render3d.py` drew neither the docks nor the tree inventory.
 
 ## The Montlake Cut: a slot the far field could not hold
 

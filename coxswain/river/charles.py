@@ -614,6 +614,95 @@ def charles_channel(origin: Tuple[float, float] = CHARLES_ORIGIN,
     return _CHANNEL_CACHE[key]
 
 
+#: How far off a dock a shell must stay, m.  A blade reaches about 3 m
+#: past the rigger and nobody rows within touching distance of a moored
+#: boat -- the same margin Lake Union uses.
+DOCK_MARGIN = 8.0
+
+
+def obstruction_path() -> str:
+    return os.path.join(_data_dir_repo(), "charles_obstructions.json")
+
+
+def _data_dir_repo() -> str:
+    """``data/`` at the repository root, where the extractors write."""
+    return os.path.join(os.path.dirname(os.path.dirname(
+        os.path.dirname(os.path.abspath(__file__)))), "data")
+
+
+def load_obstructions(path: str = None):
+    """Boathouse docks and floats, as ``(kind, points)`` in the local plane.
+
+    **These, not the bank, are what a coxswain steers off.**  The reach
+    is lined with boathouse floats, and until they were extracted the
+    Charles corridor was bounded by the shoreline alone -- the same
+    defect that had the Lake Union line steering through marinas
+    (SOURCES sec. 104).
+
+    Returns an empty tuple if the layer has not been extracted, so a
+    caller gets the old behaviour rather than an exception; every
+    caller that matters reports which it got.
+    """
+    import json
+
+    target = path or obstruction_path()
+    if not os.path.exists(target):
+        return ()
+    with open(target, encoding="utf-8") as handle:
+        payload = json.load(handle)
+    return tuple((item["kind"], np.asarray(item["points"], dtype=float))
+                 for item in payload["obstructions"])
+
+
+def rowable_channel(channel=None, margin: float = DOCK_MARGIN,
+                    origin: Tuple[float, float] = CHARLES_ORIGIN, **kwargs):
+    """A channel raster with the docks taken out of the navigable water.
+
+    ``navigable`` loses every cell within ``margin`` of a mapped
+    structure and ``clearance`` is recomputed from what is left, so a
+    corridor derived from this raster already has the floats in it.
+    The water raster is untouched: the water is still there, a shell
+    simply cannot use it.
+    """
+    import dataclasses
+
+    from scipy.ndimage import binary_dilation, distance_transform_edt
+
+    channel = charles_channel(origin, **kwargs) if channel is None else channel
+    structures = load_obstructions()
+    if not structures:
+        return channel
+
+    east, north = channel.east, channel.north
+    blocked = np.zeros(channel.navigable.shape, dtype=bool)
+    for _kind, points in structures:
+        inside = ((points[:, 0] >= east[0]) & (points[:, 0] <= east[-1])
+                  & (points[:, 1] >= north[0]) & (points[:, 1] <= north[-1]))
+        if not inside.any():
+            continue
+        cols = np.clip(np.searchsorted(east, points[inside, 0]), 0,
+                       len(east) - 1)
+        rows = np.clip(np.searchsorted(north, points[inside, 1]), 0,
+                       len(north) - 1)
+        blocked[rows, cols] = True
+        # A pier is a line of vertices; fill between consecutive ones so
+        # a dock is a barrier and not a row of dots.
+        for i in range(len(cols) - 1):
+            steps = max(abs(int(cols[i + 1]) - int(cols[i])),
+                        abs(int(rows[i + 1]) - int(rows[i])), 1)
+            for t in np.linspace(0.0, 1.0, steps + 1):
+                r = int(round(rows[i] + t * (rows[i + 1] - rows[i])))
+                c = int(round(cols[i] + t * (cols[i + 1] - cols[i])))
+                blocked[r, c] = True
+
+    pad = max(int(round(margin / max(channel.resolution, 1e-6))), 1)
+    blocked = binary_dilation(blocked, np.ones((2 * pad + 1, 2 * pad + 1)))
+    navigable = channel.navigable & ~blocked
+    clearance = distance_transform_edt(navigable) * channel.resolution
+    return dataclasses.replace(channel, navigable=navigable,
+                               clearance=clearance)
+
+
 def landmark_station(latlon, channel=None, origin=CHARLES_ORIGIN):
     """Where a ``(lat, lon)`` landmark falls along the channel centreline.
 
@@ -758,18 +847,25 @@ def charles_course(centreline: np.ndarray = None,
     """
     depth = charles_depth_field(origin, level_offset=level_offset)
 
-    if centreline is None or half_width is None:
-        # Derive both from the survey rather than assuming either.  The
-        # contours are the only statement in the data about where the water
-        # is; a centreline and a width invented independently of them is how
-        # a "channel" ends up 26% aground.
-        raster = charles_channel(origin, level_offset=level_offset)
-        line = raster.centreline()
-        if centreline is None:
-            centreline = line
-        if half_width is None:
-            half_width = raster.half_width_along(centreline)
-        water_half_width = raster.water_half_width_along(centreline)
+    # Derive whatever the caller did not supply from the survey.  The
+    # contours are the only statement in the data about where the water
+    # is; a centreline and a width invented independently of them is how
+    # a "channel" ends up 26% aground.
+    #
+    # The wetted half-width is always taken from the raster, even when
+    # the caller supplies both the line and the corridor.  It used to be
+    # computed only inside the branch that derived them, so the first
+    # caller to pass a centreline *and* a half-width -- a course whose
+    # corridor has the docks and the boat's beam taken out of it --
+    # raised ``UnboundLocalError`` on a variable the constructor needs.
+    # A corridor is a rule about the boat; the wetted section is a fact
+    # about the river, and continuity integrates over the second.
+    raster = charles_channel(origin, level_offset=level_offset)
+    if centreline is None:
+        centreline = raster.centreline()
+    if half_width is None:
+        half_width = raster.half_width_along(centreline)
+    water_half_width = raster.water_half_width_along(centreline)
 
     course = Course(
         centreline=centreline,
