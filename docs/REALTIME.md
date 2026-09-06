@@ -143,9 +143,81 @@ Two options remain, in increasing order of cost and risk:
    its own error budget against the golden trajectory. Not started, and
    not something to switch on quietly.
 
+## The plan-view trainer
+
+`scripts/trainer.py` is the first thing you can actually steer:
+
+```bash
+python scripts/trainer.py                 # Head of the Charles
+python scripts/trainer.py --race hotl     # Head of the Lake
+python scripts/trainer.py --profile       # per-phase frame budget on exit
+```
+
+**The steering is a stick, not a switch.** A Hudson four is steered by a
+toggle on the rudder cables: push it to port and the bow goes to port,
+push it to starboard and it goes to starboard, and it stays where you
+put it. So the rudder is positional and does not spring back;
+`--control mouse` puts it on the pointer, which is much closer to
+holding a stick than tapping a key. C centres it, W/E is the pressure
+split, Tab swaps heading-up for north-up, `-`/`=` zoom, R restarts,
+space pauses.
+
+**You have to steer it.** A sweep four does not run straight with the
+rudder centred — the staggered oarlocks leave a standing couple worth
+about **−1.7 °/s to starboard** (SOURCES §60 and §125). Nothing here
+cancels that for you: a trainer that quietly straightened the boat would
+teach a boat that does not exist. Finding and holding the trim is the
+skill, and §125 records the awkward part — over some of the rudder range
+there is no fixed angle that holds a course at all.
+
+`coxswain/viz/planscene.py` holds the geometry and imports no window
+library: world-frame metres in numpy arrays, layered back to front. The
+pygame trainer and a later ModernGL renderer consume the same scene, so
+swapping one for the other cannot change what is on the course.
+
+### The frame budget, and what it cost to find
+
+Measured on the i7-1355U at 1180x700 on Head of the Lake — 81,022
+buildings, 88 water polygons, 660 docks:
+
+| phase | before | after |
+|---|---|---|
+| draw | 17.23 ms | **4.72 ms** |
+| physics (100 Hz) | 7.0 ms | 5.0 ms |
+| HUD + flip | 0.17 ms | 0.17 ms |
+
+Three guesses were wrong before a measurement was right, which is the
+only reason this is written down:
+
+1. *"Culling 81,022 boxes every frame must be the cost."* A uniform 250 m
+   grid took the cull from 0.6 ms to 0.13 ms and the frame did not move.
+2. *"Then it must be the buildings."* 95 of them a frame, 1.45 ms.
+3. It was **one polygon**. `draw:water` was **14.0 ms for 1.3 polygons** —
+   Lake Washington's shoreline is a single ring of 2,345 vertices, and a
+   scanline fill sorts every edge on every row: 1.6 million edge tests a
+   frame for one lake. Clipping it to the window first (Sutherland-
+   Hodgman, `clip_polygon`) makes it a dozen vertices and the same
+   picture: **14.0 ms to 1.7 ms**.
+
+Then the same fix applied everywhere made things *worse* — clipping all
+95 buildings turned a 1.5 ms layer into 6 ms, because the clip costs
+more than it saves on a polygon that was already cheap. The
+discriminator is vertex count, not whether it overflows: clip above 64
+vertices, leave the rest to pygame.
+
+### Known limits
+
+The stroke rate is fixed for a session. Rate lives in the boat's stroke
+timing and changing the period mid-stroke jumps the crew's phase, which
+puts a step in the force; `--rate` sets it at the start.
+
+The HUD's physics number is a smoothed estimate and reads high for the
+first seconds because the Numba kernel compiles on its first call.
+`--profile` prints the honest per-phase average on exit.
+
 ## What has not been built
 
-The renderer. `RiverScene` (PyVista) stays as the backend for stills and
+The seat view. `RiverScene` (PyVista) stays as the backend for stills and
 the report — it rebuilds meshes per frame, which is right for a figure
 and wrong for 60 fps. The realtime backend is a separate adapter behind
 the same scene description, so the two can coexist and either can be

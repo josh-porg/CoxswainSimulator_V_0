@@ -9025,3 +9025,58 @@ real piece of work and it is not started.
 A Harvard-published massing or facade-colour dataset was searched for
 and not found openly; if HPRE distributes one, a pointer to it would be
 worth more than any amount of further searching.
+
+## 125. The four turns to starboard, and no fixed rudder stops it
+
+Found by steering the plan-view trainer by hand, which is the first time
+anything in this project drove the boat without a controller closing the
+loop behind it.
+
+**The bias is sec. 60's, and it is real.** The coxed four's oarlocks are
+staggered by **1.220 m** -- port mean -0.680, starboard +0.540, exactly
+one seat spacing, the same geometry the eight has. Net sway force is
+identically zero; what survives is a pure couple. Held straight with the
+rudder centred and both sides pulling equally, the yaw moment swings
+**-396 to +207 N m** across the stroke -- the wiggle you would expect --
+with a **cycle mean of -39.2 N m**, which is not zero. Settled, that is
+**-1.71 deg/s to starboard** (the eight, sec. 60, gives -0.97).
+
+The mean is non-zero for the reason sec. 60 gives: the sweep arc is
+asymmetric about the perpendicular, catch +56 and finish -34, and the
+force peaks at 40% of the drive while the oar is still on the positive
+side. So the lateral component does not average out, and through a
+1.22 m stagger it becomes a standing couple. The within-stroke swing is
+**smaller than the offset** -- yaw rate runs -2.22 to -1.42 deg/s, 0.81
+peak to peak against a 1.71 mean -- so it is a steady turn with a wobble
+on it, not a wobble about zero.
+
+**What is new, and is not in sec. 60: there is no rudder angle that
+holds it straight.** From rest:
+
+| rudder | 0 | -1 | -2 | -3 | -4 deg |
+|---|---|---|---|---|---|
+| yaw | -1.71 | -1.56 | -1.40 | -1.19 | **+1.50 deg/s** |
+
+It does not cross zero, it jumps. And at -3 degrees the boat is
+**bistable**: started at +4 or +1 deg/s it settles to +1.35, started at
+0, -1 or -4 it settles to -1.19. Two stable turns and no straight one.
+At the helm centred there is a single attractor and every initial yaw
+rate falls into it, so the boat is not merely biased -- over part of the
+rudder range it locks into a turn one way or the other depending on how
+it got there.
+
+That is the signature of a hull whose destabilising Munk moment beats
+its appendages: fixed trim cannot hold a course, only feedback can,
+which is exactly why `Coxswain`'s heading controller holds -0.03 deg/s
+while no constant stick angle will. The appendages are small -- skeg
+0.129 x 0.202 m at x = -4.7, rudder 0.09 x 0.12 m at x = -5.2, against a
+13.4 m hull. Sec. 61 already asked whether the rudder is undersized.
+
+**Nothing has been changed.** Sizing an appendage or retuning the Munk
+factor is a modelling decision, not a bug fix, and the evidence here does
+not by itself say which is wrong. It is written down so the next person
+to touch yaw stability starts from the measurement.
+
+**The trainer does not cancel it.** `scripts/trainer.py` leaves the bias
+in and makes the player hold the trim, because a trainer that quietly
+straightened the boat would be teaching a boat that does not exist.
