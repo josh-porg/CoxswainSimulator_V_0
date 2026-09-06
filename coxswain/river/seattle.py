@@ -47,9 +47,10 @@ from __future__ import annotations
 import json
 import os
 from functools import lru_cache
-from typing import Tuple
+from typing import List, Tuple
 
 import numpy as np
+from dataclasses import dataclass
 
 from .course import Course, CurrentField, DepthField
 from .osm import is_closed
@@ -57,7 +58,8 @@ from .osm import stitch_rings as _stitch_rings
 
 __all__ = ["SEATTLE_ORIGIN", "water_path", "load_water", "water_mask",
            "nominal_depth", "lake_union_course", "TOTL_LENGTH",
-           "load_obstructions", "rowable_mask"]
+           "load_obstructions", "rowable_mask", "CanalBridge",
+           "canal_bridges", "bridge_gates"]
 
 #: Tangent-plane origin: the middle of Lake Union.
 SEATTLE_ORIGIN = (47.6395, -122.3330)
@@ -545,3 +547,164 @@ def lake_union_course(resolution: float = 10.0, offset: float = 50.0,
               "surveyed; a lap of the lake, not the Tail of the Lake "
               "race course -- see coxswain.river.seattle",
     )
+
+
+# ---------------------------------------------------------------------------
+# The canal's bridges as gates
+# ---------------------------------------------------------------------------
+
+#: OpenStreetMap ``man_made=bridge`` outlines matched to the National
+#: Bridge Inventory record they belong to, by the waterway the NBI says
+#: the bridge crosses (``tools/fetch_nbi_bridges.py``, SOURCES sec. 114).
+CANAL_BRIDGES = {
+    "Ship Canal Bridge": "LAKE WASH SHIP CANAL",
+    "University Bridge": "PORTAGE BAY",
+    "Montlake Bridge": "MONTLAKE CUT",
+}
+#: Clearance a shell needs off a fender or pier, m: half an oar span and
+#: a little.
+GATE_MARGIN = 4.0
+
+
+def bridge_outline_path() -> str:
+    return os.path.join(os.path.dirname(os.path.dirname(
+        os.path.dirname(os.path.abspath(__file__)))), "data",
+        "seattle_bridge_outlines.json")
+
+
+def nbi_path() -> str:
+    return os.path.join(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))), "data", "seattle_bridges.npz")
+
+
+@dataclass
+class CanalBridge:
+    """A bridge over the canal: where its deck is, and how wide its opening.
+
+    The deck comes from OpenStreetMap; the opening -- the horizontal
+    navigation clearance between fenders -- from the National Bridge
+    Inventory.  Where along the deck the opening sits is **not** in
+    either record.  Under the Montlake Bridge the whole waterway is the
+    opening (46 m of water in OSM against 45.7 m in the NBI), so it
+    does not matter.  Under I-5 and the University Bridge the racing
+    lane is taken to thread the opening at its centre, because the
+    regatta draws it there and its rules send crews through the "wide
+    arch"; the uncertainty in that is a few tens of metres, and it is
+    recorded in SOURCES sec. 118.
+    """
+    name: str
+    #: Deck outline in the tangent plane, m.
+    outline: np.ndarray
+    centre: np.ndarray
+    #: Unit vector along the deck.
+    axis: np.ndarray
+    length: float
+    width: float
+    #: NBI maximum span, m.
+    main_span: float
+    #: NBI horizontal navigation clearance, m.
+    opening: float
+
+    @property
+    def normal(self) -> np.ndarray:
+        return np.array([-self.axis[1], self.axis[0]])
+
+    def along(self, points) -> np.ndarray:
+        """Position along the deck from its centre, m."""
+        return (np.asarray(points, dtype=float) - self.centre) @ self.axis
+
+    def crossing(self, line: np.ndarray):
+        """``(station, point, along)`` where ``line`` crosses the deck.
+
+        ``None`` if it does not.  ``along`` is where on the deck, m from
+        its centre.
+        """
+        line = np.asarray(line, dtype=float)
+        station = np.concatenate([[0.0], np.cumsum(
+            np.hypot(*np.diff(line, axis=0).T))])
+        side = (line - self.centre) @ self.normal
+        for i in np.nonzero(np.sign(side[:-1]) != np.sign(side[1:]))[0]:
+            t = side[i] / (side[i] - side[i + 1])
+            point = line[i] + t * (line[i + 1] - line[i])
+            along = float(self.along(point))
+            if abs(along) <= self.length / 2.0:
+                return (float(station[i] + t * (station[i + 1] - station[i])),
+                        point, along)
+        return None
+
+    def water_runs(self, resolution: float = 5.0, names=SHIP_CANAL):
+        """Stretches of water under the deck, as ``(from, to)`` m along it."""
+        east, north, mask = water_mask(resolution, names=names)
+        ts = np.arange(-self.length / 2.0, self.length / 2.0, 2.0)
+        runs, start = [], None
+        for t in ts:
+            x, y = self.centre + t * self.axis
+            r = int(np.clip(np.searchsorted(north, y), 0, len(north) - 1))
+            c = int(np.clip(np.searchsorted(east, x), 0, len(east) - 1))
+            wet = bool(mask[r, c])
+            if wet and start is None:
+                start = t
+            if not wet and start is not None:
+                runs.append((float(start), float(t)))
+                start = None
+        if start is not None:
+            runs.append((float(start), float(ts[-1])))
+        return runs
+
+
+def canal_bridges(origin=SEATTLE_ORIGIN) -> List[CanalBridge]:
+    """The bridges Head of the Lake passes under, west to east."""
+    import json
+    from .course import local_tangent_plane
+    records = np.load(nbi_path(), allow_pickle=True)["bridges"]
+    by_water = {str(r["crosses"]): r for r in records}
+    out = []
+    for entry in json.load(open(bridge_outline_path(), encoding="utf-8")):
+        if entry["name"] not in CANAL_BRIDGES:
+            continue
+        record = by_water[CANAL_BRIDGES[entry["name"]]]
+        latlon = np.asarray(entry["latlon"], dtype=float)
+        east, north = local_tangent_plane(latlon[:, 0], latlon[:, 1], origin)
+        outline = np.column_stack([east, north])
+        centre = outline.mean(axis=0)
+        _u, _s, vt = np.linalg.svd(outline - centre)
+        axis = vt[0]
+        along = (outline - centre) @ axis
+        across = (outline - centre) @ np.array([-axis[1], axis[0]])
+        out.append(CanalBridge(
+            name=entry["name"], outline=outline, centre=centre, axis=axis,
+            length=float(along.max() - along.min()),
+            width=float(across.max() - across.min()),
+            main_span=float(record["max_span"]),
+            opening=float(record["horizontal_clearance"])))
+    return sorted(out, key=lambda b: b.centre[0])
+
+
+def bridge_gates(line, half, port, starboard, margin: float = GATE_MARGIN,
+                 bridges=None):
+    """Pinch a corridor to each bridge opening the line passes through.
+
+    Returns ``(half, port, starboard, crossings)`` with the arrays
+    narrowed to ``opening / 2 - margin`` over the deck's width plus a
+    boat length either side of each crossing, and ``crossings`` as
+    ``[(bridge, station, point, along)]`` in course order.
+    """
+    line = np.asarray(line, dtype=float)
+    station = np.concatenate([[0.0], np.cumsum(
+        np.hypot(*np.diff(line, axis=0).T))])
+    half, port, starboard = (np.array(a, dtype=float).copy()
+                             for a in (half, port, starboard))
+    crossings = []
+    for bridge in (bridges if bridges is not None else canal_bridges()):
+        hit = bridge.crossing(line)
+        if hit is None:
+            continue
+        at, point, along = hit
+        near = np.abs(station - at) < bridge.width / 2.0 + BOAT_LENGTH
+        limit = max(bridge.opening / 2.0 - margin, 0.5)
+        half[near] = np.minimum(half[near], limit)
+        port[near] = np.minimum(port[near], limit)
+        starboard[near] = np.minimum(starboard[near], limit)
+        crossings.append((bridge, at, point, along))
+    crossings.sort(key=lambda c: c[1])
+    return half, port, starboard, crossings

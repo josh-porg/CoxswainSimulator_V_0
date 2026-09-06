@@ -24,6 +24,8 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from coxswain.boats import catalog                             # noqa: E402
+from coxswain.river.buoys import one_sided_limits              # noqa: E402
+from coxswain.river.buoys import summary as buoy_summary       # noqa: E402
 from coxswain.river.course import Course, CurrentField, DepthField  # noqa: E402
 from coxswain.river.route import (Route, RouteEvaluator,        # noqa: E402
                                   optimise_route)
@@ -94,33 +96,14 @@ def totl_course(resolution: float = 10.0) -> Course:
     # not narrow the corridor symmetrically: it forbids one side and
     # leaves the other alone.  Without this the optimiser rounds inside
     # the southern turning buoys and "saves" 60.9 s that costs 60 s of
-    # penalty each, or a disqualification for two.
-    station = np.concatenate([[0.0], np.cumsum(
-        np.hypot(*np.diff(line, axis=0).T))])
-    port = half.copy()
-    starboard = half.copy()
+    # penalty each, or a disqualification for two.  And a line of buoys
+    # is a line: see coxswain.river.buoys for the gap between the marks.
+    port, starboard = half.copy(), half.copy()
     if os.path.exists(BUOY_PATH):
-        buoys = np.load(BUOY_PATH)
-        heading = np.arctan2(np.gradient(line[:, 1]), np.gradient(line[:, 0]))
-        for is_red, bx, by in buoys:
-            gap = np.hypot(line[:, 0] - bx, line[:, 1] - by)
-            index = int(np.argmin(gap))
-            if gap[index] > 200.0:          # not a course buoy
-                continue
-            normal = np.array([-np.sin(heading[index]),
-                               np.cos(heading[index])])
-            offset = float(np.dot([bx - line[index, 0], by - line[index, 1]],
-                                  normal))
-            # Bind over a boat length either side of the mark, not one node.
-            near = np.abs(station - station[index]) < BUOY_REACH
-            if is_red:                       # keep to port -> stay starboard
-                port[near] = np.minimum(port[near], offset - BUOY_MARGIN)
-            else:                            # keep to starboard -> stay port
-                starboard[near] = np.minimum(starboard[near],
-                                             -offset - BUOY_MARGIN)
-        port = np.maximum(port, 2.0)
-        starboard = np.maximum(starboard, 2.0)
-
+        port, starboard, marks = one_sided_limits(
+            line, half, np.load(BUOY_PATH), reach=BUOY_REACH,
+            margin=BUOY_MARGIN, limit_reach=200.0, end_zone=0.0)
+        print("  " + buoy_summary(marks))
     # Charted depth from NOAA ENC cell US5SEAGL where it is available.
     # Lake Union is part of the Lake Washington Ship Canal, a federal
     # navigation project, so it is surveyed -- and the shelf profile this

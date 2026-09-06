@@ -286,8 +286,10 @@ def main(argv=None):
 
     # -- the buoys ----------------------------------------------------------
     buoys = []
+    marks_valid = valid.copy()
+    marks_valid[BANNER[0]:BANNER[2], BANNER[1]:BANNER[3]] = False
     for colour, side in (("yellow", "starboard"), ("orange", "port")):
-        for px, py in blobs(image, colour, valid):
+        for px, py in blobs(image, colour, marks_valid):
             e, n = to_metres(px, py, metres_per_pixel, left_east, top_north)
             buoys.append((colour, side, float(e), float(n)))
     print("buoys: %d yellow (starboard), %d orange (port)"
@@ -401,6 +403,9 @@ def blobs(image, colour, valid, smallest=40, largest=250, widest=20):
 #: start and must end within a few dashes of the finish.
 START_LABEL = (610.0, 325.0)
 FINISH_LABEL = (1641.0, 235.0)
+#: The FINISH banner's box, ``(row0, col0, row1, col1)``: the finish line,
+#: and not a place to look for buoys.
+BANNER = (180, 1625, 280, 1660)
 
 #: Farthest a dash may be from the last one and still be the same lane.
 DASH_GAP = 90.0
@@ -434,6 +439,17 @@ def trace_lane(image, valid):
     while True:
         gaps = np.hypot(*(centres - centres[order[-1]]).T)
         gaps[used] = np.inf
+        if len(order) >= 2:
+            # Carry on, do not double back.  In the Big Turn the outbound
+            # and return legs pass within 45 m of each other, and the
+            # nearest unused dash was on the other leg: the first trace
+            # went +107, -128, +66 degrees over three dashes there and
+            # the steering model could not follow it.  A dash more than
+            # 90 degrees off the direction of travel is not next.
+            ahead = centres[order[-1]] - centres[order[-2]]
+            step = centres - centres[order[-1]]
+            along = step @ ahead
+            gaps[along < 0.0] = np.inf
         nearest = int(np.argmin(gaps))
         if gaps[nearest] > DASH_GAP:
             break
@@ -443,9 +459,38 @@ def trace_lane(image, valid):
     finish_gap = float(np.hypot(*(path[-1] - FINISH_LABEL)))
     if finish_gap > 60.0:
         raise SystemExit("lane trace ended %.0f px from FINISH" % finish_gap)
-    print("lane trace: chained %d of %d dashes, ended %.0f px from FINISH"
-          % (len(order), len(centres), finish_gap))
-    return path
+    turns = np.degrees(np.diff(np.unwrap(np.arctan2(*np.diff(path, axis=0).T[::-1]))))
+    print("lane trace: chained %d of %d dashes, ended %.0f px from FINISH; "
+          "sharpest dash-to-dash turn %.0f degrees"
+          % (len(order), len(centres), finish_gap, np.abs(turns).max()))
+    return extend_to_finish(path, image, valid)
+
+
+def extend_to_finish(path, image, valid):
+    """Carry the lane on to the finish line.
+
+    The last dash stops short of the line, and the line itself is the
+    FINISH banner, drawn across the course as a tall red bar.  The lane
+    is extended along its final heading to where it crosses the bar.
+
+    The banner's yellow lettering is the reason :data:`BANNER` is cut
+    from the mark search: the first trace reported four yellow "buoys"
+    in a neat column at the finish, which were the letters.
+    """
+    r0, c0, r1, c1 = BANNER
+    ys, xs = np.nonzero(band(image, "red")[r0:r1, c0:c1])
+    if len(xs) < 500:
+        print("FINISH banner not found; lane ends at its last dash")
+        return path
+    line_x = float(xs.mean() + c0)
+    heading = path[-1] - path[-2]
+    if heading[0] * (line_x - path[-1, 0]) <= 0:
+        return path                         # the line is behind us
+    t = (line_x - path[-1, 0]) / heading[0]
+    end = path[-1] + t * heading
+    print("finish line: the FINISH banner at x=%.0f px; lane extended %.0f px"
+          % (line_x, np.hypot(*(end - path[-1]))))
+    return np.vstack([path, end])
 
 
 if __name__ == "__main__":

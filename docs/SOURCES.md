@@ -8630,9 +8630,20 @@ sign.
 
 *Buoys in water.* All 47 sit in water at either scale; no help.
 
-The bar is right. The overlap's 5% is the schematic's cartography, and
-its translation at bar scale lands within 25 m of the landmark-derived
-one. Recorded because the first version simply took the fitted scale.
+The bar is right. The overlap's 5% is the schematic's cartography.
+
+**And the overlap's translation was wrong too.** At bar scale it placed
+the map 47 m from where the landmarks place it, nearly all of it
+north-south -- and through the Montlake Cut, which is 90 m wall to wall,
+that put the traced lane on the south wall: 16 of 99 points on land,
+only 2 of 16 in the Cut in its water. The tool now takes its position
+from the two bridge crossings (I-5 and the Montlake Bridge, which agree
+to 26 m over a 520 px baseline) and keeps the overlap only as a check.
+Placed that way: 99 of 99 points on water, 16 of 16 in the Cut inside
+its water and within 14 m of its centreline, 46 of 47 buoys in water,
+every point on *navigable* water with the docks removed, and the lane
+4706 m against a stated 3 miles. Recorded because the first version
+simply took the fitted scale and the fitted position.
 
 ### What is still not right
 
