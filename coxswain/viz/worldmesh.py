@@ -36,7 +36,7 @@ import numpy as np
 
 __all__ = ["MeshPart", "WorldMesh", "land_mesh", "water_plane",
            "building_walls", "ribbon", "line_markers", "buoy_solids",
-           "hull_solid",
+           "hull_solid", "tree_solids",
            "dock_solids", "bridge_solids",
            "box_solid", "build_world"]
 
@@ -246,7 +246,8 @@ def box_solid(centre, half, colour=(0.62, 0.60, 0.56)) -> MeshPart:
 
 def hull_solid(boat, deck: float = 0.30, colour=(0.88, 0.89, 0.86),
                deck_colour=(0.74, 0.76, 0.74),
-               cockpit: float = 0.45) -> MeshPart:
+               cockpit: float = 0.25,
+               floor: float = 0.06) -> MeshPart:
     """The shell itself, in the **hull frame**, for the seat view.
 
     A coxswain in a bow-loader sits 2.4 m behind the bow with their eye
@@ -278,11 +279,15 @@ def hull_solid(boat, deck: float = 0.30, colour=(0.88, 0.89, 0.86),
         top_b = [b[0], b[1], deck]
         faces += [[low_a, low_b, top_b], [low_a, top_b, top_a]]
         shades += [colour] * 6
-    # The foredeck only.  A coxswain sits in a cockpit and looks *over*
-    # the deck ahead; decking the whole shell put a surface directly
-    # under the eye, 0.27 m below it, which filled a third of the screen
-    # with the inside of the boat.  ``cockpit`` is how far ahead of the
-    # seat the decking starts.
+    # The foredeck, and a floor under the opening.
+    #
+    # Only about two feet ahead of a coxswain's face is open -- enough
+    # for shoulders -- and the rest of the bow is decked over.  Decking
+    # the *whole* shell put a surface directly under the eye and filled a
+    # third of the screen with the inside of the boat; leaving the
+    # opening as a hole was worse, because with no floor you saw the
+    # river straight through the hull.  So: decking from ``cockpit``
+    # ahead of the seat, and a floor across the gap.
     seat_x = float(boat.rig.coxswain_position[0]) + float(cockpit)
     bow = float(ring[:, 0].max())
     hub = [0.5 * (seat_x + bow), centre[1], deck]
@@ -291,6 +296,17 @@ def hull_solid(boat, deck: float = 0.30, colour=(0.88, 0.89, 0.86),
             continue
         faces.append([hub, [a[0], a[1], deck], [b[0], b[1], deck]])
         shades += [deck_colour] * 3
+    # The cockpit floor: the inside of the boat, not the river.
+    inside = ring[ring[:, 0] <= seat_x + 0.05]
+    if len(inside) >= 3:
+        hub_in = [float(inside[:, 0].mean()), centre[1], float(floor)]
+        order_in = np.argsort(np.arctan2(inside[:, 1] - centre[1],
+                                         inside[:, 0] - hub_in[0]))
+        inside = inside[order_in]
+        for a, b in zip(inside, np.roll(inside, -1, axis=0)):
+            faces.append([hub_in, [a[0], a[1], floor], [b[0], b[1], floor]])
+            shades += [(0.22, 0.23, 0.24)] * 3
+
     vertices = np.asarray(faces, dtype="f4").reshape(-1, 3)
     colours = np.asarray(shades, dtype="f4")
     return MeshPart("hull", vertices, colours, _face_normals(vertices))
@@ -337,6 +353,78 @@ def buoy_solids(buoys, height: float = 0.45,
     vertices = np.concatenate([p.vertices for p in parts])
     colours = np.concatenate([p.colours for p in parts])
     return MeshPart("buoys", vertices, colours, _face_normals(vertices))
+
+
+#: Crown colours by growth form, in the order ``TreeStand.FORMS`` uses.
+CROWN = ((0.24, 0.34, 0.20), (0.16, 0.26, 0.18), (0.20, 0.31, 0.20),
+         (0.30, 0.40, 0.24))
+TRUNK = (0.26, 0.20, 0.15)
+
+
+def tree_solids(stand, box, limit: int = 5000, near=None,
+                min_height: float = 3.0) -> Optional[MeshPart]:
+    """Trees as a trunk and a low-poly crown.
+
+    The bank of a river is trees, and leaving them out is why the first
+    seat view looked like a reservoir.  There are 24,392 of them on the
+    Charles and 742,517 on Lake Union, so they are ranked by height and
+    capped: a crown is eight triangles and a trunk twelve, and five
+    thousand of them is a hundred thousand triangles, which an Intel UHD
+    holds without noticing.
+
+    ``near`` is an optional ``(n, 2)`` line -- the course -- used to
+    prefer the trees a crew can actually see over the ones on the hill
+    behind them.
+    """
+    points = np.asarray(stand.points, dtype=float)
+    heights = np.asarray(stand.heights, dtype=float)
+    forms = np.asarray(stand.form, dtype=int)
+    keep = ((points[:, 0] >= box[0]) & (points[:, 0] <= box[2])
+            & (points[:, 1] >= box[1]) & (points[:, 1] <= box[3])
+            & (heights >= min_height))
+    index = np.nonzero(keep)[0]
+    if not len(index):
+        return None
+    if near is not None and len(index) > limit:
+        from scipy.spatial import cKDTree
+
+        gap = cKDTree(np.asarray(near, dtype=float)).query(points[index])[0]
+        # Tall and close beats tall and far, the same rule the 3-D scene
+        # uses for which trees are worth drawing at all.
+        index = index[np.argsort(-heights[index] / np.maximum(gap, 5.0))]
+    index = index[:limit]
+
+    faces, shades = [], []
+    for i in index:
+        x, y = points[i]
+        height = float(heights[i])
+        form = int(forms[i]) if i < len(forms) else 0
+        crown_colour = CROWN[form % len(CROWN)]
+        # Trunk: a square post up to the crown.
+        stem = 0.40 * height
+        radius = max(0.018 * height, 0.05)
+        trunk = box_solid((x, y, 0.5 * stem), (radius, radius, 0.5 * stem),
+                          colour=TRUNK)
+        faces.append(trunk.vertices)
+        shades.append(trunk.colours)
+        # Crown: an octahedron, wider for a broadleaf than a conifer.
+        spread = (0.16 if form == 1 else 0.30) * height
+        top = height
+        mid = 0.5 * (stem + top)
+        apex = [x, y, top]
+        base = [x, y, stem]
+        rim = [[x + spread, y, mid], [x, y + spread, mid],
+               [x - spread, y, mid], [x, y - spread, mid]]
+        crown = []
+        for a, b in zip(rim, rim[1:] + rim[:1]):
+            crown.append([apex, a, b])
+            crown.append([base, b, a])
+        faces.append(np.asarray(crown, dtype="f4").reshape(-1, 3))
+        shades.append(np.tile(np.asarray(crown_colour, dtype="f4"),
+                              (len(crown) * 3, 1)))
+    vertices = np.concatenate(faces).astype("f4")
+    colours = np.concatenate(shades).astype("f4")
+    return MeshPart("trees", vertices, colours, _face_normals(vertices))
 
 
 def dock_solids(polylines, height: float = 0.9,
@@ -444,7 +532,7 @@ def _slab(middle, along, span, width, level, depth) -> MeshPart:
 
 def build_world(race: str = "charles", reach: float = 900.0,
                 step: float = 8.0, with_buildings: bool = True,
-                guide: bool = True):
+                guide: bool = True, trees: bool = True):
     """``(WorldMesh, PlanScene)`` for a course.
 
     ``reach`` is how far either side of the course to build.  The whole
@@ -492,6 +580,15 @@ def build_world(race: str = "charles", reach: float = 900.0,
     docks = scene.layer("docks")
     if docks is not None:
         mesh.add(dock_solids(docks.polylines))
+    if trees:
+        try:
+            if race == "charles":
+                from ..river.structures import charles_trees as tree_stand
+            else:
+                from ..river.structures import seattle_trees as tree_stand
+            mesh.add(tree_solids(tree_stand(), box, near=course))
+        except Exception as error:            # pragma: no cover
+            print("   (no trees: %s)" % str(error)[:60])
     mesh.add(bridge_solids(race, scene))
     mesh.add(buoy_solids(scene.buoys))
     if guide:

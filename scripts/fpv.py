@@ -218,6 +218,7 @@ def main(argv=None):
     parser.add_argument("--step", type=float, default=8.0,
                         help="ground mesh cell, metres")
     parser.add_argument("--no-buildings", action="store_true")
+    parser.add_argument("--no-trees", action="store_true")
     parser.add_argument("--no-guide", action="store_true",
                         help="drop the marker posts along the course")
     parser.add_argument("--control", default="keys",
@@ -236,7 +237,8 @@ def main(argv=None):
     clock0 = time.perf_counter()
     mesh, scene = build_world(args.race, reach=args.reach, step=args.step,
                               with_buildings=not args.no_buildings,
-                              guide=not args.no_guide)
+                              guide=not args.no_guide,
+                              trees=not args.no_trees)
     print("   %d triangles in %d parts, %.1f s"
           % (mesh.triangles, len(mesh.parts), time.perf_counter() - clock0))
 
@@ -424,6 +426,26 @@ def main(argv=None):
         for row, text in enumerate(lines):
             overlay.blit(font.render(text, True, (233, 240, 245)),
                          (14, 12 + row * 20))
+        # The stick.  On the mouse there is nothing else to tell you where
+        # the rudder is -- the pointer is hidden and the boat answers a
+        # second later -- and on a boat with a standing yaw bias, seeing
+        # the trim you are holding is most of what makes it steerable.
+        bar_w = int(args.width * MOUSE_SPAN)
+        bar_x = (args.width - bar_w) // 2
+        bar_y = args.height - 40
+        pygame.draw.rect(overlay, (12, 17, 21, 170),
+                         (bar_x - 62, bar_y - 20, bar_w + 124, 46))
+        pygame.draw.line(overlay, (70, 82, 92), (bar_x, bar_y),
+                         (bar_x + bar_w, bar_y), 3)
+        pygame.draw.line(overlay, (110, 124, 136), (args.width // 2,
+                                                    bar_y - 9),
+                         (args.width // 2, bar_y + 9), 2)
+        knob = bar_x + int(bar_w * (0.5 + 0.5 * rudder / RUDDER_LIMIT))
+        pygame.draw.circle(overlay, (255, 146, 72), (knob, bar_y), 9)
+        pygame.draw.circle(overlay, (18, 24, 29), (knob, bar_y), 5)
+        for label, at in (("port", bar_x - 52), ("stbd", bar_x + bar_w + 14)):
+            overlay.blit(font.render(label, True, (128, 142, 152)),
+                         (at, bar_y - 9))
         # The HUD is a texture blitted over the scene: pygame cannot draw
         # into an OpenGL window directly.
         # One texture, rewritten -- allocating a 1180x680 RGBA texture
