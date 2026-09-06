@@ -144,7 +144,7 @@ def fetch(bounds):
     return rings, np.array(apex, dtype=float)
 
 
-def attributes_from_osm(rings, blob):
+def attributes_from_osm(rings, blob, heights=None):
     """Carry OSM class and name onto the lidar outlines.
 
     Each lidar roof is matched to the OSM footprint that contains its
@@ -182,6 +182,8 @@ def attributes_from_osm(rings, blob):
     roof_shape = blob["building_roof_shape"]
     roof_height = blob["building_roof_height"]
     out_base = np.zeros(len(rings), dtype=np.float32)
+    if heights is None:
+        heights = np.full(len(rings), np.inf)
     out_roof_shape = np.zeros(len(rings), dtype=np.int8)
     out_roof_height = np.zeros(len(rings), dtype=np.float32)
     matched = np.zeros(len(polygons), dtype=bool)
@@ -199,7 +201,20 @@ def attributes_from_osm(rings, blob):
             out_name[index] = names[candidate]
             out_material[index] = materials[candidate]
             out_colour[index] = colours[candidate]
-            out_base[index] = base[candidate]
+            # Carry the massing across only when it can possibly be
+            # this outline's.
+            #
+            # A lidar outline is matched to the OSM polygon containing
+            # its centroid, and that polygon is sometimes an elevated
+            # ``building:part`` -- a tower's saucer, say.  A ground-level
+            # shed standing under one would inherit a base of 156 m while
+            # keeping its own 13 m height, which is a part whose bottom
+            # is 143 m above its top.  100 buildings in Seattle came out
+            # that way once this tool started carrying bases at all.
+            # The lidar apex is measured and the base is inherited, so
+            # when they contradict, the measurement wins.
+            if base[candidate] < heights[index] - 1.0:
+                out_base[index] = base[candidate]
             out_roof_shape[index] = roof_shape[candidate]
             out_roof_height[index] = roof_height[candidate]
             matched[candidate] = True
@@ -248,7 +263,7 @@ def main(argv=None):
     heights = heights[good]
 
     (kind, name, material, colour, matched, base, roof_shape,
-     roof_height) = attributes_from_osm(rings, blob)
+     roof_height) = attributes_from_osm(rings, blob, heights)
 
     # Anything OSM has that the lidar did not see -- towers, and whatever
     # was built after 2016 -- is kept rather than lost.  The Space Needle

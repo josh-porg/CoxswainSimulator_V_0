@@ -228,6 +228,10 @@ def photo_colour(imagery, ring, fallback):
     return np.clip(colour, 0.0, 1.0)
 
 
+#: How far a part's base may sit above its own top before the record is
+#: treated as broken rather than merely rounded, m.
+INVERTED_LIMIT = 12.0
+
 #: OSM roof shapes that come to a ridge or a point, by the integer code
 #: ``extract_structures.py`` writes.  Everything else is drawn flat.
 PITCHED = (2, 3, 4, 5, 6, 8, 9)
@@ -375,15 +379,33 @@ def building_walls(polygons, heights, bases=None, box=None,
                 floor = 0.0
         low = floor + (float(bases[index]) if bases is not None else 0.0)
         if low >= top - 0.3:
-            # An inverted part -- ``min_height`` above its own ``height``.
+            # An inverted part -- ``min_height`` at or above its own
+            # ``height`` -- and the right repair depends on how badly.
             #
-            # Dropping the base to zero, which is what this used to do,
-            # is the worst possible repair: the Space Needle has a 42 m
-            # wide halo tagged base 167 / top 162, and grounding it
-            # extrudes a 42 m column from the water to 162 m.  That is
-            # the convex cylinder, put there by the fix for it.  Keep the
-            # piece where it belongs and make it thin instead.
-            low = max(top - 1.0, floor)
+            # Grounding it, which is what this did first, is the worst
+            # option: the Space Needle has a 42 m wide halo tagged base
+            # 167 / top 162, and grounding that extrudes a 42 m column
+            # from the water to 162 m.  That was the convex cylinder, put
+            # there by the fix for the convex cylinder.
+            #
+            # When the two disagree by a few metres they are the same
+            # surface rounded differently, so the piece is drawn across
+            # their span.  When they disagree by a hundred and forty --
+            # 43 of Seattle's 100 do -- one of the numbers is simply
+            # wrong and there is nothing to draw that is not a guess, so
+            # nothing is drawn.  A gap is honest; a tower in the wrong
+            # place is not.
+            if low - top > INVERTED_LIMIT:
+                continue
+            low, top = min(low, top) - 0.5, max(low, top)
+            low = max(low, floor)
+        # Drop repeated vertices before anything is built from them.
+        # An OSM ring often closes on its own first point, and a few
+        # carry duplicates mid-way; each one produces a zero-area wall
+        # quad and two more zero-area triangles in the caps.
+        keep_pt = np.hypot(*(ring - np.roll(ring, -1, axis=0)).T) > 1e-6
+        if keep_pt.sum() >= 3:
+            ring = ring[keep_pt]
         nxt = np.roll(ring, -1, axis=0)
         tint = photo_colour(imagery, ring, base_colour)
         for start, end in zip(ring, nxt):
@@ -419,16 +441,33 @@ def building_walls(polygons, heights, bases=None, box=None,
                 t = max(-abs(reach), min(abs(reach), t))
                 onto = [centre[0] + along[0] * t, centre[1] + along[1] * t,
                         top + pitch]
-                _quad(walls, tints, [start[0], start[1], top],
-                      [end[0], end[1], top], onto, onto,
-                      np.array([0.0, 0.0, 1.0]), roof_tint)
+                _tri(walls, tints, [start[0], start[1], top],
+                     [end[0], end[1], top], onto,
+                     np.array([0.0, 0.0, 1.0]), roof_tint)
         else:
             centre = ring.mean(axis=0)
             apex = [centre[0], centre[1], top]
             for start, end in zip(ring, nxt):
-                _quad(walls, tints, [start[0], start[1], top],
-                      [end[0], end[1], top], apex, apex,
-                      np.array([0.0, 0.0, 1.0]), roof_tint)
+                _tri(walls, tints, [start[0], start[1], top],
+                     [end[0], end[1], top], apex,
+                     np.array([0.0, 0.0, 1.0]), roof_tint)
+
+        # A floor under anything that floats.
+        #
+        # Only the top was ever capped, on the reasoning that you cannot
+        # see under a building.  You can see under a *part*: the Space
+        # Needle's saucer stands at 152 m over open air, and from a boat
+        # you are looking up at its underside.  With no floor the near
+        # face is culled and you see the inside of the far one -- the
+        # same hole the coxswain's cockpit had, three hundred feet up.
+        if low > floor + 0.5:
+            centre = ring.mean(axis=0)
+            hub = [centre[0], centre[1], low]
+            for start, end in zip(ring, nxt):
+                _tri(walls, tints, [start[0], start[1], low],
+                     [end[0], end[1], low], hub,
+                     np.array([0.0, 0.0, -1.0]), tuple(
+                         0.7 * c for c in np.atleast_1d(tint)))
         kept += 1
     if not walls:
         return None
@@ -916,6 +955,22 @@ def dock_solids(polylines, height: float = 0.9,
     colours = np.tile(np.array([0.46, 0.36, 0.26], dtype="f4"),
                       (len(vertices), 1))
     return MeshPart("docks", vertices, colours, _face_normals(vertices))
+
+
+def _tri(faces, shades, p0, p1, p2, want, colour):
+    """One triangle, wound so its normal points along ``want``.
+
+    The fans that cap a roof or floor a part used to go through
+    :func:`_quad` with the apex passed twice, which emitted a real
+    triangle and a zero-area twin beside it -- 106,821 of the Charles's
+    311,650 building triangles, a third of the geometry, doing nothing.
+    """
+    normal = np.cross(np.asarray(p1) - np.asarray(p0),
+                      np.asarray(p2) - np.asarray(p0))
+    if float(np.dot(normal, want)) < 0.0:
+        p1, p2 = p2, p1
+    faces.append([p0, p1, p2])
+    shades.extend([colour] * 3)
 
 
 def _quad(faces, shades, p0, p1, p2, p3, want, colour):
