@@ -292,7 +292,8 @@ def _ridge(ring, top, rise):
 def building_walls(polygons, heights, bases=None, box=None,
                    colour=(0.42, 0.41, 0.40), imagery=None,
                    near=None, min_height: float = 2.0, roofs=None,
-                   kinds=None, limit: int = 12000) -> Optional[MeshPart]:
+                   kinds=None, ground_at=None,
+                   limit: int = 12000) -> Optional[MeshPart]:
     """Extruded footprints -- **walls only**, coloured from the orthophoto.
 
     From 0.55 m off the water you never see a roof, so the top faces are
@@ -350,14 +351,39 @@ def building_walls(polygons, heights, bases=None, box=None,
         top = float(heights[index])
         if top < min_height:
             continue
-        low = float(bases[index]) if bases is not None else 0.0
+        # **Stand it on the ground, not on the water.**
+        #
+        # Every building was extruded from z = 0, which is the lake
+        # surface, so a house on Capitol Hill at seventy metres was
+        # drawn from the waterline and buried to its roof in the hill.
+        # The older PyVista scene had this right and it is the whole of
+        # what "simple extrusion" was missing: the roof goes at the
+        # ground under the middle plus the surveyed height, and the base
+        # at the **lowest** ground anywhere under the footprint, so a
+        # building on a slope is cut into the hill rather than left
+        # hanging off its downhill corner.
+        floor = 0.0
+        if ground_at is not None:
+            try:
+                corners = np.asarray(ground_at(ring[:, 0], ring[:, 1]),
+                                     dtype=float)
+                middle = float(np.asarray(
+                    ground_at(*ring.mean(axis=0)), dtype=float).ravel()[0])
+                floor = float(np.min(corners))
+                top = middle + top
+            except Exception:
+                floor = 0.0
+        low = floor + (float(bases[index]) if bases is not None else 0.0)
         if low >= top - 0.3:
-            # An inverted part: the Space Needle has one piece tagged with
-            # a min_height above its own height, and extruding it gives a
-            # box of negative depth whose faces come out inside-out.  Drop
-            # the base rather than the piece; a solid prism in the right
-            # place beats a degenerate one.
-            low = 0.0
+            # An inverted part -- ``min_height`` above its own ``height``.
+            #
+            # Dropping the base to zero, which is what this used to do,
+            # is the worst possible repair: the Space Needle has a 42 m
+            # wide halo tagged base 167 / top 162, and grounding it
+            # extrudes a 42 m column from the water to 162 m.  That is
+            # the convex cylinder, put there by the fix for it.  Keep the
+            # piece where it belongs and make it thin instead.
+            low = max(top - 1.0, floor)
         nxt = np.roll(ring, -1, axis=0)
         tint = photo_colour(imagery, ring, base_colour)
         for start, end in zip(ring, nxt):
@@ -1105,7 +1131,7 @@ SKYLINE_HEIGHT = 38.0
 
 
 def skyline_walls(structures, course, box, imagery=None, bases=None,
-                  roofs=None):
+                  roofs=None, ground_at=None):
     """Distant towers, drawn because a crew can see them.
 
     Only buildings **outside** the near box are considered, so nothing is
@@ -1125,8 +1151,13 @@ def skyline_walls(structures, course, box, imagery=None, bases=None,
     from scipy.spatial import cKDTree
 
     gap = cKDTree(np.asarray(course, dtype=float)[:, :2]).query(centres)[0]
+    # Tall enough to see, **or** standing well off the ground: a piece
+    # from 30 to 37 m is nothing on its own but is the waist of a
+    # landmark, and dropping it leaves a gap in the middle of one.
+    lifted = (np.zeros(len(heights), dtype=bool) if bases is None
+              else np.asarray(bases) > 15.0)
     keep = np.nonzero(outside & (gap < SKYLINE_REACH)
-                      & (heights >= SKYLINE_HEIGHT))[0]
+                      & ((heights >= SKYLINE_HEIGHT) | lifted))[0]
     if not len(keep):
         return None
     # Massing and roofs come across, and this is not optional.
@@ -1142,7 +1173,7 @@ def skyline_walls(structures, course, box, imagery=None, bases=None,
     part = building_walls(
         [polygons[i] for i in keep], heights[keep],
         None if bases is None else np.asarray(bases)[keep],
-        box=None, imagery=imagery, limit=4000,
+        box=None, imagery=imagery, limit=4000, ground_at=ground_at,
         roofs=None if roofs is None else
         tuple(None if r is None else np.asarray(r)[keep] for r in roofs))
     if part is None:
@@ -1207,10 +1238,14 @@ def build_world(race: str = "charles", reach: float = 900.0,
     mesh.add(water_plane(course.mean(axis=0)))
     mesh.add(land_mesh(terrain, wet_at, box, step=step, imagery=photo))
     if with_buildings:
+        def ground_at(east, north):
+            return np.maximum(terrain.height_above_water(east, north), 0.0)
+
         mesh.add(building_walls(structures.polygons, structures.heights,
                                 getattr(structures, "base", None), box=box,
                                 imagery=photo, near=course,
                                 kinds=getattr(structures, "kind", None),
+                                ground_at=ground_at,
                                 roofs=(getattr(structures, "roof_shape", None),
                                        getattr(structures, "roof_height",
                                                None))))
@@ -1225,6 +1260,7 @@ def build_world(race: str = "charles", reach: float = 900.0,
         mesh.add(skyline_walls(
             structures, course, box, photo,
             bases=getattr(structures, "base", None),
+            ground_at=ground_at,
             roofs=(getattr(structures, "roof_shape", None),
                    getattr(structures, "roof_height", None))))
     docks = scene.layer("docks")
