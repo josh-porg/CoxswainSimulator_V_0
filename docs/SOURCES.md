@@ -8571,3 +8571,72 @@ viaducts are drawn as more of the same arches rather than as the
 plate-girder spans they are. At the kilometre and a half from which this
 bridge is seen from the course, the silhouette is what reaches the eye;
 closer than that it would not hold up.
+
+## 118. Head of the Lake: the course off the regatta's buoy map, and a scale bar that had to be checked
+
+Head of the Lake is 3 miles from the College Club dock in north Lake
+Union, north up the east shore, the **Pocock Turn** under the University
+Bridge (yellow buoys to starboard, orange to port), east through Portage
+Bay, straight through the **Montlake Cut**, then a buoyed 3-point **Big
+Turn** in Union Bay to finish north-west at the UW Conibear Shellhouse.
+Penalties from the 2025 regatta guide: 10 s per buoy passed on the wrong
+side, disqualification for more than one; the Cut and 100 m east of the
+University Bridge are no-passing zones; failure to yield or interference
+60 s or exclusion; an illegal 3-point turn, exclusion.
+
+`tools/trace_hotl_course.py` traces the racing lane and every buoy off
+the regatta's own 2025 buoy map (2000 x 1259 px, north up, scale bar).
+Same recipe as Tail of the Lake: scale from the bar, position by water
+overlap against the OpenStreetMap shoreline, then the lane chained
+dash-by-dash from START to FINISH and the buoys picked out by colour.
+
+### Three things this needed that Tail of the Lake did not
+
+**Union Bay does not exist in OpenStreetMap.** It is a lobe of the Lake
+Washington relation, and a query by name silently returned nothing --
+which is why the finish of this race sat outside every dataset the
+project held. The extractor now takes the Lake Washington relation
+clipped to a box and closes the chain across the box edge. The Montlake
+Cut likewise had been fetched as a `waterway=canal` centreline rather
+than its `natural=water` polygon.
+
+**`water_mask` kept only the largest ring.** Right for one lake, silently
+wrong for four: asked for the whole ship canal it returned Union Bay
+alone, the biggest, and the start and finish were on different lakes.
+It now resolves each named body to its own ring and unions them. The
+union is one connected body of 5.99 km2, navigable through the Cut with
+30 m of clearance once the docks are removed.
+
+**The scale bar disagreed with the shoreline, and had to be arbitrated.**
+Left free, the water-overlap fit preferred 2.94 m/px to the bar's 2.80 --
+a 5% stretch, 240 m over the course. Neither is self-evidently right: a
+regatta map is a schematic and its cartography can be off by that much,
+and the overlap follows the cartography. Three independent witnesses
+were consulted.
+
+*Bridge landmarks.* The lane passes under I-5 and through the Montlake
+Bridge, both unambiguous on map and shoreline. That pair gives 2.86 m/px
+east-west and 2.79 north-south. (The University Bridge outline centre is
+*not* a usable landmark -- it is a 420 m structure and the lane crosses
+its water span, not its centre; two further "landmarks" turned out to be
+the same point mislabelled, because the lane's level run through the Cut
+begins at the bridge and continues well past the Cut's exit to the
+short-course finish.)
+
+*Stated length.* At the bar's scale the traced lane is 4706 m against 3
+miles, 2.5% short -- the right sign, since chaining dash centroids cuts
+every corner. At the overlap's scale it is 4994 m, 3.4% long, the wrong
+sign.
+
+*Buoys in water.* All 47 sit in water at either scale; no help.
+
+The bar is right. The overlap's 5% is the schematic's cartography, and
+its translation at bar scale lands within 25 m of the landmark-derived
+one. Recorded because the first version simply took the fitted scale.
+
+### What is still not right
+
+The lane is a schematic drawn tens of metres wide, not a track; it is
+the centreline the rules define, and the buoys are the constraints, as
+for Tail of the Lake. The map truncates Lake Union at its image edge,
+so the south lobe is not on it and had to be excluded from the overlap.

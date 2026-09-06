@@ -27,6 +27,20 @@ where the lesson was that a registration maximising *precision* rather
 than IoU games itself by shrinking the scale.  Scale is fixed here by
 the bar before the fit begins, so it cannot.
 
+The bar was checked, because the water-overlap fit disagreed with it
+------------------------------------------------------------------
+Left free, the overlap fit preferred 2.94 m/px to the bar's 2.80 -- a 5%
+stretch, which over a 4.8 km course is 240 m.  The map is a schematic,
+so its cartography can be off by that much and the overlap would follow
+the cartography; the bar and the overlap are not independent witnesses
+to the same thing.  Point landmarks are: the lane passes under I-5, the
+University Bridge and the Montlake Bridge, and runs the length of the
+Montlake Cut, all unambiguous on both map and shoreline.  A similarity
+fit on those landmarks gives the scale the bar gives, isotropic, and the
+traced lane then comes out 4706 m against the regatta's stated 3 miles
+-- 2.5% short, which is what chaining the centroids of dashes around a
+turn does.  The bar is trusted; the free-scale overlap is not.
+
 What is traced
 --------------
 * the racing lane, as an ordered polyline in metres;
@@ -110,13 +124,14 @@ def scale_bar(image):
     return BAR_METRES / extent, (x0, x0 + extent, y)
 
 
-def register(map_water, metres_per_pixel, osm):
+def register(map_water, metres_per_pixel, osm, metres_per_pixel_y=None):
     """Translation (east, north of the map's top-left) maximising IoU."""
     east, north, mask = osm
     resolution = float(east[1] - east[0])
     # Resample the map's water onto the OSM grid resolution.
+    step_y = resolution / (metres_per_pixel_y or metres_per_pixel)
     step = resolution / metres_per_pixel
-    rows = np.arange(0, map_water.shape[0], step).astype(int)
+    rows = np.arange(0, map_water.shape[0], step_y).astype(int)
     cols = np.arange(0, map_water.shape[1], step).astype(int)
     small = map_water[np.ix_(rows, cols)]        # row 0 is the map's top
 
@@ -203,13 +218,39 @@ def main(argv=None):
     # 10 m across and leaves the water, which is thousands of pixels.
     from scipy.ndimage import binary_opening
     map_water = binary_opening(map_water, iterations=2)
+    # Where the map has no data: the legend, the inset, and the part of
+    # Lake Union it cuts off at row 823.  Excluded from the overlap and
+    # from every colour search.
+    valid = np.ones(map_water.shape, dtype=bool)
+    valid[725:1215, 655:1335] = False
+    valid[570:1205, 1360:1995] = False
+    valid[823:, :655] = False
+    map_water &= valid
     print("map water: %d px = %.2f km2 at that scale"
           % (map_water.sum(), map_water.sum() * metres_per_pixel ** 2 / 1e6))
 
     osm = water_mask(10.0, names=SHIP_CANAL)
-    score, left_east, top_north = register(map_water, metres_per_pixel, osm)
-    print("registration: IoU %.3f; map top-left at east %.0f, north %.0f"
-          % (score, left_east, top_north))
+    score, iou_east, iou_north = register(map_water, metres_per_pixel, osm)
+    print("overlap: IoU %.3f; map top-left at east %.0f, north %.0f"
+          % (score, iou_east, iou_north))
+
+    # Position from the bridge landmarks, not from the overlap.
+    #
+    # The overlap put the lane 43 m south of where the landmarks put it,
+    # and through the Montlake Cut that is the difference between the
+    # centreline and the south wall: 16 of 99 traced points came out on
+    # land and only 2 of 16 in the Cut were in its water.  The overlap
+    # follows the schematic's cartography, which is off by tens of
+    # metres; a bridge is where it is on both.  The overlap is kept as a
+    # check and the two must agree to within 60 m.
+    lane_px = trace_lane(image, valid)
+    left_east, top_north = landmark_translation(image, lane_px,
+                                                metres_per_pixel)
+    drift = np.hypot(left_east - iou_east, top_north - iou_north)
+    print("landmarks: map top-left at east %.0f, north %.0f (%.0f m from "
+          "the overlap)" % (left_east, top_north, drift))
+    if drift > 60.0:
+        raise SystemExit("overlap and landmarks disagree by %.0f m" % drift)
 
     # -- diagnostic overlay ----------------------------------------------
     import matplotlib
@@ -233,7 +274,178 @@ def main(argv=None):
     np.savez(os.path.join(args.check, "registration.npz"),
              metres_per_pixel=metres_per_pixel, left_east=left_east,
              top_north=top_north, iou=score)
+
+    # -- the lane ----------------------------------------------------------
+    lane = lane_px
+    lane_e, lane_n = to_metres(lane[:, 0], lane[:, 1], metres_per_pixel,
+                               left_east, top_north)
+    course = np.column_stack([lane_e, lane_n])
+    length = float(np.hypot(*np.diff(course, axis=0).T).sum())
+    print("lane: %d points, %.0f m (regatta says 3 miles, 4828 m: %+.1f%%)"
+          % (len(course), length, 100.0 * (length / 4828.0 - 1.0)))
+
+    # -- the buoys ----------------------------------------------------------
+    buoys = []
+    for colour, side in (("yellow", "starboard"), ("orange", "port")):
+        for px, py in blobs(image, colour, valid):
+            e, n = to_metres(px, py, metres_per_pixel, left_east, top_north)
+            buoys.append((colour, side, float(e), float(n)))
+    print("buoys: %d yellow (starboard), %d orange (port)"
+          % (sum(1 for b in buoys if b[0] == "yellow"),
+             sum(1 for b in buoys if b[0] == "orange")))
+
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    np.save(os.path.join(root, "data", "hotl_course.npy"), course)
+    # Same layout Tail of the Lake uses: (keep_to_port?, east, north).
+    # HOTL's rule is yellow to starboard, orange to port; a buoy to be
+    # kept to port is a limit on the port side.
+    np.save(os.path.join(root, "data", "hotl_buoys.npy"),
+            np.array([(1.0 if side == "port" else 0.0, e, n)
+                      for _c, side, e, n in buoys]))
+    print("wrote data/hotl_course.npy and data/hotl_buoys.npy")
+
+    # -- verification drawing over the shoreline --------------------------
+    figure, axis = plt.subplots(figsize=(14, 8))
+    axis.contour(ge, gn, mask.astype(float), [0.5], colors="#ff2d55",
+                 linewidths=1.0)
+    axis.plot(course[:, 0], course[:, 1], "-", color="#1f7a4d", lw=2,
+              label="racing lane")
+    for colour, side, e, n in buoys:
+        axis.plot(e, n, "o", color="#ffd60a" if colour == "yellow" else
+                  "#ff9248", ms=5, mec="k", mew=0.4)
+    axis.plot(course[0, 0], course[0, 1], "o", color="k", ms=9, label="start")
+    axis.plot(course[-1, 0], course[-1, 1], "s", color="k", ms=9,
+              label="finish")
+    axis.set_aspect("equal")
+    axis.set_xlim(-1400, 4400)
+    axis.set_ylim(-600, 2200)
+    axis.legend(loc="lower left")
+    axis.set_title("Head of the Lake, traced: lane %.0f m, %d buoys "
+                   "(yellow starboard, orange port)" % (length, len(buoys)))
+    figure.savefig(os.path.join(args.check, "course.png"), dpi=110,
+                   bbox_inches="tight")
+    print("wrote %s" % os.path.join(args.check, "course.png"))
     return 0
+
+
+#: Where the lane crosses two bridges, in the tangent plane.  I-5's
+#: Ship Canal Bridge is a straight north-south freeway, so its easting
+#: is unambiguous; the lane meets it at the Pocock apex, at the north
+#: end of Portage Bay.  The Montlake Bridge crosses the Cut at its
+#: midpoint, and the lane hugs the Cut's centreline.
+LANDMARKS = {
+    "I-5": (788.0, 1500.0),
+    "Montlake Bridge": (2126.0, 867.0),
+}
+
+
+def landmark_translation(image, lane_px, metres_per_pixel):
+    """``(left_east, top_north)`` from where the lane crosses the bridges.
+
+    Both bridges are found on the map by their road colour crossing the
+    lane -- I-5 is the blue band, Montlake Boulevard a red one -- and the
+    lane point nearest each crossing is paired with the bridge's known
+    position.  Two points over-determine a translation at fixed scale;
+    the mean is taken and the spread reported.
+    """
+    blue = np.all((image >= (0, 90, 150)) & (image <= (60, 140, 210)),
+                  axis=2)
+    red = band(image, "red")
+
+    def road_x(mask, y0, y1, x0, x1, least):
+        columns = mask[y0:y1, x0:x1].sum(axis=0)
+        xs = np.nonzero(columns > least)[0] + x0
+        if not len(xs):
+            raise SystemExit("a bridge landmark was not found on the map")
+        return float(xs.mean())
+
+    def lane_near(x, y0, y1):
+        pts = lane_px[(lane_px[:, 1] >= y0) & (lane_px[:, 1] <= y1)]
+        return pts[int(np.argmin(np.abs(pts[:, 0] - x)))]
+
+    i5 = lane_near(road_x(blue, 150, 330, 690, 780, 60), 150, 330)
+    montlake = lane_near(road_x(red, 360, 430, 1100, 1300, 25), 370, 420)
+
+    offsets = []
+    for px, (east, north) in ((i5, LANDMARKS["I-5"]),
+                              (montlake, LANDMARKS["Montlake Bridge"])):
+        offsets.append((east - px[0] * metres_per_pixel,
+                        north + px[1] * metres_per_pixel))
+    offsets = np.asarray(offsets)
+    spread = float(np.hypot(*(offsets[0] - offsets[1])))
+    print("landmark pair disagrees by %.0f m (scale error over their "
+          "%.0f px baseline)" % (spread, np.hypot(*(montlake - i5))))
+    return float(offsets[:, 0].mean()), float(offsets[:, 1].mean())
+
+
+def blobs(image, colour, valid, smallest=40, largest=250, widest=20):
+    """Centroids of the discs of one colour, in pixels.
+
+    Size-bounded so the FINISH banner (a tall yellow dash) and the
+    Gasworks Park polygon (green, thousands of pixels) are not buoys.
+    """
+    from scipy.ndimage import label
+    mask = band(image, colour) & valid
+    labels, count = label(mask)
+    out = []
+    for index in range(1, count + 1):
+        ys, xs = np.nonzero(labels == index)
+        if (smallest <= len(xs) <= largest
+                and (xs.max() - xs.min()) < widest):
+            out.append((xs.mean(), ys.mean()))
+    return out
+
+
+#: Where the START and FINISH labels sit on the map, in pixels.  Read
+#: off the image once; the lane is chained from the dash nearest the
+#: start and must end within a few dashes of the finish.
+START_LABEL = (610.0, 325.0)
+FINISH_LABEL = (1641.0, 235.0)
+
+#: Farthest a dash may be from the last one and still be the same lane.
+DASH_GAP = 90.0
+
+
+def trace_lane(image, valid):
+    """The racing lane as an ordered pixel polyline, start to finish.
+
+    The lane is drawn dash-dot, so it arrives as a hundred separate green
+    blobs.  They are chained greedily from the one nearest START, always
+    to the nearest unused blob within :data:`DASH_GAP`.  Two things are
+    the same green and must not be chained: the Gasworks Park polygon,
+    which is thousands of pixels, and the 2-ton channel-buoy diamonds,
+    which are off the line.  The size bound removes the park; the gap
+    bound leaves the diamonds unchained, and the run must still end
+    within reach of FINISH or the trace is refused.
+    """
+    from scipy.ndimage import label
+    mask = band(image, "lane") & valid
+    labels, count = label(mask)
+    centres = []
+    for index in range(1, count + 1):
+        ys, xs = np.nonzero(labels == index)
+        if 8 <= len(xs) <= 2000:
+            centres.append((xs.mean(), ys.mean()))
+    centres = np.asarray(centres)
+    used = np.zeros(len(centres), dtype=bool)
+    here = int(np.argmin(np.hypot(*(centres - START_LABEL).T)))
+    order = [here]
+    used[here] = True
+    while True:
+        gaps = np.hypot(*(centres - centres[order[-1]]).T)
+        gaps[used] = np.inf
+        nearest = int(np.argmin(gaps))
+        if gaps[nearest] > DASH_GAP:
+            break
+        order.append(nearest)
+        used[nearest] = True
+    path = centres[order]
+    finish_gap = float(np.hypot(*(path[-1] - FINISH_LABEL)))
+    if finish_gap > 60.0:
+        raise SystemExit("lane trace ended %.0f px from FINISH" % finish_gap)
+    print("lane trace: chained %d of %d dashes, ended %.0f px from FINISH"
+          % (len(order), len(centres), finish_gap))
+    return path
 
 
 if __name__ == "__main__":
