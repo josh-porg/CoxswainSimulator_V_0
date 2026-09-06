@@ -6,7 +6,7 @@ r"""Steer the boat yourself, from above.
 
 A plan-view trainer on the real courses, driven by the real physics.  The
 6-DOF boat, the surveyed bed, the docks and the bridges are the ones the
-studies use; the only things that change are **who owns the clock** and
+studies use; the only things that change are **who owns the clock** ad
 **where the steering comes from** (see ``docs/REALTIME.md``).
 
 Why plan view first
