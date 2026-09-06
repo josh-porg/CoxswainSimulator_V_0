@@ -154,3 +154,89 @@ def test_a_scene_with_no_imagery_still_finds_the_charles_photo():
     boat = catalog.coxed_four(rate=30.0, rower_mass=68.0,
                               rower_stature=1.70, coxswain_mass=68.0)
     assert RiverScene(boat).imagery() is not None
+
+
+# -- the bridges ----------------------------------------------------------
+
+def test_every_bridge_on_the_course_has_a_structure():
+    """A gate with no geometry falls back to a tube across the river."""
+    from coxswain.river import charles
+    from coxswain.river.bridges import deck_geometry
+    from coxswain.river.charts import CourseGeometry
+    geometry = CourseGeometry(channel=charles.charles_channel())
+    for gate, _distance in geometry.gates_on_course():
+        assert deck_geometry(gate.name) is not None, gate.name
+
+
+def test_the_concrete_arches_are_drawn_as_arches():
+    """River Street, Western Avenue and Larz Anderson are coded
+    *concrete / arch, deck* by the National Bridge Inventory, and Weeks
+    carries ``bridge:structure=arch`` in OpenStreetMap."""
+    from coxswain.river.bridges import deck_geometry
+    for name in ("River Street", "Western Avenue", "Larz Anderson",
+                 "Weeks Footbridge"):
+        assert deck_geometry(name)[0] == "arch", name
+
+
+def test_deck_geometry_is_a_plausible_bridge():
+    """Deck widths, heights and depths from NBI, sanity-bounded."""
+    from coxswain.river.bridges import DECK_GEOMETRY
+    for name, row in DECK_GEOMETRY.items():
+        form, width, level, depth, spans, max_span, camber, source = row
+        assert form in ("arch", "truss", "beam"), name
+        assert 4.0 < width < 40.0, name
+        assert 3.0 < level < 20.0, name
+        assert 0.5 < depth < 4.0, name
+        assert 1 <= spans <= 12, name
+        assert 10.0 < max_span < 120.0, name
+        assert 0.0 <= camber < 3.0, name
+        assert source, name
+
+
+def test_a_deck_is_wider_than_it_is_thick():
+    """The deck used to be a square-section tube of radius half the deck
+    width, so a 19 m bridge got a 19 m thick deck and buried its own
+    arches."""
+    from coxswain.boats import catalog
+    from coxswain.viz.river3d import RiverScene
+    boat = catalog.coxed_four(rate=30.0, rower_mass=68.0,
+                              rower_stature=1.70, coxswain_mass=68.0)
+    scene = RiverScene(boat)
+    deck = np.array([[0.0, 0.0], [40.0, 0.0]])
+    slab = scene._deck_slab(deck, (0.0, 0.0), 6.0, 9.35, 1.5)
+    assert slab is not None
+    bounds = slab.bounds
+    width = bounds[3] - bounds[2]
+    thickness = bounds[5] - bounds[4]
+    assert width > 15.0
+    assert thickness < 2.0
+
+
+# -- the Charles now carries what Seattle carries -------------------------
+
+def test_the_charles_structures_have_the_full_schema():
+    """Names, kinds, colours, materials, roof shapes and part bases --
+    every field the Seattle file has and the Charles file did not."""
+    blob = np.load(os.path.join(DATA, "charles_structures.npz"))
+    for key in ("building_name", "building_kind", "building_colour",
+                "building_material", "building_roof_shape",
+                "building_roof_height", "building_base", "water_xy",
+                "bridge_name"):
+        assert key in blob, key
+
+
+def test_the_weeks_turn_landmarks_are_named_and_measured(structures):
+    """Dunster, Leverett and Mather are what a coxswain steers the Weeks
+    turn by, and they had no names and one guessed height."""
+    names = np.asarray(structures.names, dtype=str)
+    wanted = ("Dunster House", "Leverett G Tower", "Mather House Tower")
+    for name in wanted:
+        found = np.nonzero(names == name)[0]
+        assert len(found), name
+        assert structures.heights[found[0]] > 20.0, name
+
+
+def test_some_buildings_are_drawn_from_their_parts():
+    """``building:part`` massing: 98 parts start above the ground."""
+    blob = np.load(os.path.join(DATA, "charles_structures.npz"))
+    assert (blob["building_base"] > 0).sum() > 40

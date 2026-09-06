@@ -47,6 +47,8 @@ _LINE = "#6b3fa0"
 _SKY_TOP = "#20344a"
 _SKY_HORIZON = "#9fb8c8"
 _WALL = "#8a8079"
+#: Poured concrete, for canal walls, walkways and bridge towers.
+_WALL_CONCRETE = "#9a9691"
 _ROOF = "#5f5a55"
 _CANOPY = "#4a6b45"
 
@@ -165,6 +167,10 @@ _SPANDREL_SPACING = 22.0
 #: new for the Historic American Engineering Record -- so there is no
 #: elevation photograph of it to trace and its form is taken from the
 #: tag alone.
+#: Bascules whose leaves are carried on a steel arch under the roadway.
+#: Both carry ``bridge:structure=arch`` in OpenStreetMap.
+_BASCULE_ARCH = ("Montlake Bridge", "University Bridge")
+
 _SPAN_FORM = {
     "LAKE UNION": "arch",              # OSM bridge:structure=arch
     "LAKE WASH SHIP CANAL": "truss",   # OSM bridge:structure=truss
@@ -201,6 +207,24 @@ _TREE_STYLE = {
     "columnar":  ("#3c5a3e", 0.11, 0.55),
     "palm":      ("#5a7a4a", 0.26, 0.88),
 }
+
+#: Bark.
+_TRUNK = "#4a3b2f"
+
+#: Draw a trunk only for trees nearer than this, m.
+#:
+#: A trunk is a metre wide and a crown is ten, so far enough out the
+#: trunk is a pixel behind a ball of leaves and the whole forest could be
+#: drawn without one being visible.  Close in it is the
+#: difference between a tree and a balloon -- on the Charles especially,
+#: where the bank is a row of big broadleaves a boat length away.  So
+#: trunks are drawn where they can be seen and skipped where they cannot,
+#: which is also where the tree count is largest: Lake Union puts 700
+#: crowns in frame and only a few dozen of them are this close.
+_TRUNK_REACH = 260.0
+#: Trunk radius as a fraction of tree height, and how far up the crown
+#: the trunk is carried.
+_TRUNK_RADIUS, _TRUNK_TOP = 0.022, 0.55
 
 #: A building this many metres tall is worth drawing at 1 m of distance.
 #:
@@ -712,11 +736,23 @@ class RiverScene(BoatScene):
                 continue
             deck = np.vstack([bridge.centre - bridge.axis * bridge.length / 2.0,
                               bridge.centre + bridge.axis * bridge.length / 2.0])
+            # A bascule is a **steel arch under a roadway**, not a slab.
+            # The Montlake and University bridges both carry
+            # ``bridge:structure=arch`` in OpenStreetMap, and from the
+            # water the arch under the leaves is the thing you see --
+            # with the concrete towers at each end of it, which come in
+            # with the canal walls.
+            form = "arch" if bridge.name in _BASCULE_ARCH else "beam"
+            # **One span, no mid-channel pier.**  A bascule's leaves meet
+            # over the middle of the waterway and there is nothing under
+            # them; dividing the deck by the federal main span put a pier
+            # in the centre of the Montlake Cut, exactly where the boats
+            # go.  The whole deck is one opening.
             pieces.extend(self._span_geometry(
                 deck, origin, float(record["deck_height"]),
                 float(record["structure_depth"]),
-                max(float(record["deck_width"]) / 2.0, 3.0), "beam",
-                bridge.length, arch_span=float(record["max_span"])))
+                max(float(record["deck_width"]) / 2.0, 3.0), form,
+                bridge.length, arch_span=bridge.length))
             drawn.add(bridge.name)
 
         if not pieces:
@@ -726,7 +762,8 @@ class RiverScene(BoatScene):
                          ambient=0.32, diffuse=0.72, specular=0.02)
 
     def _span_geometry(self, deck, origin, level, depth, half, form,
-                       length, arch_span=0.0):
+                       length, arch_span=0.0, camber=0.0,
+                       spandrel="open"):
         """Deck, structure and piers for one crossing.
 
         ``form`` is ``"arch"``, ``"truss"`` or ``"beam"``, and the three
@@ -749,15 +786,34 @@ class RiverScene(BoatScene):
         """
         pv = require_pyvista()
         pieces = []
+        deck = np.asarray(deck, dtype=float)
+        if camber > 0.0 and len(deck) == 2:
+            # A humped deck: resample the straight crossing and lift it
+            # to midspan.  Weeks rises about a metre over its length and
+            # a flat plank across the river does not look like it.
+            fraction = np.linspace(0.0, 1.0, 25)
+            deck = np.column_stack([
+                np.interp(fraction, [0.0, 1.0], deck[:, 0]),
+                np.interp(fraction, [0.0, 1.0], deck[:, 1])])
+            level = level + camber * (1.0 - (2.0 * fraction - 1.0) ** 2)
+        crest = float(np.max(level))
         shifted = np.column_stack([
             deck[:, 0] - origin[0], deck[:, 1] - origin[1],
-            np.full(len(deck), level)])
-        try:
-            pieces.append(pv.lines_from_points(shifted).tube(
-                radius=half, n_sides=4).extrude((0.0, 0.0, 2.0),
-                                                capping=True))
-        except Exception:
+            np.full(len(deck), crest)])
+        # The deck is a slab: as wide as the bridge and as thick as its
+        # structure.  It used to be a square-section tube of radius
+        # ``half`` -- so a 19 m bridge got a deck 19 m thick, which over
+        # the Charles, where the deck sits 5 m off the water, buried the
+        # arches under a block deeper than they were tall.  Aurora got
+        # away with it only because it is 41 m up.
+        slab = self._deck_slab(deck, origin, level, half,
+                               float(np.clip(depth, 0.6, 2.0)))
+        if slab is None:
             return pieces
+        pieces.append(slab)
+        # Everything below the deck is set out from the crossing's
+        # highest point, so a cambered deck still gets one set of arches.
+        level = crest
 
         station = np.concatenate([[0.0], np.cumsum(
             np.hypot(*np.diff(deck, axis=0).T))])
@@ -772,7 +828,12 @@ class RiverScene(BoatScene):
             except Exception:
                 return 0.0
 
-        if form == "beam" or depth <= 1.5:
+        # A shallow structure is a girder -- unless the record says it is
+        # an arch.  The Charles' concrete arches are 1.50 m deep at the
+        # deck by the federal record, which tripped this test and drew
+        # four arch bridges as girders on piers.  Depth decides only
+        # where the record has no opinion.
+        if form == "beam" or (form != "arch" and depth <= 1.5):
             pieces.extend(self._piers(at, origin, level, max(length / 8.0,
                                                              60.0), length))
             return pieces
@@ -780,7 +841,15 @@ class RiverScene(BoatScene):
         span = arch_span if arch_span > 20.0 else length
         count = max(int(round(length / span)), 1)
         span = length / count
-        member = max(0.05 * depth, 1.1)
+        # Sized off the span, not off a floor.
+        #
+        # ``max(0.05 * depth, 1.1)`` gave every member a 1.1 m radius --
+        # a 2.2 m thick rib on a 21 m arch.  Four of those plus their
+        # spandrel posts filled the space between the arches and the
+        # deck, so the only holes through the bridge were the arch
+        # openings themselves and the whole thing read as a roofed
+        # block.  A concrete arch rib is nearer a thirtieth of its span.
+        member = float(np.clip(0.030 * span, 0.35, 1.10))
 
         if form == "truss":
             # Parallel chords, constant depth, zig-zag web, tall piers.
@@ -830,17 +899,42 @@ class RiverScene(BoatScene):
             except Exception:
                 continue
 
-            step = _SPANDREL_SPACING / span
-            for u in np.arange(step, 1.0, step):
-                point = at(begin + u * span)
-                top = springing + rise * (1.0 - (2.0 * u - 1.0) ** 2)
-                if level - top < 1.5:
-                    continue
-                pieces.append(pv.Cylinder(
-                    center=(point[0] - origin[0], point[1] - origin[1],
-                            0.5 * (level + top)),
-                    direction=(0.0, 0.0, 1.0), radius=0.7 * member,
-                    height=level - top, resolution=5))
+            if spandrel == "closed":
+                # A **closed spandrel**: the haunches are filled solid,
+                # so the only holes through the bridge are the arches
+                # themselves.  That is what the Charles' concrete arches
+                # are -- Weeks, River Street, Western Avenue, Anderson --
+                # and drawing them with open columns let the far bank
+                # show through a bridge that is a solid wall of concrete.
+                # Aurora is the other kind and keeps its columns.
+                fraction = np.linspace(0.0, 1.0, 21)
+                line, lower = [], []
+                for u in fraction:
+                    point = at(begin + u * span)
+                    line.append(point)
+                    lower.append(springing
+                                 + rise * (1.0 - (2.0 * u - 1.0) ** 2))
+                line = np.asarray(line)
+                normal = np.array([-(line[-1] - line[0])[1],
+                                   (line[-1] - line[0])[0]])
+                normal /= max(float(np.linalg.norm(normal)), 1e-9)
+                wall = self._wall_slab(line + half * normal, origin,
+                                       np.asarray(lower), level,
+                                       -2.0 * half)
+                if wall is not None:
+                    pieces.append(wall)
+            else:
+                step = _SPANDREL_SPACING / span
+                for u in np.arange(step, 1.0, step):
+                    point = at(begin + u * span)
+                    top = springing + rise * (1.0 - (2.0 * u - 1.0) ** 2)
+                    if level - top < 1.5:
+                        continue
+                    pieces.append(pv.Cylinder(
+                        center=(point[0] - origin[0], point[1] - origin[1],
+                                0.5 * (level + top)),
+                        direction=(0.0, 0.0, 1.0), radius=0.45 * member,
+                        height=level - top, resolution=5))
 
             # The pier under the springing: short, because the arch
             # carries the load to the ground rather than the pier
@@ -856,6 +950,115 @@ class RiverScene(BoatScene):
                     direction=(0.0, 0.0, 1.0), radius=3.0,
                     height=springing - base, resolution=8))
         return pieces
+
+    def _wall_slab(self, line, origin, base, top, thickness):
+        """A vertical wall along ``line``, from ``base`` to ``top``."""
+        pv = require_pyvista()
+        line = np.asarray(line, dtype=float)[:, :2]
+        if len(line) < 2:
+            return None
+        low = (np.full(len(line), float(base)) if np.ndim(base) == 0
+               else np.asarray(base, dtype=float))
+        high = (np.full(len(line), float(top)) if np.ndim(top) == 0
+                else np.asarray(top, dtype=float))
+        points = np.vstack([
+            np.column_stack([line[:, 0] - origin[0], line[:, 1] - origin[1],
+                             low]),
+            np.column_stack([line[:, 0] - origin[0], line[:, 1] - origin[1],
+                             high])])
+        try:
+            grid = pv.StructuredGrid()
+            grid.points = points
+            grid.dimensions = (len(line), 2, 1)
+            step = np.gradient(line, axis=0)
+            normal = np.column_stack([-step[:, 1], step[:, 0]])
+            normal /= np.maximum(np.linalg.norm(normal, axis=1, keepdims=True),
+                                 1e-9)
+            direction = normal.mean(axis=0)
+            direction /= max(float(np.linalg.norm(direction)), 1e-9)
+            return grid.extract_surface().extrude(
+                (float(direction[0]) * thickness,
+                 float(direction[1]) * thickness, 0.0), capping=True)
+        except Exception:
+            return None
+
+    def canal_wall_actors(self, plotter, t: float):
+        """The Montlake Cut's walls, walkways and bridge towers.
+
+        The Cut is a **walled channel**, not a bank: concrete retaining
+        walls both sides with a path on top of each, and the bridge's
+        towers standing on the ends of them.  Bare-earth lidar with the
+        trees stripped off draws that as a grassy hillside, which is what
+        the scene showed -- a slot every crew on this course remembers,
+        rendered as a meadow.
+        """
+        pv = require_pyvista()
+        try:
+            from ..river.seattle import load_canal_walls
+            pieces = load_canal_walls()
+        except Exception:
+            return
+        if not pieces:
+            return
+        state = self.state_at(t)
+        origin = self._origin(state)
+        centre = np.asarray(state.position, dtype=float)[:2]
+
+        by_kind = {}
+        for kind, top, points in pieces:
+            if np.linalg.norm(points.mean(axis=0) - centre) > 900.0:
+                continue
+            if kind == "walkway":
+                piece = self._deck_slab(points, origin, top, 1.4, 0.25)
+            elif kind == "tower":
+                piece = self._wall_slab(points, origin, 0.0, top, 1.2)
+            else:
+                piece = self._wall_slab(points, origin, -1.0, top, 0.6)
+            if piece is not None and piece.n_points:
+                by_kind.setdefault(kind, []).append(piece)
+
+        for kind, parts in by_kind.items():
+            merged = parts[0].merge(parts[1:]) if len(parts) > 1 else parts[0]
+            plotter.add_mesh(merged, color=_WALL_CONCRETE,
+                             name="canal-%s" % kind, ambient=0.34,
+                             diffuse=0.70, specular=0.03)
+
+    def _deck_slab(self, deck, origin, level, half, thickness):
+        """A bridge deck as a flat slab: ``2 * half`` wide, ``thickness`` deep.
+
+        Built by offsetting the deck line either side along its own
+        normal and extruding the strip downward, so a curved deck stays
+        curved and a wide bridge does not become a tall one.
+        """
+        pv = require_pyvista()
+        line = np.asarray(deck, dtype=float)[:, :2]
+        if len(line) < 2:
+            return None
+        step = np.gradient(line, axis=0) if len(line) > 2 else np.repeat(
+            (line[-1] - line[0])[None, :], len(line), axis=0)
+        normal = np.column_stack([-step[:, 1], step[:, 0]])
+        normal /= np.maximum(np.linalg.norm(normal, axis=1, keepdims=True),
+                             1e-9)
+        left = line + half * normal
+        right = line - half * normal
+        # ``level`` may be one number or one per vertex: a cambered deck
+        # rises to midspan and Weeks is visibly humped.
+        height = (np.full(len(line), float(level))
+                  if np.ndim(level) == 0
+                  else np.asarray(level, dtype=float))
+        points = np.vstack([
+            np.column_stack([left[:, 0] - origin[0],
+                             left[:, 1] - origin[1], height]),
+            np.column_stack([right[:, 0] - origin[0],
+                             right[:, 1] - origin[1], height])])
+        try:
+            grid = pv.StructuredGrid()
+            grid.points = points
+            grid.dimensions = (len(line), 2, 1)
+            return grid.extract_surface().extrude(
+                (0.0, 0.0, -float(thickness)), capping=True)
+        except Exception:
+            return None
 
     def _piers(self, at, origin, top, spacing, length):
         """Columns from ``top`` down to whatever is under them."""
@@ -899,20 +1102,50 @@ class RiverScene(BoatScene):
             # as bridges.
             if np.linalg.norm(middle - centre) > 320.0:
                 continue
-            a = np.array([gate.start[0] - origin[0],
-                          gate.start[1] - origin[1], 3.6])
-            b = np.array([gate.end[0] - origin[0],
-                          gate.end[1] - origin[1], 3.6])
-            plotter.add_mesh(pv.Tube(pointa=a, pointb=b, radius=1.1), color=_DECK,
-                             name="deck-%s" % gate.name)
-            for index, pier in enumerate(gate.piers):
-                low, high = pier.interval
-                p = gate.point_at(0.5 * (low + high))
-                base = np.array([p[0] - origin[0], p[1] - origin[1], -1.0])
-                top = base + np.array([0.0, 0.0, 4.6])
-                plotter.add_mesh(pv.Tube(pointa=base, pointb=top, radius=1.7),
-                                 color=_PIER,
-                                 name="pier-%s-%d" % (gate.name, index))
+            # The structure, not a tube.
+            #
+            # Every bridge on this reach used to be one cylinder laid
+            # across the river at a flat 3.6 m with cylinders under it,
+            # whatever it was made of -- while the Aurora Bridge, 4,000
+            # km away, was drawn with arch ribs and spandrel posts off a
+            # HAER photograph.  Four of these are concrete deck arches
+            # in the federal record and one more in OpenStreetMap's, and
+            # they are drawn as arches now, to the deck width, deck
+            # height, structural depth and span count those records give
+            # (``coxswain.river.bridges.DECK_GEOMETRY``).
+            geometry = _bridges.deck_geometry(gate.name)
+            if geometry is not None:
+                (form, width, level, depth, _spans, max_span, camber,
+                 _source) = geometry
+                deck = np.array([gate.start, gate.end], dtype=float)
+                span_length = float(gate.span)
+                pieces = self._span_geometry(
+                    deck, origin, level, depth, max(width / 2.0, 2.0),
+                    form, span_length, arch_span=float(max_span),
+                    camber=float(camber),
+                    spandrel=_bridges.SPANDREL.get(gate.name, "closed"))
+                if pieces:
+                    merged = (pieces[0].merge(pieces[1:]) if len(pieces) > 1
+                              else pieces[0])
+                    plotter.add_mesh(merged, color=_DECK,
+                                     name="deck-%s" % gate.name,
+                                     ambient=0.32, diffuse=0.72,
+                                     specular=0.02)
+            else:
+                a = np.array([gate.start[0] - origin[0],
+                              gate.start[1] - origin[1], 3.6])
+                b = np.array([gate.end[0] - origin[0],
+                              gate.end[1] - origin[1], 3.6])
+                plotter.add_mesh(pv.Tube(pointa=a, pointb=b, radius=1.1),
+                                 color=_DECK, name="deck-%s" % gate.name)
+                for index, pier in enumerate(gate.piers):
+                    low, high = pier.interval
+                    p = gate.point_at(0.5 * (low + high))
+                    base = np.array([p[0] - origin[0], p[1] - origin[1], -1.0])
+                    top = base + np.array([0.0, 0.0, 4.6])
+                    plotter.add_mesh(
+                        pv.Tube(pointa=base, pointb=top, radius=1.7),
+                        color=_PIER, name="pier-%s-%d" % (gate.name, index))
             if self.channel is not None:
                 for arch in _bridges.bridge_arches(gate, self.channel):
                     low, high = arch.interval
@@ -1246,6 +1479,15 @@ class RiverScene(BoatScene):
                                           base + level * height),
                                   theta_resolution=10, phi_resolution=8)
             grouped.setdefault(form, []).append(crown)
+            if np.hypot(east - centre[0], north - centre[1]) < _TRUNK_REACH:
+                # Up into the crown, not merely to the bottom of it, so
+                # the join is hidden rather than floating under a ball.
+                trunk_top = base + _TRUNK_TOP * height
+                grouped.setdefault("trunk", []).append(pv.Cylinder(
+                    center=(east, north, 0.5 * (base + trunk_top)),
+                    direction=(0.0, 0.0, 1.0),
+                    radius=max(_TRUNK_RADIUS * height, 0.10),
+                    height=max(trunk_top - base, 0.5), resolution=7))
             del top
 
         for form, crowns in grouped.items():
@@ -1254,9 +1496,10 @@ class RiverScene(BoatScene):
             shifted = merged.copy()
             shifted.points = shifted.points - np.array(
                 [origin[0], origin[1], 0.0])
-            plotter.add_mesh(shifted,
-                             color=_TREE_STYLE.get(
-                                 form, _TREE_STYLE["broadleaf"])[0],
+            colour = (_TRUNK if form == "trunk"
+                      else _TREE_STYLE.get(form,
+                                           _TREE_STYLE["broadleaf"])[0])
+            plotter.add_mesh(shifted, color=colour,
                              name="trees-%s" % form,
                              ambient=0.35, diffuse=0.70, specular=0.0)
 
@@ -1463,6 +1706,7 @@ class RiverScene(BoatScene):
                                      specular=0.02)
             self.canopy_actors(plotter, t)
         self.obstruction_actors(plotter, t)
+        self.canal_wall_actors(plotter, t)
         self.bridge_actors(plotter, t)
         if self.show_skyline:
             self.span_actors(plotter, t)

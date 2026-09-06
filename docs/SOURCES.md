@@ -8909,3 +8909,119 @@ defaulted to the Charles all along. Imagery now defaults the same way,
 so the asymmetry cannot come back. And `scripts/render3d.py` drew no
 docks and no tree inventory; it now passes both, and drops the axis
 triad, which is noise in a coxswain's view.
+
+## 123. The bridges were tubes, and the Cut was a meadow
+
+A coxswain looked at the renders and named five things wrong, all of
+which were real, and none of which any test could have caught because
+every one is about what a structure *is*.
+
+**Every Charles bridge was one cylinder.** `bridge_actors` drew each
+gate as a tube laid across the river at a flat 3.6 m with tubes under
+it, whatever the bridge was made of -- while the Aurora Bridge, on the
+other coast, was drawn with arch ribs and spandrel posts traced off a
+HAER photograph (sec. 117). The machinery existed; the Charles simply
+never called it.
+
+They are drawn to the federal record now
+(`coxswain.river.bridges.DECK_GEOMETRY`, fetched by
+`tools/fetch_nbi_bridges.py --bounds 42.348 -71.145 42.379 -71.100`).
+NBI codes **River Street, Western Avenue and Larz Anderson as
+`concrete / arch, deck`** (item 43A/43B = 1/11), with deck widths
+18.3-19.3 m, deck heights 5.2-6.4 m and main spans 22.9-26.8 m.
+OpenStreetMap carries `bridge:material=concrete` and
+`bridge:structure=arch` on Anderson and on the **Weeks Footbridge**,
+which is pedestrian and therefore in no federal inventory at all -- so
+OSM is the only record of its form, and it agrees with every photograph.
+
+**Eliot disagrees with itself and is flagged.** NBI codes it 4/9,
+*steel continuous / truss, deck*; OSM has no structure tag; and a
+coxswain who rows under it reports concrete arches. Both can be true --
+NBI classifies the load path, not the facing. It is drawn as the federal
+record codes it, and the one-word edit is on the Eliot row of
+`DECK_GEOMETRY`.
+
+**A deck is a slab, not a log.** The deck came from
+`lines_from_points(...).tube(radius=half)`, a square section as deep as
+it was wide -- so a 19 m bridge got a 19 m thick deck. Aurora got away
+with it at 41 m up; over the Charles, where the deck sits 5 m off the
+water, it buried the arches under a block. Decks are now a slab of the
+bridge's own width and its structural depth.
+
+**The spandrels are closed.** Corrected by the user, twice, and worth
+recording in that order: the arch ribs were first drawn 2.2 m thick,
+which filled the haunches by accident; slimming them to a thirtieth of
+the span opened the haunch up -- and that was also wrong, because
+**every concrete arch on the Charles is a closed-spandrel bridge**. The
+haunch is a solid wall of concrete and the only holes through the bridge
+are the arches. `SPANDREL` says which is which; Aurora keeps its
+columns, which is why it looks the way it does from Lake Union.
+
+**Weeks is humped.** Its deck rises about 1.4 m to midspan, which is
+half of what makes it recognisable from the water, and it was drawn as a
+flat plank. `DECK_GEOMETRY` carries a camber column; the value is
+estimated from photographs and says so.
+
+**The Montlake Bridge is a bascule with towers.** It was a slab on
+piers. It is a **steel arch under the roadway** -- both it and the
+University Bridge carry `bridge:structure=arch` in OSM -- and dividing
+its deck by the federal main span put a **pier in the middle of the
+Cut, where the boats go**; a bascule's leaves meet over the waterway
+with nothing under them, so it is drawn as one clear span. Its two
+concrete towers are `man_made=tower` in OSM, one on each bank, and
+their 26 m height is the only invented number in
+`tools/extract_canal_walls.py`.
+
+**The Cut is a walled channel, not a bank.** Bare-earth lidar with the
+trees stripped off draws it as a grassy hillside, which is what the
+scene showed: a 50 m slot between concrete walls, rendered as a meadow.
+OpenStreetMap has both walls -- 590 m on the south side, 763 m on the
+north -- a row of concrete-surfaced footways on top of each, and the
+bridge's approach walls. No wall carries a height, so the top comes from
+the elevation model sampled **across** the wall rather than along it:
+sampled on the line itself, which is drawn at the water's edge, the two
+long walls came out 1.5 and 1.7 m tall, which is a kerb. Across, they
+are 3.4 and 2.0 m.
+
+**Trees needed trunks.** A crown without a trunk is a balloon, and on
+the Charles the bank is a row of big broadleaves a boat length away. A
+trunk is a metre wide against a ten metre crown, so past a few hundred
+metres it is a pixel behind a ball of leaves: trunks are drawn within
+`_TRUNK_REACH` (260 m) and skipped beyond it, which is also where the
+tree count is largest -- Lake Union puts 700 crowns in frame and only a
+few dozen are that close.
+
+## 124. Massing: what we use, and what is actually available
+
+**We do not use a massing model anywhere.** Every building on all three
+courses is a footprint extruded to one height, with two refinements:
+OpenStreetMap `building:part` polygons, which give a real stepped
+massing where they are mapped, and a per-part base height so a part can
+start above the ground -- that is what stopped the Space Needle being a
+cylinder (sec. 106). The Charles re-extract picked up **186 parts, 98 of
+them starting above the ground**, across the whole reach.
+
+**Near the Weeks turn, that is one building.** Of 418 buildings within
+500 m of the turn: 97 named, 6 with a material, 4 with a roof shape,
+**1 built from parts**. Harvard is not massed in OpenStreetMap, and
+Overture has 5 building parts over the same box and a facade colour for
+1 building in 406. So the shapes at the Weeks turn are extruded
+footprints and the colours come from the orthophoto, sampled as a median
+over each footprint -- which does pick up Harvard's red brick, because
+that is what the photograph sees, but it sees the roof and paints the
+walls with it.
+
+**What exists and was not used.** Cambridge publishes a citywide 3-D
+scene (`tiles.arcgis.com/.../3D_Active/SceneServer`, extent
+42.351-42.404 N, covering the whole north bank and Harvard). It is an
+I3S **integrated mesh** -- photogrammetric textured triangles, one
+continuous surface -- not per-building massing. It is the best Cambridge
+geometry there is and it is a different kind of object from anything in
+this renderer: it cannot be extruded, coloured by material, or asked how
+tall a building is. Using it means drawing a textured mesh beside the
+extruded scene and deciding which wins where they overlap. That is a
+real piece of work and it is not started.
+
+A Harvard-published massing or facade-colour dataset was searched for
+and not found openly; if HPRE distributes one, a pointer to it would be
+worth more than any amount of further searching.

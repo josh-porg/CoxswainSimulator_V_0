@@ -59,6 +59,7 @@ from .osm import stitch_rings as _stitch_rings
 __all__ = ["SEATTLE_ORIGIN", "water_path", "load_water", "water_mask",
            "nominal_depth", "lake_union_course", "TOTL_LENGTH",
            "load_obstructions", "rowable_mask", "CanalBridge",
+           "load_canal_walls",
            "canal_bridges", "bridge_gates"]
 
 #: Tangent-plane origin: the middle of Lake Union.
@@ -250,6 +251,31 @@ def load_obstructions(path: str = None):
         payload = json.load(handle)
     return tuple((item["kind"], np.asarray(item["points"], dtype=float))
                  for item in payload["obstructions"])
+
+
+def canal_wall_path() -> str:
+    return os.path.join(os.path.dirname(os.path.dirname(
+        os.path.dirname(os.path.abspath(__file__)))), "data",
+        "seattle_canal_walls.json")
+
+
+def load_canal_walls(path: str = None):
+    """The Cut's walls, walkways and bridge towers, in the local plane.
+
+    ``(kind, top, points)`` per piece, ``kind`` one of ``"wall"``,
+    ``"walkway"`` or ``"tower"``.  Empty if the layer has not been
+    extracted, so a caller gets the old picture rather than an exception.
+    """
+    import json
+
+    target = path or canal_wall_path()
+    if not os.path.exists(target):
+        return ()
+    with open(target, encoding="utf-8") as handle:
+        payload = json.load(handle)
+    return tuple((item["kind"], float(item["top"]),
+                  np.asarray(item["points"], dtype=float))
+                 for item in payload["pieces"])
 
 
 def rowable_mask(resolution: float = 10.0, names=("Lake Union",),

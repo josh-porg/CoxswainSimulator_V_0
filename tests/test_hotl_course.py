@@ -196,3 +196,37 @@ def test_the_orange_line_holds_through_the_cut():
     # The orange marks sit 10-24 m to port of the lane; less the 6 m
     # margin, no port limit in the Cut may exceed 20 m.
     assert course.port_limit[in_cut].max() < 20.0
+
+
+def test_the_montlake_cut_has_walls_and_towers():
+    """The Cut is a walled channel, not a bank.
+
+    Bare-earth lidar with the trees stripped draws it as a grassy
+    hillside, which is what the scene showed: a 50 m slot between
+    concrete walls, rendered as a meadow.
+    """
+    from coxswain.river.seattle import load_canal_walls
+    pieces = load_canal_walls()
+    assert pieces, "run tools/extract_canal_walls.py"
+    kinds = [k for k, _t, _p in pieces]
+    assert kinds.count("tower") == 2, "the bridge's two concrete towers"
+    walls = [(t, p) for k, t, p in pieces if k == "wall"]
+    assert len(walls) >= 4
+    # One long wall each side of the Cut, north and south of the water.
+    spans = [p[:, 1].mean() for _t, p in walls
+             if np.hypot(*np.diff(p, axis=0).T).sum() > 300.0]
+    assert len(spans) >= 2
+    assert min(spans) < 870.0 < max(spans)
+    assert all(1.0 <= t <= 8.0 for t, _p in walls)
+
+
+def test_the_bascule_has_no_pier_in_the_navigable_opening():
+    """A bascule's leaves meet over the middle of the waterway.
+
+    Dividing the deck by the federal main span put a pier in the centre
+    of the Cut, where the boats go.
+    """
+    from coxswain.river.seattle import canal_bridges
+    montlake = [b for b in canal_bridges() if b.name == "Montlake Bridge"][0]
+    runs = montlake.water_runs()
+    assert len(runs) == 1, "the opening is one clear span"

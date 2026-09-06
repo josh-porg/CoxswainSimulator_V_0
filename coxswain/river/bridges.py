@@ -422,6 +422,87 @@ MEASURED_PIERS = {
     ),
 }
 
+#: What each bridge on the reach is, as a structure a crew can see.
+#:
+#: ``(form, deck_width, deck_height, structure_depth, main_spans,
+#: max_span, camber, source)``
+#:
+#: ``camber`` is how far the deck rises to midspan.  Most of these are
+#: flat road bridges and carry zero; the **Weeks Footbridge is visibly
+#: humped**, which is half of what makes it recognisable from the water,
+#: and a flat plank across the river does not read as Weeks.
+#: -- form is ``"arch"``, ``"truss"`` or ``"beam"``, widths and heights in
+#: metres, deck height above the water.
+#:
+#: **Where the form comes from.**  The National Bridge Inventory codes
+#: item 43A material and 43B design, and for three of these it says
+#: plainly *concrete / arch, deck* (code 1/11): River Street, Western
+#: Avenue and Larz Anderson.  OpenStreetMap's ``man_made=bridge``
+#: outlines carry ``bridge:material=concrete`` and
+#: ``bridge:structure=arch`` for Anderson and for the **Weeks
+#: Footbridge**, which is a pedestrian bridge and therefore not in NBI at
+#: all -- so the only record of its form is OSM's, and it agrees with
+#: every photograph of it.  The Grand Junction is ``steel`` / ``truss``
+#: in OSM and a trestle in every photograph.
+#:
+#: **Eliot is the one that disagrees with itself.**  NBI codes it 4/9,
+#: *steel continuous / truss, deck*, and OSM has no structure tag on it.
+#: A coxswain who rows under it reports concrete arches, and the bridge
+#: does present arched openings faced in concrete.  Both can be true --
+#: NBI classifies the load path, not the facing -- and this project's
+#: rule since sec. 116 is to take the federal record where it speaks.
+#: It is drawn as NBI codes it and flagged here so the call is visible;
+#: changing ``"truss"`` to ``"arch"`` on the Eliot row is the whole edit
+#: if the facing is what should be drawn.
+#: ``max_span`` is NBI item 48, the longest span centre to centre, and it
+#: is what sets how many arches a crossing gets: dividing the bank-to-bank
+#: width by the main span count instead stretched three arches across the
+#: approaches too and drew Weeks as three 40 m scallops where it has
+#: three 20 m arches and a row of small approach openings.
+DECK_GEOMETRY = {
+    "River Street": ("arch", 18.7, 6.40, 1.50, 3, 22.9, 0.0,
+                     "NBI 2024 (1/11)"),
+    "Western Avenue": ("arch", 18.3, 5.20, 1.50, 3, 26.8, 0.0,
+                       "NBI 2024 (1/11)"),
+    "Larz Anderson": ("arch", 19.3, 5.20, 1.50, 3, 23.5, 0.0,
+                      "NBI 2024 (1/11); OSM concrete arch"),
+    "Eliot Bridge": ("truss", 26.2, 5.97, 1.67, 3, 33.5, 0.0,
+                     "NBI 2024 (4/9) -- see the note above"),
+    # Not in NBI: a footbridge and a railway.  Deck width and height are
+    # the modest values a 1926 concrete footbridge and a low steel
+    # trestle actually have; the forms are OSM's and are not in doubt.
+    "Weeks Footbridge": ("arch", 6.0, 5.60, 1.20, 3, 21.0, 1.40,
+                         "OSM bridge:structure=arch, material=concrete; "
+                         "camber estimated from photographs"),
+    "Grand Junction RR": ("truss", 8.0, 4.60, 1.60, 6, 18.0, 0.0,
+                          "OSM bridge:structure=truss, material=steel"),
+    "BU Bridge": ("truss", 18.0, 7.50, 2.20, 7, 51.8, 0.0,
+                  "NBI 2024; steel"),
+}
+
+
+#: Spandrel type: the haunch between the arch and the deck.
+#:
+#: A **closed** spandrel is filled solid, so the only holes through the
+#: bridge are the arches.  Every concrete arch on the Charles is that
+#: kind, and drawing them with open columns let the far bank show through
+#: what is a solid wall of concrete.  An **open** spandrel carries the
+#: deck on columns standing on the arch, which is the Aurora Bridge and
+#: is why it looks the way it does from Lake Union.
+SPANDREL = {
+    "River Street": "closed",
+    "Western Avenue": "closed",
+    "Larz Anderson": "closed",
+    "Weeks Footbridge": "closed",
+    "Eliot Bridge": "closed",
+}
+
+
+def deck_geometry(name):
+    """``DECK_GEOMETRY`` row for a gate, or ``None`` if it has none."""
+    return DECK_GEOMETRY.get(str(name))
+
+
 #: Which arch a Head of the Charles entry may use, by name.
 #:
 #: The regatta's rules are written as prohibitions and they are asymmetric.
