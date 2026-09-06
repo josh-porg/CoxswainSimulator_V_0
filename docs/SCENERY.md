@@ -26,9 +26,9 @@ and it needed no new renderer.
 To rebuild Seattle from nothing:
 
 ```bash
-python tools/fetch_dem.py --bounds 47.590 -122.375 47.670 -122.300 --out seattle_dem.npz --metres 2.7
-python tools/fetch_imagery.py --bounds 47.590 -122.375 47.670 -122.300 --out seattle_imagery.jpg
-python tools/extract_structures.py --bounds 47.590,-122.375,47.670,-122.300 --out seattle_structures.npz
+python tools/fetch_dem.py --bounds 47.590 -122.375 47.675 -122.265 --out seattle_dem.npz --metres 2.7
+python tools/fetch_imagery.py --bounds 47.590 -122.375 47.675 -122.265 --out seattle_imagery.jpg
+python tools/extract_structures.py --bounds 47.590,-122.375,47.675,-122.265 --out seattle_structures.npz
 python tools/fetch_seattle_buildings.py
 python tools/fetch_seattle_trees.py
 ```
@@ -43,7 +43,14 @@ Then:
 python scripts/render_totl3d.py --stills            # four frames from the cox's seat
 python scripts/render_totl3d.py --view cox          # the video
 python scripts/render_totl3d.py --no-imagery        # flat colour, for comparison
+python scripts/render_hotl3d.py --stills            # Head of the Lake: the Montlake Cut
+python scripts/render_hotl3d.py --from 3600 --to 4600 --stills   # the Big Turn and the flats
 ```
+
+The box is wider than Lake Union because Head of the Lake needs
+Portage Bay, the Cut and Union Bay (SOURCES secs. 118-119); the three
+bridges the course goes under come from `tools/fetch_nbi_bridges.py`
+and the OpenStreetMap outlines in `data/seattle_bridge_outlines.json`.
 
 ---
 

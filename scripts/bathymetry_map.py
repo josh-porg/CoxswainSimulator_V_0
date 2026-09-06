@@ -31,8 +31,9 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-SOURCES = ("NOAA sounding", "NOAA depth area", "USACE multibeam")
-COLOURS = ("#e0a33e", "#8a6b4a", "#2f7fb5")
+SOURCES = ("NOAA sounding", "NOAA depth area", "USACE multibeam",
+           "shore band, estimated")
+COLOURS = ("#e0a33e", "#8a6b4a", "#2f7fb5", "#b04a5a")
 
 
 def main(argv=None):
@@ -41,6 +42,9 @@ def main(argv=None):
         formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--out", default="out/bathymetry")
     parser.add_argument("--resolution", type=float, default=10.0)
+    parser.add_argument("--race", default="totl", choices=("totl", "hotl"),
+                        help="Lake Union and Tail of the Lake, or the whole "
+                             "ship canal and Head of the Lake")
     args = parser.parse_args(argv)
 
     import matplotlib
@@ -50,9 +54,14 @@ def main(argv=None):
     from scipy.spatial import cKDTree
 
     from coxswain.river.course import local_tangent_plane
-    from coxswain.river.seattle import (SEATTLE_ORIGIN, nominal_depth,
-                                        water_mask)
-    from render_totl import totl_course
+    from coxswain.river.seattle import (SEATTLE_ORIGIN, SHIP_CANAL,
+                                        nominal_depth, water_mask)
+    if args.race == "hotl":
+        from render_hotl import hotl_course as race_course
+        water_names = SHIP_CANAL
+    else:
+        from render_totl import totl_course as race_course
+        water_names = ("Lake Union",)
 
     os.makedirs(args.out, exist_ok=True)
     ink, panel = "#e6edf2", "#12181d"
@@ -67,10 +76,10 @@ def main(argv=None):
     source = blob["depth_source"].astype(int)
     print("%d depth values: %s"
           % (len(depth), ", ".join("%s %d" % (SOURCES[i], (source == i).sum())
-                                   for i in range(3) if (source == i).any())))
+                                   for i in range(4) if (source == i).any())))
 
     grid_east, grid_north, wet = water_mask(args.resolution,
-                                            names=("Lake Union",))
+                                            names=water_names)
     mesh_e, mesh_n = np.meshgrid(grid_east, grid_north)
     wet_points = np.column_stack([mesh_e[wet], mesh_n[wet]])
 
@@ -80,7 +89,7 @@ def main(argv=None):
     _gap, index = cKDTree(points).query(wet_points)
     which[wet] = source[index]
 
-    course = totl_course(args.resolution)
+    course = race_course(args.resolution)
     line = course.centreline
     station = np.concatenate([[0.0], np.cumsum(
         np.hypot(*np.diff(line, axis=0).T))])
@@ -153,8 +162,10 @@ def main(argv=None):
     axis.legend(fontsize=8, facecolor="#111a20", edgecolor="#2a3640",
                 labelcolor=ink)
 
-    figure.suptitle("Lake Union: %d surveyed depths, NOAA chart and USACE "
-                    "multibeam" % len(depth), color=ink, fontsize=13)
+    figure.suptitle("%s: %d surveyed depths, NOAA chart and USACE "
+                    "multibeam" % ("The ship canal" if args.race == "hotl"
+                                   else "Lake Union", len(depth)),
+                    color=ink, fontsize=13)
     figure.tight_layout()
     path = os.path.join(args.out, "bathymetry.png")
     figure.savefig(path, dpi=140, facecolor=panel)

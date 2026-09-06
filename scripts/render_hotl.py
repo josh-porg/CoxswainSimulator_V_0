@@ -124,6 +124,8 @@ def hotl_course(resolution: float = 10.0) -> Course:
     # navigation opening.
     half, port, starboard, crossings = bridge_gates(line, half, port,
                                                     starboard)
+    station = np.concatenate([[0.0], np.cumsum(
+        np.hypot(*np.diff(line, axis=0).T))])
     for bridge, at, _point, along in crossings:
         print("  under the %s at %.0f m: opening %.1f m, corridor +/-%.0f m"
               % (bridge.name, at, bridge.opening,

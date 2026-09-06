@@ -36,6 +36,17 @@ the conservative direction -- a shallower depth means a higher Froude
 number and a slower predicted boat, so any error from this choice makes
 the model pessimistic rather than flattering.
 
+Except for the shore band.  The shallowest areas run "from 0 to 1.8 m",
+and their lower bound is the shoreline, not a depth.  Placed at the
+centre of a polygon that is 700 m across -- the Union Bay flats, where
+Head of the Lake finishes -- a zero declared the whole finish leg
+aground: the course optimiser saw a 0.16 m bar in 1.5-2.1 m of charted
+water and steered round a shoal that does not exist.  A zero-bound area
+now contributes the shallowest sounding inside it, or half its upper
+bound if it holds none, and is marked as source 3 so the estimate can
+be told from the chart (2 is the USACE multibeam that
+``fetch_ehydro_bathymetry.py`` merges in afterwards).
+
 Datum
 -----
 Chart depths are below the sounding datum, which for the ship canal is
@@ -129,9 +140,15 @@ def main(argv=None):
                                  resultRecordCount=2000))
     areas = 0
     datums = set()
+    from matplotlib.path import Path
+    soundings_xy = np.array([(lon, lat) for lat, lon in points],
+                            dtype=float).reshape(-1, 2)
+    soundings_z = np.array(depths, dtype=float)
+    shore_bands = 0
     for feature in page.get("features", []):
         attributes = feature.get("attributes") or {}
         shallow = attributes.get("DRVAL1")
+        deep = attributes.get("DRVAL2")
         rings = (feature.get("geometry") or {}).get("rings") or []
         if shallow is None or not rings:
             continue
@@ -140,13 +157,31 @@ def main(argv=None):
             ring = np.asarray(ring, dtype=float)
             if len(ring) < 3:
                 continue
-            # The shallower bound, at the polygon's own centre.  See the
-            # module docstring: it is the conservative choice.
             centre = ring.mean(axis=0)
+            if float(shallow) > 0.0:
+                # The shallower bound, at the polygon's own centre.  See
+                # the module docstring: it is the conservative choice.
+                value, kind = float(shallow), 1
+            else:
+                # The shore band: its lower bound is the shoreline.  Use
+                # what the chart actually measured inside it, or half
+                # the upper bound if it measured nothing.
+                inside = (Path(ring).contains_points(soundings_xy)
+                          if len(soundings_xy) else np.zeros(0, bool))
+                if inside.any():
+                    value = float(soundings_z[inside].min())
+                elif deep is not None and float(deep) > 0.0:
+                    value = 0.5 * float(deep)
+                else:
+                    continue
+                kind = 3        # 2 is the USACE multibeam, merged later
+                shore_bands += 1
             points.append((centre[1], centre[0]))
-            depths.append(float(shallow))
-            source.append(1)                   # a depth-area bound
+            depths.append(value)
+            source.append(kind)
             areas += 1
+    print("  %d of them shore bands (0 to x m), given a measured or "
+          "estimated depth instead of the zero" % shore_bands)
     print("  %d depth areas; vertical datum codes seen: %s"
           % (areas, sorted(d for d in datums if d is not None) or "none"))
 

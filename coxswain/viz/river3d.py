@@ -485,9 +485,22 @@ class RiverScene(BoatScene):
 
         step = max(len(terrain.east) // self.SKYLINE_SAMPLES, 1)
         stride = max(len(terrain.north) // self.SKYLINE_SAMPLES, 1)
-        east = terrain.east[::step]
-        north = terrain.north[::stride]
-        elevation = terrain.elevation[::stride, ::step]
+        # Complete blocks only, so the sampled axes and the block grid
+        # agree in shape.
+        blocks_east = len(terrain.east) // step
+        blocks_north = len(terrain.north) // stride
+        east = terrain.east[:blocks_east * step:step]
+        north = terrain.north[:blocks_north * stride:stride]
+        # The block MINIMUM, not a point sample.  Sampled every 24 m,
+        # the Montlake Cut -- a 50 m slot between 10-18 m walls -- came
+        # out dammed: cells straddling wall and water stood across it,
+        # draped with the orthophoto's dark water, and from the boat the
+        # canal ahead ended in a wall.  The minimum keeps a slot at its
+        # floor and costs a ridge a few metres, which the near window
+        # redraws at full resolution anyway.
+        elevation = terrain.elevation[:blocks_north * stride,
+                                      :blocks_east * step].reshape(
+            blocks_north, stride, blocks_east, step).min(axis=(1, 3))
         grid_east, grid_north = np.meshgrid(east, north)
 
         wet = self.distant_water(east, north)
@@ -630,6 +643,34 @@ class RiverScene(BoatScene):
                 deck, origin, level, depth, half, form, length,
                 arch_span=float(record["max_span"])))
             drawn.add(joined[1])
+
+        # Bascule bridges from their outlines.  OpenStreetMap splits a
+        # movable bridge's highway way at the leaves, so the Montlake and
+        # University Bridges arrive as 7-51 m pieces and the length test
+        # above drops every one of them; the ``man_made=bridge`` outline
+        # is the whole deck.  Drawn as a slab on piers, which is what a
+        # bascule looks like from the water.
+        try:
+            from ..river.seattle import CANAL_BRIDGES, canal_bridges
+            outlined = canal_bridges()
+        except Exception:
+            outlined = []
+        for bridge in outlined:
+            if any(done.startswith(bridge.name) for done in drawn):
+                continue
+            record = records.get(CANAL_BRIDGES[bridge.name])
+            if record is None:
+                continue
+            if float(np.linalg.norm(bridge.centre - centre)) > self.SKYLINE_REACH:
+                continue
+            deck = np.vstack([bridge.centre - bridge.axis * bridge.length / 2.0,
+                              bridge.centre + bridge.axis * bridge.length / 2.0])
+            pieces.extend(self._span_geometry(
+                deck, origin, float(record["deck_height"]),
+                float(record["structure_depth"]),
+                max(float(record["deck_width"]) / 2.0, 3.0), "beam",
+                bridge.length, arch_span=float(record["max_span"])))
+            drawn.add(bridge.name)
 
         if not pieces:
             return

@@ -8651,3 +8651,93 @@ The lane is a schematic drawn tens of metres wide, not a track; it is
 the centreline the rules define, and the buoys are the constraints, as
 for Tail of the Lake. The map truncates Lake Union at its image edge,
 so the south lobe is not on it and had to be excluded from the overlap.
+
+## 119. Head of the Lake, modelled: four things the course found out about the code
+
+**Sources.** The traced course and buoys of sec. 118; the OpenStreetMap
+`man_made=bridge` outlines of the Ship Canal, University and Montlake
+Bridges (`data/seattle_bridge_outlines.json`, ODbL); the National
+Bridge Inventory records of sec. 116; the NOAA ENC and USACE eHydro
+depths of secs. 112-113; the regatta guide and course sheets
+(`data/raw/hotl/`). Scripts: `scripts/render_hotl.py`,
+`render_hotl3d.py`, and `--race hotl` on `bathymetry_map.py`,
+`lake_union_conditions.py` and `passing_race.py`.
+
+**The result.** As drawn, 4649 m in 1199.4 s for a women's veteran four
+at 3.9 m/s; optimised, 4502 m in 1161.3 s -- 38 s, none of it grounding.
+The corridor is pinched to +/-34 m under I-5, +/-10 m at the University
+Bridge (the Pocock Rowing Center docks bind harder than the arch) and
++/-19 m in the Montlake opening. 26 of the 43 marks on the map set a
+limit; the rest are the permanent pencil buoys in mid-Lake Union, the
+start chute, the finish gate, and a yellow pair beyond the orange line
+at the Pocock apex.
+
+Getting there took four corrections, each of which was wrong for Tail
+of the Lake too.
+
+**1. A line of buoys is a line.** The first run "saved" 322 s. Each buoy
+bound the corridor over 40 m either side of itself and nothing between,
+so with marks a hundred metres apart on the Big Turn the optimiser
+threaded between them -- a 10 s penalty per buoy, or a disqualification
+for two. `coxswain/river/buoys.py` now joins consecutive marks of one
+colour within 250 m along the course and interpolates the limit between
+them. Tail of the Lake re-run on it: 971.0 s as drawn, 948.1 optimised,
+22.9 s -- and two of its buoys are now reported as sitting on the wrong
+side of the drawn lane and ignored, where before they pinned the
+corridor to 2 m.
+
+**2. The zero was the shoreline, not a depth.** 285 s of that first
+saving was a grounding penalty. The chart tool placed each depth area's
+shallower bound at the polygon's centroid, and the shallowest band on
+the Union Bay flats is "0 to 1.8 m" and 700 m across; its zero, floored
+to the shell's draft, put a 0.16 m bar exactly where the finish leg
+crosses the polygon's centre, in water the chart's soundings put at
+1.5-2.1 m. A zero-bound area now contributes the shallowest sounding
+inside it, or half its upper bound if it holds none, marked as source 3
+so the estimate can be told from a measurement (207 of them).
+
+**3. The bridge openings are in the inventory, not the map.** Under the
+Montlake Bridge the OSM water is 46 m wide and the NBI navigation
+clearance 45.7 m -- the same number from two records nobody reconciled,
+and now a test. Under I-5 the lane crosses at the middle of the 150 m of
+water beneath the 168 m main span. Under the University Bridge the lane
+crosses 115 m south-west of the deck's centre; the regatta's rule is
+"racing through the wide arch, warm-up through the arch north of it",
+so the bascule is taken to be where the lane crosses it, which is also
+consistent with the bridge's longer northern approach. Where along that
+deck the 53.3 m opening actually sits is not in either record; the
+uncertainty is a few tens of metres.
+
+**4. The no-passing zones are not on the racing lane.** The black bars
+on the map -- along the north side of the Cut and round the Pocock turn
+-- are *warm-up* no-passing zones, for crews returning against the
+race. The racing rules are the penalty table: a missed buoy 10 s, two a
+disqualification; failure to yield or interference 60 s or exclusion;
+an unsafe pass or an illegal three-point turn, exclusion.
+
+**What the course itself says.** The last 600 m, from the Big Turn to
+the Conibear finish, cross the Union Bay flats in 3 m falling to 1.6 m:
+a depth Froude number of 0.7 rising to 0.99 at the line for a four at
+3.9 m/s. It is the only stretch of either Seattle course near the
+transcritical rise, and it is the sprint. The wind analysis on the
+canal finds the trees taking 6-12% off a 10 m/s wind at chest height
+(4-7% on Lake Union: the Arboretum and the campus are more wooded than
+Eastlake), the longest fetch 1031 m from the west, and the deep-water
+chop relations failing on the flats for a 14 m/s wind, where the
+waves are depth-limited and the model's H_s is an upper bound -- a
+sentence the script used to print the other way round regardless of
+its own table.
+
+**Passing on the flats.** The two-boat study of sec. 79, run on this
+course, finds the river-side question a wash: with the flats 300 m
+wide, port and starboard at 3.5 m off the line differ by under 0.5%,
+against 9% and more on the Charles. What the flats do instead is slow
+everyone: the power model that holds 4.38 m/s over the first 3.8 km
+gives 3.83 at station 4449. A pass begun there is begun at the slowest
+point on the course, by both crews.
+
+**Length.** The trace is 4710 m to the FINISH banner and 4649 m after
+resampling and a 61 m smoothing window; the regatta says 3 miles, 4828
+m. The 2.5% is what chaining dash centroids round two turns does; the
+further 1.3% is the smoothing cutting the same corners. Both are short,
+not long, which was the sign in sec. 118 that the scale was right.

@@ -1,6 +1,12 @@
-r"""Wind and chop over Lake Union, re-run on the surveyed data.
+r"""Wind and chop over the ship canal, re-run on the surveyed data.
 
     python scripts/lake_union_conditions.py --out out/conditions
+    python scripts/lake_union_conditions.py --race hotl --out out/hotl_conditions
+
+``--race totl`` (the default) is Tail of the Lake on Lake Union;
+``--race hotl`` is Head of the Lake through Portage Bay, the Montlake
+Cut and Union Bay, on the same machinery with the canal's water, docks,
+buildings and trees in place of the lake's.
 
 Both analyses were built before the data underneath them was any good,
 and both are re-run here to see what the new data actually changed --
@@ -80,13 +86,22 @@ def main(argv=None):
         formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--out", default="out/conditions")
     parser.add_argument("--speed", type=float, default=3.9)
+    parser.add_argument("--race", default="totl", choices=("totl", "hotl"))
     args = parser.parse_args(argv)
 
     os.makedirs(args.out, exist_ok=True)
-    from render_totl import totl_course
-
-    course = totl_course()
-    channel = lake_union_channel()
+    if args.race == "hotl":
+        from coxswain.river.seattle import SHIP_CANAL, ship_canal_channel
+        from render_hotl import hotl_course
+        course = hotl_course()
+        channel = ship_canal_channel()
+        water_names = SHIP_CANAL
+    else:
+        from render_totl import totl_course
+        course = totl_course()
+        channel = lake_union_channel()
+        water_names = ("Lake Union",)
+    print("%s: %.0f m" % (course.name, course.length))
     structures = seattle_structures()
     trees = seattle_trees()
     boat = catalog.coxed_four(rate=30.0, rower_mass=68.0,
@@ -116,7 +131,7 @@ def main(argv=None):
     print("=" * 68)
 
     # Fetch along the course, for the worst direction.
-    mask = water_mask(10.0, names=("Lake Union",))
+    mask = water_mask(10.0, names=water_names)
     stations = np.linspace(0.0, course.length, 24)
     fetches = {}
     for bearing in BEARINGS:
@@ -158,8 +173,18 @@ def main(argv=None):
     print("  Deep-water waves need h > L/2.  The shallowest water under the")
     print("  racing line is %.1f m and the longest wave here is %.1f m, so"
           % (depths.min(), max(r[3] for r in rows)))
-    print("  the JONSWAP relations are being used inside their range --")
-    print("  which is now a checked statement rather than an assumption.")
+    failing = [r[0] for r in rows if not r[5]]
+    if not failing:
+        print("  the JONSWAP relations are being used inside their range --")
+        print("  which is now a checked statement rather than an assumption.")
+    else:
+        shallow = float(np.mean(depths < 0.5 * max(r[3] for r in rows)))
+        print("  the deep-water relations FAIL there for winds of %s m/s."
+              % ", ".join("%.0f" % w for w in failing))
+        print("  That is %.0f%% of the line, the shallow stretch; over it the"
+              % (100.0 * shallow))
+        print("  waves are depth-limited and the H_s below is an upper bound,")
+        print("  not an estimate.  Everywhere else the relations hold.")
 
     print()
     print("  %-6s %10s %12s %12s" % ("wind", "H_s open", "added drag",

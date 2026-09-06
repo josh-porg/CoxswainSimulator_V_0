@@ -16,10 +16,11 @@ and piers, and a racing line is optimised down it under the regatta's own
 rules and the crew's anaerobic budget — then steered by the full 6-DOF
 boat to check the line is one anybody could actually row.
 
-It races on more than one water. Tail of the Lake on Lake Union runs
-through the same optimiser and the same renderer as the Charles, with
-Seattle's elevation, imagery, docks and 53,710 lidar-measured buildings
-passed in where the Charles' are the default. What the 3-D scene draws
+It races on more than one water. Tail of the Lake on Lake Union and
+Head of the Lake -- through Portage Bay, the Montlake Cut and Union Bay
+-- run through the same optimiser and the same renderer as the Charles,
+with Seattle's elevation, imagery, docks, bridges and 81,022
+lidar-measured buildings passed in where the Charles' are the default. What the 3-D scene draws
 and where every layer comes from — with its licence, its units, and the
 three ways it failed silently first — is in
 **[docs/SCENERY.md](docs/SCENERY.md)**.

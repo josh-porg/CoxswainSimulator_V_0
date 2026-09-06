@@ -1,6 +1,15 @@
 r"""What the passing rules cost, once yielding actually slows you down.
 
     python scripts/passing_race.py --boat 4+
+    python scripts/passing_race.py --race hotl
+
+``--race hotl`` runs the same two-boat study on Head of the Lake, where
+the question has a sharper edge: the last 600 m cross the Union Bay
+flats in 1.6-3 m of water, at a depth Froude number of 0.7-1.0 for a
+four at race pace.  Being sent off the line there is not the same as
+being sent off it in the Cut, and the "which side" table below says by
+how much.  The penalty table is the regatta's: failure to yield or
+interference, 60 s, then exclusion.
 
 `coxswain/river/passing.py` implements the rulebook as a state machine and
 `scripts/two_boat.py` prices a wake. Neither, alone, can answer the
@@ -89,7 +98,7 @@ def with_wake(speed, wake, track, gap_of):
 
 
 def race(course, boat, drag, interval, gap_speed, leader_line, chaser_line,
-         chaser_gain, compliance=1.0, dt=1.0, seed=0):
+         chaser_gain, compliance=1.0, dt=1.0, seed=0, rules=None):
     """One two-boat race. Returns the log and both entries."""
     speed = river_speed(course, boat, drag)
     wake = PuddleWake(drag=drag(gap_speed), speed=gap_speed,
@@ -121,7 +130,7 @@ def race(course, boat, drag, interval, gap_speed, leader_line, chaser_line,
     chaser.speed_fn = chaser_speed
 
     event = HeadRace([leader, chaser], length=course.length,
-                     rules=PassingRules(boat_length=boat.length),
+                     rules=rules or PassingRules(boat_length=boat.length),
                      compliance=compliance, seed=seed)
     log = event.run(dt=dt, limit=6000.0)
     return event, log, leader, chaser
@@ -137,16 +146,28 @@ def main(argv=None):
     parser.add_argument("--gain", type=float, default=0.03,
                         help="how much faster you are, as a fraction")
     parser.add_argument("--dt", type=float, default=1.0)
+    parser.add_argument("--race", default="charles",
+                        choices=("charles", "hotl"))
     args = parser.parse_args(argv)
     if args.rate is None:
         args.rate = 30.0 if args.boat == "4+" else 32.0
 
     boat = build_boat(args.boat, args.rate)
     drag = hull_drag(boat)
-    course = charles_course()
-    nominal = 3.895 if args.boat == "4+" else 4.490
+    if args.race == "hotl":
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from render_hotl import SPEED, hotl_course
+        course = hotl_course()
+        nominal = SPEED if args.boat == "4+" else 4.49
+        # Head of the Lake: 60 s for failing to yield or for interference,
+        # exclusion after that; no exemption at the start.
+        rules = PassingRules(boat_length=boat.length, penalties=(60.0,))
+    else:
+        course = charles_course()
+        nominal = 3.895 if args.boat == "4+" else 4.490
+        rules = PassingRules(boat_length=boat.length)
 
-    print("Two boats on the surveyed reach, %s" % args.boat)
+    print("Two boats on %s, %s" % (course.name, args.boat))
     print("  they start %.0f s ahead; you are %.1f%% faster"
           % (args.interval, 100 * args.gain))
     print("  yielding moves a crew %.1f m off its line, and the river is"
@@ -164,7 +185,7 @@ def main(argv=None):
     for label, leader_line, chaser_line in cases:
         event, log, leader, chaser = race(
             course, boat, drag, args.interval, nominal,
-            leader_line, chaser_line, args.gain, dt=args.dt)
+            leader_line, chaser_line, args.gain, dt=args.dt, rules=rules)
         yields = len(log.of_kind("yield"))
         their_time = (leader.finished if leader.finished is not None
                       else float("nan"))
@@ -189,7 +210,12 @@ def main(argv=None):
     speed = river_speed(course, boat, drag)
     print("  %-10s %9s %9s %9s   %s"
           % ("station", "centre", "port 3.5", "stbd 3.5", "better side"))
-    for station in np.linspace(500.0, course.length - 500.0, 10):
+    stations = np.linspace(500.0, course.length - 500.0, 10)
+    if args.race == "hotl":
+        # The flats: the last 600 m, station by station.
+        stations = np.concatenate([stations[:-2], np.arange(
+            course.length - 600.0, course.length - 49.0, 100.0)])
+    for station in stations:
         centre = speed(station, 0.0)
         port = speed(station, +3.5)
         starboard = speed(station, -3.5)
