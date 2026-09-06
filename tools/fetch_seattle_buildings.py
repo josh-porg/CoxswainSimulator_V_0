@@ -262,6 +262,44 @@ def main(argv=None):
     rings = [r for r, keep in zip(rings, good) if keep]
     heights = heights[good]
 
+    # Where OpenStreetMap has a massing model, the lidar outline of the
+    # same thing must go.
+    #
+    # Lidar sees a building from above, so what it reports for the Space
+    # Needle is a 42 m disc at 162 m -- the saucer, viewed from the sky.
+    # Extruded from the ground that is a 42 m cylinder 162 m tall, and it
+    # sits exactly on top of the twelve ``building:part`` pieces that
+    # describe the real shape.  ``extract_structures`` already drops an
+    # OSM outline once its parts are drawn; this does the same for the
+    # lidar one, by throwing away any outline whose centre falls inside
+    # a part that stands above the ground.
+    from matplotlib.path import Path as _Path
+
+    lifted = np.nonzero(blob["building_base"] > 0.5)[0]
+    if len(lifted):
+        offsets = blob["building_offsets"]
+        xy = blob["building_xy"]
+        centres = np.array([r.mean(axis=0) for r in rings])
+        drop = np.zeros(len(rings), dtype=bool)
+        for index in lifted:
+            ring = xy[offsets[index]:offsets[index + 1]]
+            if len(ring) < 3:
+                continue
+            low, high = ring.min(axis=0), ring.max(axis=0)
+            near = np.nonzero(~drop
+                              & (centres[:, 0] >= low[0])
+                              & (centres[:, 0] <= high[0])
+                              & (centres[:, 1] >= low[1])
+                              & (centres[:, 1] <= high[1]))[0]
+            if not len(near):
+                continue
+            drop[near[_Path(ring).contains_points(centres[near])]] = True
+        if drop.any():
+            print("  dropping %d lidar outlines that sit on a massing model"
+                  % int(drop.sum()))
+            rings = [r for r, bad in zip(rings, drop) if not bad]
+            heights = heights[~drop]
+
     (kind, name, material, colour, matched, base, roof_shape,
      roof_height) = attributes_from_osm(rings, blob, heights)
 

@@ -88,7 +88,22 @@ def load_envelope(shell: str = "four"):
     Per shell class: the band edges, the spectrum against stroke phase,
     the phases at which **events** happen, and the spectrum of the bed
     between them -- all recovered by :mod:`tools.dmd_stroke` from real
-    recordings, with no voice notch, by phase-locked DMD.
+    recordings, with no voice notch, by phase-locked DMD, and **pooled
+    over every recording of that shell** by
+    :mod:`tools.build_stroke_envelope`: 14 outings for the four, 3 for
+    the eight, at rates from 18 to 40 spm.
+
+    Pooling changed the answer, which is the argument for it.  A single
+    outing of the four put its events at phases 0.00, 0.50 and 0.88;
+    across fourteen the consensus is 0.00, 0.12 and 0.50, so two of the
+    three phases fitted from one recording were that morning's and not
+    the boat's.
+
+    The third event is the weak one and is left in knowingly: across the
+    fourteen fours it lands anywhere from 0.50 to 0.98, a spread of
+    0.17, where the first two agree in almost every recording.  Read the
+    catch and the second event as measured, and the third as a
+    placeholder for something that is not yet resolved.
 
     A four and an eight are different boats to listen to and both are
     stored.  The eight is far brighter (980-1237 Hz at -13.9 dB against

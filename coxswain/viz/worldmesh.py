@@ -35,7 +35,7 @@ from typing import List, Optional
 import numpy as np
 
 __all__ = ["MeshPart", "WorldMesh", "land_mesh", "water_plane",
-           "building_walls", "skyline_walls", "roof_rise", "photo_colour", "ribbon", "line_markers", "buoy_solids",
+           "building_walls", "skyline_walls", "roof_rise", "outlines_over_massing", "photo_colour", "ribbon", "line_markers", "buoy_solids",
            "hull_solid", "tree_solids", "arch_bridge", "cut_walls",
            "dock_solids", "bridge_solids",
            "box_solid", "build_world"]
@@ -293,6 +293,55 @@ def _ridge(ring, top, rise):
             along, centre)
 
 
+def outlines_over_massing(polygons, heights, bases):
+    """Ground plans of buildings whose real shape is their parts.
+
+    ``extract_structures`` drops an outline once **two or more** parts
+    stand inside it, and draws the parts instead.  An outline with only
+    one is kept and merely *raised* to that part's height -- which for
+    the Space Needle leaves its 42 m ground plan extruded from the water
+    to 162 m, a cylinder standing over the twelve pieces that describe
+    the actual tower.  A shaft that starts slender and turns into a
+    massive cylinder is that outline, seen from a boat.
+
+    So: a grounded outline that contains a lifted part and reaches the
+    same height as it is not a building, it is the footprint of one that
+    has already been modelled properly.  Returns the indices to skip.
+    """
+    bases = (np.zeros(len(polygons)) if bases is None
+             else np.asarray(bases, dtype=float))
+    heights = np.asarray(heights, dtype=float)
+    lifted = np.nonzero(bases > 0.5)[0]
+    if not len(lifted):
+        return set()
+    from matplotlib.path import Path
+
+    centres = np.array([np.asarray(polygons[i], dtype=float).mean(axis=0)
+                        for i in lifted])
+    tops = heights[lifted]
+    drop = set()
+    for index, polygon in enumerate(polygons):
+        if bases[index] > 0.5 or heights[index] < 12.0:
+            continue
+        ring = np.asarray(polygon, dtype=float)
+        if len(ring) < 3:
+            continue
+        low, high = ring.min(axis=0), ring.max(axis=0)
+        near = np.nonzero((centres[:, 0] >= low[0]) & (centres[:, 0] <= high[0])
+                          & (centres[:, 1] >= low[1])
+                          & (centres[:, 1] <= high[1]))[0]
+        if not len(near):
+            continue
+        inside = near[Path(ring).contains_points(centres[near])]
+        if not len(inside):
+            continue
+        # Raised to a part's height: within a tenth of one of them.
+        if np.any(np.abs(tops[inside] - heights[index])
+                  < 0.10 * max(heights[index], 1.0)):
+            drop.add(index)
+    return drop
+
+
 def building_walls(polygons, heights, bases=None, box=None,
                    colour=(0.42, 0.41, 0.40), imagery=None,
                    near=None, min_height: float = 2.0, roofs=None,
@@ -317,6 +366,10 @@ def building_walls(polygons, heights, bases=None, box=None,
     behind them -- so the ones nearest the water are the ones that have
     to be there.
     """
+    skip = outlines_over_massing(polygons, heights, bases)
+    if skip:
+        print("   %d ground plans dropped in favour of their massing"
+              % len(skip))
     order = range(len(polygons))
     if near is not None and len(polygons) > limit:
         centres = np.array([np.asarray(p, dtype=float).mean(axis=0)
@@ -329,6 +382,8 @@ def building_walls(polygons, heights, bases=None, box=None,
     walls, tints, kept = [], [], 0
     base_colour = np.asarray(colour, dtype=float)
     for index in order:
+        if index in skip:
+            continue
         polygon = polygons[index]
         if kept >= limit:
             break
