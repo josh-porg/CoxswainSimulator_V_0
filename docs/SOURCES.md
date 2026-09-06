@@ -9080,3 +9080,75 @@ to touch yaw stability starts from the measurement.
 **The trainer does not cancel it.** `scripts/trainer.py` leaves the bias
 in and makes the player hold the trim, because a trainer that quietly
 straightened the boat would be teaching a boat that does not exist.
+
+## 120. The Charles brought up to the Seattle standard
+
+The two Seattle courses had been given a scenery pipeline the Charles --
+the course this project started on -- never got. This closes that, and
+the gap turned out to be narrower in some places and wider in others
+than expected.
+
+**What the Charles was missing.** Its `charles_structures.npz` carried
+three arrays: footprints, heights, and canopy. Seattle's carried
+seventeen. Re-running `tools/extract_structures.py` over
+`42.348,-71.145,42.379,-71.100` brings the reach up to the same schema
+-- kind, name, material, roof shape, roof height, `building:part` base,
+scenery water and named bridge decks -- for **9,631 buildings, 653 of
+them named**. The named ones are the point: Leverett G Tower at 34.8 m,
+Mather House Tower at 29.7 m and Dunster House at 24.6 m, all within
+250 m of the Weeks Footbridge, are what a coxswain actually steers that
+turn by.
+
+**What it was not missing.** Two things I assumed were gaps and were
+not. `charles_imagery.jpg` already existed, so the reach has had a
+draped orthophoto all along. And the depth is **already surveyed** --
+`data/charles_isobaths.csv` holds 12,164 vertices of 1-foot contours
+from a side-scan survey of the racing reach, processed in ReefMaster
+and corrected for transducer depth. That is better provenance than
+Lake Union's, which is a chart plus a federal dredging survey; nothing
+here needed the treatment secs. 112-113 gave Seattle.
+
+**The bridges were the real gap.** They were drawn as a tube across the
+gate with marker posts at the arch edges -- and River Street, Western
+Avenue and Larz Anderson are *concrete arch, deck* in the National
+Bridge Inventory (item 43A/43B code 1/11), while the Weeks Footbridge is
+`bridge:structure=arch` with `bridge:material=concrete` in
+OpenStreetMap and is not in NBI at all, being a footbridge.
+`tools/fetch_nbi_bridges.py` over the reach gives deck widths of
+18.3-26.2 m, structure depths of 1.5-1.7 m and deck heights of
+5.2-6.4 m, and `DECK_GEOMETRY` records the form and its source for each.
+They are now built as what they are from the water: **a wall with
+arch-shaped openings**, a spandrel face whose lower edge follows a
+semi-elliptical intrados, with a closed soffit, piers to the waterline
+and a parapet.
+
+**Eliot disagrees with itself and is left disagreeing.** NBI codes it
+4/9, *steel continuous / truss, deck*; a coxswain who rows under it
+reports concrete arches, and it does present arched faces. Both can be
+true, because NBI classifies the load path and not the facing. It is
+drawn as the inventory codes it, flagged in `DECK_GEOMETRY`, and one
+word changes it.
+
+**Colour has no source and one usable proxy.** Of 9,631 buildings on the
+reach, **11** carry an OpenStreetMap `building:colour` and 28 a
+material; Overture is no better, with one facade colour in the 406
+buildings around the Weeks turn. So building colour comes from the
+orthophoto, as it does in Seattle: the median over the footprint,
+clamped into a lightness band so a dark roof cannot paint a black wall.
+The honest caveat is that an orthophoto is a picture of **roofs**, and
+Harvard's houses are slate over red brick -- so they come out
+grey-green, which is their roofs and not their walls. Getting brick
+would need a facade source nobody publishes.
+
+**Three geometry bugs, all the same bug.** A face wound the wrong way is
+culled, and the only symptom is that something is not there. The
+foredeck was built as a triangle fan from a hub on the centreline; on a
+hull 13 m long and 0.5 m wide every triangle came out a sliver from one
+screen point, and the two covering the deck under the camera had a
+vertex behind the near plane. The deck was in the buffer and not on the
+screen -- and with no cockpit floor you saw the river straight through
+the hull. It is a strip across the boat now, `hull_solid` **asserts**
+that every deck and floor triangle faces up, and the bridge builder
+takes the direction a face should look as an argument rather than
+inferring it from vertex order.
+

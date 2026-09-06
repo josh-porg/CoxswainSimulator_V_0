@@ -35,8 +35,8 @@ from typing import List, Optional
 import numpy as np
 
 __all__ = ["MeshPart", "WorldMesh", "land_mesh", "water_plane",
-           "building_walls", "ribbon", "line_markers", "buoy_solids",
-           "hull_solid", "tree_solids",
+           "building_walls", "photo_colour", "ribbon", "line_markers", "buoy_solids",
+           "hull_solid", "tree_solids", "arch_bridge", "cut_walls",
            "dock_solids", "bridge_solids",
            "box_solid", "build_world"]
 
@@ -152,16 +152,75 @@ def water_plane(centre, reach: float = 3000.0,
 
 # -- things standing on it ------------------------------------------------
 
+#: Keep a sampled colour inside this lightness band.  An orthophoto over
+#: a footprint can come back near-black (a slate roof in shadow) or
+#: near-white (a bright membrane), and either one, painted on a wall,
+#: reads as a hole rather than a building -- a bug Seattle hit first.
+PHOTO_RANGE = (0.30, 0.74)
+#: Cap on saturation, for the same reason: a photo pixel over a green
+#: roof should not give a green building.
+MAX_SATURATION = 0.34
+
+
+def photo_colour(imagery, ring, fallback):
+    """Colour of one footprint, sampled from the orthophoto.
+
+    An orthophoto is a picture taken from directly overhead, so what it
+    gives is the *roof*.  From a coxswain's seat you see walls, never
+    roofs -- but a building's roof and its walls are far more alike than
+    either is to a flat grey default, and this is the only per-building
+    colour available: of 9,631 buildings on the Charles reach exactly
+    **11** carry an OpenStreetMap ``building:colour``.  So the roof
+    colour is used for the walls, clamped so it cannot go black, white
+    or lurid, and that is what makes Dunster and the Leverett towers
+    read as brick at the Weeks turn instead of as grey blocks.
+    """
+    if imagery is None:
+        return fallback
+    centre = ring.mean(axis=0)
+    # The centroid plus the vertices drawn in towards it, so the samples
+    # land on the building and not on the street beside it.
+    probes = np.vstack([centre[None, :], centre + 0.55 * (ring - centre)])
+    try:
+        pixels = np.asarray(imagery.sample(probes[:, 0], probes[:, 1]),
+                            dtype=float)
+    except Exception:
+        return fallback
+    if pixels.ndim == 1:
+        pixels = pixels[None, :]
+    pixels = pixels[np.isfinite(pixels).all(axis=1)]
+    if not len(pixels):
+        return fallback
+    colour = np.median(pixels, axis=0)
+    if colour.max() > 1.5:                     # 0-255 imagery
+        colour = colour / 255.0
+    light = float(colour.mean())
+    if light < 1e-6:
+        return fallback
+    low, high = PHOTO_RANGE
+    colour = colour * (min(max(light, low), high) / light)
+    grey = float(colour.mean())
+    spread = float(colour.max() - colour.min())
+    if spread > MAX_SATURATION:
+        colour = grey + (colour - grey) * (MAX_SATURATION / spread)
+    return np.clip(colour, 0.0, 1.0)
+
+
 def building_walls(polygons, heights, bases=None, box=None,
-                   colour=(0.42, 0.41, 0.40),
+                   colour=(0.42, 0.41, 0.40), imagery=None,
                    limit: int = 4000) -> Optional[MeshPart]:
-    """Extruded footprints -- **walls only**.
+    """Extruded footprints -- **walls only**, coloured from the orthophoto.
 
     From 0.55 m off the water you never see a roof, so the top faces are
     not emitted: it halves the triangle count and changes nothing you can
     see from the seat.
+
+    ``imagery`` is an :class:`~coxswain.river.terrain.Imagery`; when it is
+    given each building takes its own colour from the photograph (see
+    :func:`photo_colour`), which is what turns the Harvard houses from
+    grey blocks into the landmarks a crew steers the Weeks turn by.
     """
-    walls, kept = [], 0
+    walls, tints, kept = [], [], 0
     base_colour = np.asarray(colour, dtype=float)
     for index, polygon in enumerate(polygons):
         if kept >= limit:
@@ -178,18 +237,20 @@ def building_walls(polygons, heights, bases=None, box=None,
             continue
         low = float(bases[index]) if bases is not None else 0.0
         nxt = np.roll(ring, -1, axis=0)
+        tint = photo_colour(imagery, ring, base_colour)
         for start, end in zip(ring, nxt):
             walls.append([[start[0], start[1], low], [end[0], end[1], low],
                           [end[0], end[1], top]])
             walls.append([[start[0], start[1], low], [end[0], end[1], top],
                           [start[0], start[1], top]])
+            tints.extend([tint] * 6)
         kept += 1
     if not walls:
         return None
     vertices = np.asarray(walls, dtype="f4").reshape(-1, 3)
-    # Faint per-building variation so a terrace is not one flat slab.
-    shade = 0.85 + 0.3 * ((np.arange(len(vertices)) // 6) % 7) / 7.0
-    colours = (base_colour[None, :] * shade[:, None]).astype("f4")
+    # Faint per-face variation so a long facade is not one flat slab.
+    shade = 0.88 + 0.24 * ((np.arange(len(vertices)) // 6) % 7) / 7.0
+    colours = (np.asarray(tints, dtype=float) * shade[:, None]).astype("f4")
     return MeshPart("buildings", vertices, colours, _face_normals(vertices))
 
 
@@ -279,37 +340,56 @@ def hull_solid(boat, deck: float = 0.30, colour=(0.88, 0.89, 0.86),
         top_b = [b[0], b[1], deck]
         faces += [[low_a, low_b, top_b], [low_a, top_b, top_a]]
         shades += [colour] * 6
-    # The foredeck, and a floor under the opening.
+    # The foredeck and the cockpit floor, as **strips across the boat**.
     #
-    # Only about two feet ahead of a coxswain's face is open -- enough
-    # for shoulders -- and the rest of the bow is decked over.  Decking
-    # the *whole* shell put a surface directly under the eye and filled a
-    # third of the screen with the inside of the boat; leaving the
-    # opening as a hole was worse, because with no floor you saw the
-    # river straight through the hull.  So: decking from ``cockpit``
-    # ahead of the seat, and a floor across the gap.
+    # These were fans from a hub on the centreline, and a fan is the
+    # wrong primitive for a shape 13 m long and 0.5 m wide: the hub sat
+    # 1.3 m ahead of the eye, every triangle came out a sliver radiating
+    # from one screen point, and the two nearest ones -- the ones that
+    # should cover the deck directly under the camera -- had a vertex
+    # behind the near plane and were culled.  The deck was in the buffer
+    # and not on the screen.
+    #
+    # A strip between the port and starboard edges cannot do that.  The
+    # rungs are explicit, the winding is written down rather than
+    # inherited from a convex hull, and the assertion below holds it:
+    # every deck and floor triangle faces up.
     seat_x = float(boat.rig.coxswain_position[0]) + float(cockpit)
-    bow = float(ring[:, 0].max())
-    hub = [0.5 * (seat_x + bow), centre[1], deck]
-    for a, b in zip(ring, nxt):
-        if a[0] < seat_x and b[0] < seat_x:
-            continue
-        faces.append([hub, [a[0], a[1], deck], [b[0], b[1], deck]])
-        shades += [deck_colour] * 3
-    # The cockpit floor: the inside of the boat, not the river.
-    inside = ring[ring[:, 0] <= seat_x + 0.05]
-    if len(inside) >= 3:
-        hub_in = [float(inside[:, 0].mean()), centre[1], float(floor)]
-        order_in = np.argsort(np.arctan2(inside[:, 1] - centre[1],
-                                         inside[:, 0] - hub_in[0]))
-        inside = inside[order_in]
-        for a, b in zip(inside, np.roll(inside, -1, axis=0)):
-            faces.append([hub_in, [a[0], a[1], floor], [b[0], b[1], floor]])
-            shades += [(0.22, 0.23, 0.24)] * 3
+    bow, stern = float(ring[:, 0].max()), float(ring[:, 0].min())
+
+    def edges_at(x):
+        """``(y_port, y_starboard)`` of the hull at station ``x``."""
+        near = ring[np.abs(ring[:, 0] - x) < 1.2]
+        if len(near) < 2:
+            near = ring[np.argsort(np.abs(ring[:, 0] - x))[:4]]
+        return float(near[:, 1].min()), float(near[:, 1].max())
+
+    def strip(x0, x1, height, shade):
+        stations = np.linspace(x0, x1, 14)
+        for xa, xb in zip(stations[:-1], stations[1:]):
+            pa, sa = edges_at(xa)
+            pb, sb = edges_at(xb)
+            # Counter-clockwise seen from above, so the normal is +z and
+            # the deck survives back-face culling: aft-starboard,
+            # forward-starboard, forward-port, aft-port.
+            faces.append([[xa, pa, height], [xb, pb, height],
+                          [xb, sb, height]])
+            faces.append([[xa, pa, height], [xb, sb, height],
+                          [xa, sa, height]])
+            shades.extend([shade] * 6)
+
+    strip(seat_x, bow, deck, deck_colour)
+    strip(stern, seat_x, float(floor), (0.22, 0.23, 0.24))
 
     vertices = np.asarray(faces, dtype="f4").reshape(-1, 3)
     colours = np.asarray(shades, dtype="f4")
-    return MeshPart("hull", vertices, colours, _face_normals(vertices))
+    normals = _face_normals(vertices)
+    flat = np.abs(normals[:, 2]) > 0.9
+    if flat.any() and normals[flat, 2].min() <= 0.0:
+        raise AssertionError(
+            "deck or floor triangles wound face-down: they would be "
+            "culled and the coxswain would see the river through the boat")
+    return MeshPart("hull", vertices, colours, normals)
 
 
 def line_markers(points, spacing: float = 30.0, height: float = 0.55,
@@ -427,6 +507,75 @@ def tree_solids(stand, box, limit: int = 5000, near=None,
     return MeshPart("trees", vertices, colours, _face_normals(vertices))
 
 
+#: Height of the Montlake Cut's walls above the water, m, and the width
+#: of the walkway behind them.
+WALL_HEIGHT = 2.6
+WALKWAY = 4.0
+
+
+def cut_walls(terrain=None, colour=(0.66, 0.65, 0.62),
+              walk=(0.55, 0.54, 0.51)) -> Optional[MeshPart]:
+    """The Montlake Cut: concrete walls and a walkway on both banks.
+
+    The Cut is not a shoreline, it is a **channel cut through a
+    hill and walled in concrete**, with a pedestrian path along each
+    side -- and from a boat that is the whole visual character of the
+    place: a 50 m slot between two hard vertical edges.  Drawn from the
+    water polygon's own boundary, so the wall stands exactly where the
+    mapped waterline is, rather than from the fourteen sparse
+    ``barrier=wall`` ways OpenStreetMap happens to carry there.
+
+    Where a bank rises above the wall the terrain mesh takes over behind
+    it; the wall is only ever the hard edge at the water.
+    """
+    try:
+        from ..river.seattle import load_water
+    except Exception:
+        return None
+    rings = []
+    _origin, bodies = load_water()
+    for name, ring in bodies:
+        if str(name) != "Montlake Cut":
+            continue
+        ring = np.asarray(ring, dtype=float)
+        if len(ring) >= 4:
+            rings.append(ring)
+    if not rings:
+        return None
+
+    faces, shades = [], []
+    for ring in rings:
+        nxt = np.roll(ring, -1, axis=0)
+        centre = ring.mean(axis=0)
+        for a, b in zip(ring, nxt):
+            span = float(np.hypot(*(b - a)))
+            if span < 0.5 or span > 120.0:
+                continue
+            along = (b - a) / span
+            normal = np.array([-along[1], along[0]])
+            # Point the walkway away from the water.
+            if float(np.dot(normal, 0.5 * (a + b) - centre)) < 0.0:
+                normal = -normal
+            top = WALL_HEIGHT
+            # The wall face, looking back over the water.
+            _quad(faces, shades,
+                  [a[0], a[1], 0.0], [b[0], b[1], 0.0],
+                  [b[0], b[1], top], [a[0], a[1], top],
+                  np.array([-normal[0], -normal[1], 0.0]), colour)
+            # The walkway on top of it.
+            c = b + normal * WALKWAY
+            d = a + normal * WALKWAY
+            _quad(faces, shades,
+                  [a[0], a[1], top], [b[0], b[1], top],
+                  [c[0], c[1], top], [d[0], d[1], top],
+                  np.array([0.0, 0.0, 1.0]), walk)
+    if not faces:
+        return None
+    vertices = np.asarray(faces, dtype="f4").reshape(-1, 3)
+    colours = np.asarray(shades, dtype="f4")
+    return MeshPart("cut walls", vertices, colours, _face_normals(vertices))
+
+
 def dock_solids(polylines, height: float = 0.9,
                 width: float = 1.6) -> Optional[MeshPart]:
     """Boathouse floats and piers as low kerbs on the water.
@@ -455,6 +604,130 @@ def dock_solids(polylines, height: float = 0.9,
     return MeshPart("docks", vertices, colours, _face_normals(vertices))
 
 
+def _quad(faces, shades, p0, p1, p2, p3, want, colour):
+    """Two triangles for a quad, wound so the normal points along ``want``.
+
+    Winding is the thing that goes wrong silently in this file: a face
+    wound the wrong way is culled and simply is not there, and the only
+    symptom is a hole in a picture.  Rather than reason about vertex
+    order at every call site -- which has already produced a foredeck
+    that existed in the buffer and not on the screen -- the direction the
+    face should look is passed in and the order is derived from it.
+    """
+    normal = np.cross(np.asarray(p1) - np.asarray(p0),
+                      np.asarray(p2) - np.asarray(p0))
+    if float(np.dot(normal, want)) < 0.0:
+        p0, p1, p2, p3 = p0, p3, p2, p1
+    faces.append([p0, p1, p2])
+    faces.append([p0, p2, p3])
+    shades.extend([colour] * 6)
+
+
+#: Height of the arch springing as a fraction of the deck height, and
+#: how much of the span each pier occupies.
+SPRINGING = 0.12
+PIER_FRACTION = 0.13
+
+
+def arch_bridge(start, end, width: float, level: float, depth: float,
+                spans: int, colour=(0.72, 0.71, 0.67),
+                pier_colour=(0.58, 0.57, 0.54), samples: int = 13):
+    """A concrete deck-arch bridge, as one sees it from a boat.
+
+    River Street, Western Avenue, Larz Anderson and the Weeks Footbridge
+    are all *concrete arch, deck* -- NBI item 43A/43B code 1/11 for the
+    three that are in the inventory, and OpenStreetMap
+    ``bridge:structure=arch`` with ``bridge:material=concrete`` for
+    Weeks, which is a footbridge and therefore is not (see
+    ``DECK_GEOMETRY`` in :mod:`coxswain.river.bridges`).
+
+    From the water such a bridge is **a wall with arch-shaped holes in
+    it**, and that is how it is built here: the spandrel face is a run of
+    vertical strips whose bottom edge follows the intrados, so the
+    openings are cut by the geometry rather than modelled as separate
+    ribs.  The soffit closes the underside, which is the surface a crew
+    actually passes beneath and looks up at.
+    """
+    start = np.asarray(start, dtype=float)[:2]
+    end = np.asarray(end, dtype=float)[:2]
+    length = float(np.hypot(*(end - start)))
+    if length < 1.0:
+        return None
+    along = (end - start) / length
+    across = np.array([-along[1], along[0]])
+    half = 0.5 * float(width)
+    springing = max(SPRINGING * level, 0.4)
+    crown = max(level - depth, springing + 0.8)
+    rise = crown - springing
+    spans = max(int(spans), 1)
+    arch = length / spans
+
+    def point(distance, side, height):
+        xy = start + along * distance + across * (side * half)
+        return [float(xy[0]), float(xy[1]), float(height)]
+
+    def intrados(distance):
+        """Height of the underside of the arch at ``distance`` along."""
+        u = (distance % arch) / arch
+        # A semi-ellipse: vertical at the springing, flat at the crown,
+        # which is what a segmental concrete arch looks like.  A parabola
+        # leans out of the pier and reads as a culvert.
+        return springing + rise * float(np.sqrt(max(0.0,
+                                                    1.0 - (2.0 * u - 1.0) ** 2)))
+
+    faces, shades = [], []
+    stations = np.linspace(0.0, length, spans * samples + 1)
+    for a, b in zip(stations[:-1], stations[1:]):
+        za, zb = intrados(a), intrados(b)
+        for side in (1.0, -1.0):
+            want = np.array([across[0] * side, across[1] * side, 0.0])
+            _quad(faces, shades,
+                  point(a, side, za), point(b, side, zb),
+                  point(b, side, level), point(a, side, level),
+                  want, colour)
+        # The soffit, closing the two faces underneath.
+        _quad(faces, shades,
+              point(a, 1.0, za), point(b, 1.0, zb),
+              point(b, -1.0, zb), point(a, -1.0, za),
+              np.array([0.0, 0.0, -1.0]), colour)
+
+    # Piers: the solid between the springing and the water, at each
+    # junction between arches and at the abutments.
+    for index in range(spans + 1):
+        centre = index * arch
+        thick = PIER_FRACTION * arch
+        a = max(centre - 0.5 * thick, 0.0)
+        b = min(centre + 0.5 * thick, length)
+        for side in (1.0, -1.0):
+            want = np.array([across[0] * side, across[1] * side, 0.0])
+            _quad(faces, shades,
+                  point(a, side, 0.0), point(b, side, 0.0),
+                  point(b, side, springing + 0.15),
+                  point(a, side, springing + 0.15), want, pier_colour)
+        for at, want in ((a, -along), (b, along)):
+            _quad(faces, shades,
+                  point(at, 1.0, 0.0), point(at, -1.0, 0.0),
+                  point(at, -1.0, springing + 0.15),
+                  point(at, 1.0, springing + 0.15),
+                  np.array([want[0], want[1], 0.0]), pier_colour)
+
+    # The deck slab and its parapets.
+    for side in (1.0, -1.0):
+        want = np.array([across[0] * side, across[1] * side, 0.0])
+        _quad(faces, shades,
+              point(0.0, side, level), point(length, side, level),
+              point(length, side, level + 1.0),
+              point(0.0, side, level + 1.0), want, (0.80, 0.79, 0.75))
+    _quad(faces, shades,
+          point(0.0, 1.0, level + 1.0), point(length, 1.0, level + 1.0),
+          point(length, -1.0, level + 1.0), point(0.0, -1.0, level + 1.0),
+          np.array([0.0, 0.0, 1.0]), (0.34, 0.34, 0.33))
+
+    vertices = np.asarray(faces, dtype="f4").reshape(-1, 3)
+    colours = np.asarray(shades, dtype="f4")
+    return MeshPart("bridge", vertices, colours, _face_normals(vertices))
+
+
 def bridge_solids(race: str, scene) -> Optional[MeshPart]:
     """Decks and piers for the bridges a course goes under.
 
@@ -474,13 +747,20 @@ def bridge_solids(race: str, scene) -> Optional[MeshPart]:
             row = deck_geometry(gate.name)
             if row is None:
                 continue
-            _form, width, level, depth, _spans, _span, _camber, _src = row
+            form, width, level, depth, spans, _span, _camber, _src = row
             start = np.asarray(gate.start, dtype=float)
             end = np.asarray(gate.end, dtype=float)
+            if form == "arch":
+                built = arch_bridge(start, end, width, level, depth, spans)
+                if built is not None:
+                    parts.append(built)
+                continue
             middle = 0.5 * (start + end)
             span = float(np.hypot(*(end - start)))
             along = (end - start) / max(span, 1e-9)
-            # Deck: a slab across the river, plus a pier at each third.
+            # Not an arch: a slab across the river, plus a pier at each
+            # third.  Eliot is NBI 4/9, a steel deck truss, and the
+            # Grand Junction is a steel trestle.
             parts.append(_slab(middle, along, span, width, level, depth))
             for fraction in (0.33, 0.67):
                 foot = start + (end - start) * fraction
@@ -575,8 +855,19 @@ def build_world(race: str = "charles", reach: float = 900.0,
     mesh.add(water_plane(course.mean(axis=0)))
     mesh.add(land_mesh(terrain, wet_at, box, step=step))
     if with_buildings:
+        photo = None
+        try:
+            if race == "charles":
+                from ..river.terrain import charles_imagery as _photo
+            else:
+                from ..river.terrain import seattle_imagery as _photo
+            photo = _photo()
+        except Exception as error:            # pragma: no cover
+            print("   (no imagery, buildings stay grey: %s)"
+                  % str(error)[:60])
         mesh.add(building_walls(structures.polygons, structures.heights,
-                                getattr(structures, "base", None), box=box))
+                                getattr(structures, "base", None), box=box,
+                                imagery=photo))
     docks = scene.layer("docks")
     if docks is not None:
         mesh.add(dock_solids(docks.polylines))
@@ -589,6 +880,8 @@ def build_world(race: str = "charles", reach: float = 900.0,
             mesh.add(tree_solids(tree_stand(), box, near=course))
         except Exception as error:            # pragma: no cover
             print("   (no trees: %s)" % str(error)[:60])
+    if race != "charles":
+        mesh.add(cut_walls())
     mesh.add(bridge_solids(race, scene))
     mesh.add(buoy_solids(scene.buoys))
     if guide:
