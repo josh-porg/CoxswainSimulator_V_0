@@ -228,9 +228,14 @@ def photo_colour(imagery, ring, fallback):
     return np.clip(colour, 0.0, 1.0)
 
 
+#: OSM roof shapes that come to a ridge or a point, by the integer code
+#: ``extract_structures.py`` writes.  Everything else is drawn flat.
+PITCHED = (2, 3, 4, 5, 6, 8, 9)
+
+
 def building_walls(polygons, heights, bases=None, box=None,
                    colour=(0.42, 0.41, 0.40), imagery=None,
-                   near=None, min_height: float = 2.0,
+                   near=None, min_height: float = 2.0, roofs=None,
                    limit: int = 12000) -> Optional[MeshPart]:
     """Extruded footprints -- **walls only**, coloured from the orthophoto.
 
@@ -290,6 +295,13 @@ def building_walls(polygons, heights, bases=None, box=None,
         if top < min_height:
             continue
         low = float(bases[index]) if bases is not None else 0.0
+        if low >= top - 0.3:
+            # An inverted part: the Space Needle has one piece tagged with
+            # a min_height above its own height, and extruding it gives a
+            # box of negative depth whose faces come out inside-out.  Drop
+            # the base rather than the piece; a solid prism in the right
+            # place beats a degenerate one.
+            low = 0.0
         nxt = np.roll(ring, -1, axis=0)
         tint = photo_colour(imagery, ring, base_colour)
         for start, end in zip(ring, nxt):
@@ -298,6 +310,33 @@ def building_walls(polygons, heights, bases=None, box=None,
             walls.append([[start[0], start[1], low], [end[0], end[1], top],
                           [start[0], start[1], top]])
             tints.extend([tint] * 6)
+
+        # A roof, because a building without one is an open box.
+        #
+        # The walls used to be the whole model, on the argument that from
+        # 0.55 m off the water you never see a roof.  That is true of a
+        # building on the far bank and false of one up a hillside, which
+        # is most of Seattle: looking up at an open box you see straight
+        # through the near wall into the inside of the far one.  Flat
+        # unless the tags say otherwise.
+        centre = ring.mean(axis=0)
+        pitch = 0.0
+        if roofs is not None:
+            shape = int(roofs[0][index]) if roofs[0] is not None else 0
+            rise = float(roofs[1][index]) if roofs[1] is not None else 0.0
+            if shape in PITCHED and rise <= 0.0:
+                # Tagged as pitched with no height given: a sixth of the
+                # footprint's smaller side is an ordinary domestic pitch.
+                span = min(ring[:, 0].max() - ring[:, 0].min(),
+                           ring[:, 1].max() - ring[:, 1].min())
+                rise = min(0.17 * span, 4.0)
+            pitch = rise if shape in PITCHED else 0.0
+        apex = [centre[0], centre[1], top + pitch]
+        roof_tint = tuple(min(1.0, c * 1.06) for c in np.atleast_1d(tint))
+        for start, end in zip(ring, nxt):
+            _quad(walls, tints, [start[0], start[1], top],
+                  [end[0], end[1], top], apex, apex,
+                  np.array([0.0, 0.0, 1.0]), roof_tint)
         kept += 1
     if not walls:
         return None
@@ -503,13 +542,18 @@ def buoy_solids(buoys, height: float = 0.45,
     return MeshPart("buoys", vertices, colours, _face_normals(vertices))
 
 
+#: Trees closer to the course than this get the full model; beyond it,
+#: a crossed pair of quads.  Ninety metres is about where the eight
+#: facets of a crown stop being distinguishable from four.
+SOLID_WITHIN = 90.0
+
 #: Crown colours by growth form, in the order ``TreeStand.FORMS`` uses.
 CROWN = ((0.24, 0.34, 0.20), (0.16, 0.26, 0.18), (0.20, 0.31, 0.20),
          (0.30, 0.40, 0.24))
 TRUNK = (0.26, 0.20, 0.15)
 
 
-def tree_solids(stand, box, limit: int = 25000, near=None,
+def tree_solids(stand, box, limit: int = 80000, near=None,
                 min_height: float = 3.0) -> Optional[MeshPart]:
     """Trees as a trunk and a low-poly crown.
 
@@ -518,15 +562,17 @@ def tree_solids(stand, box, limit: int = 25000, near=None,
     Charles and 742,517 on Lake Union, so they are ranked by height and
     by distance from the course, and capped.
 
-    **The cap is 25,000, and impostors were measured and rejected.**  A
+    **The cap is 80,000, and it is the impostors that pay for it.**  A
     crown is eight triangles and a trunk twelve, so every tree on the
-    Charles reach comes to 478,860 triangles and 1.3 s of build -- in a
-    scene that already renders 682,000 without complaint on an Intel
-    UHD.  Swapping distant trees for crossed billboard quads would cut
-    that five-fold, but there is nothing to spend the saving on: the
-    reach only *has* 24,392 trees and they all fit.  Lake Union, with
-    thirty times as many, is where an impostor would earn its keep, and
-    there the ranking already keeps the drawn ones near the course.
+    Charles reach comes to 478,860 triangles -- and the reach only *has*
+    24,392, so there they all fit as full models.
+
+    Lake Union has 742,517, and there the hills read as bare with a cap
+    that only covers the near bank.  Measured on that course the mix
+    comes out at **4.0 triangles a tree**, because almost everything
+    beyond the built-up shoreline is further than
+    :data:`SOLID_WITHIN` from the water: 80,000 trees cost 320,656
+    triangles, which is what 16,000 solid ones used to.
 
     ``near`` is an optional ``(n, 2)`` line -- the course -- used to
     prefer the trees a crew can actually see over the ones on the hill
@@ -541,21 +587,73 @@ def tree_solids(stand, box, limit: int = 25000, near=None,
     index = np.nonzero(keep)[0]
     if not len(index):
         return None
-    if near is not None and len(index) > limit:
+    gap = None
+    if near is not None:
         from scipy.spatial import cKDTree
 
         gap = cKDTree(np.asarray(near, dtype=float)).query(points[index])[0]
-        # Tall and close beats tall and far, the same rule the 3-D scene
-        # uses for which trees are worth drawing at all.
-        index = index[np.argsort(-heights[index] / np.maximum(gap, 5.0))]
+        if len(index) > limit:
+            # Tall and close beats tall and far, the same rule the 3-D
+            # scene uses for which trees are worth drawing at all.
+            order = np.argsort(-heights[index] / np.maximum(gap, 5.0))
+            index, gap = index[order], gap[order]
     index = index[:limit]
+    if gap is not None:
+        gap = gap[:limit]
+
+    # Two levels of detail, split by distance from the **course**, not
+    # from the camera, because the mesh is built once and uploaded once.
+    # A tree near the line is a trunk and an eight-facet crown; a far one
+    # is a crossed pair of quads -- four triangles against twenty.  That
+    # is what pays for the draw distance on Lake Union, where there are
+    # 742,517 trees and the hills read as bare without them.
+    solid = (np.ones(len(index), dtype=bool) if gap is None
+             else gap <= SOLID_WITHIN)
 
     faces, shades = [], []
-    for i in index:
+    for slot, i in enumerate(index):
         x, y = points[i]
         height = float(heights[i])
         form = int(forms[i]) if i < len(forms) else 0
         crown_colour = CROWN[form % len(CROWN)]
+        if not solid[slot]:
+            # An impostor, and it has to have a **silhouette**.
+            #
+            # The first version was two crossed rectangles, which from
+            # the water looked exactly like what it was: green slabs
+            # standing on a hillside.  What makes a distant tree read as
+            # a tree is its outline -- a conifer is a triangle, a
+            # broadleaf a rounded mass on a stem -- so the impostor is
+            # cut to that shape instead.  Same two triangles a plane, no
+            # more cost, and it stops being a billboard.
+            spread = (0.17 if form == 1 else 0.30) * height
+            # Both forms reach the ground.  A crown drawn from 42% of the
+            # height up, with no stem under it, hangs in the air -- a row
+            # of green lozenges floating over the bank, which is what the
+            # first attempt looked like.  Tapering to a point at the foot
+            # implies the trunk for nothing.
+            foot = 0.0
+            for dx, dy in ((spread, 0.0), (0.0, spread)):
+                if form == 1:
+                    # Conifer: a spire, wide at the foot and pointed.
+                    faces.append(np.asarray(
+                        [[x - dx, y - dy, foot], [x + dx, y + dy, foot],
+                         [x, y, height]], dtype="f4"))
+                    shades.append(np.tile(
+                        np.asarray(crown_colour, dtype="f4"), (3, 1)))
+                else:
+                    # Broadleaf: a diamond crown carried on a stem, so
+                    # the outline narrows top and bottom.
+                    waist = 0.62 * height
+                    faces.append(np.asarray(
+                        [[x, y, foot], [x + dx, y + dy, waist],
+                         [x, y, height]], dtype="f4"))
+                    faces.append(np.asarray(
+                        [[x, y, foot], [x, y, height],
+                         [x - dx, y - dy, waist]], dtype="f4"))
+                    shades.append(np.tile(
+                        np.asarray(crown_colour, dtype="f4"), (6, 1)))
+            continue
         # Trunk: a square post up to the crown.
         stem = 0.40 * height
         radius = max(0.018 * height, 0.05)
@@ -578,6 +676,9 @@ def tree_solids(stand, box, limit: int = 25000, near=None,
         faces.append(np.asarray(crown, dtype="f4").reshape(-1, 3))
         shades.append(np.tile(np.asarray(crown_colour, dtype="f4"),
                               (len(crown) * 3, 1)))
+    if not faces:
+        return None
+    faces = [np.asarray(f, dtype="f4").reshape(-1, 3) for f in faces]
     vertices = np.concatenate(faces).astype("f4")
     colours = np.concatenate(shades).astype("f4")
     return MeshPart("trees", vertices, colours, _face_normals(vertices))
@@ -982,7 +1083,10 @@ def build_world(race: str = "charles", reach: float = 900.0,
     if with_buildings:
         mesh.add(building_walls(structures.polygons, structures.heights,
                                 getattr(structures, "base", None), box=box,
-                                imagery=photo, near=course))
+                                imagery=photo, near=course,
+                                roofs=(getattr(structures, "roof_shape", None),
+                                       getattr(structures, "roof_height",
+                                               None))))
         # The skyline.
         #
         # Rowing south down Lake Union you are looking straight at

@@ -174,7 +174,7 @@ def main(argv=None):
         decays = [decay_of(env, rate, t) for t in times[:40]]
         centroids = [spectrum_of(signal, rate, t)[0] for t in times[:40]]
         print("%-26s %7d %8.1f %8.2f %9.1f %9.0f"
-              % (os.path.basename(path)[:26], len(times), 120.0 / period,
+              % (os.path.basename(path)[:26], len(times), 60.0 / period,
                  drive, np.nanmedian(decays), np.nanmedian(centroids)))
     print()
     print("Feed these into coxswain/viz/strokeaudio.py: 'decay 1/s' is the")

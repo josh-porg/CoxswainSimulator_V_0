@@ -7,23 +7,25 @@ release.  Watching the boat without it, there is no way to tell drive
 from recovery, which makes calling anything impossible -- and calling is
 the thing this is meant to train.
 
-Nothing here is a recording
----------------------------
-The samples are synthesised at start-up from noise and decaying
-sinusoids.  That is a deliberate trade: a real recording of a four would
-sound better, but it would be an asset to license, ship and keep in step
-with the rig, and what matters for orientation is **when** the sound
-happens and how it is shaped, not its timbre.  Everything is derived
-from :class:`~coxswain.crew.stroke.StrokeTiming`, so a rate change moves
-the sounds with it.
+Nothing here is a recording, but the shape of it is measured
+-----------------------------------------------------------
+The samples are synthesised at start-up: noise taken into the frequency
+domain, multiplied by the spectral envelope of a real catch, and brought
+back.  No audio is shipped -- only eighteen numbers describing a shape --
+so there is no asset to license and nothing of what anyone said on the
+water is in the repository.  Timing comes from
+:class:`~coxswain.crew.stroke.StrokeTiming`, so a rate change moves the
+sounds with it.
 
 The events
 ----------
-``catch``     blade in: a short broadband knock, the loudest thing in the
-              cycle and the one a crew rows to.
-``release``   blade out: lighter, with a little water in it.
-``slide``     the seats running up the recovery, a low rumble whose
-              level follows how fast the crew is moving.
+``catch``     blade in: the loudest thing in the cycle and the one a crew
+              rows to.  Filtered to a spectral envelope measured off a
+              real eight, not invented -- see :data:`CATCH_BANDS`.
+``release``   blade out: the same water, brighter and much quieter.
+``slide``     the seats running up the recovery, looped underneath so the
+              cycle is continuous.  Without it the two events sit in
+              silence and the result is a stomp rather than a boat.
 
 Phase, not wall clock
 ---------------------
@@ -71,46 +73,89 @@ def events_between(t0: float, t1: float, period: float,
     return sorted(found)
 
 
-def _noise_knock(length: float, tone: float, decay: float,
-                 noise: float = 0.7, seed: int = 0) -> np.ndarray:
-    """A percussive click: filtered noise plus a decaying tone."""
-    n = max(int(RATE * length), 16)
-    t = np.arange(n) / RATE
-    envelope = np.exp(-t * decay)
+#: Measured spectral envelope of a catch, ``(low Hz, high Hz, dB)``.
+#:
+#: Averaged over 30 catches from a masters eight
+#: (``tools/scan_rowing.py``).  A catch is **two lobes**, not a click: a
+#: thump peaking at 120-190 Hz -- the hull and the puddle -- and a splash
+#: at 3-5 kHz, rolling off hard above that.  Synthesising broadband noise
+#: at a single centre frequency, which is what this used to do, gets
+#: neither, and with a percussive envelope on top it came out as a
+#: drum-machine stomp.
+#:
+#: **The 306-3137 Hz band is interpolated, not measured.**  That is
+#: exactly where :data:`~tools.scan_rowing.VOICE_BAND` is notched out to
+#: keep a coxswain's call from being measured as part of the stroke, so
+#: the recording cannot say what is there.  A log-linear ramp between the
+#: two lobes is assumed; reproducing the measured hole would put a notch
+#: in the synthesis that the real boat does not have.
+CATCH_BANDS = (
+    (60, 76, -12.4), (76, 96, -9.5), (96, 121, -7.7), (121, 152, 0.0),
+    (152, 192, -3.6), (192, 242, -7.7), (242, 306, -13.7),
+    # interpolated across the voice notch
+    (306, 620, -17.0), (620, 1250, -21.0), (1250, 2100, -24.0),
+    (2100, 3137, -26.5),
+    (3137, 3959, -27.9), (3959, 4997, -29.1), (4997, 6307, -42.8),
+    (6307, 7959, -51.3), (7959, 10045, -57.9), (10045, 12678, -61.7),
+    (12678, 16000, -65.4),
+)
+
+#: The release is the same water an instant later and much less of it.
+RELEASE_TILT = 6.0          # dB a decade, brighter than the catch
+RELEASE_LEVEL = 0.30        # and quieter
+
+
+def _shaped_noise(length: float, bands, decay: float, attack: float,
+                  seed: int = 0, tilt: float = 0.0) -> np.ndarray:
+    """Noise filtered to a measured spectral envelope, then enveloped.
+
+    This is the whole change in approach: instead of inventing a timbre
+    from a centre frequency and a filter order, white noise is taken into
+    the frequency domain, multiplied by the shape an actual catch has,
+    and brought back.  ``tilt`` adds a slope in dB per decade for the
+    release, which is the same event with less water in it.
+    """
+    n = max(int(RATE * length), 64)
     rng = np.random.default_rng(seed)
-    grain = rng.standard_normal(n)
-    # A cheap one-pole low pass, so it is a knock and not a hiss.
-    for _ in range(3):
-        grain = np.convolve(grain, np.ones(6) / 6.0, mode="same")
-    grain /= max(np.abs(grain).max(), 1e-9)
-    body = np.sin(2.0 * np.pi * tone * t)
-    return (noise * grain + (1.0 - noise) * body) * envelope
+    spectrum = np.fft.rfft(rng.standard_normal(n))
+    freq = np.fft.rfftfreq(n, 1.0 / RATE)
+
+    centres = np.array([0.5 * (a + b) for a, b, _ in bands], dtype=float)
+    levels = np.array([d for _a, _b, d in bands], dtype=float)
+    if tilt:
+        levels = levels + tilt * np.log10(centres / centres[0])
+    # Interpolate in log frequency, which is how the bands were spaced.
+    safe = np.maximum(freq, 1.0)
+    gain_db = np.interp(np.log10(safe), np.log10(centres), levels,
+                        left=levels[0] - 12.0, right=levels[-1] - 12.0)
+    wave = np.fft.irfft(spectrum * 10.0 ** (gain_db / 20.0), n=n)
+
+    t = np.arange(n) / RATE
+    rise = np.clip(t / max(attack, 1e-6), 0.0, 1.0)
+    wave = wave * rise * np.exp(-t * decay)
+    return wave / max(np.abs(wave).max(), 1e-9)
 
 
 def synthesise():
     """``{name: float array in [-1, 1]}`` for the three stroke sounds."""
-    catch = _noise_knock(0.22, tone=150.0, decay=26.0, noise=0.72, seed=1)
-    # A touch of water: a second, softer knock just behind the first.
-    tail = _noise_knock(0.22, tone=95.0, decay=14.0, noise=0.9, seed=2)
-    catch = np.clip(catch + 0.45 * np.roll(tail, int(0.012 * RATE)), -1, 1)
+    # Decay 1.5/s and an attack of a few milliseconds, both measured.
+    catch = _shaped_noise(0.90, CATCH_BANDS, decay=1.6, attack=0.007, seed=1)
+    release = RELEASE_LEVEL * _shaped_noise(
+        0.55, CATCH_BANDS, decay=3.8, attack=0.006, seed=3,
+        tilt=RELEASE_TILT)
 
-    release = 0.55 * _noise_knock(0.16, tone=320.0, decay=34.0,
-                                  noise=0.85, seed=3)
-
-    # The slide: a loop of low rumble, level shaped by the caller.
+    # The slide: the same envelope with the lobes flattened out, looped
+    # under everything so the cycle is a continuous sound with two events
+    # in it rather than two events in silence -- which is what made it a
+    # stomp.
     n = int(RATE * 0.5)
-    t = np.arange(n) / RATE
-    rng = np.random.default_rng(4)
-    rumble = rng.standard_normal(n)
-    for _ in range(9):
-        rumble = np.convolve(rumble, np.ones(12) / 12.0, mode="same")
-    rumble /= max(np.abs(rumble).max(), 1e-9)
-    # Fade the ends into each other so the loop does not tick.
+    flat = tuple((a, b, min(d, -6.0) * 0.35 - 8.0) for a, b, d in CATCH_BANDS)
+    rumble = _shaped_noise(0.5, flat, decay=0.0, attack=0.001, seed=4)
     edge = int(0.02 * RATE)
     ramp = np.ones(n)
     ramp[:edge] = np.linspace(0.0, 1.0, edge)
     ramp[-edge:] = np.linspace(1.0, 0.0, edge)
-    slide = 0.30 * rumble * ramp * (0.7 + 0.3 * np.sin(2 * np.pi * 1.5 * t))
+    slide = 0.5 * rumble[:n] * ramp
     return {"catch": catch, "release": release, "slide": slide}
 
 

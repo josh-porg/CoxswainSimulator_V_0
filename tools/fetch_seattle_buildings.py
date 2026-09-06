@@ -1,5 +1,12 @@
 r"""Seattle's lidar building shells, merged over the OpenStreetMap extract.
 
+Run ``tools/extract_structures.py`` **first**: this merges over its
+output and needs the OSM class, name, material, ``building:part`` massing
+and roof shape to be there to carry across.  Run out of order, or with an
+older version of this tool that wrote zeros for the massing and the
+roofs, and the scenery silently loses every stepped building and every
+pitched roof -- which is a thing that happened.
+
     python tools/fetch_seattle_buildings.py
 
 Why this replaces most of the OSM heights
@@ -162,6 +169,21 @@ def attributes_from_osm(rings, blob):
     out_name = np.full(len(rings), "", dtype="<U48")
     out_material = np.zeros(len(rings), dtype=np.int8)
     out_colour = np.full((len(rings), 3), -1.0, dtype=np.float32)
+    # The massing and the roofs come across too.
+    #
+    # They used to be written as zeros, and that is what quietly undid
+    # the scenery: a lidar outline is a single flat roof polygon with no
+    # ``building:part`` under it and no roof shape, so every stepped
+    # building became one extrusion and every pitched roof became a flat
+    # top.  The Space Needle is the visible case -- with its parts gone
+    # it extrudes to a convex cylinder.  The OSM extract has both, and
+    # matching already tells us which building each outline is.
+    base = blob["building_base"]
+    roof_shape = blob["building_roof_shape"]
+    roof_height = blob["building_roof_height"]
+    out_base = np.zeros(len(rings), dtype=np.float32)
+    out_roof_shape = np.zeros(len(rings), dtype=np.int8)
+    out_roof_height = np.zeros(len(rings), dtype=np.float32)
     matched = np.zeros(len(polygons), dtype=bool)
 
     hits = 0
@@ -177,12 +199,19 @@ def attributes_from_osm(rings, blob):
             out_name[index] = names[candidate]
             out_material[index] = materials[candidate]
             out_colour[index] = colours[candidate]
+            out_base[index] = base[candidate]
+            out_roof_shape[index] = roof_shape[candidate]
+            out_roof_height[index] = roof_height[candidate]
             matched[candidate] = True
             hits += 1
             break
     print("  %d of %d lidar outlines matched to an OSM building (%.0f%%)"
           % (hits, len(rings), 100.0 * hits / max(len(rings), 1)))
-    return out_kind, out_name, out_material, out_colour, matched
+    print("  carried over: %d part bases, %d roof heights, %d roof shapes"
+          % ((out_base > 0).sum(), (out_roof_height > 0).sum(),
+             (out_roof_shape > 0).sum()))
+    return (out_kind, out_name, out_material, out_colour, matched,
+            out_base, out_roof_shape, out_roof_height)
 
 
 def main(argv=None):
@@ -218,7 +247,8 @@ def main(argv=None):
     rings = [r for r, keep in zip(rings, good) if keep]
     heights = heights[good]
 
-    kind, name, material, colour, matched = attributes_from_osm(rings, blob)
+    (kind, name, material, colour, matched, base, roof_shape,
+     roof_height) = attributes_from_osm(rings, blob)
 
     # Anything OSM has that the lidar did not see -- towers, and whatever
     # was built after 2016 -- is kept rather than lost.  The Space Needle
@@ -239,6 +269,10 @@ def main(argv=None):
         name = np.append(name, blob["building_name"][index])
         material = np.append(material, blob["building_material"][index])
         colour = np.vstack([colour, blob["building_colour"][index]])
+        base = np.append(base, blob["building_base"][index])
+        roof_shape = np.append(roof_shape, blob["building_roof_shape"][index])
+        roof_height = np.append(roof_height,
+                                blob["building_roof_height"][index])
 
     new_offsets = np.cumsum([0] + [len(r) for r in rings]).astype(np.int32)
     blob.update(
@@ -253,8 +287,9 @@ def main(argv=None):
         building_name=name.astype("<U48"),
         building_material=material.astype(np.int8),
         building_colour=colour.astype(np.float32),
-        building_roof_shape=np.zeros(len(rings), dtype=np.int8),
-        building_roof_height=np.zeros(len(rings), dtype=np.float32),
+        building_base=base.astype(np.float32),
+        building_roof_shape=roof_shape.astype(np.int8),
+        building_roof_height=roof_height.astype(np.float32),
     )
     np.savez_compressed(target, **blob)
     print("wrote %s (%.1f MB), %d buildings, tallest %.0f m"
