@@ -35,7 +35,7 @@ from typing import List, Optional
 import numpy as np
 
 __all__ = ["MeshPart", "WorldMesh", "land_mesh", "water_plane",
-           "building_walls", "skyline_walls", "photo_colour", "ribbon", "line_markers", "buoy_solids",
+           "building_walls", "skyline_walls", "roof_rise", "photo_colour", "ribbon", "line_markers", "buoy_solids",
            "hull_solid", "tree_solids", "arch_bridge", "cut_walls",
            "dock_solids", "bridge_solids",
            "box_solid", "build_world"]
@@ -232,11 +232,67 @@ def photo_colour(imagery, ring, fallback):
 #: ``extract_structures.py`` writes.  Everything else is drawn flat.
 PITCHED = (2, 3, 4, 5, 6, 8, 9)
 
+#: Rise to use when a roof is tagged pitched but carries no height, as a
+#: fraction of the footprint's short span, and its cap in metres.
+TAGGED_PITCH = 0.26
+TAGGED_RISE_CAP = 3.6
+
+
+def roof_rise(shape, tagged_rise, ring, height, kind=None):
+    """How far a roof rises above the wall top, in metres.
+
+    **Only from the tags.**  A previous version inferred a pitch for any
+    small, low building on the grounds that Seattle is mostly houses, and
+    it was wrong to: it put an invented gable on 87% of the city,
+    including on the lidar outlines of flat-roofed sheds and on
+    footprints that are really the ground plan of a building whose actual
+    shape is described by its ``building:part`` massing.  A guess applied
+    that widely stops being a guess and becomes the model.
+
+    The shape of a building comes from its parts -- which is what the
+    older PyVista scene used and what
+    :func:`tools.extract_structures.raise_to_parts` produces -- and its
+    roof comes from ``roof:shape`` where somebody has surveyed one.
+    Where neither exists the building is drawn flat, which is honest.
+    """
+    if not shape or int(shape) not in PITCHED:
+        return 0.0
+    if tagged_rise and float(tagged_rise) > 0.0:
+        return float(tagged_rise)
+    span = min(ring[:, 0].max() - ring[:, 0].min(),
+               ring[:, 1].max() - ring[:, 1].min())
+    return float(min(TAGGED_PITCH * span, TAGGED_RISE_CAP))
+
+
+def _ridge(ring, top, rise):
+    """Ridge line of a gable: ``(point_a, point_b)`` at ``top + rise``.
+
+    A roof that rises to a single point over the centroid is a pyramid,
+    and almost no house has one.  The ridge runs along the footprint's
+    **long** axis, which is what makes a row of houses read as a row of
+    houses rather than a row of tents.
+    """
+    centre = ring.mean(axis=0)
+    offset = ring - centre
+    # Principal axis of the footprint.
+    _u, _s, vt = np.linalg.svd(offset, full_matrices=False)
+    along = vt[0]
+    reach = float(np.abs(offset @ along).max())
+    # Pull the ends in, so the roof hips slightly instead of ending in a
+    # vertical wall of gable at each end.
+    reach *= 0.55
+    apex = top + rise
+    return (np.array([centre[0] - along[0] * reach,
+                      centre[1] - along[1] * reach, apex]),
+            np.array([centre[0] + along[0] * reach,
+                      centre[1] + along[1] * reach, apex]),
+            along, centre)
+
 
 def building_walls(polygons, heights, bases=None, box=None,
                    colour=(0.42, 0.41, 0.40), imagery=None,
                    near=None, min_height: float = 2.0, roofs=None,
-                   limit: int = 12000) -> Optional[MeshPart]:
+                   kinds=None, limit: int = 12000) -> Optional[MeshPart]:
     """Extruded footprints -- **walls only**, coloured from the orthophoto.
 
     From 0.55 m off the water you never see a roof, so the top faces are
@@ -319,24 +375,34 @@ def building_walls(polygons, heights, bases=None, box=None,
         # is most of Seattle: looking up at an open box you see straight
         # through the near wall into the inside of the far one.  Flat
         # unless the tags say otherwise.
-        centre = ring.mean(axis=0)
-        pitch = 0.0
-        if roofs is not None:
-            shape = int(roofs[0][index]) if roofs[0] is not None else 0
-            rise = float(roofs[1][index]) if roofs[1] is not None else 0.0
-            if shape in PITCHED and rise <= 0.0:
-                # Tagged as pitched with no height given: a sixth of the
-                # footprint's smaller side is an ordinary domestic pitch.
-                span = min(ring[:, 0].max() - ring[:, 0].min(),
-                           ring[:, 1].max() - ring[:, 1].min())
-                rise = min(0.17 * span, 4.0)
-            pitch = rise if shape in PITCHED else 0.0
-        apex = [centre[0], centre[1], top + pitch]
+        shape = (int(roofs[0][index])
+                 if roofs is not None and roofs[0] is not None else 0)
+        tagged = (float(roofs[1][index])
+                  if roofs is not None and roofs[1] is not None else 0.0)
+        this_kind = None if kinds is None else kinds[index]
+        pitch = roof_rise(shape, tagged, ring, top - low, this_kind)
         roof_tint = tuple(min(1.0, c * 1.06) for c in np.atleast_1d(tint))
-        for start, end in zip(ring, nxt):
-            _quad(walls, tints, [start[0], start[1], top],
-                  [end[0], end[1], top], apex, apex,
-                  np.array([0.0, 0.0, 1.0]), roof_tint)
+        if pitch > 0.05:
+            ridge_a, ridge_b, along, centre = _ridge(ring, top, pitch)
+            for start, end in zip(ring, nxt):
+                middle = 0.5 * (start + end)
+                # Each eave meets the ridge at its own nearest point, so
+                # the long sides give two slopes and the ends hip in.
+                t = float(np.dot(middle - centre, along))
+                reach = float(np.dot(ridge_b[:2] - centre, along))
+                t = max(-abs(reach), min(abs(reach), t))
+                onto = [centre[0] + along[0] * t, centre[1] + along[1] * t,
+                        top + pitch]
+                _quad(walls, tints, [start[0], start[1], top],
+                      [end[0], end[1], top], onto, onto,
+                      np.array([0.0, 0.0, 1.0]), roof_tint)
+        else:
+            centre = ring.mean(axis=0)
+            apex = [centre[0], centre[1], top]
+            for start, end in zip(ring, nxt):
+                _quad(walls, tints, [start[0], start[1], top],
+                      [end[0], end[1], top], apex, apex,
+                      np.array([0.0, 0.0, 1.0]), roof_tint)
         kept += 1
     if not walls:
         return None
@@ -543,9 +609,19 @@ def buoy_solids(buoys, height: float = 0.45,
 
 
 #: Trees closer to the course than this get the full model; beyond it,
-#: a crossed pair of quads.  Ninety metres is about where the eight
-#: facets of a crown stop being distinguishable from four.
-SOLID_WITHIN = 90.0
+#: a crossed pair of quads.
+#:
+#: **250 m, not 90.**  At ninety metres this looked right in principle
+#: and came out at 41 solid trees in 80,000 on Lake Union -- effectively
+#: everything an impostor -- because that shoreline is built up and its
+#: trees sit well back from the water.  A crown is still clearly a crown
+#: at a couple of hundred metres from a seat half a metre off the water,
+#: and that is the distance that decides this, not a round number.
+SOLID_WITHIN = 250.0
+
+#: However close they are, no more than this many get the full model, so
+#: a wooded bank cannot blow the triangle budget on its own.
+SOLID_BUDGET = 14000
 
 #: Crown colours by growth form, in the order ``TreeStand.FORMS`` uses.
 CROWN = ((0.24, 0.34, 0.20), (0.16, 0.26, 0.18), (0.20, 0.31, 0.20),
@@ -607,8 +683,14 @@ def tree_solids(stand, box, limit: int = 80000, near=None,
     # is a crossed pair of quads -- four triangles against twenty.  That
     # is what pays for the draw distance on Lake Union, where there are
     # 742,517 trees and the hills read as bare without them.
-    solid = (np.ones(len(index), dtype=bool) if gap is None
-             else gap <= SOLID_WITHIN)
+    if gap is None:
+        solid = np.ones(len(index), dtype=bool)
+    else:
+        solid = gap <= SOLID_WITHIN
+        if solid.sum() > SOLID_BUDGET:
+            # Keep the nearest, drop the rest to impostors.
+            cut = np.sort(gap[solid])[SOLID_BUDGET - 1]
+            solid &= gap <= cut
 
     faces, shades = [], []
     for slot, i in enumerate(index):
@@ -661,18 +743,47 @@ def tree_solids(stand, box, limit: int = 80000, near=None,
                           colour=TRUNK)
         faces.append(trunk.vertices)
         shades.append(trunk.colours)
-        # Crown: an octahedron, wider for a broadleaf than a conifer.
-        spread = (0.16 if form == 1 else 0.30) * height
+        # Crown: a lantern of two rings, not an octahedron.
+        #
+        # Four rim points give a crown with four corners, and from the
+        # water that reads as a cut gem rather than a tree -- which is
+        # exactly what it looked like.  Ten points around and two rings
+        # up is forty triangles instead of eight, and the silhouette
+        # stops having corners in it.  Conifers keep a single ring and a
+        # point, because a conifer really is a cone.
         top = height
-        mid = 0.5 * (stem + top)
         apex = [x, y, top]
         base = [x, y, stem]
-        rim = [[x + spread, y, mid], [x, y + spread, mid],
-               [x - spread, y, mid], [x, y - spread, mid]]
         crown = []
-        for a, b in zip(rim, rim[1:] + rim[:1]):
-            crown.append([apex, a, b])
-            crown.append([base, b, a])
+        if form == 1:
+            spread = 0.16 * height
+            around = 9
+            rim = [[x + spread * np.cos(t), y + spread * np.sin(t),
+                    stem + 0.18 * (top - stem)]
+                   for t in np.linspace(0.0, 2.0 * np.pi, around,
+                                        endpoint=False)]
+            for a, b in zip(rim, rim[1:] + rim[:1]):
+                crown.append([apex, a, b])
+                crown.append([base, b, a])
+        else:
+            spread = 0.30 * height
+            around = 10
+            angles = np.linspace(0.0, 2.0 * np.pi, around, endpoint=False)
+            # Two rings at 35% and 70% of the crown, radii following a
+            # circle, so the outline is round in every direction.
+            rings = []
+            for fraction, radius in ((0.34, 0.86), (0.68, 0.62)):
+                level = stem + fraction * (top - stem)
+                rings.append([[x + spread * radius * np.cos(t),
+                               y + spread * radius * np.sin(t), level]
+                              for t in angles])
+            lower, upper = rings
+            for a, b, c, d in zip(lower, lower[1:] + lower[:1],
+                                  upper, upper[1:] + upper[:1]):
+                crown.append([base, b, a])          # underside
+                crown.append([a, b, d])             # waist
+                crown.append([a, d, c])
+                crown.append([c, d, apex])          # shoulder
         faces.append(np.asarray(crown, dtype="f4").reshape(-1, 3))
         shades.append(np.tile(np.asarray(crown_colour, dtype="f4"),
                               (len(crown) * 3, 1)))
@@ -993,7 +1104,8 @@ SKYLINE_REACH = 6500.0
 SKYLINE_HEIGHT = 38.0
 
 
-def skyline_walls(structures, course, box, imagery=None):
+def skyline_walls(structures, course, box, imagery=None, bases=None,
+                  roofs=None):
     """Distant towers, drawn because a crew can see them.
 
     Only buildings **outside** the near box are considered, so nothing is
@@ -1017,8 +1129,22 @@ def skyline_walls(structures, course, box, imagery=None):
                       & (heights >= SKYLINE_HEIGHT))[0]
     if not len(keep):
         return None
-    part = building_walls([polygons[i] for i in keep], heights[keep],
-                          None, box=None, imagery=imagery, limit=4000)
+    # Massing and roofs come across, and this is not optional.
+    #
+    # Passing ``None`` here is what kept the Space Needle a convex
+    # cylinder through three attempts at fixing it.  Its massing was
+    # correct in the data all along -- saucer floating at 152 m, three
+    # legs from the ground -- but it stands 2.1 km from Lake Union, which
+    # puts it outside the near box and into this pass, where the bases
+    # were being thrown away.  The tallest, most distinctive buildings
+    # are exactly the ones a skyline is made of, so this is the pass that
+    # can least afford to lose their shape.
+    part = building_walls(
+        [polygons[i] for i in keep], heights[keep],
+        None if bases is None else np.asarray(bases)[keep],
+        box=None, imagery=imagery, limit=4000,
+        roofs=None if roofs is None else
+        tuple(None if r is None else np.asarray(r)[keep] for r in roofs))
     if part is None:
         return None
     print("   skyline: %d buildings over %.0f m, out to %.1f km"
@@ -1084,6 +1210,7 @@ def build_world(race: str = "charles", reach: float = 900.0,
         mesh.add(building_walls(structures.polygons, structures.heights,
                                 getattr(structures, "base", None), box=box,
                                 imagery=photo, near=course,
+                                kinds=getattr(structures, "kind", None),
                                 roofs=(getattr(structures, "roof_shape", None),
                                        getattr(structures, "roof_height",
                                                None))))
@@ -1095,7 +1222,11 @@ def build_world(race: str = "charles", reach: float = 900.0,
         # 900 m working box, so the seat view had an empty horizon where
         # a crew sees towers.  A second pass takes only buildings tall
         # enough to subtend a real angle at that range.
-        mesh.add(skyline_walls(structures, course, box, photo))
+        mesh.add(skyline_walls(
+            structures, course, box, photo,
+            bases=getattr(structures, "base", None),
+            roofs=(getattr(structures, "roof_shape", None),
+                   getattr(structures, "roof_height", None))))
     docks = scene.layer("docks")
     if docks is not None:
         mesh.add(dock_solids(docks.polylines))

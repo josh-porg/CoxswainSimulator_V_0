@@ -219,6 +219,11 @@ def main(argv=None):
                         help="ground mesh cell, metres")
     parser.add_argument("--no-buildings", action="store_true")
     parser.add_argument("--no-trees", action="store_true")
+    parser.add_argument("--audio", default="events",
+                        choices=("events", "full"),
+                        help="events: catch, release and a bed.  full: one "
+                             "clip a stroke following the measured "
+                             "spectral envelope through the cycle")
     parser.add_argument("--no-sound", action="store_true",
                         help="silence the stroke; it is the only cue in the "
                              "seat view that says drive from recovery")
@@ -277,9 +282,10 @@ def main(argv=None):
     audio = None
     if not args.no_sound and not args.shot:
         from coxswain.viz.strokeaudio import StrokeAudio
-        audio = StrokeAudio(boat)
-        print("   stroke audio: %s"
-              % ("on" if audio.available else "no device, running silent"))
+        audio = StrokeAudio(boat, mode=args.audio)
+        print("   stroke audio: %s, %s"
+              % (audio.mode,
+                 "on" if audio.available else "no device, running silent"))
 
     headless = bool(args.shot)
     if headless:

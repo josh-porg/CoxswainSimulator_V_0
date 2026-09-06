@@ -91,8 +91,13 @@ def events_between(t0: float, t1: float, period: float,
 #: in the synthesis that the real boat does not have.
 #: Spectral envelope of a catch, ``(low Hz, high Hz, dB)``, measured.
 #:
-#: Recovered by :mod:`tools.dmd_stroke` from 88 phase-normalised stroke
-#: cycles of a masters eight -- **with no voice notch at all**.  The
+#: Recovered by :mod:`tools.dmd_stroke` from 95 phase-normalised stroke
+#: cycles of a **masters coxed four** -- with no voice notch at all, and
+#: from a four because a four is what this simulator models.  The boat
+#: class matters more than expected: the same measurement on an eight
+#: puts 980-1237 Hz at -13.9 dB and 3137-3959 Hz at -24.8, against the
+#: four's -23.3 and -49.3.  Eight blades make a far brighter boat than
+#: four, and fitting the eight to a four sounded like a bigger crew.  The
 #: stroke is locked to the cycle and a coxswain's call is not, so
 #: stacking cycles on a common phase grid and taking the persistent
 #: dynamic-mode-decomposition mode separates them: 1 persistent mode
@@ -105,30 +110,30 @@ def events_between(t0: float, t1: float, period: float,
 #: the real stroke carries far more energy at 300-1000 Hz than a
 #: log-linear ramp between the two lobes suggests.
 CATCH_BANDS = (
-    (60, 75, -14.0),
-    (75, 95, -10.7),
-    (95, 120, -8.0),
-    (120, 152, -1.8),
+    (60, 75, -6.5),
+    (75, 95, -4.7),
+    (95, 120, -4.3),
+    (120, 152, -2.0),
     (152, 192, 0.0),
-    (192, 242, -2.4),
-    (242, 306, -5.4),
-    (306, 386, -5.8),
-    (386, 487, -8.1),
-    (487, 615, -9.5),
-    (615, 776, -8.7),
-    (776, 979, -10.9),
-    (979, 1236, -13.9),
-    (1236, 1560, -19.2),
-    (1560, 1969, -21.0),
-    (1969, 2485, -20.8),
-    (2485, 3137, -22.3),
-    (3137, 3959, -24.8),
-    (3959, 4997, -28.2),
-    (4997, 6306, -41.1),
-    (6306, 7959, -48.0),
-    (7959, 10045, -54.2),
-    (10045, 12677, -60.0),
-    (12677, 16000, -66.6),
+    (192, 242, -0.8),
+    (242, 306, -2.5),
+    (306, 386, -5.7),
+    (386, 487, -5.1),
+    (487, 615, -7.7),
+    (615, 776, -13.0),
+    (776, 979, -17.4),
+    (979, 1236, -23.3),
+    (1236, 1560, -28.3),
+    (1560, 1969, -34.0),
+    (1969, 2485, -38.6),
+    (2485, 3137, -42.6),
+    (3137, 3959, -49.3),
+    (3959, 4997, -52.6),
+    (4997, 6306, -55.9),
+    (6306, 7959, -58.8),
+    (7959, 10045, -60.7),
+    (10045, 12677, -62.6),
+    (12677, 16000, -68.5),
 )
 
 #: Level between the catches, relative to the catch itself.
@@ -139,7 +144,7 @@ CATCH_BANDS = (
 #: about 1.6 to 1, where the synthesis had been putting a sharp transient
 #: over near-silence.  That, more than any timbre, is what made it sound
 #: like a drum machine.
-CYCLE_FLOOR = 0.61
+CYCLE_FLOOR = 0.43
 
 #: The release is the same water an instant later and much less of it.
 RELEASE_TILT = 6.0          # dB a decade, brighter than the catch
@@ -205,6 +210,72 @@ def synthesise():
     return {"catch": catch, "release": release, "slide": slide}
 
 
+#: Where the measured phase-varying envelope lives.
+ENVELOPE_FILE = "stroke_envelope.npz"
+
+
+def load_envelope():
+    """``(bands, envelope, period)`` from the measured cycle, or ``None``.
+
+    ``envelope`` is ``(band, phase)`` and normalised to its own peak: the
+    spectrum of the boat at each point of the stroke, recovered by
+    :mod:`tools.dmd_stroke`.  It says, for instance, that the 121-152 Hz
+    thump is 1.8 dB below peak at the catch and 14.2 dB below it through
+    the drive -- the low end is almost entirely a catch phenomenon.
+    """
+    import os
+
+    path = os.path.join(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))), "data", ENVELOPE_FILE)
+    if not os.path.exists(path):
+        return None
+    blob = np.load(path)
+    return (blob["bands"], blob["envelope"].astype(float),
+            float(blob["period"]))
+
+
+def synthesise_cycle(period: float, seed: int = 11):
+    """One whole stroke as a single clip, spectrum following the phase.
+
+    The event-based synthesis plays a catch, a release and a bed, which
+    is three fixed timbres.  The measurement says the boat is not three
+    timbres: the spectrum moves continuously through the cycle, and what
+    a coxswain hears at the finish is not what they hear a quarter of a
+    stroke later.  This builds the whole cycle by overlap-adding noise
+    grains, each shaped to the envelope at its own phase.
+
+    Returns ``None`` if the measured envelope is not present, so the
+    caller falls back to the event synthesis.
+    """
+    loaded = load_envelope()
+    if loaded is None:
+        return None
+    bands, envelope, _measured = loaded
+    n = max(int(RATE * period), 1024)
+    phases = envelope.shape[1]
+    grain = max(int(2 * n / phases), 256)
+    out = np.zeros(n + 2 * grain)
+    window = np.hanning(grain)
+    centres = 0.5 * (bands[:, 0] + bands[:, 1])
+    rng = np.random.default_rng(seed)
+
+    freq = np.fft.rfftfreq(grain, 1.0 / RATE)
+    logf = np.log10(np.maximum(freq, 1.0))
+    logc = np.log10(centres)
+    for k in range(phases):
+        level = 20.0 * np.log10(np.maximum(envelope[:, k], 1e-6))
+        gain = 10.0 ** (np.interp(logf, logc, level,
+                                  left=level[0] - 12.0,
+                                  right=level[-1] - 12.0) / 20.0)
+        piece = np.fft.irfft(np.fft.rfft(rng.standard_normal(grain)) * gain,
+                             n=grain)
+        at = int(k * n / phases)
+        out[at:at + grain] += piece * window
+    cycle = out[:n] + np.concatenate([out[n:n + grain],
+                                      np.zeros(n - grain)])[:n]
+    return cycle / max(np.abs(cycle).max(), 1e-9)
+
+
 class StrokeAudio:
     """Plays the stroke through ``pygame.mixer``.
 
@@ -213,9 +284,21 @@ class StrokeAudio:
     guarded and :attr:`available` says what happened.
     """
 
-    def __init__(self, boat, volume: float = 0.85):
+    def __init__(self, boat, volume: float = 0.85, mode: str = "events"):
+        """``mode`` is ``"events"`` or ``"full"``.
+
+        ``"events"`` is the catch, release and bed as separate clips --
+        three fixed timbres, triggered on phase.  ``"full"`` plays one
+        clip per stroke whose spectrum follows the measured envelope
+        right through the cycle.  The default is ``"events"`` because it
+        is the one that has been listened to; ``"full"`` is truer to the
+        measurement and may or may not sound better, and switching back
+        is a one-word change.
+        """
         self.boat = boat
+        self.mode = mode
         self.available = False
+        self._cycle = None
         self._sounds = {}
         self._slide = None
         self._last = None
@@ -239,8 +322,20 @@ class StrokeAudio:
                 self._sounds[name] = pygame.sndarray.make_sound(
                     np.ascontiguousarray(data))
                 self._sounds[name].set_volume(volume)
+            if mode == "full":
+                cycle = synthesise_cycle(float(self.timing.period))
+                if cycle is None:
+                    print("   (no measured envelope; using the events)")
+                    self.mode = "events"
+                else:
+                    mono = (np.clip(cycle, -1.0, 1.0) * 32767).astype(np.int16)
+                    data = (mono if channels == 1
+                            else np.repeat(mono[:, None], channels, axis=1))
+                    self._cycle = pygame.sndarray.make_sound(
+                        np.ascontiguousarray(data))
+                    self._cycle.set_volume(volume)
             self._slide = self._sounds.get("slide")
-            if self._slide is not None:
+            if self._slide is not None and self.mode != "full":
                 self._slide.set_volume(0.0)
                 self._slide.play(loops=-1)
             self.available = True
@@ -267,6 +362,18 @@ class StrokeAudio:
         fired = events_between(self._last, float(t), period, drive)
         self._last = float(t)
         names = []
+        if self.mode == "full" and self._cycle is not None:
+            # One clip a stroke, retriggered on the catch so it stays in
+            # phase with the physics however the rate drifts.
+            for _when, name in fired:
+                names.append(name)
+                if name == "catch" and self.available:
+                    try:
+                        self._cycle.stop()
+                        self._cycle.play()
+                    except Exception:             # pragma: no cover
+                        pass
+            return names
         for _when, name in fired:
             names.append(name)
             clip = self._sounds.get(name)
