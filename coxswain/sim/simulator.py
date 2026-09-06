@@ -121,12 +121,20 @@ class RowingSimulator:
                  rudder: Optional[Callable[[float, State], float]] = None,
                  water_level: float = 0.0, gravity: float = GRAVITY,
                  course=None, wind=None, aero=None, blade_contact=None,
-                 added_mass=True, munk_factor: float = DEFAULT_MUNK_FACTOR):
+                 added_mass=True, munk_factor: float = DEFAULT_MUNK_FACTOR,
+                 fast: bool = False):
         self.boat = boat
         #: Geometry linking the crew's balance effort to the hull load.
         #: Sweep rigs make this more than a roll couple; see
         #: :mod:`coxswain.crew.balance`.
         self.balance_rig = BalanceRig.from_boat(boat)
+        # Compiled wetted-surface sweep.  Off by default: it sums in a
+        # different order than numpy and so is not bit-identical, and the
+        # studies are held to exact reproducibility.  The real-time loop
+        # turns it on, and ``tests/test_kernels.py`` holds the two paths
+        # to round-off of each other so they cannot drift apart.
+        if fast:
+            boat.mesh.use_fast = True
         self.coxswain = Coxswain() if coxswain is None else coxswain
         if rudder is not None:
             self.coxswain.rudder_override = rudder
@@ -700,6 +708,33 @@ class RowingSimulator:
             acceleration[0:3],
             acceleration[3:6],
         ])
+
+    # -- stepping ---------------------------------------------------------
+    def step(self, state: np.ndarray, t: float = 0.0,
+             dt: float = 0.02) -> np.ndarray:
+        """Advance the state by one fixed RK4 step.
+
+        The seam between the batch world and the real-time one.
+        :meth:`run` integrates a whole trajectory and hands back a
+        :class:`~coxswain.sim.results.SimulationResult`, which is what
+        every study in ``scripts/`` wants and is useless to a game loop:
+        the loop owns the clock, and needs to advance the boat by one
+        tick, draw it, read the tiller, and come back.
+
+        This is **the same arithmetic** ``run`` performs -- both call
+        :func:`coxswain.core.integrators.rk4_step` on
+        :meth:`derivative` -- so a trajectory stepped by hand and one
+        produced by ``run`` agree to the bit.  ``tests/test_stepwise.py``
+        asserts exactly that against the stored golden trajectory.
+
+        Stateless by design: it takes a state and returns a state, and
+        keeps nothing between calls.  The caller owns the trajectory,
+        which is what lets a game loop keep two of them (the one it is
+        integrating and the one it is drawing) and interpolate between.
+        """
+        return integrators.rk4_step(self.derivative, float(t),
+                                    np.asarray(state, dtype=float),
+                                    float(dt))
 
     # -- running ----------------------------------------------------------
     def initial_state(self, surge_speed: float = 0.0,

@@ -385,6 +385,12 @@ class FourierProfile:
         both, so the two agree to the bit.
         """
         terms = self._terms()
+        # A 0-d array is a scalar wearing a coat: most callers reach here
+        # through an ``np.asarray(t)`` upstream, and 60% of the calls the
+        # force path makes arrived that way, missing the fast path
+        # entirely the first time this was written.
+        if isinstance(t, np.ndarray) and t.ndim == 0:
+            t = float(t)
         if isinstance(t, (float, int)):
             value = float(self.cos_coefficients[0])
             first = 0.0

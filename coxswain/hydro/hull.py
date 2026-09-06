@@ -254,7 +254,16 @@ class HullMesh:
 
         ``position`` is ``G_h`` in the absolute frame; ``attitude`` is the
         Euler attitude.  The still-water surface is at ``Z = water_level``.
+
+        Set :attr:`use_fast` to route this through the compiled kernel in
+        :mod:`coxswain.hydro._hullkernel`, which is what the real-time
+        loop does.  It is off by default because a fused loop sums in a
+        different order than ``ndarray.sum`` and so is not bit-identical;
+        the studies stay on the numpy path and stay reproducible.
         """
+        if self.use_fast:
+            return self._submerged_fast(position, attitude, rho, gravity,
+                                        water_level)
         rot = hull_to_abs(attitude)
 
         corners_abs = self.corners @ rot.T          # (n, 4, 3)
@@ -340,6 +349,82 @@ class HullMesh:
             centre_of_buoyancy=centre_of_buoyancy,
             submerged_fraction=float(wet_area.sum() / self.total_area),
         )
+
+    #: Route :meth:`submerged` through the compiled kernel.  Off by
+    #: default: see :mod:`coxswain.hydro._hullkernel` for why.
+    use_fast = False
+
+    def _submerged_fast(self, position, attitude, rho, gravity,
+                        water_level) -> SubmergedProperties:
+        """:meth:`submerged` through the fused kernel.
+
+        Identical arithmetic, different summation order, so results agree
+        to round-off rather than to the bit.
+        """
+        from ._hullkernel import submerged_kernel
+
+        rot = np.ascontiguousarray(hull_to_abs(attitude))
+        (force, moment, volume, wetted, transverse, lateral, plan,
+         centre_z_weighted, weight_total) = submerged_kernel(
+            self._fast_corners, self._fast_centroid, self._fast_normal,
+            self._fast_area, rot, float(position[2]), float(rho),
+            float(gravity), float(water_level))
+
+        vertical = float(force[2])
+        if abs(vertical) > 1e-9:
+            centre_z = (centre_z_weighted / weight_total
+                        if weight_total > 1e-12 else 0.0)
+            centre_of_buoyancy = np.array([-float(moment[1]) / vertical,
+                                           float(moment[0]) / vertical,
+                                           centre_z])
+        else:
+            centre_of_buoyancy = np.zeros(3)
+
+        return SubmergedProperties(
+            wetted_area=float(wetted),
+            transverse_area=float(transverse),
+            lateral_area=float(lateral),
+            plan_area=float(plan),
+            volume=max(float(volume), 0.0),
+            buoyancy_force=force,
+            buoyancy_moment=moment,
+            centre_of_buoyancy=centre_of_buoyancy,
+            submerged_fraction=float(wetted / self.total_area),
+        )
+
+    # Contiguous float64 copies for the kernel: Numba will not take a
+    # non-contiguous view without copying it on every call.
+    @property
+    def _fast_corners(self):
+        cached = getattr(self, "_fc", None)
+        if cached is None:
+            cached = np.ascontiguousarray(self.corners, dtype=float)
+            self._fc = cached
+        return cached
+
+    @property
+    def _fast_centroid(self):
+        cached = getattr(self, "_fce", None)
+        if cached is None:
+            cached = np.ascontiguousarray(self.centroid, dtype=float)
+            self._fce = cached
+        return cached
+
+    @property
+    def _fast_normal(self):
+        cached = getattr(self, "_fn", None)
+        if cached is None:
+            cached = np.ascontiguousarray(self.normal, dtype=float)
+            self._fn = cached
+        return cached
+
+    @property
+    def _fast_area(self):
+        cached = getattr(self, "_fa", None)
+        if cached is None:
+            cached = np.ascontiguousarray(self.area, dtype=float)
+            self._fa = cached
+        return cached
 
     def equilibrium_heave(self, mass: float, attitude: np.ndarray = None,
                           rho: float = 1025.0, gravity: float = 9.81,
