@@ -67,6 +67,11 @@ BUOY_PATH = "data/hotl_buoys.npy"
 BUOY_REACH = 40.0
 #: Clearance a shell needs off a mark, m -- blade plus nerves.
 BUOY_MARGIN = 6.0
+#: Half the width of a shell with its blades out, m.  The clearance is
+#: to the hull centreline, so the corridor is the clearance less this:
+#: without it the optimised line sat 5 m off the north wall of the
+#: Montlake Cut, and the coxswain's view was a wall.
+BOAT_HALF_SPAN = 3.5
 #: The regatta says three miles.
 PUBLISHED_LENGTH = 4828.0
 #: Cruising speed for a women's veteran coxed four, m/s.
@@ -100,7 +105,7 @@ def hotl_course(resolution: float = 10.0) -> Course:
     # The corridor is the clearance to the nearest dock or wall, with no
     # floor under it -- see the note in render_totl.py on what a floor
     # did there.  0.5 m keeps Course happy where the line grazes a dock.
-    half = np.maximum(channel.clearance[rows, columns], 0.5)
+    half = np.maximum(channel.clearance[rows, columns] - BOAT_HALF_SPAN, 0.5)
     pinched = int((half < 8.0).sum())
     if pinched:
         print("  NOTE: %d of %d stations (%.0f%%) have under 8 m of "

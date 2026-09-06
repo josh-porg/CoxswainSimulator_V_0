@@ -41,8 +41,11 @@ REACH = 40.0
 #: Clearance a shell needs off a mark, m -- blade plus nerves.
 MARGIN = 6.0
 #: Consecutive marks of one colour closer than this along the course are
-#: one line, m.
-CHAIN = 250.0
+#: one line, m.  400 because the three orange marks along the Montlake
+#: Cut are 357 m apart, and with them unjoined the optimiser put the
+#: line 5 m off the north wall between them, on the wrong side of the
+#: orange line.
+CHAIN = 400.0
 #: A mark further off the lane than this is not a lane limit, m.
 LIMIT_REACH = 80.0
 #: Marks within this of the start or finish are chute and gate, m.

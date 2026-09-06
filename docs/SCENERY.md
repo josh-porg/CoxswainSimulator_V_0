@@ -252,6 +252,50 @@ own endpoints gave the Ship Canal Bridge a 37 m deck against a published
 it lands on the Queen Anne bluff, well above the roadway. This follows
 the pattern `bridges.BRIDGE_STRUCTURE` already sets for the Charles.
 
+## The Montlake Cut: a slot the far field could not hold
+
+The far-field mesh subsamples the elevation model every 24 m for the
+skyline. The Cut is a 50 m slot between 10-18 m walls, so beyond the
+near window its cells straddled wall and water and stood across it,
+draped with the orthophoto's dark water: from the boat the canal ended
+in a wall. The subsampling now takes the **block minimum**, which keeps
+a slot at its floor and costs a ridge a few metres the near window
+redraws anyway. The Head of the Lake scene also uses an 800 m near
+window rather than Lake Union's 320, so the whole Cut is drawn at full
+resolution from either end.
+
+Two of the three bridges on that course are bascules, and OpenStreetMap
+splits a movable bridge's roadway at the leaves into 7-51 m pieces --
+none long enough for the landmark filter. They are drawn from their
+`man_made=bridge` outlines instead (`data/seattle_bridge_outlines.json`,
+via `coxswain.river.seattle.canal_bridges`), as a slab on piers, which is
+what a bascule is from the water.
+
+## A fifth: the boat ran off the end of its own path
+
+Every 3-D still in this project is a frame from a 6-DOF run down a leg
+of the optimised line, and the last of the four was taken at 97% of the
+run. The run was sized at 1.1x the leg length over an assumed 3.9 m/s
+and the path follower was given only that leg -- so the boat covered the
+leg, ran out of path, had nothing left to steer to, and carried
+straight on. Cross-track error was a median 1.0 m for the whole leg and
+**95 m at the last frame**.
+
+On Lake Union that put the boat in open water and looked like nothing.
+In the Montlake Cut it put it on the bank, and the coxswain's view was
+a wall of hillside -- which is how it was found, from the picture and
+not from a number.
+
+Two things were wrong and both are fixed in `render_hotl3d.py` and
+`render_totl3d.py`. The follower now gets the course from the leg's
+start onward, so it never runs out. And the run is integrated 30%
+long and then **trimmed at the moment the boat has covered the leg**,
+because the hull settles at 4.6-4.8 m/s where the route model's
+reference speed is 3.9, so a run sized on 3.9 finishes early and one
+sized generously finishes late. Trimmed, `--from`/`--to` mean what they
+say and the cross-track error over the whole leg is a median 0.9 m,
+1.4 m at worst.
+
 ## A fourth silent failure: the mirrored orthophoto
 
 The imagery was flipped at load, on the reasoning that VTK's *v* axis

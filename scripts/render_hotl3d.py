@@ -78,7 +78,19 @@ def simulate(path, boat, start, finish, dt=0.02):
         raise SystemExit("that stretch is too short")
     length = float(np.hypot(*np.diff(leg, axis=0).T).sum())
 
-    driver = PathFollower(leg, boundary_layer=25.0)
+    # The follower gets the course from here on, not just this leg, and
+    # the run stops when the leg does.
+    #
+    # It used to get the leg and run 1.1x as long as the leg takes.  For
+    # the first 97% of that the boat held the line to a median 1.0 m --
+    # and then it ran off the end of its own path, had nothing left to
+    # follow, and carried on straight: 95 m off course by the last
+    # frame.  On Lake Union that put the boat in open water and looked
+    # like nothing; in the Montlake Cut it put it on the bank, and the
+    # coxswain's view was a wall of hillside.  A rendered still is not
+    # evidence of the scenery if the boat is not where the line is.
+    ahead = path[station >= start]
+    driver = PathFollower(ahead, boundary_layer=25.0)
     sim = RowingSimulator(boat, coxswain=Coxswain(rudder_override=driver))
     heading = float(np.arctan2(leg[6, 1] - leg[0, 1],
                                leg[6, 0] - leg[0, 0]))
@@ -92,10 +104,41 @@ def simulate(path, boat, start, finish, dt=0.02):
 
     print("simulating %.0f m ..." % length)
     clock = time.time()
-    result = sim.run(duration=1.1 * length / SPEED, dt=dt,
+    result = sim.run(duration=OVERRUN * length / SPEED, dt=dt,
                      initial_state=state)
     print("   %.0f s wall clock" % (time.time() - clock))
-    return result, leg
+    return trim_to(result, length), leg
+
+
+#: How much longer than the nominal leg to integrate before trimming.
+#: The 6-DOF hull settles near 4.7 m/s for this crew where the route
+#: model assumes 3.9, so a run sized on ``SPEED`` alone finishes early.
+OVERRUN = 1.30
+
+
+def trim_to(result, length):
+    """Cut a run at the moment the boat has covered ``length`` of track.
+
+    The scene takes its duration from the result, so trimming here is
+    what makes ``--from``/``--to`` mean what they say: every still and
+    every movie frame then falls inside the leg that was asked for,
+    however fast the hull turned out to be.
+    """
+    import dataclasses
+
+    track = np.asarray(result.position)[:2].T
+    covered = np.concatenate([[0.0], np.cumsum(
+        np.hypot(*np.diff(track, axis=0).T))])
+    if covered[-1] < length:
+        print("   the run covered %.0f m of the %.0f m leg"
+              % (covered[-1], length))
+        return result
+    end = int(np.searchsorted(covered, length)) + 1
+    print("   %.0f m in %.1f s (%.2f m/s); trimmed to the leg"
+          % (covered[end - 1], result.time[end - 1],
+             covered[end - 1] / max(result.time[end - 1], 1e-6)))
+    return dataclasses.replace(result, time=result.time[:end],
+                               states=result.states[:, :end])
 
 
 def main(argv=None):

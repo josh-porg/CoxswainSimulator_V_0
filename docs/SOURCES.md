@@ -8664,10 +8664,10 @@ depths of secs. 112-113; the regatta guide and course sheets
 `lake_union_conditions.py` and `passing_race.py`.
 
 **The result.** As drawn, 4649 m in 1199.4 s for a women's veteran four
-at 3.9 m/s; optimised, 4502 m in 1161.3 s -- 38 s, none of it grounding.
-The corridor is pinched to +/-34 m under I-5, +/-10 m at the University
+at 3.9 m/s; optimised, 4503 m in 1161.7 s -- 38 s, none of it grounding.
+The corridor is pinched to +/-34 m under I-5, +/-6 m at the University
 Bridge (the Pocock Rowing Center docks bind harder than the arch) and
-+/-19 m in the Montlake opening. 26 of the 43 marks on the map set a
++/-16 m in the Montlake opening. 26 of the 43 marks on the map set a
 limit; the rest are the permanent pencil buoys in mid-Lake Union, the
 start chute, the finish gate, and a yellow pair beyond the orange line
 at the Pocock apex.
@@ -8681,8 +8681,8 @@ so with marks a hundred metres apart on the Big Turn the optimiser
 threaded between them -- a 10 s penalty per buoy, or a disqualification
 for two. `coxswain/river/buoys.py` now joins consecutive marks of one
 colour within 250 m along the course and interpolates the limit between
-them. Tail of the Lake re-run on it: 971.0 s as drawn, 948.1 optimised,
-22.9 s -- and two of its buoys are now reported as sitting on the wrong
+them. Tail of the Lake re-run on it: 971.0 s as drawn, 949.5 optimised,
+21.5 s -- and two of its buoys are now reported as sitting on the wrong
 side of the drawn lane and ignored, where before they pinned the
 corridor to 2 m.
 
@@ -8727,6 +8727,23 @@ chop relations failing on the flats for a 14 m/s wind, where the
 waves are depth-limited and the model's H_s is an upper bound -- a
 sentence the script used to print the other way round regardless of
 its own table.
+
+**5. The picture found the fifth.** The first cox-view render of the
+Cut was a wall of dark facets, and the actor list said why: the boat
+was at north 895 and the Cut's north wall at 900. Two things had let
+the optimiser put it there. The corridor half-width was the bare
+clearance to the wall, with nothing off it for the boat's own blades
+-- a shell 3.5 m to each blade tip may legally have its centreline
+0.5 m from concrete -- and the three orange marks along the Cut are
+357 m apart, past the 250 m at which marks were joined into a line, so
+between them nothing held the line south of the orange. The corridor is
+now clearance less 3.5 m and the join distance 400 m, on both Seattle
+courses. The renderer got two smaller things out of the same frame: the
+coarse far-field mesh takes block minima when it subsamples the DEM, so
+a 50 m slot is not dammed by 24 m cells straddling wall and water, and
+the bascule bridges are drawn from their `man_made=bridge` outlines,
+because OpenStreetMap splits a movable bridge's roadway at the leaves
+into pieces too short to pass the landmark filter.
 
 **Passing on the flats.** The two-boat study of sec. 79, run on this
 course, finds the river-side question a wash: with the flats 300 m

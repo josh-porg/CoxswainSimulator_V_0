@@ -179,3 +179,20 @@ def test_the_lane_crosses_each_bridge_over_water(course):
         if bridge.name != "University Bridge":
             a, b = inside[0]
             assert abs(along - (a + b) / 2.0) < 10.0, (bridge.name, along)
+
+
+def test_the_orange_line_holds_through_the_cut():
+    """Between the three orange marks along the Cut the port limit must
+    still bind.  They are 357 m apart; joined only within 250 m, the
+    corridor between them was the bare clearance to the north wall and
+    the optimised line went there."""
+    import sys
+    sys.path.insert(0, os.path.join(ROOT, "scripts"))
+    from render_hotl import hotl_course
+    course = hotl_course()
+    line = course.centreline
+    in_cut = (line[:, 0] > 1800.0) & (line[:, 0] < 2400.0)
+    assert in_cut.sum() > 30
+    # The orange marks sit 10-24 m to port of the lane; less the 6 m
+    # margin, no port limit in the Cut may exceed 20 m.
+    assert course.port_limit[in_cut].max() < 20.0

@@ -42,6 +42,11 @@ BUOY_PATH = "data/totl_buoys.npy"
 BUOY_REACH = 40.0
 #: Clearance a shell needs off a mark, m -- blade plus nerves.
 BUOY_MARGIN = 6.0
+#: Half the width of a shell with its blades out, m.  The clearance is
+#: to the hull centreline, so the corridor is the clearance less this:
+#: without it the optimised line sat 5 m off the north wall of the
+#: Montlake Cut, and the coxswain's view was a wall.
+BOAT_HALF_SPAN = 3.5
 PUBLISHED_LENGTH = 4000.0
 
 
@@ -84,7 +89,7 @@ def totl_course(resolution: float = 10.0) -> Course:
     # width -- and not eight, which is what was there.  At 0.5 m the
     # route is pinned to the traced line where the docks bind, which is
     # the honest answer rather than a comfortable one.
-    half = np.maximum(clearance[rows, columns], 0.5)
+    half = np.maximum(clearance[rows, columns] - BOAT_HALF_SPAN, 0.5)
     pinched = int((half < 8.0).sum())
     if pinched:
         print("  NOTE: %d of %d stations (%.0f%%) have under 8 m of "

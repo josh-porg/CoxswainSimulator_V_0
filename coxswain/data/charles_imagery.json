@@ -1,0 +1,21 @@
+{
+  "bounds": [
+    42.348000000000006,
+    -71.14500235294118,
+    42.379000000000005,
+    -71.09999764705883
+  ],
+  "requested": [
+    42.348,
+    -71.145,
+    42.379,
+    -71.1
+  ],
+  "size": [
+    1851,
+    1275
+  ],
+  "source": "https://imagery.nationalmap.gov/arcgis/rest/services/USGSNAIPPlus/ImageServer/exportImage",
+  "licence": "public domain (USGS/USDA, The National Map)",
+  "note": "bounds are what the service served, not what was asked for"
+}
