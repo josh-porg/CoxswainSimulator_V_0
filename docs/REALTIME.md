@@ -215,10 +215,67 @@ The HUD's physics number is a smoothed estimate and reads high for the
 first seconds because the Numba kernel compiles on its first call.
 `--profile` prints the honest per-phase average on exit.
 
+## The seat view
+
+`scripts/fpv.py` is the coxswain's own view — 0.55 m off the water in the
+bow of a four, looking forward over the foredeck.
+
+```bash
+python scripts/fpv.py --race charles --control mouse
+python scripts/fpv.py --shot out/fpv/seat.png --frames 270 --autopilot
+```
+
+Same stick, same physics, same untrimmed yaw as the plan trainer. pygame
+owns the window and the input; **moderngl** owns the drawing, against
+OpenGL 3.3 — which is what the Intel UHD in this laptop reports, so that
+is the target, not 4.x.
+
+`coxswain/viz/worldmesh.py` builds the course as triangles and imports no
+GL, the same way `planscene.py` imports no pygame. The world is static
+and the boat moves, so the whole course goes into a handful of buffers at
+load time — 582k triangles for the Charles, built in 2.7 s — and each
+frame is one matrix and a few draw calls. `RiverScene` rebuilds meshes
+per frame, which is right for a figure and hopeless at 60 Hz; this is a
+second backend, not a replacement, and both read the same course data.
+
+### Four things the pictures caught
+
+1. **Fog was per-vertex.** The water is one quad whose four corners are
+   all three kilometres away, so every fragment of it — including the
+   water under the bow — interpolated to full haze and the river
+   rendered as sky. Fog is computed per fragment from the fragment's own
+   world position now.
+2. **A racing line on the water is a wall.** In perspective you stand on
+   the near end of it, so however narrow the ribbon it fills the bottom
+   of the screen. It is marker posts every 30 m instead — which is also
+   what a regatta actually sets, and leaves the water visible.
+3. **The bow was missing**, so the horizon swung with nothing to swing
+   against and the view felt like a camera on a stick. The hull is drawn
+   from the same outline the plan trainer uses.
+4. **Decking the whole shell put a surface under the eye**, 0.27 m below
+   it, filling a third of the frame with the inside of the boat. A cox
+   sits in a cockpit and looks *over* the foredeck, so the decking starts
+   0.45 m ahead of the seat.
+
+### Not verified
+
+**The windowed path has never run.** This machine has no display: every
+picture above was rendered through `moderngl.create_standalone_context()`
+to an offscreen buffer, which does use the real GPU but does not touch
+`pygame.display.set_mode(OPENGL)`, the swap chain, vsync or input.
+Everything up to context creation is exercised; the interactive loop is
+not. `tests/test_worldmesh.py` pins what can be pinned without a screen —
+winding, the waterline cut, the marker spacing, and that the camera sits
+where a coxswain's head is and rolls with the hull.
+
+Known rough edges: the water is a flat colour, there is no texture on
+anything, and building the Head of the Lake world takes 30 s against the
+Charles' 3 because it walks 81,022 footprints in Python.
+
 ## What has not been built
 
-The seat view. `RiverScene` (PyVista) stays as the backend for stills and
-the report — it rebuilds meshes per frame, which is right for a figure
+Texture, water motion, and streaming. `RiverScene` (PyVista) stays as the
+backend for stills and the report — it rebuilds meshes per frame, which is right for a figure
 and wrong for 60 fps. The realtime backend is a separate adapter behind
 the same scene description, so the two can coexist and either can be
 swapped for the other.

@@ -38,6 +38,7 @@ Controls
 --------
 ====================  ====================================================
 mouse                 the stick, with ``--control mouse``: left is port
+M                     hand the stick between mouse and keys
 left / right, A / D   the stick, by key; it stays where you put it
 C                     centre the stick
 W / E                 pressure split -- "more port", "more starboard"
@@ -259,6 +260,17 @@ def main(argv=None):
                     camera.heading_up = not camera.heading_up
                 elif event.key == pygame.K_c:
                     rudder = 0.0
+                elif event.key == pygame.K_m:
+                    # Hand the stick between mouse and keys mid-session.
+                    args.control = "keys" if args.control == "mouse"                         else "mouse"
+                    pygame.mouse.set_visible(args.control != "mouse")
+                    if args.control == "mouse":
+                        # Pick the pointer up where the stick already is,
+                        # so switching does not jerk the rudder.
+                        pygame.mouse.set_pos((
+                            int(args.width * 0.5 + rudder / RUDDER_LIMIT
+                                * args.width * MOUSE_SPAN * 0.5),
+                            args.height // 2))
                 elif event.key == pygame.K_r:
                     loop.start(fresh_state())
                     rudder = split = 0.0
