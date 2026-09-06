@@ -35,7 +35,7 @@ from typing import List, Optional
 import numpy as np
 
 __all__ = ["MeshPart", "WorldMesh", "land_mesh", "water_plane",
-           "building_walls", "photo_colour", "ribbon", "line_markers", "buoy_solids",
+           "building_walls", "skyline_walls", "photo_colour", "ribbon", "line_markers", "buoy_solids",
            "hull_solid", "tree_solids", "arch_bridge", "cut_walls",
            "dock_solids", "bridge_solids",
            "box_solid", "build_world"]
@@ -230,7 +230,8 @@ def photo_colour(imagery, ring, fallback):
 
 def building_walls(polygons, heights, bases=None, box=None,
                    colour=(0.42, 0.41, 0.40), imagery=None,
-                   limit: int = 4000) -> Optional[MeshPart]:
+                   near=None, min_height: float = 2.0,
+                   limit: int = 12000) -> Optional[MeshPart]:
     """Extruded footprints -- **walls only**, coloured from the orthophoto.
 
     From 0.55 m off the water you never see a roof, so the top faces are
@@ -241,10 +242,28 @@ def building_walls(polygons, heights, bases=None, box=None,
     given each building takes its own colour from the photograph (see
     :func:`photo_colour`), which is what turns the Harvard houses from
     grey blocks into the landmarks a crew steers the Weeks turn by.
+
+    ``near`` is the course.  It decides **which** buildings survive the
+    cap, and that matters more than the cap itself: the limit used to be
+    4,000 taken in file order, which on the Charles silently dropped
+    5,631 of 9,631 and kept an arbitrary set.  What limits a coxswain's
+    line of sight on that river is the bank -- trees and the buildings
+    behind them -- so the ones nearest the water are the ones that have
+    to be there.
     """
+    order = range(len(polygons))
+    if near is not None and len(polygons) > limit:
+        centres = np.array([np.asarray(p, dtype=float).mean(axis=0)
+                            if len(p) else (1e9, 1e9) for p in polygons])
+        from scipy.spatial import cKDTree
+
+        gap = cKDTree(np.asarray(near, dtype=float)[:, :2]).query(centres)[0]
+        order = np.argsort(gap)
+
     walls, tints, kept = [], [], 0
     base_colour = np.asarray(colour, dtype=float)
-    for index, polygon in enumerate(polygons):
+    for index in order:
+        polygon = polygons[index]
         if kept >= limit:
             break
         ring = np.asarray(polygon, dtype=float)
@@ -268,7 +287,7 @@ def building_walls(polygons, heights, bases=None, box=None,
                     or ring[:, 1].max() < box[1] or ring[:, 1].min() > box[3]):
                 continue
         top = float(heights[index])
-        if top < 2.0:
+        if top < min_height:
             continue
         low = float(bases[index]) if bases is not None else 0.0
         nxt = np.roll(ring, -1, axis=0)
@@ -336,6 +355,20 @@ def box_solid(centre, half, colour=(0.62, 0.60, 0.56)) -> MeshPart:
     faces = [(0, 1, 2), (0, 2, 3), (4, 6, 5), (4, 7, 6), (0, 4, 5), (0, 5, 1),
              (1, 5, 6), (1, 6, 2), (2, 6, 7), (2, 7, 3), (3, 7, 4), (3, 4, 0)]
     vertices = corner[np.asarray(faces).ravel()]
+    # Turn any inward-facing triangle around.
+    #
+    # All twelve of these were wound inward, which back-face culling
+    # turns into "the near side of the box is missing and you are looking
+    # at the inside of the far side" -- every buoy, every marker post,
+    # every pier and every tree trunk in the scene.  Rather than hand-fix
+    # a winding table that was already wrong once, the test is made
+    # explicit: a face of a convex box must point away from its centre.
+    tri = vertices.reshape(-1, 3, 3)
+    centre = np.array([cx, cy, cz], dtype="f4")
+    normal = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])
+    inward = np.einsum("ij,ij->i", normal, tri.mean(axis=1) - centre) < 0.0
+    tri[inward] = tri[inward][:, ::-1]
+    vertices = tri.reshape(-1, 3)
     colours = np.tile(np.asarray(colour, dtype="f4"), (len(vertices), 1))
     return MeshPart("box", vertices, colours, _face_normals(vertices))
 
@@ -853,6 +886,45 @@ def _slab(middle, along, span, width, level, depth) -> MeshPart:
 
 # -- assembling a course --------------------------------------------------
 
+#: How far out to look for skyline buildings, m, and how tall one must
+#: be to be worth drawing at that range.
+SKYLINE_REACH = 6500.0
+SKYLINE_HEIGHT = 38.0
+
+
+def skyline_walls(structures, course, box, imagery=None):
+    """Distant towers, drawn because a crew can see them.
+
+    Only buildings **outside** the near box are considered, so nothing is
+    drawn twice, and only those over :data:`SKYLINE_HEIGHT`, because at
+    four kilometres anything shorter is a smudge on the bank.  They keep
+    their photographed colour: the haze that makes distance read comes
+    from the fog term in the shader, not from painting them grey here.
+    """
+    polygons = list(structures.polygons)
+    heights = np.asarray(structures.heights, dtype=float)
+    if not len(polygons):
+        return None
+    centres = np.array([np.asarray(p, dtype=float).mean(axis=0)
+                        if len(p) else (1e9, 1e9) for p in polygons])
+    outside = ~((centres[:, 0] >= box[0]) & (centres[:, 0] <= box[2])
+                & (centres[:, 1] >= box[1]) & (centres[:, 1] <= box[3]))
+    from scipy.spatial import cKDTree
+
+    gap = cKDTree(np.asarray(course, dtype=float)[:, :2]).query(centres)[0]
+    keep = np.nonzero(outside & (gap < SKYLINE_REACH)
+                      & (heights >= SKYLINE_HEIGHT))[0]
+    if not len(keep):
+        return None
+    part = building_walls([polygons[i] for i in keep], heights[keep],
+                          None, box=None, imagery=imagery, limit=4000)
+    if part is None:
+        return None
+    print("   skyline: %d buildings over %.0f m, out to %.1f km"
+          % (len(keep), SKYLINE_HEIGHT, gap[keep].max() / 1000.0))
+    return MeshPart("skyline", part.vertices, part.colours, part.normals)
+
+
 def build_world(race: str = "charles", reach: float = 900.0,
                 step: float = 8.0, with_buildings: bool = True,
                 guide: bool = True, trees: bool = True):
@@ -910,7 +982,16 @@ def build_world(race: str = "charles", reach: float = 900.0,
     if with_buildings:
         mesh.add(building_walls(structures.polygons, structures.heights,
                                 getattr(structures, "base", None), box=box,
-                                imagery=photo))
+                                imagery=photo, near=course))
+        # The skyline.
+        #
+        # Rowing south down Lake Union you are looking straight at
+        # downtown Seattle, three to five kilometres away, and it is the
+        # single biggest thing in the view -- but it sits far outside the
+        # 900 m working box, so the seat view had an empty horizon where
+        # a crew sees towers.  A second pass takes only buildings tall
+        # enough to subtend a real angle at that range.
+        mesh.add(skyline_walls(structures, course, box, photo))
     docks = scene.layer("docks")
     if docks is not None:
         mesh.add(dock_solids(docks.polylines))
