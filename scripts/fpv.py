@@ -219,6 +219,9 @@ def main(argv=None):
                         help="ground mesh cell, metres")
     parser.add_argument("--no-buildings", action="store_true")
     parser.add_argument("--no-trees", action="store_true")
+    parser.add_argument("--no-sound", action="store_true",
+                        help="silence the stroke; it is the only cue in the "
+                             "seat view that says drive from recovery")
     parser.add_argument("--no-guide", action="store_true",
                         help="drop the marker posts along the course")
     parser.add_argument("--control", default="keys",
@@ -266,6 +269,17 @@ def main(argv=None):
 
     loop = FixedStepLoop(simulator, rate=args.physics)
     loop.start(fresh_state())
+
+    # The stroke, out loud.  From the bow of a four you cannot see the
+    # blades go in, and without the catch there is nothing in the seat
+    # view that separates drive from recovery -- which makes calling the
+    # boat impossible, and calling is what this is for.
+    audio = None
+    if not args.no_sound and not args.shot:
+        from coxswain.viz.strokeaudio import StrokeAudio
+        audio = StrokeAudio(boat)
+        print("   stroke audio: %s"
+              % ("on" if audio.available else "no device, running silent"))
 
     headless = bool(args.shot)
     if headless:
@@ -409,6 +423,19 @@ def main(argv=None):
 
         if not paused:
             loop.advance(frame)
+            if audio is not None:
+                audio.update(loop.t)
+                # The slide rumble follows the recovery: silent through
+                # the drive, rising as the seats run back up.
+                period = float(boat.timing.period)
+                drive = float(getattr(boat.timing, "drive_duration", 0.0)
+                              ) / max(period, 1e-9) or 0.4
+                phase = (loop.t % period) / period
+                if phase <= drive:
+                    audio.set_slide_level(0.0)
+                else:
+                    u = (phase - drive) / max(1.0 - drive, 1e-6)
+                    audio.set_slide_level(math.sin(math.pi * u))
         pose = loop.pose()
         draw(pose, loop.t)
 

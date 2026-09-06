@@ -93,12 +93,20 @@ LAND_HIGH = np.array([0.46, 0.47, 0.40])
 WATER_COLOUR = np.array([0.16, 0.28, 0.36])
 
 
-def land_mesh(terrain, wet_at, box, step: float = 8.0) -> Optional[MeshPart]:
+def land_mesh(terrain, wet_at, box, step: float = 8.0,
+              imagery=None) -> Optional[MeshPart]:
     """A heightfield over ``box`` where ``wet_at`` says there is no water.
 
     ``wet_at(east, north)`` takes 2-D arrays and returns a boolean array.
     Cells with any wet corner are dropped, so the bank ends at the
     waterline instead of diving under it.
+
+    ``imagery`` is an :class:`~coxswain.river.terrain.Imagery`.  With it,
+    every vertex takes the colour of the orthophoto directly above it, so
+    the bank is grass where there is grass, tarmac where there is a car
+    park and roof where there is a boathouse -- which is what a coxswain
+    is actually reading when they place themselves against the shore.
+    Without it the fallback is the old height ramp.
     """
     x0, y0, x1, y1 = box
     east = np.arange(x0, x1 + step, step)
@@ -129,11 +137,25 @@ def land_mesh(terrain, wet_at, box, step: float = 8.0) -> Optional[MeshPart]:
         np.stack([pa, pb, pc], axis=1).reshape(-1, 3),
         np.stack([pa, pc, pd], axis=1).reshape(-1, 3)]).astype("f4")
 
-    # Higher ground reads lighter, which is enough to give the bank shape
-    # without a texture.  A photograph belongs here eventually.
     lift = np.clip(vertices[:, 2] / 12.0, 0.0, 1.0)[:, None]
-    colours = (LAND_LOW + (LAND_HIGH - LAND_LOW) * lift).astype("f4")
-    return MeshPart("land", vertices, colours, _face_normals(vertices))
+    colours = (LAND_LOW + (LAND_HIGH - LAND_LOW) * lift)
+    if imagery is not None:
+        try:
+            photo = np.asarray(imagery.sample(vertices[:, 0],
+                                              vertices[:, 1]), dtype=float)
+            if photo.max() > 1.5:                 # 0-255 imagery
+                photo = photo / 255.0
+            good = np.isfinite(photo).all(axis=1) & (photo.sum(axis=1) > 0.02)
+            # Keep a little of the height ramp under the photograph: it
+            # is a flat overhead image with no shading of its own, and
+            # without this a bank reads as wallpaper rather than ground.
+            blended = 0.82 * photo + 0.18 * colours
+            colours = np.where(good[:, None], blended, colours)
+        except Exception as error:                # pragma: no cover
+            print("   (terrain photo failed, using the height ramp: %s)"
+                  % str(error)[:60])
+    return MeshPart("land", vertices, colours.astype("f4"),
+                    _face_normals(vertices))
 
 
 def water_plane(centre, reach: float = 3000.0,
@@ -228,6 +250,19 @@ def building_walls(polygons, heights, bases=None, box=None,
         ring = np.asarray(polygon, dtype=float)
         if len(ring) < 3:
             continue
+        # Force the ring counter-clockwise.
+        #
+        # For a CCW ring the wall winding below gives outward normals; for
+        # a clockwise one it gives inward normals, and the building
+        # renders inside-out -- back-face culling removes the near wall
+        # and leaves the far one, so you see the back of every building
+        # through the front of it.  OpenStreetMap does not guarantee a
+        # winding, so roughly half of them came out this way.  The
+        # shoelace sign says which is which.
+        area = float(np.sum(ring[:, 0] * np.roll(ring[:, 1], -1)
+                            - np.roll(ring[:, 0], -1) * ring[:, 1]))
+        if area < 0.0:
+            ring = ring[::-1]
         if box is not None:
             if (ring[:, 0].max() < box[0] or ring[:, 0].min() > box[2]
                     or ring[:, 1].max() < box[1] or ring[:, 1].min() > box[3]):
@@ -441,16 +476,24 @@ CROWN = ((0.24, 0.34, 0.20), (0.16, 0.26, 0.18), (0.20, 0.31, 0.20),
 TRUNK = (0.26, 0.20, 0.15)
 
 
-def tree_solids(stand, box, limit: int = 5000, near=None,
+def tree_solids(stand, box, limit: int = 25000, near=None,
                 min_height: float = 3.0) -> Optional[MeshPart]:
     """Trees as a trunk and a low-poly crown.
 
     The bank of a river is trees, and leaving them out is why the first
     seat view looked like a reservoir.  There are 24,392 of them on the
     Charles and 742,517 on Lake Union, so they are ranked by height and
-    capped: a crown is eight triangles and a trunk twelve, and five
-    thousand of them is a hundred thousand triangles, which an Intel UHD
-    holds without noticing.
+    by distance from the course, and capped.
+
+    **The cap is 25,000, and impostors were measured and rejected.**  A
+    crown is eight triangles and a trunk twelve, so every tree on the
+    Charles reach comes to 478,860 triangles and 1.3 s of build -- in a
+    scene that already renders 682,000 without complaint on an Intel
+    UHD.  Swapping distant trees for crossed billboard quads would cut
+    that five-fold, but there is nothing to spend the saving on: the
+    reach only *has* 24,392 trees and they all fit.  Lake Union, with
+    thirty times as many, is where an impostor would earn its keep, and
+    there the ranking already keeps the drawn ones near the course.
 
     ``near`` is an optional ``(n, 2)`` line -- the course -- used to
     prefer the trees a crew can actually see over the ones on the hill
@@ -851,20 +894,20 @@ def build_world(race: str = "charles", reach: float = 900.0,
                        len(raster.east) - 1)
         return raster.water[rows, cols]
 
+    photo = None
+    try:
+        if race == "charles":
+            from ..river.terrain import charles_imagery as _photo
+        else:
+            from ..river.terrain import seattle_imagery as _photo
+        photo = _photo()
+    except Exception as error:                # pragma: no cover
+        print("   (no imagery, flat colour throughout: %s)" % str(error)[:60])
+
     mesh = WorldMesh()
     mesh.add(water_plane(course.mean(axis=0)))
-    mesh.add(land_mesh(terrain, wet_at, box, step=step))
+    mesh.add(land_mesh(terrain, wet_at, box, step=step, imagery=photo))
     if with_buildings:
-        photo = None
-        try:
-            if race == "charles":
-                from ..river.terrain import charles_imagery as _photo
-            else:
-                from ..river.terrain import seattle_imagery as _photo
-            photo = _photo()
-        except Exception as error:            # pragma: no cover
-            print("   (no imagery, buildings stay grey: %s)"
-                  % str(error)[:60])
         mesh.add(building_walls(structures.polygons, structures.heights,
                                 getattr(structures, "base", None), box=box,
                                 imagery=photo))
