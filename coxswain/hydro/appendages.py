@@ -82,6 +82,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
+from ..core.vector import cross3
 
 from .resistance import FRESH_WATER, WaterProperties
 
@@ -361,5 +362,5 @@ def surface_load(surface: LiftingSurface, velocity_hull: np.ndarray,
                     * dynamic_pressure * area)
 
     force = np.array([-induced_drag, side_force, 0.0])
-    moment = np.cross(np.asarray(surface.position, dtype=float), force)
+    moment = cross3(np.asarray(surface.position, dtype=float), force)
     return force, moment

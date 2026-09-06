@@ -65,6 +65,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
+from ..core.vector import cross3
 
 __all__ = ["WindField", "UniformWind", "AeroModel", "AIR_DENSITY",
            "log_profile_factor", "WATER_ROUGHNESS", "ANEMOMETER_HEIGHT"]
@@ -264,5 +265,5 @@ class AeroModel:
             component[2] = 0.0
             force += component
             arm = np.array([0.0, offset, height])
-            moment += np.cross(arm, component)
+            moment += cross3(arm, component)
         return force, moment

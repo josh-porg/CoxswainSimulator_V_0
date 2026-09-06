@@ -66,6 +66,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
+from ..core.vector import cross3
 
 __all__ = ["DEFAULT_MUNK_FACTOR", "AddedMass", "sectional_sway", "sectional_heave",
            "surge_coefficient"]
@@ -295,8 +296,8 @@ class AddedMass:
         bot = a[3:6, 0:3] @ v1 + a[3:6, 3:6] @ v2
 
         # load = -C_A nu, written out with S(x) y = x cross y
-        force = np.cross(top, v2)
-        moment = np.cross(top, v1) + np.cross(bot, v2)
+        force = cross3(top, v2)
+        moment = cross3(top, v1) + cross3(bot, v2)
         return float(munk_factor) * np.concatenate([force, moment])
 
     def summary(self) -> str:

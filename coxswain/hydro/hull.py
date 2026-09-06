@@ -42,6 +42,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
+from ..core.vector import cross3
 
 from ..core.frames import hull_to_abs
 
@@ -222,7 +223,7 @@ class HullMesh:
         # Newell-style area vector from the two diagonals
         diagonal_1 = corners[:, 2] - corners[:, 0]
         diagonal_2 = corners[:, 3] - corners[:, 1]
-        area_vector = 0.5 * np.cross(diagonal_1, diagonal_2)
+        area_vector = 0.5 * cross3(diagonal_1, diagonal_2)
         area = np.linalg.norm(area_vector, axis=1)
 
         keep = area > 1e-12
@@ -286,7 +287,7 @@ class HullMesh:
         panel_force = -(rho * gravity * mean_depth * self.area)[:, None] \
             * normal_abs
         force = panel_force.sum(axis=0)
-        moment = np.cross(centroid_abs, panel_force).sum(axis=0)
+        moment = cross3(centroid_abs, panel_force).sum(axis=0)
 
         # displaced volume by the divergence theorem: V = -(1/3) sum q_z ...
         # use the vertical flux form, which is robust for an open mesh

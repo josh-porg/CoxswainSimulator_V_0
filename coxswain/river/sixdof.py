@@ -48,6 +48,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
+from ..core.vector import cross3
 
 from .strokemodel import StrokePeriodicFit, _oar_load
 from ..hydro.addedmass import DEFAULT_MUNK_FACTOR
@@ -127,7 +128,7 @@ class CrewTensorFit:
             inertia[:, index] = (tensor[0, 0], tensor[1, 1], tensor[2, 2],
                                  tensor[0, 1], tensor[0, 2], tensor[1, 2])
             cross_accel[:, index] = (
-                mass[:, None] * np.cross(position, acceleration)).sum(axis=0)
+                mass[:, None] * cross3(position, acceleration)).sum(axis=0)
 
         def fit(samples):
             spread = float(np.ptp(samples))

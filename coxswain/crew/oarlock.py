@@ -45,6 +45,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
+from ..core.vector import cross3
 
 from .stroke import StrokeTiming
 
@@ -606,7 +607,7 @@ def hull_load(force: np.ndarray, oarlock_position: np.ndarray,
     lever = (np.asarray(oarlock_position, dtype=float)
              - np.asarray(hand_position, dtype=float)
              + gearing * np.asarray(hand_position, dtype=float))
-    return net_force, np.cross(lever, force)
+    return net_force, cross3(lever, force)
 
 
 def oar_axis(t, timing: StrokeTiming, side: int,

@@ -31,6 +31,7 @@ from dataclasses import dataclass, field
 from typing import List, Sequence, Tuple
 
 import numpy as np
+from ..core.vector import cross3
 
 from ..crew.anthropometry import PORT, STARBOARD, RowerAnthropometry
 from ..crew.kinematics import JointDrivenRower, RowerStation
@@ -554,7 +555,7 @@ class Boat:
             from ..core.frames import hull_to_abs
             rot = hull_to_abs(attitude)
             crew_abs = position @ rot.T
-            weight_moment = np.cross(
+            weight_moment = cross3(
                 crew_abs, np.tile([0.0, 0.0, -gravity], (len(mass), 1))
                 * mass[:, None]).sum(axis=0)
             return np.array([
