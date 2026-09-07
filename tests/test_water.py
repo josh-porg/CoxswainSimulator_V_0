@@ -143,3 +143,35 @@ def test_the_shadow_is_as_wide_as_the_boat_is_across_the_wind():
     bow_on = hull_shelter(across, downwind, 0.0, 0.0, np.pi / 2, wind_from,
                           13.4, 0.5)
     assert (beam_on < 0.9).sum() > 5 * (bow_on < 0.9).sum()
+
+
+def test_the_shelter_has_no_seam_through_the_boat():
+    """Walking across the wind through the boat, the factor is continuous.
+
+    It was not: the lee began at ``downwind = 0`` with a step and the
+    windward pile-up ended there with another, and the shader drew that
+    as a straight seam through the water -- hull-length long, following
+    the boat, aligned with the wind and therefore lining up with
+    nothing.  It was reported as "a strange diagonal line" and took
+    three wrong guesses to find, because every other straight edge in
+    the water is in the boat's frame and this one was in the wind's.
+    """
+    import numpy as np
+    from coxswain.viz.water import hull_shelter
+
+    wind_from = np.radians(200.0)
+    # Beam-on, so the sheltered strip is at its widest and the seam,
+    # if there is one, is at its longest.
+    heading = wind_from + np.pi / 2.0
+    blow = np.array([np.cos(wind_from + np.pi), np.sin(wind_from + np.pi)])
+    along = np.linspace(-8.0, 8.0, 3201)              # 5 mm steps
+    east = along * blow[0]
+    north = along * blow[1]
+    factor = hull_shelter(east, north, 0.0, 0.0, heading, wind_from,
+                          13.4, 0.5)
+    step = np.abs(np.diff(factor)).max()
+    # A 5 mm step in the input may move the factor by a hair; the old
+    # code moved it by 0.9 in one step.
+    assert step < 0.01, step
+    # And it still does what it is for: calm to lee, piled to windward.
+    assert factor[-1] < 1.0 < factor[0]

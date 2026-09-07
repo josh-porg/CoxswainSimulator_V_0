@@ -9449,3 +9449,131 @@ is long and near-horizontal — the gunwale, the oar looms, the far bank,
 the bridge chords — which is the worst case for crawling, and MSAA
 lands exactly there. Requested rather than required: if the part will
 not give a multisample visual the context still comes up without one.
+
+## 139. Shadows: what was actually wrong, and the four things that were not
+
+A static shadow map, baked once from the sun over the course, sampled
+by the land and the water with a 16-tap bilinear PCF. Getting it to
+show anything took a morning, and the record of what was and was not
+the fault is more useful than the code.
+
+**Not the fault, though each was suspected in turn:** the matrix (the
+tower's top and the far end of its shadow project to the same texel,
+to 0.0 texels); the bake (the tower's depth sits 32 m nearer than the
+ground's on the ground texel it shadows -- the map is right); the
+texture read (a debug probe painting stored-minus-own depth was flat
+grey where it should be, black on lee faces); and the ortho depth
+range, which *was* wrong at first -- sized from the world's height
+when a 58° sun makes it two kilometres deep -- but was fixed early.
+
+**The fault was viewpoint plus bias.** From the seat the shadows a
+building casts fall behind it or on the far bank, a few pixels wide.
+A camera placed straight over the Lowell House tower's shadow patch
+showed a clean dark block -- the shadows had been working for hours.
+What that view also showed was heavy self-shadow striping on every
+bank, because the bias was expressed in normalised depth over a 2.9 km
+range: 0.0016 of that is 4.6 m, more than the sun-ray length from a
+boathouse roof to the ground it shadows, so nothing that size cast, and
+lowering it brought the acne. The bias is in metres now, and the cure
+for the acne is a normal offset -- the lookup steps one texel out along
+the surface normal -- rather than more bias, which only detaches a
+shadow from whatever casts it.
+
+Two more findings. A depth texture comes with comparison mode on, and
+read through a plain `sampler2D` it returns the comparison rather than
+the depth: clearing it was necessary for the shadow map and it turned
+out to be silently breaking the water's refraction, which had been
+reading a constant for the scene depth. And the map is bounded to the
+course plus a margin rather than to the mesh, which reaches 6.5 km to
+the skyline: over that it was 4.8 m a texel and every shadow a blob;
+over the course it is 0.7–1.1 m.
+
+The boat cannot be in a static map, so its own shadow -- the one a
+coxswain actually sees, beside the hull every stroke -- is analytic: the
+hull and crew as a slab, and each water point walked back along the sun
+to see whether it passes through it.
+
+## 140. The hull in the water, the bow, and the blade
+
+The chop used to run straight through the hull's footprint. Now waves
+do not pass through it (`hull_damp`), the sides run in a line of broken
+water weighted by the incident crest so a wave meeting the windward
+side breaks white against it, and the stem throws spray as the square
+of speed -- scaled up again by the crest arriving at the stem and by the
+hull plunging into it, and thrown wider as it does. Heave velocity and
+surge acceleration reach the surface for the first time, as a
+displacement over the hull's footprint: the bow wave breathes once a
+stroke rather than sitting at the mean speed's value.
+
+The blade's entry puts a short burst of foam and a small ring where it
+went in, riding on the puddle drop the catch already makes, fading in a
+third of a second. Deliberately not dramatic: a clean catch throws very
+little water, and the point is only that it is there.
+
+## 141. The wind, the bank, and the grey
+
+Three things that make a place a place. An ambient bed -- wind gusting
+on a slow envelope, water working at a bank in soft irregular washes,
+a gull once or twice a loop -- synthesised, seamless, and held to a
+fifth of the stroke's level, following the wind setting so a dead calm
+is nearly silent. The overcast takes a few percent of two-octave
+simplex, drifting, scaled by how overcast it is, so the grey is a sky
+and not a wall -- and held well under the zenith-to-horizon gradient,
+which is the sky's shape; this is only its texture.
+
+And the strange diagonal line in the water, finally: the wind shelter
+began its lee at `downwind = 0` with a step and ended its windward
+pile-up there with another, so the wave amplitude jumped by 0.9 along a
+line through the boat perpendicular to the wind. Hull-length long,
+following the boat, aligned with the wind rather than the hull -- which
+is why it lined up with nothing and took three wrong guesses. The two
+now cross over across the hull's own extent along the wind, never
+narrower than the band's 1.5 m edge, and a test walks across the wind
+through the boat and asserts no step.
+
+## 142. The bow, from the fluid mechanics
+
+The first bow was a painted box: a smoothstep over the last three
+metres of the hull times a flat additive white, which is exactly what it
+looked like -- a translucent rectangle laid over the stem. It is gone,
+and what replaces it is built from stated models, each cheap enough to
+run per pixel:
+
+* **The sheet.** Thin-ship theory gives the velocity the hull pushes
+  water outward with as `U·b′(x)` -- speed times the local slope of the
+  half-breadth -- so the head driving the sheet along the entry is
+  `(U·b′)²/2g`. With a parabolic waterline `b′ ∝ x`, so the sheet is
+  strongest at the stem where the entry is finest, dies where the hull
+  runs parallel, and goes as speed squared. That is the along-hull
+  distribution from the hull's own geometry, not a ramp. For a shell it
+  is centimetres, which is correct: a racing shell throws little in
+  flat water.
+* **Run-up.** A crest arriving at the stem is partly reflected and
+  stands to `(1+R)` times its height there. A thin stem reflects
+  little; `R` is set from the beam-to-length ratio, about 0.3 for an
+  eight. It goes in as a height over the last metre of the entry and
+  as extra sheet, with the hull's plunge (heave velocity into the crest)
+  on top.
+* **Breaking.** A gravity wave cannot stand steeper than the Stokes
+  limit -- a 120° crest, a face slope near 0.58 -- and where the
+  *computed* surface (chop, bow wave, pulse and run-up together)
+  approaches it, it goes white. In flat water a shell's bow never gets
+  there. In a breeze the crest on top of the pile-up does, at the bow,
+  which is where a coxswain sees it. Decided per pixel from the slope
+  the shader already has, and confined to the boat's own water.
+* **Advection.** Broken water moves with the water, aft along the hull
+  at the flow speed. The streak texture is carried at that speed in the
+  hull frame, so the whitewater slides past the boat instead of being
+  stuck to it -- the single strongest cue that it is water.
+
+And the hull's effect on the waves themselves is now wavelength
+dependent, as it is. A hull does not stop waves; it scatters the ones
+it cannot follow. A wave long against the hull lifts the whole boat and
+passes -- the boat rides it, which is the simulator's business -- while
+a wave short against the hull cannot lift it, meets it as a wall, and
+is broken up. So each component of the chop is weighted inside the
+footprint by its wavelength against the hull length: chop of a metre
+or two is gone inside an eight, a ten-metre swell is dented, twenty
+metres passes untouched, and a single, half the length, breaks up
+less. The previous version damped everything alike, which had a swell
+vanishing under the hull as if the boat were a breakwater.

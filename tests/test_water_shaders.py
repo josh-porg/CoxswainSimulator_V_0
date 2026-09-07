@@ -42,6 +42,25 @@ def test_both_water_shaders_compile(ctx):
         program.release()
 
 
+def test_the_land_sky_and_shadow_shaders_compile(ctx):
+    """Every other program the trainer builds, built here first.
+
+    The water shaders were the only ones compile-tested, and the land
+    shader grew a shadow lookup and the sky a noise function without any
+    test building them -- so a GLSL slip in either would have shown up
+    as a black window on somebody else's machine.
+    """
+    import fpv
+
+    for vertex, fragment in (("VERTEX_SHADER", "FRAGMENT_SHADER"),
+                             ("SKY_VERTEX", "SKY_FRAGMENT"),
+                             ("SHADOW_VERTEX", "SHADOW_FRAGMENT")):
+        program = ctx.program(vertex_shader=getattr(fpv, vertex),
+                              fragment_shader=getattr(fpv, fragment))
+        assert program is not None, fragment
+        program.release()
+
+
 def test_the_rich_shader_takes_the_scene_it_reads(ctx):
     """It is a second pass, so it must actually declare the inputs.
 

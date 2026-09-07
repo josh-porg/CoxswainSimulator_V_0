@@ -26,7 +26,7 @@ __all__ = ["Choice", "Menu", "boat_choices", "course_choices",
            "start_music", "stop_music", "music_path",
            "chart_surface", "draw_controls", "CONTROLS",
            "options_menu", "quality_settings", "QUALITY", "AUDIO_MODES",
-           "WEATHERS", "weather_choices"]
+           "WEATHERS", "weather_choices", "weather_menu"]
 
 
 #: Shells a coxswain might sit in, as ``(key, label, seats, coxed)``.
@@ -200,6 +200,26 @@ def weather_choices():
     return [(key, label) for key, label in WEATHERS]
 
 
+def weather_menu(weather: str = "hazy", wind: float = 5.0) -> Menu:
+    """The air, on its own.
+
+    Kept apart from graphics and sound because it is not a preference
+    about how the program draws: it is a condition of the outing, like
+    the course.  Wind belongs here and nowhere else -- it sets the chop,
+    the micro-ripple, the shelter behind the hull and which way the boat
+    gets pushed.
+    """
+    rows = [
+        Choice("weather", "Sky", weather_choices(),
+               index=max([i for i, w in enumerate(WEATHERS)
+                          if w[0] == weather] + [0])),
+        Choice("wind", "Wind", (), numeric=(0.0, 16.0, 1.0),
+               value=float(wind), unit="m/s"),
+        Choice("back", "Back", (), action="back"),
+    ]
+    return Menu("Weather", rows)
+
+
 def options_menu(audio: str = "full", quality: str = "standard",
                  weather: str = "hazy", wind: float = 5.0) -> Menu:
     """Graphics and sound, reached from either menu."""
@@ -212,13 +232,6 @@ def options_menu(audio: str = "full", quality: str = "standard",
         Choice("quality", "Graphics", grades,
                index=max([i for i, q in enumerate(grades) if q[0] == quality]
                          + [0])),
-        Choice("weather", "Weather", weather_choices(),
-               index=max([i for i, w in enumerate(WEATHERS)
-                          if w[0] == weather] + [0])),
-        # Wind lives here rather than on the setup menu because it is
-        # weather: it sets the chop, and now the micro-ripple with it.
-        Choice("wind", "Wind", (), numeric=(0.0, 16.0, 1.0),
-               value=float(wind), unit="m/s"),
         Choice("back", "Back", (), action="back"),
     ]
     return Menu("Graphics and sound", rows)
@@ -239,6 +252,7 @@ def setup_menu(boat: str = "4+", course: str = "charles",
         Choice("rate", "Stroke rate", (), numeric=(16.0, 44.0, 1.0),
                value=float(rate), unit="spm"),
         Choice("start", "Push off", (), action="start"),
+        Choice("weather", "Weather", (), action="weather"),
         Choice("options", "Graphics and sound", (), action="options"),
         Choice("controls", "Controls", (), action="controls"),
         Choice("quit", "Quit", (), action="quit"),
@@ -260,6 +274,7 @@ def pause_menu(rate: float = 30.0, wind: float = 5.0) -> Menu:
                value=float(rate), unit="spm"),
         Choice("restart", "Restart this course", (), action="restart"),
         Choice("setup", "Change boat or course", (), action="setup"),
+        Choice("weather", "Weather", (), action="weather"),
         Choice("options", "Graphics and sound", (), action="options"),
         Choice("controls", "Controls", (), action="controls"),
         Choice("quit", "Quit", (), action="quit"),

@@ -385,12 +385,19 @@ def hull_shelter(east, north, boat_east, boat_north, heading, wind_from,
     lateral = np.abs(-dx * blow[1] + dy * blow[0])
 
     inside = np.clip(1.0 - (lateral - half_width) / 1.5, 0.0, 1.0)
-    lee = np.where(downwind > 0.0,
-                   SHELTER_DEPTH * np.exp(-downwind / SHELTER_RECOVERY), 0.0)
-    windward = np.where(downwind < 0.0,
-                        WINDWARD_GAIN * np.exp(downwind / WINDWARD_REACH),
-                        0.0)
-    return 1.0 - inside * lee + inside * windward
+    # Continuous across the boat.  The lee and the windward pile-up used
+    # to meet at downwind = 0 with a step between them, which the shader
+    # drew as a straight seam through the water following the boat.
+    # They cross over across the hull's own extent along the wind.
+    half_along = max(0.5 * (length * along_wind + beam * across_wind), 1.5)
+    u = np.clip((downwind + half_along) / max(2.0 * half_along, 1e-9),
+                0.0, 1.0)
+    t = u * u * (3.0 - 2.0 * u)                          # smoothstep
+    lee = SHELTER_DEPTH * np.exp(-np.maximum(downwind - half_along, 0.0)
+                                 / SHELTER_RECOVERY)
+    windward = WINDWARD_GAIN * np.exp(np.minimum(downwind + half_along, 0.0)
+                                      / WINDWARD_REACH)
+    return 1.0 + inside * ((1.0 - t) * windward - t * lee)
 
 
 @dataclass
@@ -415,11 +422,16 @@ class PuddleTrail:
             self.points = self.points[-self.capacity:]
 
     def as_uniform(self, now: float):
-        """``(capacity, 4)`` of ``(east, north, age fraction, unused)``."""
+        """``(capacity, 4)`` of ``(east, north, 1 - age fraction, age s)``.
+
+        The last slot was unused; it now carries the age in seconds so
+        the shader can put a short splash at the entry without a
+        second uniform.
+        """
         rows = np.zeros((self.capacity, 4), dtype="f4")
         for slot, (east, north, when) in enumerate(self.points[-self.capacity:]):
             age = (now - when) / max(self.lifetime, 1e-6)
             if age < 0.0 or age > 1.0:
                 continue
-            rows[slot] = (east, north, 1.0 - age, 0.0)
+            rows[slot] = (east, north, 1.0 - age, float(now - when))
         return rows

@@ -24,8 +24,13 @@ Windows only, I am afraid.
 FIRST SCREEN
 ------------
 
-Pick a boat, a course, a stroke rate, and how much wind you want.
-Arrow keys move and change, Enter selects. Choose "Push off".
+Pick a boat, a course and a stroke rate. Arrow keys move and change,
+Enter selects. Choose "Push off".
+
+"Weather" on the same screen sets the sky -- clear, hazy, overcast or
+fog -- and the wind, which sets the chop, the ripple on the water and
+the shelter behind the hull. Fog takes the far bank out. "Graphics and
+sound" trades water detail for frame rate and picks the stroke sound.
 
   Head of the Charles   4.8 km, Boston. Six bridges and the Weeks turn.
   Tail of the Lake      4.0 km, Lake Union, Seattle.
@@ -68,9 +73,12 @@ is not a bug; it is the thing you spend a race correcting.
 WHILE YOU ARE ROWING
 --------------------
 
-  Esc     the menu -- change stroke rate or wind, restart, read the
-          controls, or go back and change boat or course.  There is a
-          reminder along the bottom of the screen.
+  Esc     the menu -- change stroke rate, the weather and wind, restart,
+          read the controls, or go back and change boat or course.
+          There is a reminder along the bottom of the screen.
+  F1      a free camera, to fly around and look at the course: WASD
+          moves, Q and E go down and up, shift is faster, F1 again
+          puts you back in the boat.
   Space   freeze it
   R       restart the course
   Q       quit

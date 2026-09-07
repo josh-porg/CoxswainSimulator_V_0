@@ -63,7 +63,7 @@ from coxswain.viz.menu import (build_boat, chart_surface,    # noqa: E402
                                draw_controls, draw_menu,
                                handle_key, options_menu, pause_menu,
                                quality_settings, setup_menu,
-                               start_music, stop_music)
+                               start_music, stop_music, weather_menu)
 from coxswain.viz.planscene import oar_lines                # noqa: E402
 from coxswain.viz.strokeaudio import shell_of               # noqa: E402
 from coxswain.viz.water import (KELVIN_HALF_ANGLE,          # noqa: E402
@@ -91,7 +91,9 @@ SKY = (0.52, 0.60, 0.68)
 #: casting a direction and the visibility drops, and changing any of
 #: those without the others gives you a lit day with fog bolted on.
 #:
-#: ``(zenith, horizon, glow, fog_density, fog_height, scatter)``.  Fog
+#: ``(zenith, horizon, glow, fog_density, fog_height, scatter,
+#: overcast)`` -- the last being how much of the sky is cloud, which
+#: sets how much low-frequency texture the dome takes.  Fog
 #: density is per metre; the reciprocal is roughly the range at which a
 #: dark object is half lost, so 1/2600 is a clear morning and 1/420 is
 #: the kind of river fog that has crews rowing on sound.
@@ -100,18 +102,18 @@ WEATHER = {
     # sits at the same apparent distance as the near one and the reach
     # goes flat, so "clear" is a long visibility rather than none.
     "clear": ((0.30, 0.47, 0.70), (0.68, 0.76, 0.83),
-              (0.40, 0.34, 0.24), 1.0 / 2200.0, 46.0, 0.55),
+              (0.40, 0.34, 0.24), 1.0 / 2200.0, 46.0, 0.55, 0.08),
     "hazy": ((0.36, 0.50, 0.68), (0.71, 0.77, 0.82),
-             (0.34, 0.30, 0.22), 1.0 / 2600.0, 34.0, 0.45),
+             (0.34, 0.30, 0.22), 1.0 / 2600.0, 34.0, 0.45, 0.30),
     "overcast": ((0.60, 0.63, 0.66), (0.74, 0.76, 0.78),
-                 (0.10, 0.10, 0.10), 1.0 / 1100.0, 26.0, 0.15),
+                 (0.10, 0.10, 0.10), 1.0 / 1100.0, 26.0, 0.15, 0.95),
     # 1/420 was chosen for the number and looked like nothing: the
     # Charles is 150 m across and its far bank is well inside a 290 m
     # half-loss range, so the "fog" was doing almost exactly what the
     # overcast did.  A river fog you would actually be careful in takes
     # the far bank most of the way out.
     "fog": ((0.74, 0.76, 0.77), (0.82, 0.83, 0.84),
-            (0.05, 0.05, 0.05), 1.0 / 130.0, 11.0, 0.06),
+            (0.05, 0.05, 0.05), 1.0 / 130.0, 11.0, 0.06, 0.55),
 }
 
 #: The dome, as ``(zenith, horizon, glow)``.  A New England overcast:
@@ -155,6 +157,18 @@ RIPPLE_FADE = 45.0
 #: ripple as concentric rings of sparkle, which is the texture reporting
 #: the shape underneath it rather than sitting on it.
 RIPPLE_WAKE_GAIN = 0.8
+
+#: How far the hull's own motion moves the water, per m/s of heave and
+#: per m/s^2 of surge.  A shell heaves a couple of centimetres a second
+#: and surges around half a g's worth of a g, so these put both effects
+#: in the centimetres -- visible beside the hull, gone by a length away.
+HEAVE_GAIN = 0.30
+SURGE_GAIN = 0.014
+
+#: The shadow map covers the course line plus this much either side, m,
+#: and is sized so a texel is about this big on the ground.
+SHADOW_MARGIN = 260.0
+SHADOW_TEXEL = 1.2
 
 VERTEX_SHADER = """#version 330
 in vec3 in_pos;
@@ -202,6 +216,42 @@ void main() {
 #: which is what makes a far bank sit *in* the air rather than under a
 #: grey wash, and the water's reflections are fogged with the same
 #: function so a reflected bank fades exactly as the real one does.
+#: 2-D simplex noise, its own block so that every program that needs it
+#: gets it exactly once: the sky block carries it for the fragment
+#: shaders, and the water's vertex shader -- which does not take the sky
+#: block, and whose surface code now uses it for the bow's streaks --
+#: takes it directly.
+SIMPLEX_GLSL = """
+vec3 simplex_permute(vec3 x) {
+    return mod(((x * 34.0) + 1.0) * x, 289.0);
+}
+
+float simplex(vec2 v) {
+    const vec4 C = vec4(0.211324865405187, 0.366025403784439,
+                        -0.577350269189626, 0.024390243902439);
+    vec2 i  = floor(v + dot(v, C.yy));
+    vec2 x0 = v - i + dot(i, C.xx);
+    vec2 i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+    vec4 x12 = x0.xyxy + C.xxzz;
+    x12.xy -= i1;
+    i = mod(i, 289.0);
+    vec3 p = simplex_permute(simplex_permute(i.y + vec3(0.0, i1.y, 1.0))
+                             + i.x + vec3(0.0, i1.x, 1.0));
+    vec3 m = max(0.5 - vec3(dot(x0, x0), dot(x12.xy, x12.xy),
+                            dot(x12.zw, x12.zw)), 0.0);
+    m = m * m; m = m * m;
+    vec3 x = 2.0 * fract(p * C.www) - 1.0;
+    vec3 h = abs(x) - 0.5;
+    vec3 ox = floor(x + 0.5);
+    vec3 a0 = x - ox;
+    m *= 1.79284291400159 - 0.85373472095314 * (a0 * a0 + h * h);
+    vec3 g;
+    g.x  = a0.x  * x0.x  + h.x  * x0.y;
+    g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+    return 130.0 * dot(m, g);
+}
+"""
+
 SKY_FOG_GLSL = """
 uniform vec3 sky_zenith;
 uniform vec3 sky_horizon;
@@ -209,6 +259,10 @@ uniform vec3 sun_glow;
 uniform float fog_density;
 uniform float fog_height;
 uniform float fog_scatter;
+uniform float sky_overcast;
+uniform float sky_time;
+
+__SIMPLEX__
 
 vec3 sky_colour(vec3 dir, vec3 sun_dir) {
     vec3 d = normalize(dir);
@@ -224,6 +278,18 @@ vec3 sky_colour(vec3 dir, vec3 sun_dir) {
     // band, it is most of what tells you how far away it is.
     float band = exp(-max(up, 0.0) * 26.0);
     base = mix(base, sky_horizon * 1.04, band * 0.65);
+    // A very little low-frequency variation on an overcast, so the
+    // grey is a sky and not a wall.  Two octaves of simplex over the
+    // dome, drifting slowly, scaled by how overcast it is -- a clear
+    // blue barely takes any -- and held to a few percent, so it sits
+    // UNDER the zenith-to-horizon gradient rather than competing with
+    // it.  That gradient is the sky's shape; this is its texture.
+    if (sky_overcast > 0.0) {
+        vec2 q = d.xy / (max(d.z, 0.0) + 0.35);
+        float cloud = simplex(q * 0.9 + vec2(sky_time * 0.012, 0.0))
+                    + 0.5 * simplex(q * 2.1 - vec2(0.0, sky_time * 0.017));
+        base *= 1.0 + 0.045 * sky_overcast * cloud;
+    }
     // A broad glow rather than a disc: the sun is behind cloud here.
     float towards = max(dot(d, normalize(sun_dir)), 0.0);
     base += sun_glow * pow(towards, 6.0) * 0.55;
@@ -277,6 +343,13 @@ vec3 apply_fog_lit(vec3 colour, vec3 from, vec3 to, vec3 sun_dir) {
     return mix(air, colour, keep);
 }
 """
+# Two forms.  The land and sky programs take the noise inside the sky
+# block.  The water programs already carry it at the top with their
+# surface code -- which uses it, and sits above the sky block -- so they
+# take the block WITHOUT it, or the function is defined twice.
+SKY_FOG_GLSL_PLAIN = SKY_FOG_GLSL.replace("__SIMPLEX__", "")
+SKY_FOG_GLSL = SKY_FOG_GLSL.replace("__SIMPLEX__", SIMPLEX_GLSL)
+
 
 
 FRAGMENT_SHADER = """#version 330
@@ -289,11 +362,16 @@ uniform vec3 sky;
 uniform vec3 eye;
 uniform float far;
 __SKY_FOG__
+__SHADOW__
 void main() {
     // A single directional light with a generous ambient: this is an
     // overcast New England morning, not a stage.
-    float lambert = max(dot(normalize(v_normal), sun), 0.0);
-    vec3 lit = v_colour * (0.55 + 0.45 * lambert);
+    vec3 n = normalize(v_normal);
+    float lambert = max(dot(n, sun), 0.0);
+    float visible = sun_visibility(v_world, n, 1.0 - abs(dot(n, sun)));
+    vec3 lit = v_colour * (0.55 + 0.45 * lambert * visible);
+    if (shadow_debug == 1) { f_colour = vec4(vec3(visible), 1.0); return; }
+    if (shadow_debug >= 2) { f_colour = vec4(shadow_probe(v_world), 1.0); return; }
     // Fogged toward the sky in the direction being looked along, so the
     // far bank sits in the air rather than under a flat wash.
     f_colour = vec4(apply_fog_lit(lit, eye, v_world, sun), 1.0);
@@ -408,43 +486,19 @@ uniform float ripple_slope_amp;
 uniform float ripple_scale;
 uniform float ripple_fade;
 
-vec3 simplex_permute(vec3 x) {
-    return mod(((x * 34.0) + 1.0) * x, 289.0);
-}
-
-float simplex(vec2 v) {
-    const vec4 C = vec4(0.211324865405187, 0.366025403784439,
-                        -0.577350269189626, 0.024390243902439);
-    vec2 i  = floor(v + dot(v, C.yy));
-    vec2 x0 = v - i + dot(i, C.xx);
-    vec2 i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
-    vec4 x12 = x0.xyxy + C.xxzz;
-    x12.xy -= i1;
-    i = mod(i, 289.0);
-    vec3 p = simplex_permute(simplex_permute(i.y + vec3(0.0, i1.y, 1.0))
-                             + i.x + vec3(0.0, i1.x, 1.0));
-    vec3 m = max(0.5 - vec3(dot(x0, x0), dot(x12.xy, x12.xy),
-                            dot(x12.zw, x12.zw)), 0.0);
-    m = m * m; m = m * m;
-    vec3 x = 2.0 * fract(p * C.www) - 1.0;
-    vec3 h = abs(x) - 0.5;
-    vec3 ox = floor(x + 0.5);
-    vec3 a0 = x - ox;
-    m *= 1.79284291400159 - 0.85373472095314 * (a0 * a0 + h * h);
-    vec3 g;
-    g.x  = a0.x  * x0.x  + h.x  * x0.y;
-    g.yz = a0.yz * x12.xz + h.yz * x12.yw;
-    return 130.0 * dot(m, g);
-}
 
 // Two octaves, drifting with the wind, differenced for a slope.  The
 // second octave runs the other way so the pattern does not read as one
 // sheet sliding.
 uniform float ripple_wake_gain;
 
-vec2 ripple(vec2 p, float range, float stirred) {
+vec2 ripple(vec2 p, float range, float stirred, float span) {
     float fade = clamp(1.0 - range / ripple_fade, 0.0, 1.0);
-    if (fade <= 0.0 || ripple_slope_amp <= 0.0) return vec2(0.0);
+    // The same filter as the chop, at the ripple's own wavenumber: a
+    // centimetre ripple under a pixel a metre wide is pure fizz.
+    float qf = 6.2832 * ripple_scale * 2.7 * span * 0.35;
+    fade *= exp(-0.5 * qf * qf);
+    if (fade <= 0.001 || ripple_slope_amp <= 0.0) return vec2(0.0);
     // Disturbed water is rougher at the small scale than calm water.
     // A wake and a puddle are not just a shape: they are a patch of
     // surface that has been stirred, and it stays stirred after the
@@ -465,8 +519,40 @@ vec2 ripple(vec2 p, float range, float stirred) {
          * ripple_slope_amp * fade * fade * rough;
 }
 
-vec2 sea_slope(vec2 p) {
+//: Angle one pixel subtends, radians: the vertical field of view over
+//: the viewport height.  With it the shader knows how much water a
+//: pixel covers, and that is what decides which waves it can show.
+uniform float pixel_angle;
+
+// How much of the surface one pixel covers, in metres.  Grows with
+// range, and stretches along the view at grazing angles, where a pixel
+// looking nearly along the water spans a long thin patch of it.
+float footprint(vec3 world) {
+    vec3 to_eye = eye - world;
+    float range = length(to_eye);
+    float grazing = max(abs(to_eye.z) / max(range, 1e-3), 0.06);
+    return range * pixel_angle / grazing;
+}
+
+// The chop's slope, PRE-FILTERED to what the pixel can resolve.
+//
+// This is the "static" at distance.  Every wave was differentiated
+// exactly at every pixel, which is right up close and wrong far off:
+// once a pixel spans more water than a wavelength, an exact sample is
+// an effectively random phase, and a field of random slopes is noise
+// that does not even glitter -- it just fizzes.  The cure is the same
+// as for any signal sampled below its bandwidth: attenuate what the
+// sampling cannot carry.  Each component is weighted by a Gaussian in
+// (k * footprint), so a wave several pixels long passes untouched and
+// one shorter than a pixel is gone.
+//
+// ``lost`` reports the share of the slope that was filtered away.  It
+// is not thrown away: an unresolved rough surface reflects like a
+// broad one, so the caller widens the specular lobe by it.  That is
+// the difference between a horizon that fizzes and one that sheens.
+vec2 sea_slope(vec2 p, float span, out float lost) {
     vec2 g = vec2(0.0);
+    float total = 0.0, kept = 0.0;
     for (int i = 0; i < 8; ++i) {
         float a = waves[i].x;
         if (a <= 0.0) continue;
@@ -475,14 +561,21 @@ vec2 sea_slope(vec2 p) {
         vec2 along = vec2(cos(d), sin(d));
         float w = sqrt(SLOPE_G * k);
         float s = sin(k * dot(p, along) - w * time + waves[i].w);
-        g += -a * k * along * s;
+        float q = k * span * 0.35;
+        float weight = exp(-0.5 * q * q);
+        g += -a * k * along * s * weight;
+        total += a * k;
+        kept += a * k * weight;
     }
+    lost = total > 0.0 ? 1.0 - kept / total : 0.0;
     return g;
 }
 
 vec3 water_normal(vec3 world, vec2 baked_slope, float range,
-                  float foam) {
+                  inout float foam, out float roughness) {
     vec2 g;
+    float span = footprint(world);
+    roughness = 0.0;
     // How stirred this patch is: the slope the boat's own disturbance
     // contributes, plus the foam the puddles carry.  Taken from the
     // wake and near field rather than from the chop, because wind waves
@@ -497,15 +590,32 @@ vec3 water_normal(vec3 world, vec2 baked_slope, float range,
     if (distance(world.xy, boat.xy) < exact_within) {
         // Differenced at a step finer than the cells, so the answer is
         // the surface's slope and not the mesh's.
-        float e = 0.05, junk;
-        float h  = surface(world.xy, junk);
+        float e = 0.05, junk, here;
+        float h  = surface(world.xy, here);
         float hx = surface(world.xy + vec2(e, 0.0), junk);
         float hy = surface(world.xy + vec2(0.0, e), junk);
         g = vec2((hx - h) / e, (hy - h) / e);
+        // The waterline foam is a 30 cm band; interpolated from 20 cm
+        // vertices it is a smear.  Here it is known exactly.
+        foam = max(foam, here);
+        // Breaking.  A gravity wave cannot stand steeper than the Stokes
+        // limit -- a 120 degree crest, a face slope of about 0.58 -- and
+        // where the computed surface (chop, bow wave, pulse and run-up
+        // together) approaches it, it breaks and goes white.  In flat
+        // water a shell's bow never gets there, which is correct; in a
+        // breeze the crest on top of the pile-up does, at the bow, which
+        // is where a coxswain sees it.  Confined to the boat's own water
+        // so a whitecap far off is the wind's business, not this.
+        float steep = length(g);
+        float near_boat = 1.0 - smoothstep(0.6 * hull_length,
+                                           0.6 * hull_length + 6.0,
+                                           distance(world.xy, boat.xy));
+        float breaking = smoothstep(0.34, 0.58, steep) * near_boat;
+        foam = max(foam, 0.85 * breaking);
     } else {
-        g = sea_slope(world.xy) + baked_slope;
+        g = sea_slope(world.xy, span, roughness) + baked_slope;
     }
-    g += ripple(world.xy, range, stirred);
+    g += ripple(world.xy, range, stirred, span);
     return normalize(vec3(-g.x, -g.y, 1.0));
 }
 """
@@ -534,6 +644,10 @@ uniform vec2 near_hi;
 uniform vec2 near_size;       // samples in the baked grid
 uniform float wind_to;        // bearing the wind blows toward
 uniform float time;
+uniform float heave_rate;     // hull vertical velocity, m/s, up positive
+uniform float surge_accel;    // fore-aft acceleration, m/s^2
+uniform float heave_gain;
+uniform float surge_gain;
 """
 
 #: The surface itself.  Spliced into the vertex shader, which displaces
@@ -609,7 +723,20 @@ float puddle(vec2 p, out float foam) {
         float k = 3.4 / (1.0 + 2.2 * age);        // ring coarsens
         float ring = exp(-r * r / (spread * spread)) * cos(r * k);
         h += 0.030 * strength * strength * ring;
-        foam = max(foam, pow(strength, 3.0) * exp(-r * r / 1.4));
+        // Scaled down from 1.0: the foam is now BLENDED toward white
+        // rather than added, which reads brighter for the same value,
+        // and a puddle is a swirl with a little foam in it, not a slick.
+        foam = max(foam, 0.55 * pow(strength, 3.0) * exp(-r * r / 1.4));
+        // The entry itself: a short bright burst where the blade went
+        // in, gone in a third of a second, with a small ring running
+        // out from it.  Deliberately not dramatic -- a clean catch
+        // throws very little water, and the point is that it is there.
+        float since = puddles[i].w;          // seconds since the entry
+        if (since < 0.8) {
+            foam = max(foam, 0.75 * exp(-since / 0.20) * exp(-r * r / 0.28));
+            h += 0.009 * exp(-since / 0.30) * exp(-r * r / 0.7)
+               * cos(r * 9.0 - since * 16.0);
+        }
     }
     return h;
 }
@@ -660,14 +787,228 @@ float shelter(vec2 p) {
     float downwind = dot(d, blow);
     float lateral = abs(-d.x * blow.y + d.y * blow.x);
     float inside = clamp(1.0 - (lateral - half_width) / 1.5, 0.0, 1.0);
-    float lee = downwind > 0.0 ? 0.55 * exp(-downwind / 14.0) : 0.0;
-    float wind = downwind < 0.0 ? 0.35 * exp(downwind / 1.6) : 0.0;
-    return 1.0 - inside * lee + inside * wind;
+    // THIS WAS THE DIAGONAL LINE.  The lee began at downwind = 0 with a
+    // step and the windward pile-up ended there with another, so along
+    // the line through the boat perpendicular to the wind the wave
+    // amplitude jumped by 0.9 -- a straight seam through the water,
+    // hull-length long, following the boat and aligned with the wind
+    // rather than the hull, which is why it never lined up with
+    // anything.  The two now cross over across the hull's own extent
+    // along the wind, so the pile-up peaks at the windward face and the
+    // lee begins at the leeward one, with the water between them --
+    // which the hull is sitting on anyway -- blended smoothly.
+    // Never narrower than the band's own 1.5 m edge: beam-on the
+    // hull is a quarter of a metre along the wind, and a crossover
+    // that short is a soft line rather than no line.  The riggers
+    // and bodies the wind actually sees are wider than the hull.
+    float half_along = max(0.5 * (hull_length * along_wind
+                                  + 0.5 * across_wind), 1.5);
+    float t = smoothstep(-half_along, half_along, downwind);
+    float lee = 0.55 * exp(-max(downwind - half_along, 0.0) / 14.0);
+    float wind = 0.35 * exp(min(downwind + half_along, 0.0) / 1.6);
+    return 1.0 + inside * mix(wind, -lee, t);
+}
+
+// Heave and surge, which the water had no term for at all.
+//
+// The wake and the near field were both driven by SPEED, and speed
+// alone describes a hull travelling steadily.  A rowing shell does not:
+// inside every stroke it surges -- accelerating hard through the drive
+// and coasting through the recovery -- and it heaves, rising and
+// settling as the crew's mass runs up and down the slide.  Those are
+// two of the six degrees of freedom the simulator integrates, and none
+// of it reached the surface.
+//
+// What the water does about it:
+//
+//  * A hull dropping pushes water out from under itself and up around
+//    it; rising, it draws the surface down after it.  That is a
+//    displacement, so it follows heave VELOCITY, not heave position.
+//  * Accelerating piles water against the bow and lets it fall away
+//    aft, which is why the bow wave breathes once a stroke rather than
+//    sitting at the value the mean speed would give.  Bow-biased, and
+//    it follows acceleration rather than speed.
+//
+// Both are shaped by a smooth bump over the hull's own footprint and
+// die at its edge, so they add nothing where the hull is not.
+float hull_pulse(vec2 p) {
+    if (heave_gain <= 0.0 && surge_gain <= 0.0) return 0.0;
+    float c = cos(-boat.z), s = sin(-boat.z);
+    vec2 d = p - boat.xy;
+    float along = d.x * c - d.y * s;          // positive toward the bow
+    float across = d.x * s + d.y * c;
+    float reach_along = 0.5 * hull_length + 3.0;
+    float reach_across = 3.0;
+    float a = along / reach_along;
+    float b = across / reach_across;
+    if (abs(a) >= 1.0 || abs(b) >= 1.0) return 0.0;
+    float shape = (1.0 - a * a) * (1.0 - b * b);
+    shape *= shape;
+    return shape * (-heave_rate * heave_gain + surge_accel * surge_gain * a);
+}
+
+// The hull IN the water, which the surface had no account of.
+//
+// The wake was the hull's effect on the water it had passed; the near
+// field was the water it was pushing aside; the shelter was the wind
+// it was blocking.  None of them was the hull itself: the chop ran
+// straight through the footprint as if the boat were not there, and
+// nothing went white anywhere.  What a shell does at speed is cut the
+// water -- the stem throws it aside as spray, the sides run along it in
+// a line of broken water, and a wave that meets the hull does not pass
+// through, it breaks against it.
+//
+// hull_damp takes the incident chop out inside the footprint and just
+// around it; waterline_foam paints the white where the two meet.  Both
+// hug the outline and vanish a metre from it, so the wake and near
+// field further out are untouched.
+uniform float hull_beam;
+
+void hull_frame(vec2 p, out float along, out float across) {
+    float c = cos(-boat.z), s = sin(-boat.z);
+    vec2 d = p - boat.xy;
+    along = d.x * c - d.y * s;               // positive toward the bow
+    across = d.x * s + d.y * c;
+}
+
+// How much of the hull's footprint a point is in, 0 outside to 1 on
+// the centreline, feathered a metre out.  What is done with it depends
+// on the wave, so this only reports the shape.
+float hull_inside(vec2 p) {
+    float along, across;
+    hull_frame(p, along, across);
+    float a = abs(along) / (0.5 * hull_length + 0.8);
+    float b = abs(across) / (0.5 * hull_beam + 0.9);
+    if (a >= 1.0 || b >= 1.0) return 0.0;
+    return (1.0 - a * a) * (1.0 - b * b);
+}
+
+// The chop as the hull leaves it.  A hull does not stop waves; it
+// scatters the ones it cannot follow.  A wave long against the hull
+// lifts the whole boat and passes through it -- the boat rides it,
+// which is the simulator's business, not the surface's -- while a
+// wave short against the hull cannot lift it, meets it as a wall, and
+// is broken up.  So each component is weighted by its wavelength
+// against the hull length: chop of a metre or two is gone inside the
+// footprint of an eight, a ten-metre swell is dented, twenty metres
+// passes untouched.  A single, being half the length, breaks up less.
+float sea_at_hull(vec2 p, float t, float inside) {
+    if (inside <= 0.0) return sea(p, t);
+    float h = 0.0;
+    for (int i = 0; i < 8; ++i) {
+        float a = waves[i].x;
+        if (a <= 0.0) continue;
+        float k = waves[i].y;
+        float d = waves[i].z;
+        float w = sqrt(G * k);
+        float wavelength = 6.2831853 / k;
+        float passes = smoothstep(0.35 * hull_length, 1.2 * hull_length,
+                                  wavelength);
+        float keep = 1.0 - 0.85 * inside * (1.0 - passes);
+        h += a * cos(k * (p.x * cos(d) + p.y * sin(d)) - w * t + waves[i].w)
+           * keep;
+    }
+    return h;
+}
+
+// The bow, from the fluid mechanics rather than from a painted box.
+//
+// A racing shell is slender, and its bow throws little in flat water:
+// a bow wave a couple of centimetres high (the near-field bake, which
+// is the double-body potential flow and already has its shape), and a
+// thin sheet of water riding along the entry.  What is drawn here is
+// that sheet and where the surface breaks, each from a stated model:
+//
+//  * The sheet.  Thin-ship theory gives the velocity the hull pushes
+//    water outward with as U * b'(x) -- the ship speed times the local
+//    slope of the half-breadth -- so the head driving the sheet is
+//    (U b')^2 / 2g.  For a parabolic waterline b' is proportional to x,
+//    so the sheet is strongest at the stem where the entry is finest,
+//    dies where the hull runs parallel, and goes as speed squared.
+//    That is the along-hull distribution, from the hull, not a ramp.
+//
+//  * Run-up.  A crest arriving at the stem is partly reflected, and a
+//    reflected wave stands to (1 + R) times its height there.  A thin
+//    stem reflects little; R is set below.  The hull plunging into the
+//    crest (heave velocity against the surface) adds relative motion.
+//
+//  * Advection.  Broken water moves with the water: aft along the hull
+//    at the flow speed U.  The streak texture is carried at that speed
+//    in the hull frame, so the whitewater slides past the boat instead
+//    of being stuck to it.
+//
+// Breaking -- whitewater where the computed surface is too steep -- is
+// decided in water_normal, where the per-pixel slope is known.
+uniform float bow_reflect;        // R, the stem's reflection coefficient
+
+float waterline_foam(vec2 p) {
+    if (speed < 0.4) return 0.0;
+    float along, across;
+    hull_frame(p, along, across);
+    float half_len = 0.5 * hull_length;
+    float half_beam = 0.5 * hull_beam;
+    float out_across = abs(across) - half_beam;
+    if (along < -0.5 * half_len || along > half_len + 0.9
+     || out_across > 0.75 || out_across < -0.3) return 0.0;
+
+    // Half-breadth slope of a parabolic waterline, |b'(x)| = 2 b x / L^2,
+    // taken over the forward half of the hull where the entry is.
+    float x = clamp(along, 0.0, half_len) / half_len;
+    float slope = 2.0 * half_beam * x / half_len;
+    float head = (speed * slope) * (speed * slope) / (2.0 * 9.80665);
+    // Normalised against a shell at race pace so the visual amplitude
+    // is set once: 4.5 m/s and the stem slope of a 17 m eight.
+    float head_ref = (4.5 * 2.0 * 0.285 / 8.65);
+    head_ref = head_ref * head_ref / (2.0 * 9.80665);
+    float sheet = clamp(head / head_ref, 0.0, 2.5);
+
+    // The incident wave at the stem, partly reflected, and the plunge.
+    vec2 stem = boat.xy + vec2(cos(boat.z), sin(boat.z)) * half_len;
+    float eta = sea(stem, time);
+    float run_up = clamp((1.0 + bow_reflect) * eta / 0.05, -0.5, 2.0);
+    float plunge = clamp(-heave_rate * 10.0, 0.0, 1.2);
+    float at_stem = exp(-(half_len - along) * (half_len - along) / 1.8);
+    sheet *= 1.0 + at_stem * (0.8 * max(run_up, 0.0) + 0.6 * plunge);
+
+    // The sheet hugs the side.  Its lateral reach is the run-up head
+    // itself -- centimetres -- plus what the breaking throws, so it is
+    // a line of broken water along the entry and a tuft at the stem.
+    float reach = 0.12 + 0.10 * sheet + 0.25 * at_stem * (max(run_up, 0.0) + plunge);
+    float band = exp(-max(out_across, 0.0) / reach);
+
+    // Streaks, carried aft at the flow speed: the whitewater slides
+    // past the hull, which is the single strongest cue that it is water
+    // and not paint.
+    float streak = simplex(vec2((along + speed * time) * 1.6, across * 7.0))
+                 + 0.5 * simplex(vec2((along + speed * time) * 3.7 + 11.0,
+                                      across * 13.0));
+    float texture_gain = clamp(0.55 + 0.45 * streak, 0.0, 1.3);
+
+    return 0.55 * sheet * band * texture_gain;
+}
+
+// The reflected part of the incident wave at the stem, as a height: a
+// crest meeting the stem stands up by R times itself over the last
+// metre or so of the entry, and a trough drops the same.
+float stem_run_up(vec2 p) {
+    if (bow_reflect <= 0.0) return 0.0;
+    float along, across;
+    hull_frame(p, along, across);
+    float half_len = 0.5 * hull_length;
+    float d_along = along - half_len;
+    if (abs(d_along) > 2.0 || abs(across) > 1.2) return 0.0;
+    vec2 stem = boat.xy + vec2(cos(boat.z), sin(boat.z)) * half_len;
+    float eta = sea(stem, time);
+    float shape = exp(-(d_along * d_along) / 0.9 - across * across / 0.5);
+    return bow_reflect * eta * shape;
 }
 
 float surface(vec2 p, out float foam) {
-    return sea(p, time) * shelter(p)
-         + wake(p) + near_field(p) + puddle(p, foam);
+    float h = sea_at_hull(p, time, hull_inside(p)) * shelter(p)
+            + wake(p) + near_field(p) + hull_pulse(p) + stem_run_up(p)
+            + puddle(p, foam);
+    foam = max(foam, waterline_foam(p));
+    return h;
 }
 """
 
@@ -677,7 +1018,7 @@ out vec3 v_world;
 out vec3 v_normal;
 out vec2 v_slope;
 out float v_foam;
-""" + WATER_UNIFORMS_GLSL + WATER_SURFACE_GLSL + """
+""" + SIMPLEX_GLSL + WATER_UNIFORMS_GLSL + WATER_SURFACE_GLSL + """
 void main() {
     vec2 p = in_grid + centre;
     float foam;
@@ -715,10 +1056,13 @@ uniform vec3 eye;
 uniform float far;
 uniform vec3 deep;
 __SKY_FOG__
+__SHADOW__
 __WATER_SLOPE__
 void main() {
     float range = length(v_world - eye);
-    vec3 n = water_normal(v_world, v_slope, range, v_foam);
+    float rough;
+    float foam = v_foam;
+    vec3 n = water_normal(v_world, v_slope, range, foam, rough);
     vec3 to_eye = normalize(eye - v_world);
     // Water is mostly a mirror at grazing angles and mostly dark looking
     // straight down, which is the whole reason chop reads as chop: the
@@ -726,8 +1070,21 @@ void main() {
     float fresnel = pow(1.0 - max(dot(n, to_eye), 0.0), 3.0);
     vec3 mirror = sky_colour(reflect(-to_eye, n), sun);
     vec3 base = mix(deep, mirror, clamp(0.08 + 0.55 * fresnel, 0.0, 1.0));
-    float spec = pow(max(dot(reflect(-sun, n), to_eye), 0.0), 60.0);
-    vec3 lit = base + vec3(0.9) * spec * 0.5 + vec3(0.75) * v_foam * 0.55;
+    // A surface too fine to resolve reflects like a broad one: the lobe
+    // widens and dims by the slope that was filtered out.
+    float shine = mix(60.0, 8.0, rough);
+    // In shadow the sun is not in the water to sparkle, and the sky the
+    // surface scatters is the darker part of it.
+    float visible = sun_visibility(v_world, vec3(0.0, 0.0, 1.0), 0.0)
+                   * boat_shadow(v_world);
+    float spec = pow(max(dot(reflect(-sun, n), to_eye), 0.0), shine)
+               * mix(1.0, 0.3, rough) * visible;
+    vec3 lit = (base + vec3(0.9) * spec * 0.5) * mix(0.74, 1.0, visible);
+    // Broken water is a blend toward white, not white added on top: an
+    // additive wash saturates into a flat block, which is exactly how
+    // the bow read before.
+    lit = mix(lit, vec3(0.90, 0.93, 0.95) * mix(0.8, 1.0, visible),
+              clamp(foam * 0.8, 0.0, 0.85));
     f_colour = vec4(apply_fog_lit(lit, eye, v_world, sun), 1.0);
 }
 """
@@ -769,6 +1126,7 @@ uniform int reflect_steps;
 const vec3 WATER_ABSORB = vec3(0.66, 0.34, 0.22);
 const vec3 WATER_SCATTER = vec3(0.11, 0.22, 0.28);
 __SKY_FOG__
+__SHADOW__
 __WATER_SLOPE__
 
 float linear_depth(float raw) {
@@ -779,7 +1137,9 @@ float linear_depth(float raw) {
 
 void main() {
     float range_to_eye = length(v_world - eye);
-    vec3 n = water_normal(v_world, v_slope, range_to_eye, v_foam);
+    float rough;
+    float foam = v_foam;
+    vec3 n = water_normal(v_world, v_slope, range_to_eye, foam, rough);
     vec3 to_eye = normalize(eye - v_world);
     vec2 uv = gl_FragCoord.xy / viewport;
 
@@ -882,9 +1242,21 @@ void main() {
     // --- put them together ---------------------------------------------
     float fresnel = 0.02 + 0.98 * pow(1.0 - max(dot(n, to_eye), 0.0), 5.0);
     vec3 lit = mix(refracted, mirror, clamp(fresnel, 0.0, 1.0));
-    float spec = pow(max(dot(reflect(-sun, n), to_eye), 0.0), 90.0);
+    // Widened and dimmed by whatever slope the pixel could not resolve
+    // (see sea_slope): the sparkle that was aliasing becomes a sheen.
+    float shine = mix(90.0, 9.0, rough);
+    // A shadow on water takes the sun out of it -- no sparkle -- and
+    // darkens what the surface scatters, but leaves the reflection of
+    // the sky and bank alone, which is still lit.
+    float visible = sun_visibility(v_world, vec3(0.0, 0.0, 1.0), 0.0)
+                   * boat_shadow(v_world);
+    float spec = pow(max(dot(reflect(-sun, n), to_eye), 0.0), shine)
+               * mix(1.0, 0.3, rough) * visible;
+    lit = mix(refracted * mix(0.72, 1.0, visible), mirror,
+              clamp(fresnel, 0.0, 1.0));
     lit += vec3(1.0, 0.98, 0.92) * spec * 0.65;
-    lit += vec3(0.75) * v_foam * 0.55;
+    lit = mix(lit, vec3(0.90, 0.93, 0.95) * mix(0.8, 1.0, visible),
+              clamp(foam * 0.8, 0.0, 0.85));
     f_colour = vec4(apply_fog_lit(lit, eye, v_world, sun), 1.0);
 }
 """
@@ -892,16 +1264,13 @@ void main() {
 
 # The shared slope code goes into both fragment shaders.  Done here
 # rather than by hand in each so the two cannot drift apart.
-for _name in ("FRAGMENT_SHADER", "SKY_FRAGMENT",
-              "WATER_FRAGMENT", "WATER_FRAGMENT_RICH"):
+for _name in ("FRAGMENT_SHADER", "SKY_FRAGMENT"):
     globals()[_name] = globals()[_name].replace("__SKY_FOG__", SKY_FOG_GLSL)
-
 for _name in ("WATER_FRAGMENT", "WATER_FRAGMENT_RICH"):
-    _text = globals()[_name]
-    _text = _text.replace("__WATER_SHARED__",
-                          WATER_UNIFORMS_GLSL + WATER_SURFACE_GLSL)
-    globals()[_name] = _text.replace("__WATER_SLOPE__", WATER_SLOPE_GLSL)
-del _name, _text
+    globals()[_name] = globals()[_name].replace("__SKY_FOG__",
+                                                SKY_FOG_GLSL_PLAIN)
+
+
 
 
 def _optional(program, **values) -> None:
@@ -953,6 +1322,154 @@ def water_grid(reach: float = WATER_REACH,
         np.stack([a, b, c], axis=2).reshape(-1, 3, 2),
         np.stack([a, c, d], axis=2).reshape(-1, 3, 2)])
     return quads.reshape(-1, 2).astype("f4")
+
+
+def orthographic(half_width: float, half_height: float,
+                 near: float, far: float):
+    """An orthographic projection, for the sun's view of the world."""
+    matrix = np.eye(4, dtype="f4")
+    matrix[0, 0] = 1.0 / half_width
+    matrix[1, 1] = 1.0 / half_height
+    matrix[2, 2] = -2.0 / (far - near)
+    matrix[2, 3] = -(far + near) / (far - near)
+    return matrix
+
+
+#: The depth-only shader that bakes the map.
+SHADOW_VERTEX = """#version 330
+in vec3 in_pos;
+uniform mat4 sun_vp;
+void main() { gl_Position = sun_vp * vec4(in_pos, 1.0); }
+"""
+
+SHADOW_FRAGMENT = """#version 330
+void main() { }
+"""
+
+#: Sampling the map: percentage-closer filtering over a 3x3 kernel.
+#:
+#: A shadow map is a depth image from the light's point of view, and
+#: comparing against it gives a hard yes-or-no per texel -- so the edge
+#: of every shadow is a staircase at the map's resolution.  PCF takes
+#: the comparison at several neighbouring texels and averages the
+#: ANSWERS rather than the depths (averaging depths is meaningless), and
+#: nine taps is enough to turn that staircase into a soft edge.
+#:
+#: The map is baked ONCE.  The world and the sun are both static -- the
+#: terrain, the buildings and the trees do not move and the sun does not
+#: cross the sky in a five-kilometre race -- so there is nothing to
+#: redraw per frame and the whole cost at run time is these nine taps.
+#: The boat and crew do not cast, because they are the things that do
+#: move; that is the compromise in "static", and it is why the water
+#: still gets the hull's own shading from its normal rather than from a
+#: shadow.
+SHADOW_GLSL = """
+uniform sampler2D shadow_map;
+uniform mat4 sun_vp;
+uniform vec2 shadow_texel;
+uniform float shadow_bias;
+uniform float shadow_strength;
+uniform int shadow_debug;
+uniform float shadow_world_texel;
+
+// For --shadow-debug: 1 paints the visibility, 2 paints the stored
+// depth minus the fragment's own (grey = equal, white = caster nearer).
+vec3 shadow_probe(vec3 world) {
+    vec4 light_clip = sun_vp * vec4(world, 1.0);
+    vec3 uv = (light_clip.xyz / light_clip.w) * 0.5 + 0.5;
+    float depth = texture(shadow_map, uv.xy).r;
+    // Scaled so a metre of depth difference is plainly visible: the
+    // first version used x20 over a 2.9 km range and a ten-metre
+    // building moved the grey by 0.08.
+    if (shadow_debug == 2) return vec3(clamp((depth - uv.z) * 400.0 + 0.5, 0.0, 1.0));
+    if (shadow_debug == 3) return vec3(depth);
+    return vec3(uv.z);
+}
+
+// The boat's own shadow on the water, which the static map cannot hold
+// because the boat moves.  Done analytically: the hull and the crew
+// are a slab from the waterline to about head height, and the water
+// point is walked back along the sun to see whether it passes through
+// that slab -- the ellipse of the hull's footprint, tested at two
+// heights and widened by their offset along the sun.  A coxswain sees
+// this one beside the hull every stroke; the buildings' are on the far
+// bank.
+uniform vec3 shadow_boat;         // east, north, heading
+uniform vec2 shadow_boat_size;    // half length, half beam
+uniform vec3 shadow_sun;
+
+float boat_shadow(vec3 world) {
+    if (shadow_strength <= 0.0 || shadow_boat_size.x <= 0.0) return 1.0;
+    float c = cos(-shadow_boat.z), s = sin(-shadow_boat.z);
+    float cover = 0.0;
+    for (int k = 0; k < 2; ++k) {
+        // Where the sun ray through this point crosses height z.
+        float z = (k == 0) ? 0.12 : 0.85;
+        vec2 back = world.xy - shadow_sun.xy * ((z - world.z) / max(shadow_sun.z, 0.2));
+        vec2 d = back - shadow_boat.xy;
+        float along = (d.x * c - d.y * s) / (shadow_boat_size.x + 0.4);
+        float across = (d.x * s + d.y * c) / (shadow_boat_size.y + (k == 0 ? 0.25 : 0.55));
+        float r = along * along + across * across;
+        cover = max(cover, 1.0 - smoothstep(0.75, 1.15, r));
+    }
+    return 1.0 - 0.6 * cover;
+}
+
+float sun_visibility(vec3 world, vec3 normal, float slope) {
+    if (shadow_strength <= 0.0) return 1.0;
+    // Normal offset.  The map is 0.7 m a texel and the ground is not
+    // flat to the sun, so a texel's stored depth is the depth of ONE
+    // point on a slope and the rest of that texel sits slightly deeper
+    // -- which reads as self-shadow, in diagonal stripes across every
+    // bank.  Pushing the lookup point a texel out along the surface
+    // normal takes it clear of its own texel, and it is a far better
+    // cure than a bigger bias, which just detaches the shadow from
+    // whatever casts it.
+    vec3 at_world = world + normalize(normal) * shadow_world_texel
+                  * (0.8 + 1.4 * slope);
+    vec4 light_clip = sun_vp * vec4(at_world, 1.0);
+    vec3 ndc = light_clip.xyz / light_clip.w;
+    vec3 uv = ndc * 0.5 + 0.5;
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0
+     || uv.z > 1.0) return 1.0;
+    float bias = shadow_bias * (1.0 + 2.0 * slope);
+    // A 3x3 box in CONTINUOUS texel space: the four corner taps carry
+    // bilinear weights from where the lookup falls inside its texel, so
+    // the filter slides smoothly across the map instead of snapping to
+    // it.  That is what turns a staircase into a soft edge -- the
+    // nearest-texel 3x3 it replaces stepped by a whole texel at a time,
+    // and at 0.7 m a texel that was a visible ledge.
+    vec2 p = uv.xy / shadow_texel - 0.5;
+    vec2 cell = floor(p);
+    vec2 f = p - cell;
+    float sum = 0.0;
+    for (int i = -1; i <= 2; ++i) {
+        float wx = (i == -1) ? (1.0 - f.x) : ((i == 2) ? f.x : 1.0);
+        for (int j = -1; j <= 2; ++j) {
+            float wy = (j == -1) ? (1.0 - f.y) : ((j == 2) ? f.y : 1.0);
+            vec2 at = (cell + vec2(float(i), float(j)) + 0.5) * shadow_texel;
+            float depth = texture(shadow_map, at).r;
+            sum += wx * wy * ((uv.z - bias <= depth) ? 1.0 : 0.0);
+        }
+    }
+    float lit = sum / 9.0;
+    vec2 edge = smoothstep(vec2(0.0), vec2(0.06), uv.xy)
+              * smoothstep(vec2(0.0), vec2(0.06), 1.0 - uv.xy);
+    lit = mix(1.0, lit, edge.x * edge.y);
+    return mix(1.0, lit, shadow_strength);
+}
+"""
+FRAGMENT_SHADER = FRAGMENT_SHADER.replace("__SHADOW__", SHADOW_GLSL)
+
+# The water shaders are spliced here, AFTER SHADOW_GLSL exists: at their
+# old place above it the module failed to import.
+for _name in ("WATER_FRAGMENT", "WATER_FRAGMENT_RICH"):
+    _text = globals()[_name].replace("__SHADOW__", SHADOW_GLSL)
+    _text = _text.replace("__WATER_SHARED__",
+                          SIMPLEX_GLSL + WATER_UNIFORMS_GLSL
+                          + WATER_SURFACE_GLSL)
+    globals()[_name] = _text.replace("__WATER_SLOPE__", WATER_SLOPE_GLSL)
+del _name, _text
 
 
 def perspective(fov_y: float, aspect: float, near: float, far: float):
@@ -1191,19 +1708,22 @@ def run_setup_menu(screen, args):
                 if action == "controls":
                     showing_controls = True
                     continue
-                if action == "options":
+                if action in ("options", "weather"):
                     chosen = menu.settings()
-                    menu = options_menu(audio=args.audio,
-                                        quality=args.quality,
-                                        weather=args.weather,
-                                        wind=args.wind)
+                    menu = (weather_menu(weather=args.weather,
+                                         wind=args.wind)
+                            if action == "weather"
+                            else options_menu(audio=args.audio,
+                                              quality=args.quality))
                     continue
                 if action == "back":
                     picked = menu.settings()
-                    args.audio = picked["audio"]
-                    args.quality = picked["quality"]
-                    args.weather = picked["weather"]
-                    args.wind = picked["wind"]
+                    for key, name in (("audio", "audio"),
+                                      ("quality", "quality"),
+                                      ("weather", "weather"),
+                                      ("wind", "wind")):
+                        if key in picked:
+                            setattr(args, name, picked[key])
                     menu = setup_menu(boat=chosen["boat"],
                                       course=chosen["race"],
                                       rate=chosen["rate"],
@@ -1327,6 +1847,21 @@ def main(argv=None):
     parser.add_argument("--boat", default="4+",
                         choices=("4+", "8+", "2x", "1x"))
     parser.add_argument("--rate", type=float, default=30.0)
+    parser.add_argument("--no-shadows", action="store_true",
+                        help="skip the baked shadow map")
+    parser.add_argument("--shadow-size", type=int, default=0,
+                        dest="shadow_size",
+                        help="shadow map resolution, one side; 0 picks "
+                             "it from the course's size")
+    parser.add_argument("--shadow-bias", type=float, default=0.35,
+                        dest="shadow_bias",
+                        help="shadow depth bias, in METRES along the sun")
+    parser.add_argument("--shadow-debug", type=int, default=0,
+                        dest="shadow_debug",
+                        help="1: paint visibility, 2: depth difference, "
+                             "3: stored depth, 4: fragment depth")
+    parser.add_argument("--dump-shadow", default=None, dest="dump_shadow",
+                        help="write the baked shadow map to this PNG")
     parser.add_argument("--cam-up", type=float, default=6.0,
                         dest="cam_up",
                         help="height above the seat for --freecam")
@@ -1335,6 +1870,17 @@ def main(argv=None):
                         help="freecam pitch, radians; negative looks down")
     parser.add_argument("--cam-yaw", type=float, default=0.0,
                         dest="cam_yaw", help="freecam yaw, radians")
+    parser.add_argument("--cam-relative", action="store_true",
+                        dest="cam_relative",
+                        help="measure --cam-yaw from the boat's heading, so "
+                             "0 looks along the hull whatever the course")
+    parser.add_argument("--cam-back", type=float, default=0.0,
+                        dest="cam_back",
+                        help="metres astern of the seat for --freecam")
+    parser.add_argument("--cam-at", default=None, dest="cam_at",
+                        help="absolute freecam position, 'east,north,up' "
+                             "in world metres; overrides the seat-relative "
+                             "placement")
     parser.add_argument("--ripple", type=float, default=None,
                         help="micro-ripple slope amplitude; 0 turns it off")
     parser.add_argument("--exact-within", type=float, default=None,
@@ -1496,22 +2042,35 @@ def main(argv=None):
         # fresh_state is defined just above, and reaching for it earlier
         # is an unbound local -- the third time that exact shape of
         # mistake has been made in this file.
-        _eye, _target, _up = seat_camera(fresh_state(), boat)
-        freecam = FreeCamera(_eye + np.array([0.0, 0.0, float(args.cam_up)]),
-                             yaw=float(args.cam_yaw),
-                             pitch=float(args.cam_pitch))
+        _state0 = fresh_state()
+        _eye, _target, _up = seat_camera(_state0, boat)
+        _yaw = float(args.cam_yaw)
+        if args.cam_relative:
+            _yaw += float(_state0[5])
+        _heading = np.array([np.cos(_state0[5]), np.sin(_state0[5]), 0.0])
+        _where = (_eye - _heading * float(args.cam_back)
+                  + np.array([0.0, 0.0, float(args.cam_up)]))
+        if args.cam_at:
+            _where = np.array([float(v) for v in args.cam_at.split(",")])
+        freecam = FreeCamera(_where, yaw=_yaw, pitch=float(args.cam_pitch))
 
     # The stroke, out loud.  From the bow of a four you cannot see the
     # blades go in, and without the catch there is nothing in the seat
     # view that separates drive from recovery -- which makes calling the
     # boat impossible, and calling is what this is for.
     audio = None
+    ambient = None
     # "off" is a mode in the menu and a way of saying no sound at all.
     if args.audio == "off":
         args.no_sound = True
     if not args.no_sound and not args.shot:
         from coxswain.viz.strokeaudio import StrokeAudio
         audio = StrokeAudio(boat, mode=args.audio)
+        from coxswain.viz.ambient import AmbientAudio
+        ambient = AmbientAudio(args.wind)
+        print("   ambient: %s" % ("wind, water and the odd gull"
+                                 if ambient.available else
+                                 "off (%s)" % ambient.reason))
         print("   stroke audio: %s, %s"
               % (audio.mode,
                  "on" if audio.available else "no device, running silent"))
@@ -1614,6 +2173,10 @@ def main(argv=None):
         scene_colour.filter = (moderngl.LINEAR, moderngl.LINEAR)
         scene_colour.repeat_x = scene_colour.repeat_y = False
         scene_depth_tex = ctx.depth_texture(size)
+        # Same trap as the shadow map: with comparison mode left on, the
+        # refraction read a constant instead of the scene's depth, so
+        # the water column under every pixel was "infinitely deep".
+        scene_depth_tex.compare_func = ""
         scene_depth_tex.filter = (moderngl.NEAREST, moderngl.NEAREST)
         scene_depth_tex.repeat_x = scene_depth_tex.repeat_y = False
         resolve_fbo = ctx.framebuffer(color_attachments=[scene_colour],
@@ -1622,6 +2185,8 @@ def main(argv=None):
               % ("%dx multisampled" % samples if samples else "plain"))
     program = ctx.program(vertex_shader=VERTEX_SHADER,
                           fragment_shader=FRAGMENT_SHADER)
+    shadow_prog = ctx.program(vertex_shader=SHADOW_VERTEX,
+                              fragment_shader=SHADOW_FRAGMENT)
     sky_prog = ctx.program(vertex_shader=SKY_VERTEX,
                            fragment_shader=SKY_FRAGMENT)
     sky_quad = ctx.buffer(np.array([-1, -1, 3, -1, -1, 3],
@@ -1631,10 +2196,10 @@ def main(argv=None):
     def set_sky(prog, weather=None):
         """Every shader that fogs or reflects shares one sky."""
         row = WEATHER.get(weather or args.weather, WEATHER["hazy"])
-        zenith, horizon, glow, density, height, scatter = row
+        zenith, horizon, glow, density, height, scatter, overcast = row
         _optional(prog, sky_zenith=zenith, sky_horizon=horizon,
                   sun_glow=glow, fog_density=density, fog_height=height,
-                  fog_scatter=scatter)
+                  fog_scatter=scatter, sky_overcast=overcast)
     program["sun"].value = tuple(np.array([0.42, 0.30, 0.85])
                                  / np.linalg.norm([0.42, 0.30, 0.85]))
     # Set only if the shader still wants them.  Both were the flat sky
@@ -1643,12 +2208,123 @@ def main(argv=None):
     # and assigning to a dropped uniform is a KeyError.
     _optional(program, sky=SKY, far=FAR)
 
-    static = []
+    static, shadow_casters = [], []
     for part in mesh.parts:
         buffer = ctx.buffer(part.interleaved().tobytes())
         static.append(ctx.vertex_array(
             program, [(buffer, "3f 3f 3f", "in_pos", "in_normal",
                        "in_colour")]))
+        # The same buffer, read as positions only, for the depth pass.
+        shadow_casters.append(ctx.vertex_array(
+            shadow_prog, [(buffer, "3f 6x4", "in_pos")]))
+
+    # -- the shadow map, baked once -------------------------------------
+    #
+    # The world does not move and the sun does not cross the sky during
+    # a five kilometre race, so this is rendered exactly once and then
+    # only sampled.  That is the whole reason it is affordable here: a
+    # per-frame shadow pass over a million triangles would not run on an
+    # integrated part, and a static one costs nine texture taps.
+    sun_dir = np.array([0.42, 0.30, 0.85])
+    sun_dir = sun_dir / np.linalg.norm(sun_dir)
+    shadow_map = shadow_fbo = None
+    if not args.no_shadows:
+        # Bounded to the COURSE, not to the mesh.  The mesh reaches out
+        # to the skyline 6.5 km away, and a map stretched over that was
+        # 4.8 m a texel: every shadow a blob.  What a crew sees shadowed
+        # is the water they row on and the banks either side of it, so
+        # the map covers the course line plus a margin, and its size is
+        # chosen for the texel that gives, not the other way round.
+        line = np.asarray(course, dtype=float)[:, :2]
+        low = np.append(line.min(axis=0) - SHADOW_MARGIN, -5.0)
+        high = np.append(line.max(axis=0) + SHADOW_MARGIN, 120.0)
+        centre_world = 0.5 * (low + high)
+        extent = float(np.max(high[:2] - low[:2])) * 0.5
+        # The depth range is set by the world's extent ALONG THE SUN,
+        # not by its height.  With the sun 58 degrees up, a box two
+        # kilometres across is two kilometres deep from where the sun
+        # sits; sized from the height alone the far plane fell inside
+        # the world, everything beyond it read as lit, and the map
+        # shadowed nothing at all -- which is exactly how it shipped
+        # the first time.
+        depth_span = 2.0 * extent + float(high[2] - low[2]) + 400.0
+        if args.shadow_size <= 0:
+            wanted = 2.0 * extent / SHADOW_TEXEL
+            power = int(np.ceil(np.log2(max(wanted, 2.0))))
+            args.shadow_size = int(min(4096, max(2048, 2 ** power)))        # Look down the sun at the middle of the world.
+        eye_sun = centre_world + sun_dir * (0.5 * depth_span + 50.0)
+        up_hint = np.array([0.0, 0.0, 1.0])
+        if abs(float(sun_dir @ up_hint)) > 0.95:
+            up_hint = np.array([0.0, 1.0, 0.0])
+        sun_view = look_at(eye_sun, centre_world, up_hint)
+        sun_proj = orthographic(extent, extent, 1.0, depth_span + 100.0)
+        sun_vp = (sun_proj @ sun_view).astype("f4")
+
+        size = int(args.shadow_size)
+        shadow_map = ctx.depth_texture((size, size))
+        # A depth texture comes with comparison mode ON, for
+        # sampler2DShadow.  Read through a plain sampler2D, as here, it
+        # then returns the comparison's answer instead of the depth --
+        # which is 1.0, which is "lit", which is why a map full of
+        # buildings shadowed nothing.  Off, it is a texture of depths.
+        shadow_map.compare_func = ""
+        print("   shadow map compare_func after clearing: %r"
+              % (shadow_map.compare_func,))
+        shadow_map.filter = (moderngl.NEAREST, moderngl.NEAREST)
+        shadow_map.repeat_x = shadow_map.repeat_y = False
+        shadow_fbo = ctx.framebuffer(depth_attachment=shadow_map)
+        shadow_fbo.use()
+        shadow_fbo.clear()
+        shadow_prog["sun_vp"].write(sun_vp.T.tobytes(order="C"))
+        # No culling for the bake.  Casting from back faces is the usual
+        # trick against acne, but it drops every single-sided caster --
+        # the tree impostors are quads -- and the bias handles the acne.
+        ctx.disable(moderngl.CULL_FACE)
+        for caster in shadow_casters:
+            caster.render()
+        ctx.enable(moderngl.CULL_FACE)
+        if args.dump_shadow:
+            # The map as an image, so "are there shadows" can be
+            # answered by looking rather than by inference.
+            from PIL import Image
+            raw = np.frombuffer(shadow_map.read(), dtype="f4")
+            raw = raw.reshape(size, size)
+            span = raw.max() - raw.min()
+            picture = ((raw - raw.min()) / max(span, 1e-9) * 255).astype("u1")
+            Image.fromarray(picture[::-1]).save(args.dump_shadow)
+            # And the raw numbers beside it, so the map can be checked
+            # arithmetically -- which point projects to which texel, and
+            # what that texel holds -- rather than by looking at a
+            # picture and inferring.
+            np.savez(args.dump_shadow + ".npz", depth=raw, sun_vp=sun_vp,
+                     low=low, high=high, size=size, sun_dir=sun_dir,
+                     depth_range=float(depth_span + 100.0 - 1.0))
+            print("   shadow map written to %s (depth %.3f..%.3f)"
+                  % (args.dump_shadow, raw.min(), raw.max()))
+        print("   shadows: %d x %d over %.0f m, %.1f m a texel, baked once"
+              % (size, size, 2.0 * extent, 2.0 * extent / size))
+
+        # The bias is given in metres and converted here.  Given in
+        # normalised depth it was 0.0016 of a 2.9 km range -- 4.6 m --
+        # which is more than the sun-ray length from the roof of a
+        # six-metre boathouse to the ground it shadows, so nothing that
+        # size ever cast anything, and that is most of a river bank.
+        depth_range = float(depth_span + 100.0 - 1.0)
+        shadow_settings = dict(shadow_texel=(1.0 / size, 1.0 / size),
+                               shadow_bias=float(args.shadow_bias) / depth_range,
+                               shadow_strength=0.75, shadow_map=5,
+                               shadow_world_texel=2.0 * extent / size)
+        print("   shadow bias %.2f m = %.6f of the depth range"
+              % (args.shadow_bias, args.shadow_bias / depth_range))
+        shadow_matrix = sun_vp
+    else:
+        shadow_settings = dict(shadow_strength=0.0, shadow_map=5,
+                               shadow_texel=(1.0, 1.0), shadow_bias=0.0,
+                               shadow_world_texel=1.0)
+        shadow_matrix = np.eye(4, dtype="f4")
+    program["sun_vp"].write(shadow_matrix.T.tobytes(order="C"))
+    _optional(program, **shadow_settings)
+    _optional(program, shadow_debug=int(args.shadow_debug))
 
     # -- the water ------------------------------------------------------
     water_prog = ctx.program(
@@ -1660,6 +2336,10 @@ def main(argv=None):
     _optional(water_prog, sky=SKY, far=FAR)
     water_prog["deep"].value = (0.055, 0.115, 0.155)
     water_prog["hull_length"].value = float(boat.length)
+    from coxswain.viz.planscene import boat_outline
+    _ring = np.asarray(boat_outline(boat), dtype=float)
+    _optional(water_prog,
+              hull_beam=float(_ring[:, 1].max() - _ring[:, 1].min()))
     for _prog in (program, sky_prog, water_prog):
         set_sky(_prog)
     # The second normal and the per-pixel surface are the two things
@@ -1680,11 +2360,28 @@ def main(argv=None):
         _ripple = float(args.ripple)
     if args.exact_within is not None:
         _exact = float(args.exact_within)
+    if "sun_vp" in water_prog:
+        water_prog["sun_vp"].write(shadow_matrix.T.tobytes(order="C"))
+    _optional(water_prog, **shadow_settings)
+    _optional(water_prog, shadow_sun=tuple(float(v) for v in sun_dir),
+              shadow_boat_size=(0.5 * float(boat.length),
+                                0.5 * float(_ring[:, 1].max()
+                                            - _ring[:, 1].min())))
+    # How much of an incident wave the stem sends back.  A thin stem
+    # reflects little; this is the fraction of the beam-to-length ratio
+    # that thin-ship scattering gives for a wedge, scaled to sit at
+    # about 0.3 for an eight.  Zero for a boat too fine to matter.
+    _optional(water_prog, bow_reflect=float(np.clip(
+        9.0 * (_ring[:, 1].max() - _ring[:, 1].min()) / float(boat.length),
+        0.0, 0.6)))
+    _optional(water_prog, heave_gain=HEAVE_GAIN, surge_gain=SURGE_GAIN,
+              pixel_angle=math.radians(args.fov) / float(args.height))
     _optional(water_prog, ripple_slope_amp=_ripple,
               ripple_scale=RIPPLE_SCALE, ripple_fade=RIPPLE_FADE,
               exact_within=_exact, ripple_wake_gain=RIPPLE_WAKE_GAIN)
     #: Texture units 0-2 are the HUD, the near field and the wave table.
-    SCENE_UNIT, DEPTH_UNIT = 3, 4
+    #: 5 is the baked shadow map.
+    SCENE_UNIT, DEPTH_UNIT, SHADOW_UNIT = 3, 4, 5
     if scene_fbo is not None:
         water_prog["scene"].value = SCENE_UNIT
         water_prog["scene_depth"].value = DEPTH_UNIT
@@ -1824,6 +2521,8 @@ def main(argv=None):
         ctx.disable(moderngl.DEPTH_TEST)
         sky_vao.render()
         ctx.enable(moderngl.DEPTH_TEST)
+        if shadow_map is not None:
+            shadow_map.use(SHADOW_UNIT)
         for vao in static:
             vao.render()
         if scene_fbo is not None:
@@ -1835,13 +2534,30 @@ def main(argv=None):
         # The water goes on after the land, so the shore reads through it
         # at the edges and the patch does not have to be clipped.
         speed = float(np.hypot(state[6], state[7]))
+        # Differenced against the previous frame in SIMULATION time --
+        # `t`, which this function is handed -- rather than wall clock,
+        # so a stutter or a pause does not read as an acceleration.
+        _dt = max(float(t) - draw.last_t, 1e-3)
+        _raw = (speed - draw.last_speed) / _dt
+        draw.surge = 0.7 * draw.surge + 0.3 * float(np.clip(_raw, -6.0, 6.0))
+        draw.last_t = float(t)
         water_prog["mvp"].write((projection @ view).T.tobytes(order="C"))
         water_prog["eye"].value = tuple(float(v) for v in eye)
         water_prog["centre"].value = (float(state[0]), float(state[1]))
         water_prog["boat"].value = (float(state[0]), float(state[1]),
                                     float(state[5]))
         water_prog["speed"].value = speed
+        # Heave velocity straight off the state vector; surge
+        # acceleration differenced between frames, which is the only
+        # place the rate of change of speed is available.
+        _optional(water_prog, heave_rate=float(state[8]),
+                  surge_accel=float(draw.surge),
+                  shadow_boat=(float(state[0]), float(state[1]),
+                               float(state[5])))
+        draw.last_speed = speed
         water_prog["time"].value = float(t)
+        for _prog in (program, sky_prog, water_prog):
+            _optional(_prog, sky_time=float(t))
         # Drop a pair of puddles at each catch -- the same phase that
         # fires the catch in strokeaudio, so what you hear and what you
         # see on the water are the same event.
@@ -1879,6 +2595,9 @@ def main(argv=None):
             target.use()
 
     draw.last_phase = 0.0
+    draw.last_speed = 0.0
+    draw.last_t = 0.0
+    draw.surge = 0.0
 
     if headless:
         for _ in range(int(args.frames or 0)):
@@ -1942,14 +2661,15 @@ def main(argv=None):
                         loop.start(fresh_state())
                         rudder = split = 0.0
                         menu, paused = None, False
-                    elif action == "options":
-                        menu = options_menu(audio=args.audio,
-                                            quality=args.quality,
-                                            weather=args.weather,
-                                            wind=args.wind)
+                    elif action in ("options", "weather"):
+                        menu = (weather_menu(weather=args.weather,
+                                             wind=args.wind)
+                                if action == "weather"
+                                else options_menu(audio=args.audio,
+                                                  quality=args.quality))
                     elif action == "back":
                         picked = menu.settings()
-                        if picked["audio"] != args.audio:
+                        if "audio" in picked and picked["audio"] != args.audio:
                             args.audio = picked["audio"]
                             # Rebuilt rather than retuned: the mode
                             # decides which envelope is loaded.
@@ -1958,9 +2678,12 @@ def main(argv=None):
                             else:
                                 from coxswain.viz.strokeaudio import StrokeAudio
                                 audio = StrokeAudio(boat, mode=args.audio)
-                        args.quality = picked["quality"]
-                        if abs(picked["wind"] - args.wind) > 1e-9:
+                        args.quality = picked.get("quality", args.quality)
+                        if abs(picked.get("wind", args.wind)
+                               - args.wind) > 1e-9:
                             args.wind = picked["wind"]
+                            if ambient is not None:
+                                ambient.set_wind(args.wind)
                             water_prog["waves"].write(
                                 sea_for(args.wind, args.fetch,
                                         np.radians(args.wind_from))
@@ -1970,7 +2693,7 @@ def main(argv=None):
                                 * (min(1.0, args.wind / RIPPLE_FULL_WIND)
                                    ** 0.5)
                                 if args.quality != "minimal" else 0.0))
-                        if picked["weather"] != args.weather:
+                        if picked.get("weather", args.weather) != args.weather:
                             # Weather is only uniforms, so it can change
                             # mid-outing without rebuilding anything.
                             args.weather = picked["weather"]

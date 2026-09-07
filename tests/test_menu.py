@@ -75,9 +75,11 @@ def test_the_pause_menu_offers_the_things_that_can_change_live():
     # Rate is on the pause menu itself; wind moved in with the weather,
     # because that is what it is -- it sets the chop and the ripple.
     assert "rate" in keys
-    assert "options" in keys
-    from coxswain.viz.menu import options_menu
-    assert "wind" in [row.key for row in options_menu().rows]
+    # Wind is weather, and weather is its own menu -- not a graphics
+    # preference and not something buried under one.
+    assert "weather" in keys
+    from coxswain.viz.menu import weather_menu
+    assert "wind" in [row.key for row in weather_menu().rows]
     assert "boat" not in keys and "race" not in keys
     assert "setup" in keys
     assert menu.by_key("rate").value == 28.0
