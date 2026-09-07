@@ -44,7 +44,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIRS = ("coxswain/data", "data")
 
 #: Extensions that are data rather than code or output.
-DATA_SUFFIXES = (".npz", ".npy", ".json", ".csv", ".tif", ".tiff", ".jpg")
+DATA_SUFFIXES = (".npz", ".npy", ".json", ".csv", ".tif", ".tiff", ".jpg",
+                 ".mp3")
 
 #: Names that are *written* rather than read, so they are not payload.
 NOT_PAYLOAD = ("frame.png",)

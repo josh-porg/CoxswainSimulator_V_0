@@ -747,6 +747,257 @@ def buoy_solids(buoys, height: float = 0.45,
 #: trees sit well back from the water.  A crown is still clearly a crown
 #: at a couple of hundred metres from a seat half a metre off the water,
 #: and that is the distance that decides this, not a round number.
+def _tube(a, b, radius, colour, sides: int = 8):
+    """A round prism between two points.
+
+    :func:`_strut` is square, which is right for a truss member and
+    wrong for an arm -- at the distance a coxswain sits from the stroke,
+    a square limb reads as a plank and catches the light in flat facets.
+    Eight sides is enough to lose the corners at that range without
+    doubling the crew's triangle count twice over.
+    """
+    a = np.asarray(a, dtype=float)
+    b = np.asarray(b, dtype=float)
+    axis = b - a
+    length = float(np.linalg.norm(axis))
+    if length < 1e-6:
+        return None
+    axis = axis / length
+    guide = np.array([0.0, 0.0, 1.0])
+    if abs(float(axis @ guide)) > 0.95:
+        guide = np.array([1.0, 0.0, 0.0])
+    u = np.cross(axis, guide)
+    u /= max(np.linalg.norm(u), 1e-9)
+    v = np.cross(axis, u)
+
+    angles = np.linspace(0.0, 2.0 * np.pi, int(sides), endpoint=False)
+    ring = [np.cos(angle) * u * radius + np.sin(angle) * v * radius
+            for angle in angles]
+    lo = [a + offset for offset in ring]
+    hi = [b + offset for offset in ring]
+    faces = []
+    for i in range(int(sides)):
+        j = (i + 1) % int(sides)
+        faces += [[lo[i], lo[j], hi[j]], [lo[i], hi[j], hi[i]]]
+    for i in range(1, int(sides) - 1):
+        faces.append([hi[0], hi[i], hi[i + 1]])
+        faces.append([lo[0], lo[i + 1], lo[i]])
+    vertices = np.asarray(faces, dtype="f4").reshape(-1, 3)
+    tri = vertices.reshape(-1, 3, 3)
+    centre = 0.5 * (a + b)
+    normal = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])
+    inward = np.einsum("ij,ij->i", normal, tri.mean(axis=1) - centre) < 0.0
+    tri[inward] = tri[inward][:, ::-1]
+    vertices = tri.reshape(-1, 3)
+    colours = np.tile(np.asarray(colour, dtype="f4"), (len(vertices), 1))
+    return MeshPart("tube", vertices, colours, _face_normals(vertices))
+
+
+#: Kit and skin.  Muted on purpose: in a stern-coxed boat the crew fill
+#: the middle of the frame, and anything saturated there pulls the eye
+#: off the bank, which is the thing actually being steered by.
+KIT = (0.17, 0.21, 0.28)
+SKIN = (0.74, 0.61, 0.53)
+
+#: Girth of each bone, m, and whether it reads as kit or as skin.  A
+#: bare skeleton is a wire diagram; these are what make it a body.
+BONE_STYLE = (
+    (("ankle", "knee"), 0.055, KIT),        # shank
+    (("knee", "hip"), 0.078, KIT),          # thigh
+    (("hip", "shoulder"), 0.100, KIT),      # trunk, one side each
+    (("shoulder", "shoulder"), 0.090, KIT),  # across the chest
+    (("neck", "head"), 0.095, SKIN),
+    (("shoulder", "elbow"), 0.045, KIT),
+    (("elbow", "hand"), 0.038, SKIN),
+)
+
+
+def _bone_style(start: str, end: str):
+    """Radius and colour for one bone, by the joints it runs between."""
+    a = start.split("_")[0]
+    b = end.split("_")[0]
+    for (first, second), radius, colour in BONE_STYLE:
+        if (a, b) == (first, second) or (a, b) == (second, first):
+            return radius, colour
+    return 0.05, KIT
+
+
+#: Oar colours: a pale loom, and a blade dark enough to read against
+#: both the water and the sky as it comes round.
+LOOM = (0.86, 0.87, 0.83)
+BLADE = (0.20, 0.24, 0.30)
+
+
+def oar_pose(boat, t, water_z: float = 0.0,
+             bury: float = 0.09, clear: float = 0.10):
+    """``(handle, lock, blade, lift)`` for every oar, in the hull frame.
+
+    The oar model is **planar**: :func:`handle_position` and
+    :func:`blade_position` both return points at oarlock height, because
+    the dynamics only ever needed the horizontal sweep and blade
+    immersion is carried as a factor rather than as geometry.  Drawn
+    literally that puts the blades 0.38 m above the water for the whole
+    stroke, skimming along and never entering it -- and it is why the
+    oars were invisible from the seat before: a horizontal ribbon seen
+    from a horizontal eye is a line.
+
+    So the vertical is reconstructed here, for the picture only, from
+    the one thing that fixes it: the oar is rigid and pivots about the
+    lock.  Put the blade where it belongs -- buried on the drive, clear
+    on the recovery -- and the handle height follows from the lever
+    ratio.  Nothing in the dynamics reads this.
+    """
+    from ..crew.oarlock import blade_position, handle_position
+
+    drive = bool(boat.timing.is_drive(t))
+    target = water_z - float(bury) if drive else water_z + float(clear)
+    poses = []
+    for seat in boat.rig.seats:
+        for lock in seat.oarlocks:
+            handle = np.asarray(handle_position(t, boat.timing, lock,
+                                                boat.oar_sweep), dtype=float)
+            pivot = np.asarray(lock.position, dtype=float)
+            blade = np.asarray(blade_position(t, boat.timing, lock,
+                                              boat.oar_sweep), dtype=float)
+            inboard = float(np.linalg.norm(handle[:2] - pivot[:2]))
+            outboard = max(float(np.linalg.norm(blade[:2] - pivot[:2])), 1e-6)
+            drop = pivot[2] - target
+            blade = blade.copy()
+            blade[2] = target
+            lift = drop * inboard / outboard
+            handle = handle.copy()
+            handle[2] = pivot[2] + lift
+            poses.append((handle, pivot, blade, lift, drive))
+    return poses
+
+
+def oar_solids(boat, t):
+    """Both looms and both blades of every oar, in the hull frame.
+
+    The blade is squared on the drive and feathered on the recovery,
+    which is the clearest cue in the frame for where in the cycle the
+    crew is -- more legible than the hands, because it is a whole
+    surface turning rather than a small thing moving.
+    """
+    parts = []
+    for handle, pivot, blade, _lift, drive in oar_pose(boat, t):
+        parts.append(_tube(handle, pivot, 0.024, LOOM, sides=6))
+        parts.append(_tube(pivot, blade, 0.021, LOOM, sides=6))
+
+        axis = blade - pivot
+        length = float(np.linalg.norm(axis))
+        if length < 1e-6:
+            continue
+        axis = axis / length
+        flat = np.cross(axis, np.array([0.0, 0.0, 1.0]))
+        flat /= max(float(np.linalg.norm(flat)), 1e-9)
+        edge = flat if drive else np.cross(axis, flat)
+        # Squared, the face stands across the water; feathered it lies
+        # flat on it.  Either way the blade is a surface, so it is drawn
+        # as a thin slab rather than a sheet -- a sheet vanishes when it
+        # turns edge-on, which is exactly when the feather happens.
+        thin = (np.cross(axis, edge)
+                if drive else flat) * 0.012
+        root = blade - axis * 0.46
+        for sign in (-1.0, 1.0):
+            parts.append(_tube(root + thin * sign, blade + thin * sign,
+                               0.001, BLADE, sides=4))
+        half = edge * 0.125
+        corners = [root - half, root + half, blade + half, blade - half]
+        faces = []
+        for offset in (thin, -thin):
+            quad = [corner + offset for corner in corners]
+            faces += [[quad[0], quad[1], quad[2]],
+                      [quad[0], quad[2], quad[3]],
+                      [quad[0], quad[2], quad[1]],
+                      [quad[0], quad[3], quad[2]]]
+        vertices = np.asarray(faces, dtype="f4").reshape(-1, 3)
+        colours = np.tile(np.asarray(BLADE, dtype="f4"), (len(vertices), 1))
+        parts.append(MeshPart("blade", vertices, colours,
+                              _face_normals(vertices)))
+
+    parts = [part for part in parts if part is not None]
+    if not parts:
+        return None
+    vertices = np.concatenate([part.vertices for part in parts])
+    colours = np.concatenate([part.colours for part in parts])
+    return MeshPart("oars", vertices, colours, _face_normals(vertices))
+
+
+def crew_solids(boat, t, scale: float = 1.0):
+    """Every rower's body in the hull frame at stroke time ``t``.
+
+    Built on :meth:`JointDrivenRower.skeleton` and its ``BONES`` -- the
+    same joints the PyVista scene draws and the same chain the dynamics
+    are integrated from, so the bodies cannot drift out of step with the
+    boat they are driving.  ``skeleton`` resolves both arms in three
+    dimensions including the trunk rotation, which matters: a sweep
+    rower has both hands on one handle and is wound round toward it, and
+    a mirrored figure would read as sculling.
+
+    Why draw them at all: **the crew face the stern, and in a
+    stern-coxed boat that means they face you.**  From an eight's seat
+    the view is eight bodies coming at you and swinging away, and the
+    timing you are reading is written on their fronts.  Without them an
+    eight and a bow-loaded four look the same out of the window, and the
+    eight is the one where they should not.
+    """
+    if not getattr(boat, "crew", None):
+        return None
+
+    # The kinematics already put the hands ON the handle -- they are
+    # solved against it -- so the two agree exactly in the model.  What
+    # the model has no vertical for is the oar itself (see
+    # :func:`oar_pose`), and once the drawn loom is tilted so the blade
+    # reaches the water, a hand has to ride up the tilt to stay on it.
+    #
+    # By how much depends where along the loom the hand is: a sweep
+    # rower's two hands are at different points on it, so lifting both
+    # by the handle's own rise pulls the inboard hand off the shaft by
+    # about 5 cm.  The lift is therefore interpolated along the loom.
+    looms = {}
+    poses = oar_pose(boat, float(t))
+    index = 0
+    for seat_index, seat in enumerate(boat.rig.seats):
+        for _lock in seat.oarlocks:
+            handle, pivot, _blade, lift, _drive = poses[index]
+            looms[seat_index] = (pivot, handle, lift)
+            index += 1
+
+    parts = []
+    for member in boat.crew:
+        rower = member.rower
+        joints = dict(rower.skeleton(float(t)))
+        loom = looms.get(member.seat_index)
+        if loom is not None and loom[2]:
+            pivot, handle, lift = loom
+            span = max(float(np.linalg.norm(handle[:2] - pivot[:2])), 1e-6)
+            hand_rise = {}
+            for name in [n for n in joints if n.startswith("hand")]:
+                along = float(np.linalg.norm(joints[name][:2] - pivot[:2]))
+                rise = lift * along / span
+                hand_rise[name.split("_", 1)[-1]] = rise
+                joints[name] = joints[name] + np.array([0.0, 0.0, rise])
+            # The shoulder does not move, so the elbow takes up about
+            # half of whatever its own hand did.
+            for name in [n for n in joints if n.startswith("elbow")]:
+                rise = hand_rise.get(name.split("_", 1)[-1], 0.0)
+                joints[name] = joints[name] + np.array([0.0, 0.0, rise * 0.5])
+        for start, end in rower.BONES:
+            if start not in joints or end not in joints:
+                continue
+            radius, colour = _bone_style(start, end)
+            parts.append(_tube(joints[start], joints[end],
+                               radius * float(scale), colour))
+
+    parts = [part for part in parts if part is not None]
+    if not parts:
+        return None
+    vertices = np.concatenate([part.vertices for part in parts])
+    colours = np.concatenate([part.colours for part in parts])
+    return MeshPart("crew", vertices, colours, _face_normals(vertices))
+
+
 SOLID_WITHIN = 250.0
 
 #: However close they are, no more than this many get the full model, so

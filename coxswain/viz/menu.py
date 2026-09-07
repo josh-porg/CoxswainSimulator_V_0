@@ -22,7 +22,8 @@ from dataclasses import dataclass, field
 from typing import Callable, List, Optional, Sequence, Tuple
 
 __all__ = ["Choice", "Menu", "boat_choices", "course_choices",
-           "setup_menu", "pause_menu", "build_boat"]
+           "setup_menu", "pause_menu", "build_boat",
+           "start_music", "stop_music", "music_path"]
 
 
 #: Shells a coxswain might sit in, as ``(key, label, seats, coxed)``.
@@ -243,6 +244,60 @@ INK = (233, 240, 245)
 DIM = (150, 164, 176)
 PICK = (255, 146, 72)
 PANEL = (12, 17, 21, 226)
+
+
+#: Menu music.  Mixkit item 754, "Romantic 03", under the Mixkit Free
+#: License: free in commercial and non-commercial work with no
+#: attribution required, but the asset may not be redistributed on its
+#: own or sold as the substance of a product.  Bundled as background
+#: audio in a free trainer it is a permitted use; it is credited here
+#: anyway, because provenance that lives only in someone's memory is
+#: provenance that is lost.
+MUSIC_FILE = "menu_music.mp3"
+
+
+def music_path():
+    """Absolute path to the menu music, wherever it is being run from."""
+    from ..core.resources import data_path
+
+    return data_path("coxswain", "data", MUSIC_FILE)
+
+
+def start_music(volume: float = 0.45) -> bool:
+    """Begin looping the menu music.  ``False`` if it could not.
+
+    Deliberately forgiving: a machine with no sound device, a mixer
+    another part of the program already owns, or a missing file are all
+    reasons to have no music and none of them are reasons to refuse to
+    show the menu.
+    """
+    import os
+
+    import pygame
+
+    path = music_path()
+    if not os.path.exists(path):
+        return False
+    try:
+        if not pygame.mixer.get_init():
+            pygame.mixer.init()
+        pygame.mixer.music.load(path)
+        pygame.mixer.music.set_volume(float(volume))
+        pygame.mixer.music.play(-1)                 # loop
+    except Exception:
+        return False
+    return True
+
+
+def stop_music(fade_ms: int = 600) -> None:
+    """Fade the menu music out, if it is playing."""
+    import pygame
+
+    try:
+        if pygame.mixer.get_init():
+            pygame.mixer.music.fadeout(int(fade_ms))
+    except Exception:
+        pass
 
 
 def blurb_for(menu: "Menu") -> str:

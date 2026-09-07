@@ -57,14 +57,17 @@ from coxswain.sim.realtime import (ControlInput,            # noqa: E402
                                    FixedStepLoop, LiveControl)
 from coxswain.sim.simulator import RowingSimulator          # noqa: E402
 from coxswain.viz.menu import (build_boat, draw_menu,        # noqa: E402
-                               handle_key, pause_menu, setup_menu)
+                               handle_key, pause_menu, setup_menu,
+                               start_music, stop_music)
 from coxswain.viz.planscene import oar_lines                # noqa: E402
 from coxswain.viz.strokeaudio import shell_of               # noqa: E402
 from coxswain.viz.water import (KELVIN_HALF_ANGLE,          # noqa: E402
                                 load_nearfield, load_wavefield,
                                 PuddleTrail, sea_for)
 from coxswain.viz.worldmesh import _face_normals            # noqa: E402
-from coxswain.viz.worldmesh import build_world, hull_solid  # noqa: E402
+from coxswain.viz.worldmesh import (build_world,             # noqa: E402
+                                    crew_solids, hull_solid,
+                                    oar_solids)
 
 RUDDER_LIMIT = 0.20
 RUDDER_RATE = 0.55
@@ -403,7 +406,38 @@ def seat_camera(state, boat, sway: float = 1.0):
     return eye, eye + forward, up
 
 
-def boat_geometry(boat, hull, t, state):
+def crew_poses(boat, samples: int = 48):
+    """Crew and oars through one stroke cycle, baked once.
+
+    Solving the joint chain for a whole crew costs about 12 ms, which is
+    most of a frame at 60 Hz and would show as stutter.  The motion is
+    periodic, so it is solved at ``samples`` phases up front and indexed
+    per frame instead -- the only per-frame cost is the same rotation
+    the hull already pays.
+
+    Returns ``(poses, colours)`` or ``None`` if the crew cannot be drawn
+    with a constant vertex count, in which case the caller simply leaves
+    them out rather than uploading ragged buffers.
+    """
+    period = float(boat.timing.period)
+    if period <= 0.0 or not getattr(boat, "crew", None):
+        return None
+    poses, colours = [], None
+    for index in range(int(samples)):
+        when = period * index / float(samples)
+        pieces = [part for part in (crew_solids(boat, when),
+                                    oar_solids(boat, when))
+                  if part is not None]
+        if not pieces:
+            return None
+        poses.append(np.concatenate([part.vertices for part in pieces]))
+        colours = np.concatenate([part.colours for part in pieces])
+    if len({len(pose) for pose in poses}) != 1:
+        return None
+    return np.asarray(poses, dtype="f4"), colours
+
+
+def boat_geometry(boat, hull, t, state, crew=None):
     """The shell and its oars, in world space, for this frame.
 
     Both ride the hull, so both are built in hull coordinates and carried
@@ -414,16 +448,27 @@ def boat_geometry(boat, hull, t, state):
     rotation = hull_to_abs(np.asarray(state[3:6], dtype=float))
     position = np.asarray(state[0:3], dtype=float)
     pieces = [(hull.vertices @ rotation.T + position, hull.colours)]
-    oars, colours = oar_geometry(boat, t, state)
-    if oars is not None:
-        pieces.append((oars, colours))
+    if crew is not None:
+        poses, crew_colours = crew
+        period = float(boat.timing.period)
+        # Nearest baked phase.  At 48 samples and rate 30 that is 40 ms
+        # of stroke per pose, which is below what the eye resolves on a
+        # body moving this slowly.
+        index = int((t % period) / period * len(poses)) % len(poses)
+        pieces.append((poses[index] @ rotation.T + position, crew_colours))
     vertices = np.concatenate([p[0] for p in pieces]).astype("f4")
     shades = np.concatenate([p[1] for p in pieces]).astype("f4")
     return vertices, shades
 
 
 def oar_geometry(boat, t, state):
-    """Oars as thin world-space quads, for the near field."""
+    """Oars as thin horizontal ribbons -- SUPERSEDED, kept for the plan view.
+
+    This drew each oar as a flat quad at a constant 0.32 m, which is
+    invisible from the seat: a horizontal ribbon seen from a horizontal
+    eye is a line, and the blades never touched the water.  The first
+    person view now uses :func:`coxswain.viz.worldmesh.oar_solids`.
+    """
     lines, drive = oar_lines(boat, t)
     rotation = hull_to_abs(np.asarray(state[3:6], dtype=float))
     position = np.asarray(state[0:3], dtype=float)
@@ -459,6 +504,8 @@ def run_setup_menu(screen, args):
     import pygame
 
     clock = pygame.time.Clock()
+    if not getattr(args, "no_sound", False):
+        start_music()
     font = pygame.font.SysFont("dejavusans,arial", 22)
     small = pygame.font.SysFont("dejavusans,arial", 15)
     menu = setup_menu(boat=args.boat, course=args.race, rate=args.rate,
@@ -468,14 +515,21 @@ def run_setup_menu(screen, args):
         clock.tick(60)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
+                stop_music()
                 return None
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
+                    stop_music()
                     return None
                 action = handle_key(menu, event.key)
                 if action == "start":
+                    # Faded rather than cut: the world takes half a
+                    # minute to build after this and silence arriving
+                    # abruptly reads as a crash.
+                    stop_music()
                     return menu.settings()
                 if action == "quit":
+                    stop_music()
                     return None
         screen.fill((18, 24, 29))
         draw_menu(overlay, menu, font, small, screen.get_size())
@@ -578,6 +632,7 @@ def main(argv=None):
     cox = Coxswain(rudder_override=live.rudder, pressure_split=live.split)
     simulator = RowingSimulator(boat, coxswain=cox, fast=True)
     hull = hull_solid(boat)
+    crew = crew_poses(boat)
 
     course = scene.course
     station = np.concatenate([[0.0], np.cumsum(
@@ -741,7 +796,10 @@ def main(argv=None):
              args.fetch, len(grid) // 3, -1.25 * trough - 0.02))
 
     # The oars change every frame, so they get a stream buffer sized once.
-    oar_buffer = ctx.buffer(reserve=256 * 1024, dynamic=True)
+    # Hull, oars and eight bodies.  The draw is skipped outright if
+    # the blob will not fit, so an undersized buffer here shows as
+    # the boat vanishing rather than as an error.
+    oar_buffer = ctx.buffer(reserve=1024 * 1024, dynamic=True)
     oar_vao = ctx.vertex_array(
         program, [(oar_buffer, "3f 3f 3f", "in_pos", "in_normal",
                    "in_colour")])
@@ -791,7 +849,7 @@ def main(argv=None):
         near_tex.use(NEAR_UNIT)          # never trust the binding
         wave_tex.use(WAVE_UNIT)
         water_vao.render()
-        vertices, colours = boat_geometry(boat, hull, t, state)
+        vertices, colours = boat_geometry(boat, hull, t, state, crew)
         if vertices is not None and len(vertices):
             normals = _face_normals(vertices)
             blob = np.hstack([vertices, normals, colours]).astype("f4")
@@ -849,6 +907,7 @@ def main(argv=None):
                             # puts a step in the force.
                             boat, _made = build_boat(args.boat, args.rate)
                             hull = hull_solid(boat)
+                            crew = crew_poses(boat)
                             simulator = RowingSimulator(boat, coxswain=cox,
                                                         fast=True)
                             loop.simulator = simulator

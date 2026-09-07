@@ -244,7 +244,14 @@ def eight(rate: float = 32.0, rower_mass: float = 88.0,
         oarlock_height=0.38, oar=SWEEP_OAR, stroke_side=PORT,
         sides=(RIG_PATTERNS[rig_pattern]
                if isinstance(rig_pattern, str) else rig_pattern),
-        coxswain_position=np.array([-6.10, 0.0, 0.10]),
+        # The cox sits in a well, not on the deck: their seat is about
+        # 0.15 m below the line the rowers' seats run on, and rowers are
+        # taller people besides.  Both matter here because this is the
+        # eye position the whole first-person view is built from -- at
+        # the old 0.10 the coxswain looked *down* on the crew's heads
+        # from 19 cm above them, which is backwards, and made an eight
+        # look like a boat with nobody in the way.
+        coxswain_position=np.array([-6.10, 0.0, -0.05]),
         coxswain_mass=coxswain_mass,
     )
     return Boat(
@@ -297,7 +304,7 @@ def coxed_four(rate: float = 32.0, rower_mass: float = 88.0,
         # Ahead of the bow seat at +1.46 m, in the taper, lying down --
         # hence the lower reference height than a seated coxswain.
         coxswain_position=(np.array([4.30, 0.0, 0.02]) if bow_loaded
-                           else np.array([-4.00, 0.0, 0.10])),
+                           else np.array([-4.00, 0.0, -0.05])),
         coxswain_mass=coxswain_mass,
         coxswain_reclined=bool(bow_loaded),
     )

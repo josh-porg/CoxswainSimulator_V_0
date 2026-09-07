@@ -165,13 +165,46 @@ def test_the_water_under_the_montlake_bridge_matches_the_federal_record():
     assert abs(width - montlake.opening) < 5.0
 
 
+#: The three the Head of the Lake actually passes under, west to east.
+#: The Fremont and Aurora bridges are in :func:`canal_bridges` because
+#: they are landmarks you can see, not because the course goes near
+#: them -- both are west of the start, down Lake Union.  An earlier
+#: version of this test asserted the lane crossed *every* bridge in the
+#: inventory, which was true right up until those two were added for
+#: the scenery, and then failed for a course that was perfectly correct.
+ROWED_UNDER = ("Ship Canal Bridge", "University Bridge", "Montlake Bridge")
+PASSED_BY = ("Fremont Bridge", "Aurora Bridge")
+
+
+def test_the_lane_misses_the_bridges_it_never_reaches():
+    """Landmarks down the lake must not end up on the racing line.
+
+    The complement of the test below, and the reason that one can name
+    its bridges: if the course is ever re-traced through Fremont, that
+    is a routing error and not a new feature.
+    """
+    from coxswain.river.seattle import canal_bridges
+
+    import sys
+    sys.path.insert(0, os.path.join(ROOT, "scripts"))
+    from render_hotl import hotl_course
+    line = hotl_course().centreline
+    for bridge in canal_bridges():
+        if bridge.name in PASSED_BY:
+            assert bridge.crossing(line) is None, bridge.name
+
+
 def test_the_lane_crosses_each_bridge_over_water(course):
     """Under each deck the crossing must be on mapped water; under the
     Montlake Bridge and I-5 it must also be near the middle of it."""
     from coxswain.river.seattle import canal_bridges
+    crossed = set()
     for bridge in canal_bridges():
+        if bridge.name not in ROWED_UNDER:
+            continue
         hit = bridge.crossing(course)
         assert hit is not None, bridge.name
+        crossed.add(bridge.name)
         along = hit[2]
         runs = bridge.water_runs()
         inside = [(a, b) for a, b in runs if a <= along <= b]
@@ -179,6 +212,7 @@ def test_the_lane_crosses_each_bridge_over_water(course):
         if bridge.name != "University Bridge":
             a, b = inside[0]
             assert abs(along - (a + b) / 2.0) < 10.0, (bridge.name, along)
+    assert crossed == set(ROWED_UNDER), crossed
 
 
 def test_the_orange_line_holds_through_the_cut():
