@@ -9762,3 +9762,34 @@ The test that guards this reads the **matrix values** rather than
 searching the file's text, because the comment explaining this history
 contains the string `macos-13` and a substring search trips on its own
 explanation.
+
+## 155. A hung job never fails, and never finishes
+
+The Windows release job sat on its smoke test for fifty-two minutes,
+twice, where the macOS job did the whole build in five. It never failed.
+It simply stopped, and because the publish step waits on every build,
+one stuck runner holds the entire release.
+
+Two things made it silent. A `--windowed` Windows build has **no
+console**, so anything it reports goes nowhere; and a GitHub Windows
+runner is a headless service session with no usable OpenGL, which is
+what the headless path asks for when it makes a standalone context.
+
+The fix separates two questions that had been conflated:
+
+* **Did the data files get into the bundle?** A fact about the
+  artefact, and the one that has actually gone wrong before (§ the
+  `charles_isobaths.csv` escape). Checked now by walking the built
+  bundle and looking for each file `discover_payload()` names. Needs no
+  GPU, no display, and runs everywhere.
+* **Does the packaged thing draw?** Better evidence, but it needs a GL
+  context, and whether a runner can provide one is a fact about the
+  runner. It runs under `timeout 240` per course, and it is fatal on
+  macOS and Linux, where a context is available. On Windows it warns:
+  the payload has already been verified directly, and the Windows
+  artefact is built and run here before release.
+
+The general lesson is the one worth keeping: **a timeout is not
+optional on anything a release blocks on.** A failure announces itself;
+a hang looks exactly like slowness, and the only way to tell them apart
+is to know how long the same work took somewhere else.

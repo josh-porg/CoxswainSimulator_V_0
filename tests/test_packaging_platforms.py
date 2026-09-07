@@ -176,3 +176,31 @@ def test_linux_is_built_against_an_old_enough_glibc():
     assert "ubuntu-22.04" in workflow, "ubuntu-latest is too new to ship"
     assert "tar -czf" in workflow
     assert "chmod +x" in workflow
+
+
+def test_the_render_check_cannot_hang_the_release():
+    """A hung job never fails, and never finishes either.
+
+    The Windows render check sat for fifty-two minutes where macOS took
+    five, twice.  A windowed Windows build has no console, so a failure
+    there is silent by construction, and the job it blocks is the one
+    that publishes the release -- so a silent hang stalls the whole
+    thing behind a step that will never report anything.
+    """
+    workflow = read(".github", "workflows", "release.yml")
+    assert "timeout 240" in workflow, (
+        "every render invocation needs a bound; without one a stuck "
+        "runner blocks the publish job for ever")
+
+
+def test_the_payload_is_verified_without_needing_a_gpu():
+    """Whether a runner can make a GL context is a fact about the
+    runner.  Whether the data files got into the bundle is a fact about
+    the artefact, and it is the one that has actually gone wrong -- so
+    it is checked by looking for the files, which needs nothing."""
+    workflow = read(".github", "workflows", "release.yml")
+    assert "discover_payload" in workflow
+    check = workflow[workflow.index("Check the payload actually got in"):]
+    check = check[:check.index("- name:", 10)]
+    assert "--shot" not in check, (
+        "the payload check must not depend on rendering")

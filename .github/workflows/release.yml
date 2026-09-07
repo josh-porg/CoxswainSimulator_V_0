@@ -113,26 +113,79 @@ jobs:
         run: |
           # A build that succeeds and ships without its data files dies
           # on somebody else's machine, which is the failure this whole
-          # arrangement exists to avoid.  So: does it run, headless, on
-          # every course, from the built artefact?
+          # arrangement exists to avoid.
+          #
+          # Checked by LOOKING FOR THE FILES, not by rendering.  The
+          # render test below is better evidence when it can run, but it
+          # needs a GL context, and whether a CI runner can give one is
+          # a fact about the runner rather than about the artefact.
           set -e
+          case "${{ matrix.name }}" in
+            mac)   ROOT="dist/Coxswain-mac/Coxswain.app/Contents/Resources" ;;
+            *)     ROOT="dist/Coxswain/_internal" ;;
+          esac
+          python - "$ROOT" <<'CHECK'
+          import os, sys
+          sys.path.insert(0, "tools")
+          from build_exe import discover_payload
+          root = sys.argv[1]
+          missing = []
+          for name in discover_payload():
+              leaf = name.replace("\\", "/").split("/")[-1]
+              found = any(leaf in files
+                          for _b, _d, files in os.walk(root))
+              if not found:
+                  missing.append(leaf)
+          print("payload inside the build: %d of %d present"
+                % (len(discover_payload()) - len(missing),
+                   len(discover_payload())))
+          if missing:
+              print("MISSING:", ", ".join(missing))
+              raise SystemExit(1)
+          CHECK
+
+      - name: Render every course from the built artefact
+        shell: bash
+        run: |
+          # The real proof: does the packaged thing actually draw?
+          #
+          # TIMEOUT, because this hung for fifty-two minutes on Windows
+          # -- the job never failed, it simply stopped, and a hung job
+          # blocks the publish step and therefore the whole release.  A
+          # windowed Windows build has no console to report to, so a
+          # failure there is silent by construction.
+          #
+          # Not fatal on Windows for the same reason it hangs: the
+          # runner is a headless service session with no usable GL, and
+          # that is a fact about the runner.  The payload check above
+          # has already passed, and the Windows artefact is built and
+          # run locally before release.  On macOS and Linux, where a
+          # context is available, a failure here still fails the build.
           case "${{ matrix.name }}" in
             mac)   APP="dist/Coxswain-mac/Coxswain.app/Contents/MacOS/Coxswain" ;;
             linux) APP="dist/Coxswain/Coxswain" ;;
             *)     APP="dist/Coxswain/Coxswain.exe" ;;
           esac
-          # SDL_VIDEODRIVER=dummy gets a window with no display, but
-          # the headless path still makes a real standalone GL context
-          # and a bare runner has no GLX to give it -- so on Linux the
-          # whole thing runs under a virtual X server.
           RUN=""
           [ "${{ matrix.name }}" = "linux" ] && RUN="xvfb-run -a"
+          ok=1
           for course in charles totl hotl; do
             echo "--- $course"
-            SDL_VIDEODRIVER=dummy $RUN "$APP" --race "$course" --boat 8+ \
-              --no-menu --shot "/tmp/$course.png" --width 320 --height 180
+            if SDL_VIDEODRIVER=dummy timeout 240 $RUN "$APP"                  --race "$course" --boat 8+ --no-menu                  --shot "/tmp/$course.png" --width 320 --height 180; then
+              echo "    rendered"
+            else
+              echo "    FAILED or timed out (exit $?)"
+              ok=0
+            fi
           done
-          echo "all three courses ran"
+          if [ "$ok" = "1" ]; then
+            echo "all three courses ran"
+          elif [ "${{ matrix.name }}" = "windows" ]; then
+            echo "::warning::Windows runner could not render; payload was"                 "verified by file presence and the artefact is checked"                 "locally before release."
+          else
+            echo "::error::the packaged build could not render"
+            exit 1
+          fi
 
       - name: Sign the bundle, so macOS does not call it damaged
         if: matrix.name == 'mac'
