@@ -148,7 +148,12 @@ WAVE_UNIT = 2
 #: which puts 0.06 m cells under the bow where a wave subtends a real
 #: angle and metre cells at the edge where it does not.
 WATER_REACH = 110.0
-WATER_DIVISIONS = 300
+WATER_DIVISIONS = 340
+
+#: Share of the water grid's reach carried by the linear term; see
+#: :func:`water_grid`.  Higher spreads resolution further out from the
+#: hull and coarsens the horizon.
+NEAR_FRACTION = 0.30
 
 WATER_VERTEX = """#version 330
 in vec2 in_grid;
@@ -357,7 +362,23 @@ def water_grid(reach: float = WATER_REACH,
     which is where the resolution is needed and where it is not.
     """
     u = np.linspace(-1.0, 1.0, divisions + 1)
-    line = (reach * np.sign(u) * u * u).astype("f4")
+    # A blend of a linear term and a quartic, not a plain square.
+    #
+    # The square puts almost all of its resolution in the first few
+    # metres and has spent it by ten: cells were 0.45 m at 10 m and
+    # 0.55 m at 15 m, while the near-field texture behind them is baked
+    # at 0.13 m -- so the grid was undersampling the wake it exists to
+    # show by three or four times, right where the puddles from the last
+    # few strokes sit and where a coxswain is actually looking.
+    #
+    # NEAR_FRACTION is how much of the reach the linear term carries.
+    # It buys an almost uniform 0.19-0.31 m out to about 15 m, ahead and
+    # to the sides, and pays for it in the far field, where the cells go
+    # from 1.4 m to 1.9 m at a hundred metres and nothing is resolved at
+    # that range anyway.
+    warp = (NEAR_FRACTION * u
+            + (1.0 - NEAR_FRACTION) * np.sign(u) * np.abs(u) ** 4)
+    line = (reach * warp).astype("f4")
     gx, gy = np.meshgrid(line, line)
     a = np.stack([gx[:-1, :-1], gy[:-1, :-1]], axis=-1)
     b = np.stack([gx[:-1, 1:], gy[:-1, 1:]], axis=-1)

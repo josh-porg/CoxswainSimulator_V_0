@@ -1949,8 +1949,15 @@ def bridge_solids(race: str, scene) -> Optional[MeshPart]:
                         continue
                     middle = 0.5 * (np.asarray(far) + np.asarray(near))
                     heading = (np.asarray(near) - np.asarray(far)) / run
+                    # Solid down to the ground, not a floating deck.
+                    # An approach is masonry on an embankment running
+                    # onto the bank; drawn as a thin slab it hangs in
+                    # the air off the end of the arches with daylight
+                    # under it, which is the one thing a bridge never
+                    # does.  Where the bank is higher than the water
+                    # this is simply buried in it.
                     parts.append(_slab(middle, heading, run, width, level,
-                                       max(0.35 * depth, 0.4)))
+                                       max(float(level), 0.6)))
                 continue
             # Not an arch.  Eliot is NBI 4/9, a steel deck truss, and
             # the Grand Junction is a 149 m steel trestle -- both were

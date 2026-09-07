@@ -9346,3 +9346,106 @@ laid out against them — so the backdrop changes as you choose and is a
 chart of somewhere real. It costs one pass over a point cloud, about
 0.08 s, cached per course and size, and falls back to plain colour if
 the data is missing. The panel alpha came down so it shows through.
+
+## 134. The blades were exactly out of phase
+
+A squared blade hangs **down** into the water: its width runs
+vertically and its face looks along the direction it is being pulled. A
+feathered blade lies flat on the surface: width horizontal, face at the
+sky.
+
+`oar_solids` built the roll starting from the horizontal edge — which
+is the *feathered* attitude — so the blades were flat through the drive
+and on edge through the recovery. Every blade in the boat was a quarter
+turn out from the stroke it was driving, which is the single most
+legible thing in the frame and it was wrong in the most visible
+possible way.
+
+Caught by the user looking at it, not by a test, and the test that now
+holds it checks the face normal through the cycle: near-horizontal
+while `is_drive`, near-vertical on the recovery.
+
+The blade is also more one-sided than it was — 72/28 about the shaft
+rather than 62/38 — twice as thick, and with more spoon. A cleaver is
+not a symmetric plank and at two metres it was reading as one.
+
+## 135. The arches were 27 m from the arches
+
+Two errors compounding, on the bridge a Charles crew picks its arch on
+from several hundred metres out.
+
+OpenStreetMap's deck way runs the length of the **roadway**, approach
+embankments included: Western Avenue's is 152 m against an inventory
+bridge of 85.3 m. And the river does not run under the middle of the
+road, so centring the arches on the deck line is wrong even once the
+length is right.
+
+`derive_piers` has always laid the centre span symmetrically about the
+**wet opening**, because that is what the navigation side needs. The
+renderer was dividing the whole deck way into equal thirds. Between
+them that put Western Avenue's piers 27 m from where the same program
+says they are — more than an arch width.
+
+The arches are now cut to the inventory length and centred on the
+channel via `derive_piers`, which lands them within a metre of the
+navigation piers for River Street, Western Avenue and Larz Anderson,
+and the approaches are drawn on either side so the bridge still runs
+onto both banks as it does in life.
+
+This is the third time the picture has been found ignoring survey data
+that another part of the program was already reading: the Grand
+Junction piers (§129), these arches, and the bridge decks before them.
+The pattern is worth naming — data arrives for the navigation code, and
+nothing points the renderer at it.
+
+## 136. The bank stopped in mid air, and the lidar has no river bed
+
+The terrain ended in a vertical cut at exactly z = 0 with nothing under
+it. The water is drawn as a *wavy* surface, so every trough that dipped
+below zero opened a gap at the shoreline that you could see straight
+through — under the terrain and out the far side.
+
+The first fix was wrong and is worth recording. The elevation model
+does contain values below pool level, 6% of the raster down to −15 m,
+so the bank was extended down through them. Then a transect across the
+river showed what those values are: a dead flat **−0.39 m** the whole
+width. That is the lidar returning the water *surface*. There is no
+bathymetry in this DEM, and the existing test that refused to draw
+under the water was right about exactly that.
+
+So the shoreline gets an **apron**: cells with a dry corner are kept and
+their wet corners dropped to `SHELF`, 4 m, which is under any wave
+trough and any drawdown beside a hull. Entirely-wet cells are still
+dropped. It closes the gap without pretending to be a river bed. Real
+soundings are in `data/charles_isobaths.csv`, and if the bed is ever
+wanted for its own sake that is where it has to come from.
+
+## 137. Lowell House, and a landmark the height data flattens
+
+Lowell House carries no `height` tag in OpenStreetMap, so
+`extract_structures` falls back to a guess from the building type —
+`height_source = 2` — and returns 15 m. That is the house without its
+tower, and the tower is the point: the Lowell House bell tower is *the*
+mark for the Weeks turn, 250 m off the bridge.
+
+`worldmesh.LANDMARKS` carries it as a shaft, an open belfry on corner
+posts, the dome and a finial. **The heights in that table are estimates
+and are labelled as such** — shaped to the published description of the
+tower, not surveyed the way the bridge decks in
+`coxswain.river.bridges` are. Anything that needs a real number must
+not read them.
+
+## 138. A free camera, and multisampling
+
+`F1` detaches the eye from the boat and flies it — WASD, Q and E for
+down and up, shift for speed. It exists because checking whether a
+bridge's piers are where the survey says used to mean rowing up the
+course at racing speed with the crew in the way. Every fix in §135 was
+checked with it.
+
+Anti-aliasing is asked for on the framebuffer (`--samples`, 4 by
+default) rather than done in a shader. Nearly every edge in this scene
+is long and near-horizontal — the gunwale, the oar looms, the far bank,
+the bridge chords — which is the worst case for crawling, and MSAA
+lands exactly there. Requested rather than required: if the part will
+not give a multisample visual the context still comes up without one.
