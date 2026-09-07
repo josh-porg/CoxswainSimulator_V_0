@@ -207,6 +207,20 @@ def main(argv=None):
         return result.returncode
     where = os.path.join(ROOT, "dist",
                          args.name if args.onedir else args.name + ".exe")
+
+    # The README ships *inside* the folder, so it has to be copied in
+    # after PyInstaller has written it.  It lives in the repository
+    # rather than being typed into dist/ by hand: the first copy was,
+    # and a `rm -rf dist` erased it silently -- the zip would have gone
+    # out with no instructions in it and nothing would have complained.
+    readme = os.path.join(ROOT, "packaging", "README.txt")
+    if args.onedir and os.path.exists(readme):
+        shutil.copy2(readme, os.path.join(where, "README.txt"))
+        print("   README.txt copied in")
+    elif args.onedir:
+        print("   WARNING: %s is missing, so the folder has no "
+              "instructions in it" % readme)
+
     print("\nwrote %s" % where)
     if os.path.isfile(where):
         print("   %.0f MB" % (os.path.getsize(where) / 1e6))
