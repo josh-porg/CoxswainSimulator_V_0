@@ -160,7 +160,17 @@ def land_mesh(terrain, wet_at, box, step: float = 8.0,
 
 def water_plane(centre, reach: float = 3000.0,
                 level: float = 0.0) -> MeshPart:
-    """One big quad.  The horizon is the thing a coxswain steers on."""
+    """One big quad.  The horizon is the thing a coxswain steers on.
+
+    ``level`` wants to be **below the deepest wave trough**, not at zero.
+    The near field is a displaced grid oscillating about z = 0, and with
+    this quad at exactly zero every trough was hidden behind it while the
+    crests stood through -- water that bumped up and never down.  That is
+    not z-fighting, which flickers; it is one surface occluding another.
+    Dropped by a fraction of a wave height it disappears under the chop,
+    and at the far edge of the patch the step it leaves subtends well
+    under a pixel.
+    """
     cx, cy = float(centre[0]), float(centre[1])
     corners = np.array([
         [cx - reach, cy - reach, level], [cx + reach, cy - reach, level],
@@ -1295,7 +1305,8 @@ def skyline_walls(structures, course, box, imagery=None, bases=None,
 
 def build_world(race: str = "charles", reach: float = 900.0,
                 step: float = 8.0, with_buildings: bool = True,
-                guide: bool = True, trees: bool = True):
+                guide: bool = True, trees: bool = True,
+                water_level: float = 0.0):
     """``(WorldMesh, PlanScene)`` for a course.
 
     ``reach`` is how far either side of the course to build.  The whole
@@ -1345,7 +1356,7 @@ def build_world(race: str = "charles", reach: float = 900.0,
         print("   (no imagery, flat colour throughout: %s)" % str(error)[:60])
 
     mesh = WorldMesh()
-    mesh.add(water_plane(course.mean(axis=0)))
+    mesh.add(water_plane(course.mean(axis=0), level=water_level))
     mesh.add(land_mesh(terrain, wet_at, box, step=step, imagery=photo))
     if with_buildings:
         def ground_at(east, north):

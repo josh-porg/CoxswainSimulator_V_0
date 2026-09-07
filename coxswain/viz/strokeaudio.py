@@ -19,9 +19,16 @@ sounds with it.
 
 The events
 ----------
-``catch``     blade in: the loudest thing in the cycle and the one a crew
-              rows to.  Filtered to a spectral envelope measured off a
-              real eight, not invented -- see :data:`CATCH_BANDS`.
+``finish``    the loudest thing in the cycle: the blades coming out and
+              feathering in the oarlocks, a hard knock of wood on metal.
+              This was called the catch for a while, on the assumption
+              that the loudest event must be the one a crew rows to.  A
+              coxswain sitting in the boat says otherwise, and the sound
+              itself agrees -- a catch is an entry into water and does
+              not knock.  Everything the decomposition measures is
+              referred to this event, and
+              :attr:`StrokeAudio.anchored_phases` moves it into the
+              model's cycle, which starts at the catch.
 ``release``   blade out: the same water, brighter and much quieter.
 ``slide``     the seats running up the recovery, looped underneath so the
               cycle is continuous.  Without it the two events sit in
@@ -332,6 +339,35 @@ class StrokeAudio:
     def timing(self):
         return self.boat.timing
 
+    @property
+    def drive_fraction(self) -> float:
+        """Drive as a fraction of the whole cycle."""
+        period = float(self.timing.period)
+        drive = float(getattr(self.timing, "drive_fraction", 0.0) or 0.0)
+        if drive <= 0.0:
+            drive = float(getattr(self.timing, "drive_duration", 0.0))                 / max(period, 1e-9)
+        return float(min(max(drive, 0.05), 0.95)) or 0.4
+
+    @property
+    def anchored_phases(self):
+        """The measured event phases, moved into the model's cycle.
+
+        **The loudest transient in a recording is the finish, not the
+        catch.**  A coxswain sitting in the boat identifies it as the
+        blades coming out and feathering in the oarlocks -- a hard
+        wood-on-metal knock -- where the catch is a softer entry into
+        water.  ``tools/dmd_stroke.py`` anchors its phase grid on that
+        loudest transient, so everything it measures is referred to the
+        **finish**.
+
+        The simulator's cycle starts at the catch, so the two frames are
+        offset by the drive.  Without this shift the finish sound was
+        being played at the model's catch, roughly a third of a stroke
+        early -- audible as a boat whose sound does not match its blades.
+        """
+        return [(float(p) + self.drive_fraction) % 1.0
+                for p in self._phases]
+
     def update(self, t: float) -> List[str]:
         """Play whatever falls between the last call and ``t``.
 
@@ -342,11 +378,12 @@ class StrokeAudio:
             self._last = float(t)
             return []
         period = float(self.timing.period)
-        fired = events_between(self._last, float(t), period, self._phases)
+        fired = events_between(self._last, float(t), period,
+                               self.anchored_phases)
         self._last = float(t)
         names = []
         for _when, index in fired:
-            names.append("catch" if index == 0 else "event%d" % index)
+            names.append("finish" if index == 0 else "event%d" % index)
             if not self.available:
                 continue
             try:

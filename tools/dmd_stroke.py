@@ -92,7 +92,18 @@ def spectrogram(signal, rate):
 
 
 def catches(signal, rate, period_band=(1.5, 3.4)):
-    """Catch times, from the low band where the thump lives.
+    """Cycle marks, from the low band where the thump lives.
+
+    .. note::
+       These are **finishes, not catches**, and the name is kept only
+       because it is used throughout.  The loudest low-frequency
+       transient in a rowing recording is the blades coming out and
+       feathering in the oarlocks; the catch is an entry into water and
+       is much softer.  Everything downstream is therefore referred to
+       the finish, and
+       :attr:`coxswain.viz.strokeaudio.StrokeAudio.anchored_phases`
+       shifts it by the drive fraction to reach the model's cycle.
+
 
     Below 300 Hz there is no speech to speak of, so onsets can be found
     without touching the rest of the spectrum -- the notch is used to

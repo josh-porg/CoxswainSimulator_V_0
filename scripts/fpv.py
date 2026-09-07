@@ -408,7 +408,12 @@ def main(argv=None):
 
     print("building %s ..." % args.race)
     clock0 = time.perf_counter()
+    # The sea first: the flat far-water quad has to be sunk below the
+    # deepest trough of the near field, or it hides them.
+    sea = sea_for(args.wind, args.fetch, np.radians(args.wind_from))
+    trough = float(np.sum(sea.amplitude)) if len(sea.amplitude) else 0.0
     mesh, scene = build_world(args.race, reach=args.reach, step=args.step,
+                              water_level=-1.25 * trough - 0.02,
                               with_buildings=not args.no_buildings,
                               guide=not args.no_guide,
                               trees=not args.no_trees)
@@ -502,7 +507,7 @@ def main(argv=None):
     water_buffer = ctx.buffer(grid.tobytes())
     water_vao = ctx.vertex_array(water_prog,
                                  [(water_buffer, "2f", "in_grid")])
-    field = sea_for(args.wind, args.fetch, np.radians(args.wind_from))
+    field = sea
     water_prog["waves"].write(field.as_uniform().tobytes())
     trail = PuddleTrail()
     # Wake amplitude from the hull's own wave resistance, tabulated once.
@@ -511,8 +516,9 @@ def main(argv=None):
           "at 4.5 m/s" % (float(np.interp(4.5, wake_speed, wake_scale))
                           / np.sqrt(10.0)))
     print("   water: H_s %.3f m, T_p %.2f s at %.0f m/s over %.0f m fetch; "
-          "%d triangles" % (field.significant_height, field.peak_period,
-                            args.wind, args.fetch, len(grid) // 3))
+          "%d triangles; far plane sunk to %.3f m"
+          % (field.significant_height, field.peak_period, args.wind,
+             args.fetch, len(grid) // 3, -1.25 * trough - 0.02))
 
     # The oars change every frame, so they get a stream buffer sized once.
     oar_buffer = ctx.buffer(reserve=256 * 1024, dynamic=True)

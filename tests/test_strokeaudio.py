@@ -68,3 +68,31 @@ def test_the_full_cycle_clip_is_one_stroke_long():
     if cycle is None:
         return
     assert len(cycle) == int(44100 * 2.0)
+
+
+def test_the_loudest_event_is_the_finish_not_the_catch():
+    """The measured reference is the blades feathering in the oarlocks.
+
+    A coxswain in the boat identifies the loudest transient as the
+    finish, so the phase grid is referred to that; the simulator's cycle
+    starts at the catch.  The two must therefore be offset by the drive,
+    and the loudest event must land near the model's finish rather than
+    at its phase zero.  Without this the sound ran about a third of a
+    stroke early against the blades.
+    """
+    import pygame
+
+    pygame.init()
+    from coxswain.boats import catalog
+    from coxswain.viz.strokeaudio import StrokeAudio
+
+    boat = catalog.coxed_four(rate=30.0, rower_mass=68.0,
+                              rower_stature=1.70, coxswain_mass=68.0)
+    audio = StrokeAudio(boat)
+    if not audio._phases:
+        return
+    drive = audio.drive_fraction
+    anchored = audio.anchored_phases
+    assert abs(anchored[0] - drive) < 1e-6
+    assert 0.2 < anchored[0] < 0.8          # the finish, not phase zero
+    audio.stop()
