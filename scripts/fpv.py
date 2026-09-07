@@ -147,6 +147,7 @@ uniform vec3 boat;            // east, north, heading
 uniform float speed;
 uniform float wake_k;         // 2 pi g / V^2, the transverse wavenumber
 uniform float wake_amp;
+uniform float hull_length;    // bow-to-stern source separation
 uniform float tan_wedge;      // tan(19.47 deg)
 uniform float time;
 
@@ -168,25 +169,43 @@ float sea(vec2 p, float t) {
     return h;
 }
 
-// The Kelvin wake, in the boat's frame: zero outside the wedge, which is
-// the thing everyone recognises about a wake.
-float wake(vec2 p) {
-    if (speed < 0.4) return 0.0;
+// One Kelvin system, from a disturbance at `offset` along the hull.
+//
+// Zero outside the 19.47-degree wedge, and a(x) = A/sqrt(x) inside it,
+// which is what spreading the wave-resistance energy across the
+// widening wedge gives.
+float wake_from(vec2 p, float offset, float amp) {
     float c = cos(-boat.z), s = sin(-boat.z);
     vec2 d = p - boat.xy;
-    float along = -(d.x * c - d.y * s);      // positive astern
+    float along = -(d.x * c - d.y * s) + offset;   // positive astern
     float across = d.x * s + d.y * c;
-    if (along < 0.2) return 0.0;
+    if (along < 0.15) return 0.0;
     float limit = tan_wedge * along;
     if (abs(across) > limit) return 0.0;
-    // a(x) = A / sqrt(x) is the energy-spreading result; the
-    // exponential on top of it is the only empirical term left, and it
-    // stands for the viscous decay the inviscid derivation has no view
-    // of.  120 m is long enough not to disturb the near field.
-    float fade = exp(-along / 120.0) / sqrt(max(along, 0.5));
+    float fade = exp(-along / 120.0) / sqrt(max(along, 0.4));
     float edge = abs(across) / max(limit, 1e-6);
-    float crest = 0.45 + 0.55 * edge * edge;
-    return wake_amp * fade * crest * cos(wake_k * along);
+    // Riding up toward the cusp lines is where a real wake is steepest,
+    // and it is what makes the divergent V read from the stem.
+    float crest = 0.35 + 0.65 * edge * edge * edge;
+    return amp * fade * crest * cos(wake_k * along);
+}
+
+// The hull as TWO disturbances, not one.
+//
+// A single system centred on the boat has no V leaving the stem: the
+// wedge just begins under the boat, which is not what a coxswain sees.
+// The bow throws a pair of crests that run slightly wider than the hull
+// and open out behind it.  Havelock models a ship as a pressure source
+// at the bow and a sink at the stern, a waterline length apart, and
+// superposing their two Kelvin systems gives both that bow V and the
+// bow-stern interference -- the same interference that puts the humps
+// in a wave-resistance curve.  The stern system is weaker and opposite
+// in sign, because it is a sink.
+float wake(vec2 p) {
+    if (speed < 0.4) return 0.0;
+    float half_len = 0.5 * hull_length;
+    return wake_from(p, -half_len, wake_amp)
+         - wake_from(p, half_len, 0.55 * wake_amp);
 }
 
 // Puddles: a decaying dimple where a blade went in.
@@ -502,6 +521,7 @@ def main(argv=None):
     water_prog["sky"].value = SKY
     water_prog["far"].value = FAR
     water_prog["deep"].value = (0.055, 0.115, 0.155)
+    water_prog["hull_length"].value = float(boat.length)
     water_prog["tan_wedge"].value = float(np.tan(KELVIN_HALF_ANGLE))
     grid = water_grid()
     water_buffer = ctx.buffer(grid.tobytes())

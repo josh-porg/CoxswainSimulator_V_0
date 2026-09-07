@@ -67,3 +67,46 @@ def test_puddles_fade_and_the_buffer_does_not_grow():
     assert (rows[:, 2] > 0.0).all()
     # Long after, they are all gone.
     assert float(PuddleTrail.as_uniform(trail, now=100.0)[:, 2].max()) == 0.0
+
+
+def test_the_wake_leaves_the_bow_not_the_middle():
+    """Two wedge apexes, a hull length apart.
+
+    A hull is a pressure source at the bow and a sink at the stern, so
+    its wake is two Kelvin systems superposed -- and the leading V starts
+    at the stem.  A single system centred on the boat would put one apex
+    under the middle of it, which is not what a coxswain sees.
+    """
+    from coxswain.viz.water import hull_wake
+
+    length, speed = 13.4, 4.5
+    across = np.zeros(400)
+    along = np.linspace(-12.0, 30.0, 400)
+    # The bow system starts half a length forward of centre, so there is
+    # disturbance ahead of where a centred system could reach.
+    centred = kelvin_height(along, across, speed, amplitude=0.08)
+    both = hull_wake(along, across, speed, 0.08, length)
+    ahead = along < -0.5
+    assert np.abs(centred[ahead]).max() == 0.0
+    assert np.abs(both[ahead]).max() > 0.0
+
+
+def test_the_two_systems_are_a_hull_length_apart():
+    from coxswain.viz.water import hull_wake
+
+    length, speed = 13.4, 4.5
+    # Sweep across the wake well behind the boat and find the wedge edges
+    # of each system by where the disturbance first appears.
+    def edge(offset):
+        along = np.full(600, 40.0) + offset
+        across = np.linspace(0.0, 30.0, 600)
+        h = kelvin_height(along, across, speed, amplitude=0.08)
+        live = np.nonzero(np.abs(h) > 0)[0]
+        return across[live.max()] if len(live) else 0.0
+
+    # Each system's wedge widens from its own origin, so the bow system
+    # is wider at any given station by half a length times the tangent.
+    bow_edge = edge(-0.5 * length)
+    stern_edge = edge(+0.5 * length)
+    gap = (bow_edge - stern_edge) / np.tan(KELVIN_HALF_ANGLE)
+    assert abs(abs(gap) - length) < 1.0

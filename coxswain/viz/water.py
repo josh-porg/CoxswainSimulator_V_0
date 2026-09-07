@@ -58,7 +58,8 @@ from typing import List, Optional, Tuple
 import numpy as np
 
 __all__ = ["KELVIN_HALF_ANGLE", "WaveField", "kelvin_wavelength",
-           "PuddleTrail", "sea_for", "wake_amplitude", "wake_table"]
+           "PuddleTrail", "sea_for", "wake_amplitude", "wake_table",
+           "hull_wake"]
 
 GRAVITY = 9.80665
 
@@ -249,6 +250,34 @@ def kelvin_height(along, across, speed: float, amplitude: float = 0.06,
     crest = 0.45 + 0.55 * edge ** 2
     return np.where(inside,
                     amplitude * fade * crest * np.cos(k * along), 0.0)
+
+
+def hull_wake(along, across, speed: float, amplitude: float,
+              length: float, stern_share: float = 0.55):
+    """The wake of a **hull**, not of a point: bow source and stern sink.
+
+    ``along`` is distance astern of the boat's centre and ``across`` the
+    lateral offset, both in the boat frame.
+
+    A single Kelvin system centred on the boat has no V leaving the stem
+    -- its wedge simply begins under the hull.  What a coxswain sees is a
+    pair of crests thrown from the bow, running slightly wider than the
+    hull and opening out behind it.  Havelock's model of a ship is a
+    pressure **source at the bow** and a **sink at the stern**, separated
+    by the waterline length; superposing their two Kelvin systems gives
+    the bow V, and the interference between them is what puts the humps
+    into a wave-resistance curve against Froude number.
+
+    So the two wedge apexes sit a hull length apart, which is the check
+    in the tests: one at the bow and one at the stern, not one at the
+    middle.
+    """
+    half = 0.5 * float(length)
+    bow = kelvin_height(np.asarray(along) - half, across, speed,
+                        amplitude=amplitude)
+    stern = kelvin_height(np.asarray(along) + half, across, speed,
+                          amplitude=stern_share * amplitude)
+    return bow - stern
 
 
 @dataclass
