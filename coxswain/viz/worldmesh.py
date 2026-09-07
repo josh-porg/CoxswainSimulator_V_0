@@ -1701,7 +1701,8 @@ def truss_bridge(start, end, width: float, level: float, depth: float,
 
 def arch_bridge(start, end, width: float, level: float, depth: float,
                 spans: int, colour=(0.72, 0.71, 0.67),
-                pier_colour=(0.58, 0.57, 0.54), samples: int = 13):
+                pier_colour=(0.58, 0.57, 0.54), samples: int = 13,
+                piers=None):
     """A concrete deck-arch bridge, as one sees it from a boat.
 
     River Street, Western Avenue, Larz Anderson and the Weeks Footbridge
@@ -1730,6 +1731,17 @@ def arch_bridge(start, end, width: float, level: float, depth: float,
     crown = max(level - depth, springing + 0.8)
     rise = crown - springing
     spans = max(int(spans), 1)
+    # Bay boundaries.  Given explicit pier stations the arches are laid
+    # between them and can be unequal, which is what a real bridge is:
+    # the navigable span is set by the channel and the side spans take
+    # up whatever is left to the abutments.  Without them the length is
+    # divided evenly, as before.
+    if piers is not None and len(piers):
+        inner = sorted(float(p) for p in piers
+                       if 0.5 < float(p) < length - 0.5)
+        edges = np.array([0.0] + inner + [length])
+    else:
+        edges = np.linspace(0.0, length, spans + 1)
     arch = length / spans
 
     def point(distance, side, height):
@@ -1738,7 +1750,10 @@ def arch_bridge(start, end, width: float, level: float, depth: float,
 
     def intrados(distance):
         """Height of the underside of the arch at ``distance`` along."""
-        u = (distance % arch) / arch
+        index = int(np.searchsorted(edges, distance, side="right")) - 1
+        index = min(max(index, 0), len(edges) - 2)
+        low_edge, high_edge = edges[index], edges[index + 1]
+        u = (distance - low_edge) / max(high_edge - low_edge, 1e-6)
         # A semi-ellipse: vertical at the springing, flat at the crown,
         # which is what a segmental concrete arch looks like.  A parabola
         # leans out of the pier and reads as a culvert.
@@ -1746,7 +1761,11 @@ def arch_bridge(start, end, width: float, level: float, depth: float,
                                                     1.0 - (2.0 * u - 1.0) ** 2)))
 
     faces, shades = [], []
-    stations = np.linspace(0.0, length, spans * samples + 1)
+    # Sampled per bay, so an arch is resolved whatever its width and
+    # the springing lands exactly on the pier faces.
+    stations = np.unique(np.concatenate([
+        np.linspace(edges[i], edges[i + 1], samples + 1)
+        for i in range(len(edges) - 1)]))
     for a, b in zip(stations[:-1], stations[1:]):
         za, zb = intrados(a), intrados(b)
         for side in (1.0, -1.0):
@@ -1823,6 +1842,39 @@ LANDMARKS = {
 BRICK = (0.55, 0.38, 0.33)
 STONE = (0.82, 0.80, 0.75)
 DOME = (0.24, 0.46, 0.58)
+
+
+#: How far the abutments are carried past the water's edge, m.
+ABUTMENT = 3.0
+
+
+def _raw_waterway(gate, raster, min_depth: float = 0.6, samples: int = 400):
+    """The widest wet run across a gate, **unclamped**.
+
+    :func:`coxswain.river.bridges.waterway` trims its answer to the
+    bridge's inventory length, on the reasoning that a bridge cannot
+    open wider than it is long.  That is right for working out what a
+    crew can steer through and wrong for deciding how long to draw the
+    thing: where the two disagree, the drawn bridge has to be at least
+    as long as the water, or it ends in mid river.
+    """
+    from ..river.bridges import _runs
+
+    distance = np.linspace(0.0, gate.span, int(samples))
+    points = gate.point_at(distance)
+    try:
+        if hasattr(raster, "is_navigable"):
+            wet = np.array([bool(raster.is_navigable(p[0], p[1]))
+                            for p in points])
+        else:
+            wet = np.array([float(raster.depth_at(p[0], p[1])) >= min_depth
+                            for p in points])
+    except Exception:
+        return None
+    runs = _runs(distance, wet)
+    if not runs:
+        return None
+    return max(runs, key=lambda pair: pair[1] - pair[0])
 
 
 def landmark_solids(race: str) -> Optional[MeshPart]:
@@ -1923,18 +1975,44 @@ def bridge_solids(race: str, scene) -> Optional[MeshPart]:
                     # derive_piers lays the centre span symmetrically
                     # about the wet opening; the side spans take up the
                     # rest of the inventory length either side.
-                    middle = 0.5 * (start + end)
+                    # The structure has to reach dry land at both
+                    # ends.  The inventory length alone does not
+                    # guarantee that: River Street's raster water is
+                    # 77.9 m wide and its NBI structure_length is 64.0,
+                    # a bridge shorter than the river it crosses.  Laid
+                    # out on the inventory figure it stopped 7 m short
+                    # of each bank and the approach embankments stood in
+                    # open water -- the bridge began in the middle of
+                    # the river.
+                    #
+                    # ``waterway`` will not show this, because it clamps
+                    # the opening to the structure length: correct for
+                    # navigation, where a bridge cannot open wider than
+                    # it is long, and useless here.  So the wet run is
+                    # measured raw and the structure spans whichever is
+                    # longer, with the abutments carried onto the bank.
                     try:
                         piers = derive_piers(gate, geometry.channel)
                     except Exception:
                         piers = ()
-                    if len(piers) >= 2:
-                        centre_at = 0.5 * (float(piers[0].centre)
-                                           + float(piers[-1].centre))
-                        middle = start + along * centre_at
-                    low = middle - along * (0.5 * length)
-                    high = middle + along * (0.5 * length)
-                built = arch_bridge(low, high, width, level, depth, spans)
+                    wet = _raw_waterway(gate, geometry.channel)
+                    if wet is None:
+                        span_lo, span_hi = (0.5 * (full - length),
+                                            0.5 * (full + length))
+                    else:
+                        span_lo = min(wet[0] - ABUTMENT, 0.5 * (full - length))
+                        span_hi = max(wet[1] + ABUTMENT, 0.5 * (full + length))
+                    span_lo = max(span_lo, 0.0)
+                    span_hi = min(span_hi, full)
+                    low = start + along * span_lo
+                    high = start + along * span_hi
+                    # Pier stations, relative to the structure's own
+                    # start, so the navigable arch stays between the
+                    # piers the navigation side derives and the side
+                    # arches take up the rest.
+                    bays = [float(pier.centre) - span_lo for pier in piers]
+                built = arch_bridge(low, high, width, level, depth, spans,
+                                    piers=bays or None)
                 if built is not None:
                     parts.append(built)
                 # The arches are the bridge; the rest of the way is the

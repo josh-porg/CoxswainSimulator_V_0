@@ -116,3 +116,46 @@ def test_arch_bridges_are_drawn_at_their_inventory_length():
             assert abs(got - want) < 2.5, (gate.name, got, want)
         checked += 1
     assert checked >= 3, checked
+
+
+def test_every_arch_bridge_reaches_dry_land():
+    """A bridge may not begin in the middle of the river.
+
+    Laid out on the inventory length alone, River Street did exactly
+    that: the raster water across its gate is 77.9 m wide and its NBI
+    ``structure_length`` is 64.0, so the arches stopped about 7 m short
+    of each bank and the approach embankments stood in open water.
+
+    ``waterway`` will not reveal this, because it clamps the wet opening
+    *to* the structure length -- right for navigation, where a bridge
+    cannot open wider than it is long, and circular if you use it to
+    check how long to draw the bridge.  So this measures the wet run raw
+    and requires the drawn structure to contain it.
+    """
+    from coxswain.river.bridges import BRIDGE_STRUCTURE
+    from coxswain.viz.worldmesh import ABUTMENT, _raw_waterway
+
+    from coxswain.river import charles
+    from coxswain.river.charts import CourseGeometry
+
+    geometry = CourseGeometry(channel=charles.charles_channel())
+    checked = 0
+    for gate, _distance in geometry.gates_on_course():
+        structure = BRIDGE_STRUCTURE.get(gate.name)
+        if structure is None or not getattr(structure, "structure_length",
+                                            None):
+            continue
+        wet = _raw_waterway(gate, geometry.channel)
+        if wet is None:
+            continue
+        start = np.asarray(gate.start, dtype=float)
+        end = np.asarray(gate.end, dtype=float)
+        full = float(np.hypot(*(end - start)))
+        length = float(structure.structure_length)
+
+        low = max(min(wet[0] - ABUTMENT, 0.5 * (full - length)), 0.0)
+        high = min(max(wet[1] + ABUTMENT, 0.5 * (full + length)), full)
+        assert low <= wet[0] + 1e-6, (gate.name, low, wet)
+        assert high >= wet[1] - 1e-6, (gate.name, high, wet)
+        checked += 1
+    assert checked >= 4, checked
