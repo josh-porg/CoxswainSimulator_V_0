@@ -9729,7 +9729,7 @@ its own placeholder signature first.
 ### A note on writing YAML from a script
 
 Five line continuations in the workflow were written as the literal two
-characters `\` and `n` rather than a backslash and a newline. The YAML
+characters backslash and `n` rather than a backslash and a newline. The YAML
 still parsed, and the shell still ran — `apt-get install ... libegl1 n
 libgles2 ...` would simply have tried to install a package called `n`.
 Worth remembering that a valid-looking workflow is not a working one,
