@@ -28,6 +28,32 @@ and where every layer comes from — with its licence, its units, and the
 three ways it failed silently first — is in
 **[docs/SCENERY.md](docs/SCENERY.md)**.
 
+## Row it yourself
+
+The same physics runs in real time, from the coxswain's seat, at 100 Hz.
+
+**[Download for Windows](https://github.com/josh-porg/CoxswainSimulator_V_0/releases/latest)**
+— unzip, keep the folder together, run `Coxswain.exe`. Nothing to
+install; no Python needed.
+
+Pick a boat and a course, then steer: the rudder is a stick that stays
+where you put it, as a Hudson's does, rather than self-centring. The
+stroke sound is sampled from real practice recordings and separated from
+the surrounding noise by DMD, so the finish you hear is the one that
+tells you where you are in the cycle. Wind sets the chop through the
+JONSWAP relations, and the hull carries its own wake and near-field.
+
+From a checkout:
+
+```bash
+python scripts/fpv.py                    # setup menu, then row
+python scripts/fpv.py --race totl --boat 8+ --no-menu
+```
+
+**[docs/TRAINER.md](docs/TRAINER.md)** has the controls and what is
+simulated; **[docs/RELEASING.md](docs/RELEASING.md)** covers packaging
+the executable.
+
 ## The report
 
 One command runs every analysis and writes a single self-contained page:

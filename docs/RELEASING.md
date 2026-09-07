@@ -33,13 +33,62 @@ thing to send people.
 
 ### From the command line
 
-Needs the GitHub CLI (`winget install GitHub.cli`, then `gh auth login`):
+The GitHub CLI is installed here already (`winget install GitHub.cli`
+put it in `C:\Program Files\GitHub CLI`).
+
+Authentication has one wrinkle worth writing down. `gh auth login
+--with-token` **rejects the token Git already has stored**, because it
+demands `read:org` scope and the credential manager's token does not
+carry it. That token is fine for releases -- `repo` is all they need --
+so pass it through the environment instead, where `gh` does not check
+scopes:
 
 ```bash
-gh release create v0.1 dist/Coxswain-windows.zip \
-    --title "Coxswain v0.1" \
-    --notes "Windows build. Unzip, keep the folder together, run Coxswain.exe."
+export GH_TOKEN="$(printf 'protocol=https\nhost=github.com\n\n' \
+    | git credential fill | sed -n 's/^password=//p')"
 ```
+
+Then **create the release first and upload second**, in two commands,
+not one:
+
+```bash
+gh release create v0.1 --title "Coxswain v0.1" --notes-file notes.md --latest
+gh release upload v0.1 dist/Coxswain-windows.zip --clobber
+```
+
+The reason for the split is that `gh release create` with an asset
+argument **deletes the release it just made if the upload fails**, so a
+dropped connection leaves nothing behind and you start over. Created
+separately, the release survives and `upload --clobber` retries into it.
+
+Expect to retry. This upload has failed with
+
+    remote error: tls: bad record MAC
+
+which is the TLS stream being corrupted in transit, not GitHub refusing
+anything -- the same failure the browser reports as "Something went
+really wrong, and we can't process that file". It is transient: the
+identical command succeeded on the next attempt, in 24 seconds. If it
+recurs, uploads of 100 MB went through while 159 MB did not, so the
+size is worth bisecting before blaming the network.
+
+Because that error is *silent corruption* rather than a refusal, check
+the asset rather than trusting the exit code:
+
+```bash
+gh release download v0.1 --pattern 'Coxswain-windows.zip' --dir /tmp/check
+sha256sum dist/Coxswain-windows.zip /tmp/check/Coxswain-windows.zip
+```
+
+Finally, confirm a stranger can actually get it. The release being
+published is not the same as the repository being public:
+
+```bash
+curl -sIL https://github.com/<you>/<repo>/releases/latest/download/Coxswain-windows.zip \
+    | grep -Ei '^(HTTP/|content-length)'
+```
+
+That is the link to send people.
 
 ## What not to do
 
