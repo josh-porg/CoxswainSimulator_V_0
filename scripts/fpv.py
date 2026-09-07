@@ -58,7 +58,8 @@ from coxswain.sim.realtime import (ControlInput,            # noqa: E402
 from coxswain.sim.simulator import RowingSimulator          # noqa: E402
 from coxswain.viz.planscene import oar_lines                # noqa: E402
 from coxswain.viz.water import (KELVIN_HALF_ANGLE,          # noqa: E402
-                                PuddleTrail, kelvin_wavelength, sea_for)
+                                PuddleTrail, kelvin_wavelength, sea_for,
+                                wake_table)
 from coxswain.viz.worldmesh import _face_normals            # noqa: E402
 from coxswain.viz.worldmesh import build_world, hull_solid  # noqa: E402
 
@@ -178,7 +179,11 @@ float wake(vec2 p) {
     if (along < 0.2) return 0.0;
     float limit = tan_wedge * along;
     if (abs(across) > limit) return 0.0;
-    float fade = exp(-along / 60.0) / sqrt(max(along, 0.5));
+    // a(x) = A / sqrt(x) is the energy-spreading result; the
+    // exponential on top of it is the only empirical term left, and it
+    // stands for the viscous decay the inviscid derivation has no view
+    // of.  120 m is long enough not to disturb the near field.
+    float fade = exp(-along / 120.0) / sqrt(max(along, 0.5));
     float edge = abs(across) / max(limit, 1e-6);
     float crest = 0.45 + 0.55 * edge * edge;
     return wake_amp * fade * crest * cos(wake_k * along);
@@ -500,6 +505,11 @@ def main(argv=None):
     field = sea_for(args.wind, args.fetch, np.radians(args.wind_from))
     water_prog["waves"].write(field.as_uniform().tobytes())
     trail = PuddleTrail()
+    # Wake amplitude from the hull's own wave resistance, tabulated once.
+    wake_speed, wake_scale = wake_table(boat)
+    print("   wake: Michell wave resistance gives %.3f m at 10 m astern "
+          "at 4.5 m/s" % (float(np.interp(4.5, wake_speed, wake_scale))
+                          / np.sqrt(10.0)))
     print("   water: H_s %.3f m, T_p %.2f s at %.0f m/s over %.0f m fetch; "
           "%d triangles" % (field.significant_height, field.peak_period,
                             args.wind, args.fetch, len(grid) // 3))
@@ -536,7 +546,7 @@ def main(argv=None):
         water_prog["wake_k"].value = float(
             2.0 * np.pi / max(kelvin_wavelength(speed), 0.5))
         water_prog["wake_amp"].value = float(
-            min(0.02 + 0.010 * speed * speed, 0.13))
+            np.interp(speed, wake_speed, wake_scale))
         water_prog["time"].value = float(t)
         # Drop a pair of puddles at each catch -- the same phase that
         # fires the catch in strokeaudio, so what you hear and what you
@@ -545,9 +555,14 @@ def main(argv=None):
         if period > 0.0:
             phase = (t % period) / period
             if phase < draw.last_phase:            # wrapped: a new catch
-                blades = oar_lines(boat, t, state)
-                for line in (blades or []):
-                    tip = np.asarray(line)[-1][:2]
+                # oar_lines gives (handle, lock, blade) in the HULL
+                # frame and a drive flag; the blade tip has to be rotated
+                # and translated like the oars themselves are.
+                lines, _drive = oar_lines(boat, t)
+                rot = hull_to_abs(np.asarray(state[3:6], dtype=float))
+                here = np.asarray(state[0:3], dtype=float)
+                for oar in lines:
+                    tip = np.append(np.asarray(oar)[-1], 0.0) @ rot.T + here
                     trail.drop(float(tip[0]), float(tip[1]), t)
             draw.last_phase = phase
         water_prog["puddles"].write(trail.as_uniform(t).tobytes())

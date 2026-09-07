@@ -58,7 +58,7 @@ from typing import List, Optional, Tuple
 import numpy as np
 
 __all__ = ["KELVIN_HALF_ANGLE", "WaveField", "kelvin_wavelength",
-           "PuddleTrail", "sea_for"]
+           "PuddleTrail", "sea_for", "wake_amplitude", "wake_table"]
 
 GRAVITY = 9.80665
 
@@ -166,6 +166,58 @@ def sea_for(wind: float, fetch: float, bearing: float = 0.0,
     phase = rng.uniform(0.0, 2.0 * np.pi, COMPONENTS)
     return WaveField(amplitude, wavenumber, direction, phase,
                      significant_height=height, peak_period=period)
+
+
+def wake_amplitude(wave_resistance: float, half_angle: float = None) -> float:
+    r"""Wake amplitude coefficient ``A``, where the crest height is
+    ``A / sqrt(x)`` at ``x`` metres astern.
+
+    Derived rather than chosen.  The work the hull does against **wave
+    resistance** over a metre of track is exactly the energy it leaves
+    behind in the wave system, so the energy per unit length of wake is
+    :math:`R_w`.  That energy is spread across the Kelvin wedge, whose
+    width at ``x`` astern is :math:`2 x 	an	heta`, and a deep-water
+    wave of amplitude ``a`` carries :math:`	frac12 
+ho g a^2` per unit
+    area.  Equating them,
+
+    .. math::
+        	frac12 
+ho g a^2 \cdot 2 x 	an	heta = R_w
+        \quad\Rightarrow\quad
+        a(x) = \sqrt{rac{R_w}{
+ho g 	an	heta}} \; x^{-1/2}
+
+    which also **predicts the one-over-root-x falloff** that was
+    previously put in by hand, so the shape and the scale now come from
+    the same place.
+
+    ``wave_resistance`` comes from
+    :class:`~coxswain.hydro.michell.MichellWave` -- the same thin-ship
+    theory the drag validation uses.  For this four it runs 5.7 N at
+    2 m/s to 38 N at 6, giving crests of 1.3 to 3.3 cm ten metres
+    astern; the constant it replaced was about 40% larger.
+    """
+    if half_angle is None:
+        half_angle = KELVIN_HALF_ANGLE
+    denominator = 1000.0 * GRAVITY * np.tan(half_angle)
+    return float(np.sqrt(max(float(wave_resistance), 0.0) / denominator))
+
+
+def wake_table(boat, speeds=None):
+    """``(speeds, amplitude)`` for a hull, ready to interpolate per frame.
+
+    Michell's integral is not expensive but it is not free either, and
+    the wake only depends on speed, so it is tabulated once.
+    """
+    from ..hydro.michell import MichellWave
+
+    speeds = (np.linspace(0.0, 8.0, 33) if speeds is None
+              else np.asarray(speeds, dtype=float))
+    model = MichellWave.from_offsets(boat.offsets)
+    safe = np.maximum(speeds, 0.05)
+    resistance = np.asarray(model.resistance(safe), dtype=float)
+    return speeds, np.array([wake_amplitude(r) for r in resistance])
 
 
 def kelvin_height(along, across, speed: float, amplitude: float = 0.06,

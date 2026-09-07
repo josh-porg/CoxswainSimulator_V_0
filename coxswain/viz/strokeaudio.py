@@ -190,45 +190,78 @@ def synthesise(shell: str = "four"):
 def synthesise_cycle(period: float, shell: str = "four", seed: int = 11):
     """One whole stroke as a single clip, spectrum following the phase.
 
-    The event synthesis plays three transients over a bed, which is four
-    fixed timbres.  This instead overlap-adds a noise grain for every
-    phase point, each shaped to the envelope there, so the spectrum
-    moves continuously through the cycle.
+    Where the event synthesis plays a few fixed timbres, this
+    overlap-adds a noise grain for every phase point, each shaped to the
+    envelope measured there, so the spectrum moves continuously through
+    the cycle.
 
-    It is truer to the measurement and, listened to, worse: a grain is
-    2/48 of a stroke long, which is far wider than a catch, so the
-    transients come out smeared while the steady parts come out as
-    undifferentiated noise.  That is the honest reason ``"events"`` is
-    the default -- and it is what motivated the multi-resolution
-    decomposition, which separates the transients from the bed instead
-    of averaging over both.
+    **The grain length follows the structure**, and that is the whole
+    difference from the first version.  A uniform grain of two
+    forty-eighths of a stroke is about 110 ms: far wider than a catch,
+    so transients came out smeared, and far too stationary elsewhere, so
+    the rest came out as undifferentiated hiss -- audibly a good catch
+    followed by noise.  The multi-resolution decomposition says which
+    phases carry transients, so those get short grains that can hold an
+    attack and the bed gets long ones that sound like water rather than
+    like a noise generator.
+
+    "Transient" here is measured, not marked: it is how far the envelope
+    at a phase stands above the bed spectrum, which is the same quantity
+    mrDMD isolates into its fine levels.
     """
     loaded = load_envelope(shell)
     if loaded is None:
         return None
     bands = loaded["bands"]
     envelope = loaded["envelope"]
+    bed = loaded["bed"]
     n = max(int(RATE * period), 1024)
     phases = envelope.shape[1]
-    grain = max(int(2 * n / phases), 256)
-    out = np.zeros(n + 2 * grain)
-    window = np.hanning(grain)
     centres = 0.5 * (bands[:, 0] + bands[:, 1])
-    rng = np.random.default_rng(seed)
-    freq = np.fft.rfftfreq(grain, 1.0 / RATE)
-    logf = np.log10(np.maximum(freq, 1.0))
     logc = np.log10(centres)
+    rng = np.random.default_rng(seed)
+
+    # How much each phase stands above the bed: 1 at the catch, ~0 in the
+    # recovery.  This is what decides the grain.
+    floor = max(bed.sum(), 1e-9)
+    excess = np.array([max(envelope[:, k].sum() / floor - 1.0, 0.0)
+                       for k in range(phases)])
+    if excess.max() > 0:
+        excess = excess / excess.max()
+
+    #: Grain lengths, seconds: short enough to hold a catch, long enough
+    #: that the bed is not a stutter.
+    short, long = 0.020, 0.150
+    out = np.zeros(n + int(RATE * long) + 16)
     for k in range(phases):
+        sharp = float(excess[k])
+        span = long + (short - long) * sharp
+        grain = max(int(RATE * span), 128)
         level = 20.0 * np.log10(np.maximum(envelope[:, k], 1e-6))
-        gain = 10.0 ** (np.interp(logf, logc, level, left=level[0] - 12.0,
+        freq = np.fft.rfftfreq(grain, 1.0 / RATE)
+        gain = 10.0 ** (np.interp(np.log10(np.maximum(freq, 1.0)), logc,
+                                  level, left=level[0] - 12.0,
                                   right=level[-1] - 12.0) / 20.0)
         piece = np.fft.irfft(np.fft.rfft(rng.standard_normal(grain)) * gain,
                              n=grain)
+        # A transient wants an attack and a decay, not a symmetric bell.
+        t = np.arange(grain) / RATE
+        if sharp > 0.05:
+            shape = np.clip(t / 0.004, 0.0, 1.0) * np.exp(-t * (4.0 + 26.0
+                                                                * sharp))
+        else:
+            shape = np.hanning(grain)
+        piece = piece * shape
+        # Level follows the envelope, so the cycle has the dynamics the
+        # measurement found rather than a flat loudness.
+        piece = piece / max(np.abs(piece).max(), 1e-9)
+        piece = piece * float(envelope[:, k].sum() / max(
+            envelope[:, 0].sum(), 1e-9))
         at = int(k * n / phases)
-        out[at:at + grain] += piece * window
-    cycle = out[:n] + np.concatenate([out[n:n + grain],
-                                      np.zeros(max(n - grain, 0))])[:n]
-    return cycle / max(np.abs(cycle).max(), 1e-9)
+        out[at:at + grain] += piece
+    cycle = out[:n] + np.concatenate([
+        out[n:], np.zeros(max(n - len(out[n:]), 0))])[:n]
+    return (cycle / max(np.abs(cycle).max(), 1e-9)).astype(float)
 
 
 class StrokeAudio:
