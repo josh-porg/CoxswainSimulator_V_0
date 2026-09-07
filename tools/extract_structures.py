@@ -410,10 +410,26 @@ def main(argv=None):
     # prism inside the massing model, which is what turned the Space
     # Needle -- twelve parts, saucer starting at 150 m -- into a
     # 160 m cylinder.
-    modelled = covered >= 2
+    # An outline is described by its parts if there are two or more of
+    # them -- **or** if its single part stands above the ground.
+    #
+    # Requiring two threw away most of the massing OpenStreetMap has:
+    # 1,501 parts exist in the Seattle box and only 331 were reaching the
+    # renderer.  It also left the outline of a one-part building raised
+    # to that part's height and still drawn from the ground -- a 42 m
+    # ground plan extruded to 162 m, which is the Space Needle's
+    # cylinder, created here and stripped out again by the renderer.
+    lifted_part = np.zeros(len(polygons), dtype=bool)
+    for _i, _bottom in enumerate(part_bottoms):
+        _parent = int(owner[_i])
+        if _parent >= 0 and float(_bottom) > 0.5:
+            lifted_part[_parent] = True
+    modelled = (covered >= 2) | lifted_part
     bases = np.zeros(len(polygons), dtype=float)
     keep = ~modelled
-    print("   %d outlines replaced by their own parts" % int(modelled.sum()))
+    print("   %d outlines replaced by their own parts (%d had a single "
+          "lifted part)" % (int(modelled.sum()),
+                            int((lifted_part & (covered < 2)).sum())))
 
     polygons = [p for p, k in zip(polygons, keep) if k]
     heights = np.asarray(heights)[keep].tolist()
@@ -427,6 +443,7 @@ def main(argv=None):
     bases = bases[keep].tolist()
 
     # Append the parts of those buildings as geometry in their own right.
+    is_part = [0] * len(polygons)
     inherited = 0
     for index, ring in enumerate(part_rings):
         parent = int(owner[index])
@@ -442,6 +459,7 @@ def main(argv=None):
         roof_heights.append(0.0)
         colours.append((-1.0, -1.0, -1.0))
         named.append("")
+        is_part.append(1)
         inherited += 1
     offsets = np.cumsum([0] + [len(p) for p in polygons]).astype(np.int32)
     print("   %d parts drawn as geometry (%d start above the ground)"
@@ -561,6 +579,9 @@ def main(argv=None):
         building_colour=np.array(colours, dtype=np.float32),
         building_roof_shape=np.array(roof_shapes, dtype=np.int8),
         building_roof_height=np.array(roof_heights, dtype=np.float32),
+        # 1 where this polygon is a ``building:part`` rather than a whole
+        # building, so the lidar merge can keep it whatever its height.
+        building_is_part=np.array(is_part, dtype=np.int8),
         building_name=np.array(named, dtype="<U48"),
         building_base=np.array(bases, dtype=np.float32),
         bridge_xy=np.concatenate(bridge_xy) if bridge_xy

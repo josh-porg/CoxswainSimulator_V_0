@@ -309,12 +309,21 @@ def main(argv=None):
     offsets = blob["building_offsets"]
     xy = blob["building_xy"]
     osm_polygons = [xy[a:b] for a, b in zip(offsets[:-1], offsets[1:])]
-    extra = np.nonzero(~matched & (blob["building_height"] > 25.0))[0]
-    print("  keeping %d unmatched OSM buildings over 25 m (%s)"
+    # Keep an unmatched OSM building if it is tall, **or if it is a
+    # part**.  Lidar sees a massing model as one lump from above, so the
+    # pieces describing the real shape never match it, and the 25 m rule
+    # then discarded every piece shorter than that -- which is most of
+    # them, because a massing step usually is.
+    part_flag = (blob["building_is_part"] if "building_is_part" in blob
+                 else np.zeros(len(blob["building_height"]), dtype=np.int8))
+    extra = np.nonzero(~matched & ((blob["building_height"] > 25.0)
+                                   | (part_flag > 0)))[0]
+    print("  keeping %d unmatched OSM buildings -- tall ones and parts (%s)"
           % (len(extra), ", ".join(sorted({str(blob["building_name"][i])
                                            for i in extra
                                            if blob["building_name"][i]})[:3])))
 
+    kept_part = []
     for index in extra:
         rings.append(osm_polygons[index])
         heights = np.append(heights, blob["building_height"][index])
@@ -326,6 +335,7 @@ def main(argv=None):
         roof_shape = np.append(roof_shape, blob["building_roof_shape"][index])
         roof_height = np.append(roof_height,
                                 blob["building_roof_height"][index])
+        kept_part.append(int(part_flag[index]))
 
     new_offsets = np.cumsum([0] + [len(r) for r in rings]).astype(np.int32)
     blob.update(
@@ -343,6 +353,9 @@ def main(argv=None):
         building_base=base.astype(np.float32),
         building_roof_shape=roof_shape.astype(np.int8),
         building_roof_height=roof_height.astype(np.float32),
+        building_is_part=np.concatenate([
+            np.zeros(len(rings) - len(kept_part), dtype=np.int8),
+            np.array(kept_part, dtype=np.int8)]),
     )
     np.savez_compressed(target, **blob)
     print("wrote %s (%.1f MB), %d buildings, tallest %.0f m"

@@ -57,6 +57,8 @@ from coxswain.sim.realtime import (ControlInput,            # noqa: E402
                                    FixedStepLoop, LiveControl)
 from coxswain.sim.simulator import RowingSimulator          # noqa: E402
 from coxswain.viz.planscene import oar_lines                # noqa: E402
+from coxswain.viz.water import (KELVIN_HALF_ANGLE,          # noqa: E402
+                                PuddleTrail, kelvin_wavelength, sea_for)
 from coxswain.viz.worldmesh import _face_normals            # noqa: E402
 from coxswain.viz.worldmesh import build_world, hull_solid  # noqa: E402
 
@@ -113,6 +115,157 @@ void main() {
     f_colour = vec4(mix(lit, sky, haze), 1.0);
 }
 """
+
+
+#: The moving water patch: how far it reaches, and how many divisions
+#: across it.
+#:
+#: The grid is **graded**, not uniform.  Wind chop on a river has a peak
+#: wavelength of two or three metres, and a uniform grid fine enough to
+#: resolve that -- eight samples a wave, so 0.3 m -- would need 640,000
+#: triangles to reach a hundred metres.  The first attempt used 0.9 m
+#: uniform, which is 2.5 samples a wave, and the water came out as flat
+#: angular shards: that is aliasing, not chop.
+#:
+#: Spacing instead grows with the square of the distance from the boat,
+#: which puts 0.06 m cells under the bow where a wave subtends a real
+#: angle and metre cells at the edge where it does not.
+WATER_REACH = 110.0
+WATER_DIVISIONS = 300
+
+WATER_VERTEX = """#version 330
+in vec2 in_grid;
+out vec3 v_world;
+out vec3 v_normal;
+out float v_foam;
+uniform mat4 mvp;
+uniform vec2 centre;          // the patch follows the boat
+uniform vec4 waves[8];        // amplitude, wavenumber, direction, phase
+uniform vec4 puddles[16];     // east, north, strength, unused
+uniform vec3 boat;            // east, north, heading
+uniform float speed;
+uniform float wake_k;         // 2 pi g / V^2, the transverse wavenumber
+uniform float wake_amp;
+uniform float tan_wedge;      // tan(19.47 deg)
+uniform float time;
+
+const float G = 9.80665;
+
+// The sea: a sum of components, each a solution of the linearised free
+// surface, so their sum is one too.  This is the same field
+// coxswain.viz.water evaluates on the CPU for the tests.
+float sea(vec2 p, float t) {
+    float h = 0.0;
+    for (int i = 0; i < 8; ++i) {
+        float a = waves[i].x;
+        if (a <= 0.0) continue;
+        float k = waves[i].y;
+        float d = waves[i].z;
+        float w = sqrt(G * k);
+        h += a * cos(k * (p.x * cos(d) + p.y * sin(d)) - w * t + waves[i].w);
+    }
+    return h;
+}
+
+// The Kelvin wake, in the boat's frame: zero outside the wedge, which is
+// the thing everyone recognises about a wake.
+float wake(vec2 p) {
+    if (speed < 0.4) return 0.0;
+    float c = cos(-boat.z), s = sin(-boat.z);
+    vec2 d = p - boat.xy;
+    float along = -(d.x * c - d.y * s);      // positive astern
+    float across = d.x * s + d.y * c;
+    if (along < 0.2) return 0.0;
+    float limit = tan_wedge * along;
+    if (abs(across) > limit) return 0.0;
+    float fade = exp(-along / 60.0) / sqrt(max(along, 0.5));
+    float edge = abs(across) / max(limit, 1e-6);
+    float crest = 0.45 + 0.55 * edge * edge;
+    return wake_amp * fade * crest * cos(wake_k * along);
+}
+
+// Puddles: a decaying dimple where a blade went in.
+float puddle(vec2 p, out float foam) {
+    float h = 0.0;
+    foam = 0.0;
+    for (int i = 0; i < 16; ++i) {
+        float strength = puddles[i].z;
+        if (strength <= 0.0) continue;
+        float r = length(p - puddles[i].xy);
+        if (r > 4.0) continue;
+        float ring = exp(-r * r / 2.2) * cos(r * 3.4);
+        h += 0.055 * strength * ring;
+        foam = max(foam, strength * exp(-r * r / 1.4));
+    }
+    return h;
+}
+
+float surface(vec2 p, out float foam) {
+    return sea(p, time) + wake(p) + puddle(p, foam);
+}
+
+void main() {
+    vec2 p = in_grid + centre;
+    float foam;
+    float h = surface(p, foam);
+    v_foam = foam;
+    // Normal by finite difference: two extra evaluations a vertex, and
+    // without it the water is flat-shaded and the chop is invisible.
+    float e = 0.6, junk;
+    float hx = surface(p + vec2(e, 0.0), junk);
+    float hy = surface(p + vec2(0.0, e), junk);
+    v_normal = normalize(vec3((h - hx) / e, (h - hy) / e, 1.0));
+    v_world = vec3(p, h);
+    gl_Position = mvp * vec4(p, h, 1.0);
+}
+"""
+
+WATER_FRAGMENT = """#version 330
+in vec3 v_world;
+in vec3 v_normal;
+in float v_foam;
+out vec4 f_colour;
+uniform vec3 sun;
+uniform vec3 sky;
+uniform vec3 eye;
+uniform float far;
+uniform vec3 deep;
+void main() {
+    vec3 n = normalize(v_normal);
+    vec3 to_eye = normalize(eye - v_world);
+    // Water is mostly a mirror at grazing angles and mostly dark looking
+    // straight down, which is the whole reason chop reads as chop: the
+    // Fresnel term turns a slope into a brightness.
+    float fresnel = pow(1.0 - max(dot(n, to_eye), 0.0), 3.0);
+    vec3 base = mix(deep, sky, clamp(0.08 + 0.55 * fresnel, 0.0, 1.0));
+    float spec = pow(max(dot(reflect(-sun, n), to_eye), 0.0), 60.0);
+    vec3 lit = base + vec3(0.9) * spec * 0.5 + vec3(0.75) * v_foam * 0.55;
+    float haze = clamp(length(v_world - eye) / far, 0.0, 1.0);
+    f_colour = vec4(mix(lit, sky, haze * haze), 1.0);
+}
+"""
+
+
+def water_grid(reach: float = WATER_REACH,
+               divisions: int = WATER_DIVISIONS):
+    """A graded grid of triangles, in boat-relative coordinates.
+
+    Built once; the shader moves it with the boat and lifts it onto the
+    surface.  The grading is a squared warp of a uniform parameter, so
+    cells near the boat are small and cells at the edge are large --
+    which is where the resolution is needed and where it is not.
+    """
+    u = np.linspace(-1.0, 1.0, divisions + 1)
+    line = (reach * np.sign(u) * u * u).astype("f4")
+    gx, gy = np.meshgrid(line, line)
+    a = np.stack([gx[:-1, :-1], gy[:-1, :-1]], axis=-1)
+    b = np.stack([gx[:-1, 1:], gy[:-1, 1:]], axis=-1)
+    c = np.stack([gx[1:, 1:], gy[1:, 1:]], axis=-1)
+    d = np.stack([gx[1:, :-1], gy[1:, :-1]], axis=-1)
+    quads = np.concatenate([
+        np.stack([a, b, c], axis=2).reshape(-1, 3, 2),
+        np.stack([a, c, d], axis=2).reshape(-1, 3, 2)])
+    return quads.reshape(-1, 2).astype("f4")
 
 
 def perspective(fov_y: float, aspect: float, near: float, far: float):
@@ -219,6 +372,13 @@ def main(argv=None):
                         help="ground mesh cell, metres")
     parser.add_argument("--no-buildings", action="store_true")
     parser.add_argument("--no-trees", action="store_true")
+    parser.add_argument("--wind", type=float, default=6.0,
+                        help="wind at 10 m, m/s -- sets the chop through "
+                             "the same JONSWAP relations the conditions "
+                             "analysis uses")
+    parser.add_argument("--fetch", type=float, default=900.0, help="fetch, m")
+    parser.add_argument("--wind-from", type=float, default=200.0,
+                        help="bearing the wind blows from, degrees")
     parser.add_argument("--audio", default="events",
                         choices=("events", "full"),
                         help="events: catch, release and a bed.  full: one "
@@ -324,6 +484,26 @@ def main(argv=None):
             program, [(buffer, "3f 3f 3f", "in_pos", "in_normal",
                        "in_colour")]))
 
+    # -- the water ------------------------------------------------------
+    water_prog = ctx.program(vertex_shader=WATER_VERTEX,
+                             fragment_shader=WATER_FRAGMENT)
+    water_prog["sun"].value = tuple(np.array([0.42, 0.30, 0.85])
+                                    / np.linalg.norm([0.42, 0.30, 0.85]))
+    water_prog["sky"].value = SKY
+    water_prog["far"].value = FAR
+    water_prog["deep"].value = (0.055, 0.115, 0.155)
+    water_prog["tan_wedge"].value = float(np.tan(KELVIN_HALF_ANGLE))
+    grid = water_grid()
+    water_buffer = ctx.buffer(grid.tobytes())
+    water_vao = ctx.vertex_array(water_prog,
+                                 [(water_buffer, "2f", "in_grid")])
+    field = sea_for(args.wind, args.fetch, np.radians(args.wind_from))
+    water_prog["waves"].write(field.as_uniform().tobytes())
+    trail = PuddleTrail()
+    print("   water: H_s %.3f m, T_p %.2f s at %.0f m/s over %.0f m fetch; "
+          "%d triangles" % (field.significant_height, field.peak_period,
+                            args.wind, args.fetch, len(grid) // 3))
+
     # The oars change every frame, so they get a stream buffer sized once.
     oar_buffer = ctx.buffer(reserve=256 * 1024, dynamic=True)
     oar_vao = ctx.vertex_array(
@@ -331,8 +511,12 @@ def main(argv=None):
                    "in_colour")])
 
     projection = perspective(args.fov, args.width / args.height, 0.25, FAR)
+    # Set on the function so the closure can carry state without a global.
+    _ = None
 
     def draw(state, t):
+        """One frame.  ``draw.last_phase`` remembers where in the stroke
+        the previous frame was, so a catch can be detected by the wrap."""
         eye, target_point, up = seat_camera(state, boat)
         view = look_at(eye, target_point, up)
         program["mvp"].write((projection @ view).T.tobytes(order="C"))
@@ -340,6 +524,34 @@ def main(argv=None):
         target.clear(SKY[0], SKY[1], SKY[2], 1.0)
         for vao in static:
             vao.render()
+        # The water goes on after the land, so the shore reads through it
+        # at the edges and the patch does not have to be clipped.
+        speed = float(np.hypot(state[6], state[7]))
+        water_prog["mvp"].write((projection @ view).T.tobytes(order="C"))
+        water_prog["eye"].value = tuple(float(v) for v in eye)
+        water_prog["centre"].value = (float(state[0]), float(state[1]))
+        water_prog["boat"].value = (float(state[0]), float(state[1]),
+                                    float(state[5]))
+        water_prog["speed"].value = speed
+        water_prog["wake_k"].value = float(
+            2.0 * np.pi / max(kelvin_wavelength(speed), 0.5))
+        water_prog["wake_amp"].value = float(
+            min(0.02 + 0.010 * speed * speed, 0.13))
+        water_prog["time"].value = float(t)
+        # Drop a pair of puddles at each catch -- the same phase that
+        # fires the catch in strokeaudio, so what you hear and what you
+        # see on the water are the same event.
+        period = float(boat.timing.period)
+        if period > 0.0:
+            phase = (t % period) / period
+            if phase < draw.last_phase:            # wrapped: a new catch
+                blades = oar_lines(boat, t, state)
+                for line in (blades or []):
+                    tip = np.asarray(line)[-1][:2]
+                    trail.drop(float(tip[0]), float(tip[1]), t)
+            draw.last_phase = phase
+        water_prog["puddles"].write(trail.as_uniform(t).tobytes())
+        water_vao.render()
         vertices, colours = boat_geometry(boat, hull, t, state)
         if vertices is not None and len(vertices):
             normals = _face_normals(vertices)
@@ -347,6 +559,8 @@ def main(argv=None):
             if blob.nbytes <= oar_buffer.size:
                 oar_buffer.write(blob.tobytes())
                 oar_vao.render(vertices=len(vertices))
+
+    draw.last_phase = 0.0
 
     if headless:
         for _ in range(int(args.frames or 0)):

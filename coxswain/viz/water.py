@@ -1,0 +1,231 @@
+r"""A water surface the boat sits in, and disturbs.
+
+Two things are happening on the water and they are physically different,
+so they are computed differently.
+
+The sea state
+-------------
+Wind chop is a **random** surface, and the honest description of one is a
+spectrum rather than a shape.  :class:`~coxswain.hydro.chop.FetchLimitedSea`
+already turns wind speed and fetch into a significant height and a peak
+period by the JONSWAP relations, and that module is used here rather than
+reimplemented: the trainer's water is the same water the conditions
+analysis reports on, so a 14 m/s day looks like what the report says it
+is.  :class:`WaveField` samples that spectrum into a handful of
+directional components whose sum is the surface.
+
+Linear superposition is not an approximation of convenience here -- to
+first order in wave steepness the free-surface problem *is* linear, and a
+sum of components each satisfying it satisfies it too.  It stops being
+true when the waves get steep, and :attr:`FetchLimitedSea.steepness`
+says when: above about 1/7 a wave breaks, and none of this applies.
+
+What the boat does to it
+------------------------
+A hull moving at speed drags a **Kelvin wake**, and that is not random at
+all -- it is a stationary-phase superposition of the same elementary
+waves, and it has exact geometry:
+
+* the wake is confined to a wedge of half-angle
+  :data:`KELVIN_HALF_ANGLE` = arcsin(1/3) = 19.47 degrees, and this is
+  independent of speed, which is why every boat's wake looks the same
+  shape;
+* the transverse waves inside it have wavelength
+  :math:`2\pi V^2 / g` exactly, which is why a fast boat's wake is
+  longer-waved;
+* amplitude falls off along the wedge, roughly as one over the square
+  root of distance, because the energy spreads.
+
+So the wake is drawn from those, not from a texture -- and it responds to
+the boat's actual speed each frame, which means a crew can *see* the
+puddles and the wake stretch when they lengthen the stroke.
+
+The puddles
+-----------
+Each catch drops a pair of vortices where the blades went in, and they
+sit there and decay while the boat runs away from them.
+:class:`~coxswain.hydro.wake.PuddleWake` already models their strength
+for the passing study; here they are placed at the catch -- the same
+stroke phase that fires the catch in :mod:`coxswain.viz.strokeaudio` --
+and faded on the same timescale.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import List, Optional, Tuple
+
+import numpy as np
+
+__all__ = ["KELVIN_HALF_ANGLE", "WaveField", "kelvin_wavelength",
+           "PuddleTrail", "sea_for"]
+
+GRAVITY = 9.80665
+
+#: Half-angle of the Kelvin wedge, radians.  ``arcsin(1/3)``: a constant
+#: of the deep-water dispersion relation, not of the boat.
+KELVIN_HALF_ANGLE = float(np.arcsin(1.0 / 3.0))
+
+#: Components used to represent the sea.  Eight is enough that the
+#: surface does not visibly repeat over a boat length and few enough to
+#: evaluate per vertex on an Intel iGPU.
+COMPONENTS = 8
+
+#: Spread of component directions either side of the wind, radians.  Wind
+#: sea is not unidirectional; this is the usual cosine-squared spread
+#: truncated to something a handful of components can represent.
+DIRECTION_SPREAD = 0.9
+
+
+def kelvin_wavelength(speed: float) -> float:
+    """Transverse wake wavelength, m: ``2 pi V^2 / g``, exactly."""
+    return float(2.0 * np.pi * max(speed, 0.05) ** 2 / GRAVITY)
+
+
+@dataclass(frozen=True)
+class WaveField:
+    """A sea state as a handful of superposed components.
+
+    ``amplitude``, ``wavenumber``, ``direction`` and ``phase`` are
+    parallel arrays; the surface at ``(x, y, t)`` is the sum over
+    components of ``a cos(k (x cos d + y sin d) - w t + p)`` with
+    ``w = sqrt(g k)`` -- the deep-water dispersion relation, which is the
+    same one :mod:`coxswain.hydro.chop` assumes and checks.
+    """
+
+    amplitude: np.ndarray
+    wavenumber: np.ndarray
+    direction: np.ndarray
+    phase: np.ndarray
+    significant_height: float = 0.0
+    peak_period: float = 0.0
+
+    @property
+    def frequency(self) -> np.ndarray:
+        """Angular frequency of each component, rad/s."""
+        return np.sqrt(GRAVITY * self.wavenumber)
+
+    def height_at(self, east, north, t: float):
+        """Surface elevation, m.  Vectorised over ``east``/``north``."""
+        east = np.asarray(east, dtype=float)
+        north = np.asarray(north, dtype=float)
+        total = np.zeros(np.broadcast(east, north).shape)
+        for a, k, d, p, w in zip(self.amplitude, self.wavenumber,
+                                 self.direction, self.phase, self.frequency):
+            total = total + a * np.cos(k * (east * np.cos(d)
+                                            + north * np.sin(d)) - w * t + p)
+        return total
+
+    def as_uniform(self):
+        """``(COMPONENTS, 4)`` of ``(amplitude, k, direction, phase)``.
+
+        Laid out for a shader, which evaluates the same sum per vertex.
+        """
+        rows = np.zeros((COMPONENTS, 4), dtype="f4")
+        count = min(COMPONENTS, len(self.amplitude))
+        rows[:count, 0] = self.amplitude[:count]
+        rows[:count, 1] = self.wavenumber[:count]
+        rows[:count, 2] = self.direction[:count]
+        rows[:count, 3] = self.phase[:count]
+        return rows
+
+
+def sea_for(wind: float, fetch: float, bearing: float = 0.0,
+            seed: int = 7) -> WaveField:
+    """Build a :class:`WaveField` from wind and fetch.
+
+    Goes through :class:`~coxswain.hydro.chop.FetchLimitedSea` so the
+    height and period are the analysis's numbers, then distributes the
+    energy over :data:`COMPONENTS` components around the peak.  The
+    component amplitudes are scaled so the sum has the right significant
+    height: for a narrow-band sea ``H_s = 4 sqrt(m0)`` and ``m0`` is the
+    sum of ``a^2 / 2``, which fixes the scale without a free parameter.
+    """
+    from ..hydro.chop import FetchLimitedSea
+
+    sea = FetchLimitedSea(wind=float(wind), fetch=float(fetch))
+    height = sea.significant_height
+    period = sea.peak_period
+    if height <= 1e-4 or period <= 1e-3:
+        empty = np.zeros(0)
+        return WaveField(empty, empty, empty, empty, 0.0, 0.0)
+
+    rng = np.random.default_rng(seed)
+    peak_k = (2.0 * np.pi / period) ** 2 / GRAVITY
+    # Spread either side of the peak: half an octave each way is enough
+    # to stop the surface looking like a single sine.
+    scale = np.geomspace(0.55, 1.9, COMPONENTS)
+    wavenumber = peak_k * scale
+    direction = bearing + np.linspace(-DIRECTION_SPREAD, DIRECTION_SPREAD,
+                                      COMPONENTS)
+    # JONSWAP-ish weighting about the peak, then normalised to H_s.
+    weight = np.exp(-1.25 * (scale ** -2)) * scale ** -2.5
+    weight /= weight.sum()
+    variance = (height / 4.0) ** 2
+    amplitude = np.sqrt(2.0 * variance * weight)
+    phase = rng.uniform(0.0, 2.0 * np.pi, COMPONENTS)
+    return WaveField(amplitude, wavenumber, direction, phase,
+                     significant_height=height, peak_period=period)
+
+
+def kelvin_height(along, across, speed: float, amplitude: float = 0.06,
+                  reach: float = 60.0):
+    """Wake elevation behind a hull, in the **boat frame**.
+
+    ``along`` is distance astern (positive behind the transom) and
+    ``across`` is lateral offset.  Outside the Kelvin wedge the result is
+    zero, which is the one thing about a wake everybody recognises.
+
+    The transverse system is exact in wavelength; the divergent system is
+    represented by the wedge envelope rather than resolved, because
+    resolving it needs the stationary-phase integral and at the size a
+    wake appears in a seat view the envelope is what reads.
+    """
+    along = np.asarray(along, dtype=float)
+    across = np.asarray(across, dtype=float)
+    inside = (along > 0.2) & (np.abs(across)
+                              <= np.tan(KELVIN_HALF_ANGLE) * along)
+    if not np.any(inside):
+        return np.zeros(np.broadcast(along, across).shape)
+    wavelength = kelvin_wavelength(speed)
+    k = 2.0 * np.pi / max(wavelength, 0.5)
+    # Energy spreads along the wedge and the pattern fades astern.
+    fade = np.exp(-along / max(reach, 1.0)) / np.sqrt(np.maximum(along, 0.5))
+    # Ride up toward the cusp lines, which is where a real wake is
+    # steepest and where the eye picks the wedge out.
+    edge = np.abs(across) / np.maximum(np.tan(KELVIN_HALF_ANGLE) * along, 1e-6)
+    crest = 0.45 + 0.55 * edge ** 2
+    return np.where(inside,
+                    amplitude * fade * crest * np.cos(k * along), 0.0)
+
+
+@dataclass
+class PuddleTrail:
+    """Where the blades went in, and how long ago.
+
+    A ring buffer, because this is read by a shader every frame and the
+    count has to be fixed.  Puddles are dropped at the catch -- the same
+    phase that fires the catch sound -- and fade over
+    :attr:`lifetime`, which is set from
+    :class:`~coxswain.hydro.wake.PuddleWake`'s decay rather than picked
+    to look right.
+    """
+
+    capacity: int = 16
+    lifetime: float = 7.0
+    points: List[Tuple[float, float, float]] = field(default_factory=list)
+
+    def drop(self, east: float, north: float, t: float) -> None:
+        self.points.append((float(east), float(north), float(t)))
+        if len(self.points) > self.capacity:
+            self.points = self.points[-self.capacity:]
+
+    def as_uniform(self, now: float):
+        """``(capacity, 4)`` of ``(east, north, age fraction, unused)``."""
+        rows = np.zeros((self.capacity, 4), dtype="f4")
+        for slot, (east, north, when) in enumerate(self.points[-self.capacity:]):
+            age = (now - when) / max(self.lifetime, 1e-6)
+            if age < 0.0 or age > 1.0:
+                continue
+            rows[slot] = (east, north, 1.0 - age, 0.0)
+        return rows
