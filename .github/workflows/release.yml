@@ -263,6 +263,9 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4          # for packaging/RELEASE_NOTES.md
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
       - uses: actions/download-artifact@v4
         with:
           merge-multiple: true
@@ -277,8 +280,17 @@ jobs:
           # tag is all it takes.  Uploading to a tag with no release is
           # an error, and that is easy to hit when the tag push is what
           # started this in the first place.
+          # Notes come from the repository, so every release carries
+          # the same instructions and they are reviewed like code.  The
+          # awkward parts -- SmartScreen, Gatekeeper, glibc -- are
+          # exactly what people need before they download, not after.
+          NOTES=packaging/RELEASE_NOTES.md
           if ! gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
-            gh release create "$TAG" --repo "$REPO" --title "Coxswain $TAG"               --notes "Windows and macOS builds are attached below."               --latest
+            if [ -f "$NOTES" ]; then
+              gh release create "$TAG" --repo "$REPO"                 --title "Coxswain $TAG" --notes-file "$NOTES" --latest
+            else
+              gh release create "$TAG" --repo "$REPO"                 --title "Coxswain $TAG" --latest                 --notes "Builds for Windows, macOS and Linux are below."
+            fi
           fi
           gh release upload "$TAG" Coxswain-*.zip Coxswain-*.tar.gz \
             --clobber --repo "$REPO"
