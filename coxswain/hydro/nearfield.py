@@ -59,10 +59,16 @@ import numpy as np
 
 GRAVITY = 9.80665
 
-#: Smoothing applied to the baked field, in grid cells.  See the note at
+#: Smoothing applied to the baked field, **in metres**.  See the note at
 #: the end of :func:`geometric_field`: this is the resolution limit of
 #: thin-ship theory at a fine bow, not a cosmetic blur.
-SMOOTH_CELLS = 1.6
+#:
+#: In metres and not in grid cells, which is what it was first.  A
+#: resolution limit is a physical length -- about one panel of the source
+#: sheet -- and expressing it in cells makes it depend on how finely the
+#: output happens to be sampled: a coarse grid then gets smeared over
+#: metres and the field stops decaying away from the hull at all.
+SMOOTH_METRES = 0.22
 
 __all__ = ["geometric_field", "elevation", "bake"]
 
@@ -163,7 +169,13 @@ def geometric_field(offsets, east, north, stations: int = 81,
     try:
         from scipy.ndimage import gaussian_filter
 
-        field = gaussian_filter(field, sigma=SMOOTH_CELLS, mode="nearest")
+        step_e = float(np.mean(np.diff(np.asarray(east, dtype=float))))
+        step_n = (float(np.mean(np.diff(np.asarray(north, dtype=float))))
+                  if np.size(north) > 1 else SMOOTH_METRES)
+        sigma = (min(SMOOTH_METRES / max(abs(step_n), 1e-6), 3.0),
+                 min(SMOOTH_METRES / max(abs(step_e), 1e-6), 3.0))
+        if max(sigma) > 0.3:
+            field = gaussian_filter(field, sigma=sigma, mode="nearest")
     except Exception:                             # pragma: no cover
         pass
     return field

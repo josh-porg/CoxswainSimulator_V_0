@@ -154,6 +154,7 @@ uniform sampler2D near_map;   // baked near-field shape, F(x, y)
 uniform vec2 near_lo;         // its box in the boat frame
 uniform vec2 near_hi;
 uniform vec2 near_size;       // samples in the baked grid
+uniform float wind_to;        // bearing the wind blows toward
 uniform float tan_wedge;      // tan(19.47 deg)
 uniform float time;
 
@@ -256,8 +257,34 @@ float near_field(vec2 p) {
     return texture(near_map, uv).r * speed * speed / 9.80665 * edge;
 }
 
+// The boat's wind shadow, and the pile against its windward side.
+//
+// Not diffraction: at half a metre of beam against a two-metre wave the
+// hull is nearly transparent to the sea, so scattering is not what makes
+// the lee calm.  Blocking the WIND is.  Short wind waves are held up by
+// the air working on them continuously; take the air away and they go
+// within metres, which is the smooth patch that sits downwind of a
+// boat.  The strip it shelters is as wide as the hull's projection
+// across the wind, so a crew lying beam-on shades a long band and one
+// pointing into it shades almost nothing.
+float shelter(vec2 p) {
+    vec2 blow = vec2(cos(wind_to), sin(wind_to));
+    vec2 axis = vec2(cos(boat.z), sin(boat.z));
+    float across_wind = abs(axis.x * blow.y - axis.y * blow.x);
+    float along_wind = abs(dot(axis, blow));
+    float half_width = 0.5 * (hull_length * across_wind + 0.5 * along_wind);
+    vec2 d = p - boat.xy;
+    float downwind = dot(d, blow);
+    float lateral = abs(-d.x * blow.y + d.y * blow.x);
+    float inside = clamp(1.0 - (lateral - half_width) / 1.5, 0.0, 1.0);
+    float lee = downwind > 0.0 ? 0.55 * exp(-downwind / 14.0) : 0.0;
+    float wind = downwind < 0.0 ? 0.35 * exp(downwind / 1.6) : 0.0;
+    return 1.0 - inside * lee + inside * wind;
+}
+
 float surface(vec2 p, out float foam) {
-    return sea(p, time) + wake(p) + near_field(p) + puddle(p, foam);
+    return sea(p, time) * shelter(p)
+         + wake(p) + near_field(p) + puddle(p, foam);
 }
 
 void main() {
@@ -554,6 +581,7 @@ def main(argv=None):
     water_prog["far"].value = FAR
     water_prog["deep"].value = (0.055, 0.115, 0.155)
     water_prog["hull_length"].value = float(boat.length)
+    water_prog["wind_to"].value = float(np.radians(args.wind_from) + np.pi)
     near = load_nearfield(shell_of(boat))
     if near is not None:
         n_east, n_north, n_field = near

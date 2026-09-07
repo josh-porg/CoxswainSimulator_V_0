@@ -110,3 +110,36 @@ def test_the_two_systems_are_a_hull_length_apart():
     stern_edge = edge(+0.5 * length)
     gap = (bow_edge - stern_edge) / np.tan(KELVIN_HALF_ANGLE)
     assert abs(abs(gap) - length) < 1.0
+
+
+def test_the_lee_is_calm_and_the_windward_side_piles_up():
+    """A boat shelters the water downwind of it and stacks it upwind.
+
+    The mechanism is wind blocking, not wave diffraction -- half a metre
+    of beam against a two-metre wave scatters almost nothing -- so the
+    lee is a decayed short-wave field that recovers downwind, and the
+    windward gain is small and short-ranged.
+    """
+    from coxswain.viz.water import hull_shelter
+
+    wind_from = np.pi / 2          # blows toward -y
+    lee = hull_shelter(0.0, -2.0, 0.0, 0.0, 0.0, wind_from, 13.4, 0.5)
+    windward = hull_shelter(0.0, 2.0, 0.0, 0.0, 0.0, wind_from, 13.4, 0.5)
+    far = hull_shelter(0.0, -120.0, 0.0, 0.0, 0.0, wind_from, 13.4, 0.5)
+    assert lee < 0.75           # calmed
+    assert windward > 1.02      # piled up
+    assert abs(far - 1.0) < 0.05   # and it recovers
+
+
+def test_the_shadow_is_as_wide_as_the_boat_is_across_the_wind():
+    """Beam-on shelters a long strip; bow-on shelters almost none."""
+    from coxswain.viz.water import hull_shelter
+
+    wind_from = np.pi / 2
+    across = np.linspace(-12.0, 12.0, 49)
+    downwind = np.full_like(across, -8.0)
+    beam_on = hull_shelter(across, downwind, 0.0, 0.0, 0.0, wind_from,
+                           13.4, 0.5)
+    bow_on = hull_shelter(across, downwind, 0.0, 0.0, np.pi / 2, wind_from,
+                          13.4, 0.5)
+    assert (beam_on < 0.9).sum() > 5 * (bow_on < 0.9).sum()
