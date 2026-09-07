@@ -456,6 +456,8 @@ def run_setup_menu(screen, args):
     This runs *before* the GL context exists, because the course it
     picks decides what world to build.
     """
+    import pygame
+
     clock = pygame.time.Clock()
     font = pygame.font.SysFont("dejavusans,arial", 22)
     small = pygame.font.SysFont("dejavusans,arial", 15)
@@ -535,6 +537,15 @@ def main(argv=None):
         # A plain window first, so a coxswain can choose a boat and a
         # course without knowing what a command-line flag is.  The GL
         # context comes afterwards, over the same window.
+        #
+        # Imported here and again below rather than at the top of the
+        # file: a ``--shot`` run never opens a window, and the import
+        # is what pulls in SDL.  Both sites need their own statement --
+        # the one further down is inside an ``else``, so it does not run
+        # for this block, and without this line ``pygame`` is a local
+        # that is read here before it is ever assigned.
+        import pygame
+
         pygame.init()
         pygame.display.set_caption("Coxswain")
         screen = pygame.display.set_mode((args.width, args.height))
