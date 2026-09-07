@@ -25,7 +25,8 @@ __all__ = ["Choice", "Menu", "boat_choices", "course_choices",
            "setup_menu", "pause_menu", "build_boat",
            "start_music", "stop_music", "music_path",
            "chart_surface", "draw_controls", "CONTROLS",
-           "options_menu", "quality_settings", "QUALITY", "AUDIO_MODES"]
+           "options_menu", "quality_settings", "QUALITY", "AUDIO_MODES",
+           "WEATHERS", "weather_choices"]
 
 
 #: Shells a coxswain might sit in, as ``(key, label, seats, coxed)``.
@@ -189,7 +190,18 @@ def quality_settings(key: str):
     return 340, True, True
 
 
-def options_menu(audio: str = "full", quality: str = "standard") -> Menu:
+#: Weather, as ``(key, label)``.  What the air is doing, which on a
+#: river is most of what there is to look at.
+WEATHERS = (("clear", "Clear"), ("hazy", "Hazy"),
+            ("overcast", "Overcast"), ("fog", "Fog"))
+
+
+def weather_choices():
+    return [(key, label) for key, label in WEATHERS]
+
+
+def options_menu(audio: str = "full", quality: str = "standard",
+                 weather: str = "hazy") -> Menu:
     """Graphics and sound, reached from either menu."""
     modes = audio_choices()
     grades = quality_choices()
@@ -200,6 +212,9 @@ def options_menu(audio: str = "full", quality: str = "standard") -> Menu:
         Choice("quality", "Graphics", grades,
                index=max([i for i, q in enumerate(grades) if q[0] == quality]
                          + [0])),
+        Choice("weather", "Weather", weather_choices(),
+               index=max([i for i, w in enumerate(WEATHERS)
+                          if w[0] == weather] + [0])),
         Choice("back", "Back", (), action="back"),
     ]
     return Menu("Graphics and sound", rows)
@@ -514,6 +529,9 @@ def blurb_for(menu: "Menu") -> str:
                 "finishes only.")
     if row.key == "quality":
         return "Trades water detail for frame rate.  Applies on the next start."
+    if row.key == "weather":
+        return ("Sky, visibility and how the light scatters.  Fog takes "
+                "the far bank out.")
     return ""
 
 

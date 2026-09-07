@@ -84,6 +84,33 @@ SPLIT_LIMIT, SPLIT_RATE, SPLIT_RETURN = 1.0, 1.8, 1.4
 FAR = 2600.0
 SKY = (0.52, 0.60, 0.68)
 
+#: Weather, as everything the air does at once.
+#:
+#: These are one setting because they are one thing: on an overcast day
+#: the zenith loses its blue, the horizon closes in, the sun stops
+#: casting a direction and the visibility drops, and changing any of
+#: those without the others gives you a lit day with fog bolted on.
+#:
+#: ``(zenith, horizon, glow, fog_density, fog_height, scatter)``.  Fog
+#: density is per metre; the reciprocal is roughly the range at which a
+#: dark object is half lost, so 1/2600 is a clear morning and 1/420 is
+#: the kind of river fog that has crews rowing on sound.
+WEATHER = {
+    "clear": ((0.30, 0.47, 0.70), (0.68, 0.76, 0.83),
+              (0.40, 0.34, 0.24), 1.0 / 3400.0, 40.0, 0.55),
+    "hazy": ((0.36, 0.50, 0.68), (0.71, 0.77, 0.82),
+             (0.34, 0.30, 0.22), 1.0 / 2600.0, 34.0, 0.45),
+    "overcast": ((0.60, 0.63, 0.66), (0.74, 0.76, 0.78),
+                 (0.10, 0.10, 0.10), 1.0 / 1100.0, 26.0, 0.15),
+    # 1/420 was chosen for the number and looked like nothing: the
+    # Charles is 150 m across and its far bank is well inside a 290 m
+    # half-loss range, so the "fog" was doing almost exactly what the
+    # overcast did.  A river fog you would actually be careful in takes
+    # the far bank most of the way out.
+    "fog": ((0.74, 0.76, 0.77), (0.82, 0.83, 0.84),
+            (0.05, 0.05, 0.05), 1.0 / 130.0, 11.0, 0.06),
+}
+
 #: The dome, as ``(zenith, horizon, glow)``.  A New England overcast:
 #: the zenith holds some blue, the horizon washes out toward white, and
 #: the glow is the sun's place behind the cloud rather than a disc.
@@ -108,6 +135,9 @@ FOG_HEIGHT = 34.0
 RIPPLE_SLOPE = 0.038
 RIPPLE_SCALE = 1.35
 RIPPLE_FADE = 45.0
+
+#: How much rougher the small scale is where the water has been stirred.
+RIPPLE_WAKE_GAIN = 1.6
 
 VERTEX_SHADER = """#version 330
 in vec3 in_pos;
@@ -161,6 +191,7 @@ uniform vec3 sky_horizon;
 uniform vec3 sun_glow;
 uniform float fog_density;
 uniform float fog_height;
+uniform float fog_scatter;
 
 vec3 sky_colour(vec3 dir, vec3 sun_dir) {
     vec3 d = normalize(dir);
@@ -169,6 +200,13 @@ vec3 sky_colour(vec3 dir, vec3 sun_dir) {
     // evenly over a quarter turn.
     float up = clamp(d.z, 0.0, 1.0);
     vec3 base = mix(sky_horizon, sky_zenith, pow(up, 0.42));
+    // Horizon thickening.  Looking along the surface the ray stays in
+    // the dense layer for its whole length, so the last few degrees
+    // above the horizon are much paler than the gradient alone makes
+    // them -- and on a river, where the far bank sits in exactly that
+    // band, it is most of what tells you how far away it is.
+    float band = exp(-max(up, 0.0) * 26.0);
+    base = mix(base, sky_horizon * 1.04, band * 0.65);
     // A broad glow rather than a disc: the sun is behind cloud here.
     float towards = max(dot(d, normalize(sun_dir)), 0.0);
     base += sun_glow * pow(towards, 6.0) * 0.55;
@@ -203,9 +241,23 @@ vec3 apply_fog(vec3 colour, vec3 from, vec3 to) {
 }
 
 vec3 apply_fog_lit(vec3 colour, vec3 from, vec3 to, vec3 sun_dir) {
+    vec3 dir = normalize(to - from);
     float depth = fog_depth(from, to);
     float keep = exp(-depth);
-    return mix(sky_colour(normalize(to - from), sun_dir), colour, keep);
+    vec3 air = sky_colour(dir, sun_dir);
+    // Directional scattering.  Haze is not a grey curtain: light coming
+    // through it is scattered forward, so looking toward the sun the
+    // air itself glows and looking away it does not.  The Henyey-
+    // Greenstein phase function is the usual one for this; a cheap
+    // forward lobe is enough at these optical depths and costs a pow.
+    //
+    // It scales with how much air the ray went through, because that is
+    // what does the scattering -- so it appears on the far bank and not
+    // on the near one, which is the whole point.
+    float towards = max(dot(dir, normalize(sun_dir)), 0.0);
+    float lobe = pow(towards, 5.0);
+    air += sun_glow * lobe * fog_scatter * clamp(depth, 0.0, 1.5);
+    return mix(air, colour, keep);
 }
 """
 
@@ -371,9 +423,19 @@ float simplex(vec2 v) {
 // Two octaves, drifting with the wind, differenced for a slope.  The
 // second octave runs the other way so the pattern does not read as one
 // sheet sliding.
-vec2 ripple(vec2 p, float range) {
+uniform float ripple_wake_gain;
+
+vec2 ripple(vec2 p, float range, float stirred) {
     float fade = clamp(1.0 - range / ripple_fade, 0.0, 1.0);
     if (fade <= 0.0 || ripple_slope_amp <= 0.0) return vec2(0.0);
+    // Disturbed water is rougher at the small scale than calm water.
+    // A wake and a puddle are not just a shape: they are a patch of
+    // surface that has been stirred, and it stays stirred after the
+    // shape has flattened out.  So the second normal is amplified where
+    // the first one is doing something -- which puts the extra texture
+    // along the wake and in the puddles, and leaves the water either
+    // side of the boat smooth.
+    float rough = 1.0 + ripple_wake_gain * clamp(stirred, 0.0, 1.0);
     vec2 drift = vec2(cos(wind_to), sin(wind_to)) * time;
     float e = 0.05;
     vec2 q = p * ripple_scale;
@@ -383,7 +445,7 @@ vec2 ripple(vec2 p, float range) {
     float hx = simplex(a + vec2(e, 0.0)) + 0.5 * simplex(b + vec2(e, 0.0));
     float hy = simplex(a + vec2(0.0, e)) + 0.5 * simplex(b + vec2(0.0, e));
     return vec2(hx - h, hy - h) / e
-         * ripple_slope_amp * fade * fade;
+         * ripple_slope_amp * fade * fade * rough;
 }
 
 vec2 sea_slope(vec2 p) {
@@ -401,8 +463,14 @@ vec2 sea_slope(vec2 p) {
     return g;
 }
 
-vec3 water_normal(vec3 world, vec2 baked_slope, float range) {
+vec3 water_normal(vec3 world, vec2 baked_slope, float range,
+                  float foam) {
     vec2 g;
+    // How stirred this patch is: the slope the boat's own disturbance
+    // contributes, plus the foam the puddles carry.  Taken from the
+    // wake and near field rather than from the chop, because wind waves
+    // do not leave a rougher surface behind them and a wake does.
+    float stirred = foam;
     if (distance(world.xy, boat.xy) < exact_within) {
         // Differenced at a step finer than the cells, so the answer is
         // the surface's slope and not the mesh's.
@@ -411,10 +479,12 @@ vec3 water_normal(vec3 world, vec2 baked_slope, float range) {
         float hx = surface(world.xy + vec2(e, 0.0), junk);
         float hy = surface(world.xy + vec2(0.0, e), junk);
         g = vec2((hx - h) / e, (hy - h) / e);
+        stirred += 6.0 * abs(h - sea(world.xy, time));
     } else {
         g = sea_slope(world.xy) + baked_slope;
+        stirred += 3.0 * length(baked_slope);
     }
-    g += ripple(world.xy, range);
+    g += ripple(world.xy, range, stirred);
     return normalize(vec3(-g.x, -g.y, 1.0));
 }
 """
@@ -627,7 +697,7 @@ __SKY_FOG__
 __WATER_SLOPE__
 void main() {
     float range = length(v_world - eye);
-    vec3 n = water_normal(v_world, v_slope, range);
+    vec3 n = water_normal(v_world, v_slope, range, v_foam);
     vec3 to_eye = normalize(eye - v_world);
     // Water is mostly a mirror at grazing angles and mostly dark looking
     // straight down, which is the whole reason chop reads as chop: the
@@ -673,6 +743,10 @@ uniform float near_plane;
 uniform float far_plane;
 uniform float refract_scale;
 uniform int reflect_steps;
+//: Per metre of water.  Red goes first in both, which is what makes a
+//: metre of river green and ten metres of it nearly black.
+const vec3 WATER_ABSORB = vec3(0.66, 0.34, 0.22);
+const vec3 WATER_SCATTER = vec3(0.11, 0.22, 0.28);
 __SKY_FOG__
 __WATER_SLOPE__
 
@@ -684,7 +758,7 @@ float linear_depth(float raw) {
 
 void main() {
     float range_to_eye = length(v_world - eye);
-    vec3 n = water_normal(v_world, v_slope, range_to_eye);
+    vec3 n = water_normal(v_world, v_slope, range_to_eye, v_foam);
     vec3 to_eye = normalize(eye - v_world);
     vec2 uv = gl_FragCoord.xy / viewport;
 
@@ -711,10 +785,18 @@ void main() {
     float thickness = max(behind - here, 0.0);
 
     vec3 under = texture(scene, under_uv).rgb;
-    // Beer-Lambert: what survives the water column.  Longer wavelengths
-    // go first, which is why depth reads blue-green rather than grey.
-    vec3 absorb = exp(-thickness * vec3(0.62, 0.38, 0.26));
-    vec3 refracted = mix(deep, under * absorb, absorb);
+    // Absorption and scattering are different things and were being
+    // done as one.  What comes back out of water is what survived the
+    // trip -- Beer-Lambert, longer wavelengths first, which is why
+    // depth reads blue-green -- PLUS what the column itself scattered
+    // back on the way, which is why deep water is not black.
+    //
+    // Written separately they behave properly at both ends: a hand's
+    // depth over a pale bottom stays pale, and a channel goes to the
+    // scattering colour rather than to an arbitrary "deep".
+    vec3 transmitted = under * exp(-thickness * WATER_ABSORB);
+    vec3 scattered = deep * (1.0 - exp(-thickness * WATER_SCATTER));
+    vec3 refracted = transmitted + scattered;
 
     // --- reflection ----------------------------------------------------
     // A short screen-space march along the reflected ray.  It picks up
@@ -1091,12 +1173,14 @@ def run_setup_menu(screen, args):
                 if action == "options":
                     chosen = menu.settings()
                     menu = options_menu(audio=args.audio,
-                                        quality=args.quality)
+                                        quality=args.quality,
+                                        weather=args.weather)
                     continue
                 if action == "back":
                     picked = menu.settings()
                     args.audio = picked["audio"]
                     args.quality = picked["quality"]
+                    args.weather = picked["weather"]
                     menu = setup_menu(boat=chosen["boat"],
                                       course=chosen["race"],
                                       rate=chosen["rate"],
@@ -1220,6 +1304,9 @@ def main(argv=None):
     parser.add_argument("--boat", default="4+",
                         choices=("4+", "8+", "2x", "1x"))
     parser.add_argument("--rate", type=float, default=30.0)
+    parser.add_argument("--weather", default="hazy",
+                        choices=tuple(WEATHER),
+                        help="what the air is doing")
     parser.add_argument("--quality", default="standard",
                         choices=("minimal", "standard", "high"),
                         help="water detail against frame rate")
@@ -1502,15 +1589,13 @@ def main(argv=None):
                                    dtype="f4").tobytes())
     sky_vao = ctx.vertex_array(sky_prog, [(sky_quad, "2f", "in_pos")])
 
-    def set_sky(prog):
+    def set_sky(prog, weather=None):
         """Every shader that fogs or reflects shares one sky."""
-        for name, value in (("sky_zenith", SKY_ZENITH),
-                            ("sky_horizon", SKY_HORIZON),
-                            ("sun_glow", SUN_GLOW),
-                            ("fog_density", FOG_DENSITY),
-                            ("fog_height", FOG_HEIGHT)):
-            if name in prog:
-                prog[name].value = value
+        row = WEATHER.get(weather or args.weather, WEATHER["hazy"])
+        zenith, horizon, glow, density, height, scatter = row
+        _optional(prog, sky_zenith=zenith, sky_horizon=horizon,
+                  sun_glow=glow, fog_density=density, fog_height=height,
+                  fog_scatter=scatter)
     program["sun"].value = tuple(np.array([0.42, 0.30, 0.85])
                                  / np.linalg.norm([0.42, 0.30, 0.85]))
     # Set only if the shader still wants them.  Both were the flat sky
@@ -1551,7 +1636,7 @@ def main(argv=None):
     }.get(args.quality, (RIPPLE_SLOPE, 16.0))
     _optional(water_prog, ripple_slope_amp=_ripple,
               ripple_scale=RIPPLE_SCALE, ripple_fade=RIPPLE_FADE,
-              exact_within=_exact)
+              exact_within=_exact, ripple_wake_gain=RIPPLE_WAKE_GAIN)
     #: Texture units 0-2 are the HUD, the near field and the wave table.
     SCENE_UNIT, DEPTH_UNIT = 3, 4
     if scene_fbo is not None:
@@ -1819,7 +1904,8 @@ def main(argv=None):
                         menu, paused = None, False
                     elif action == "options":
                         menu = options_menu(audio=args.audio,
-                                            quality=args.quality)
+                                            quality=args.quality,
+                                            weather=args.weather)
                     elif action == "back":
                         picked = menu.settings()
                         if picked["audio"] != args.audio:
@@ -1832,6 +1918,12 @@ def main(argv=None):
                                 from coxswain.viz.strokeaudio import StrokeAudio
                                 audio = StrokeAudio(boat, mode=args.audio)
                         args.quality = picked["quality"]
+                        if picked["weather"] != args.weather:
+                            # Weather is only uniforms, so it can change
+                            # mid-outing without rebuilding anything.
+                            args.weather = picked["weather"]
+                            for _p in (program, sky_prog, water_prog):
+                                set_sky(_p, args.weather)
                         menu = pause_menu(rate=args.rate, wind=args.wind)
                     elif action == "controls":
                         showing_controls = True
