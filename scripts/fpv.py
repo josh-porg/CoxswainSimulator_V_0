@@ -156,10 +156,51 @@ WATER_DIVISIONS = 340
 #: hull and coarsens the horizon.
 NEAR_FRACTION = 0.30
 
+#: The sea's slope, differentiated rather than sampled.
+#:
+#: The water was shaded from a per-vertex normal, so the shading was
+#: tied to the mesh: with cells graded from 0.19 m near the boat to
+#: 1.9 m at the horizon, and a finite difference taken at a fixed 0.6 m
+#: regardless, every triangle got its own normal and the grid showed
+#: through the surface as a triangular overlay.
+#:
+#: The chop is a sum of cosines, so its slope is a sum of sines -- exact,
+#: per pixel, and cheaper than the three extra surface evaluations a
+#: finite difference would cost in the fragment shader.  The baked parts
+#: (the wake, the near field, the puddles) vary slowly compared with the
+#: cell size and are still interpolated from the vertices.
+WATER_SLOPE_GLSL = """
+uniform vec4 waves[8];
+uniform float time;
+const float SLOPE_G = 9.80665;
+
+vec2 sea_slope(vec2 p) {
+    vec2 g = vec2(0.0);
+    for (int i = 0; i < 8; ++i) {
+        float a = waves[i].x;
+        if (a <= 0.0) continue;
+        float k = waves[i].y;
+        float d = waves[i].z;
+        vec2 along = vec2(cos(d), sin(d));
+        float w = sqrt(SLOPE_G * k);
+        float s = sin(k * dot(p, along) - w * time + waves[i].w);
+        g += -a * k * along * s;
+    }
+    return g;
+}
+
+vec3 water_normal(vec3 world, vec2 baked_slope) {
+    vec2 g = sea_slope(world.xy) + baked_slope;
+    return normalize(vec3(-g.x, -g.y, 1.0));
+}
+"""
+
+
 WATER_VERTEX = """#version 330
 in vec2 in_grid;
 out vec3 v_world;
 out vec3 v_normal;
+out vec2 v_slope;
 out float v_foam;
 uniform mat4 mvp;
 uniform vec2 centre;          // the patch follows the boat
@@ -316,12 +357,20 @@ void main() {
     float foam;
     float h = surface(p, foam);
     v_foam = foam;
-    // Normal by finite difference: two extra evaluations a vertex, and
-    // without it the water is flat-shaded and the chop is invisible.
+    // The slope of everything EXCEPT the sea, by finite difference.
+    // The sea's own slope is done exactly, per pixel, in the fragment
+    // shader -- it is the fast-varying part and the part that was
+    // making the mesh visible.  What is left here is the wake, the near
+    // field and the puddles, all of which change slowly across a cell,
+    // so interpolating them from the vertices costs nothing visible.
     float e = 0.6, junk;
-    float hx = surface(p + vec2(e, 0.0), junk);
-    float hy = surface(p + vec2(0.0, e), junk);
-    v_normal = normalize(vec3((h - hx) / e, (h - hy) / e, 1.0));
+    float base = h - sea(p, time);
+    float bx = surface(p + vec2(e, 0.0), junk) - sea(p + vec2(e, 0.0), time);
+    float by = surface(p + vec2(0.0, e), junk) - sea(p + vec2(0.0, e), time);
+    v_slope = vec2((bx - base) / e, (by - base) / e);
+    // Kept for anything still reading it; the fragment shaders build
+    // their own from v_slope and the analytic sea.
+    v_normal = normalize(vec3(-v_slope.x, -v_slope.y, 1.0));
     v_world = vec3(p, h);
     gl_Position = mvp * vec4(p, h, 1.0);
 }
@@ -330,6 +379,7 @@ void main() {
 WATER_FRAGMENT = """#version 330
 in vec3 v_world;
 in vec3 v_normal;
+in vec2 v_slope;
 in float v_foam;
 out vec4 f_colour;
 uniform vec3 sun;
@@ -337,8 +387,9 @@ uniform vec3 sky;
 uniform vec3 eye;
 uniform float far;
 uniform vec3 deep;
+__WATER_SLOPE__
 void main() {
-    vec3 n = normalize(v_normal);
+    vec3 n = water_normal(v_world, v_slope);
     vec3 to_eye = normalize(eye - v_world);
     // Water is mostly a mirror at grazing angles and mostly dark looking
     // straight down, which is the whole reason chop reads as chop: the
@@ -368,6 +419,7 @@ void main() {
 WATER_FRAGMENT_RICH = """#version 330
 in vec3 v_world;
 in vec3 v_normal;
+in vec2 v_slope;
 in float v_foam;
 out vec4 f_colour;
 uniform vec3 sun;
@@ -383,6 +435,7 @@ uniform float far_plane;
 uniform float refract_scale;
 uniform int reflect_steps;
 uniform mat4 mvp;
+__WATER_SLOPE__
 
 float linear_depth(float raw) {
     float ndc = raw * 2.0 - 1.0;
@@ -391,7 +444,7 @@ float linear_depth(float raw) {
 }
 
 void main() {
-    vec3 n = normalize(v_normal);
+    vec3 n = water_normal(v_world, v_slope);
     vec3 to_eye = normalize(eye - v_world);
     vec2 uv = gl_FragCoord.xy / viewport;
 
@@ -463,15 +516,16 @@ void main() {
                 // stop is more obvious than no reflection at all.
                 vec2 edge = smoothstep(vec2(0.0), vec2(0.12), probe)
                           * smoothstep(vec2(0.0), vec2(0.12), 1.0 - probe);
-                // Confidence falls off with how far the march had to go:
-                // from 0.6 m above the water the reflected ray is almost
-                // horizontal, so a late hit covers an enormous distance
-                // in one step and lands as a hard patch.  Taken at less
-                // than full strength it tints the surface instead of
-                // replacing it, which is what a real reflection at a
-                // grazing angle does anyway.
+                // Taken at full strength.  It was softened first, on
+                // the theory that the hard patches were the march
+                // overreaching -- they were not; they were the mesh
+                // showing through a per-vertex normal, and softening a
+                // real reflection to hide a shading bug only made the
+                // reflection worse.  With the normal now per pixel the
+                // march can be trusted, and only the last steps are
+                // faded, where it genuinely is running out of screen.
                 float trust = 1.0 - float(i) / float(reflect_steps);
-                hit = edge.x * edge.y * (0.30 + 0.45 * trust);
+                hit = edge.x * edge.y * clamp(0.55 + trust, 0.0, 1.0);
                 break;
             }
             step_len *= 1.35;
@@ -489,6 +543,13 @@ void main() {
     f_colour = vec4(mix(lit, sky, haze * haze), 1.0);
 }
 """
+
+
+# The shared slope code goes into both fragment shaders.  Done here
+# rather than by hand in each so the two cannot drift apart.
+WATER_FRAGMENT = WATER_FRAGMENT.replace("__WATER_SLOPE__", WATER_SLOPE_GLSL)
+WATER_FRAGMENT_RICH = WATER_FRAGMENT_RICH.replace("__WATER_SLOPE__",
+                                                  WATER_SLOPE_GLSL)
 
 
 def water_grid(reach: float = WATER_REACH,
@@ -1192,7 +1253,7 @@ def main(argv=None):
         # visibly displaces the bank behind it, not so much that the
         # shoreline swims.
         water_prog["refract_scale"].value = 5.5
-        water_prog["reflect_steps"].value = 12
+        water_prog["reflect_steps"].value = 16
     water_prog["wind_to"].value = float(np.radians(args.wind_from) + np.pi)
     wave = load_wavefield(shell_of(boat))
     if wave is not None:
