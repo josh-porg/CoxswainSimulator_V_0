@@ -65,3 +65,48 @@ def test_the_trestle_is_open_steel_not_a_slab():
     built = bridge_solids("charles", None)
     assert built is not None
     assert built.vertices.shape[0] // 3 > 500, built.vertices.shape
+
+
+def test_arch_bridges_are_drawn_at_their_inventory_length():
+    """Piers must sit near the NBI centre span, not at deck-line thirds.
+
+    OpenStreetMap's deck way runs the length of the *roadway*, approach
+    embankments included: Western Avenue's is 152 m against a bridge of
+    85.3 m.  Dividing the whole way into three equal arches put the
+    piers 51 m apart where the centre span is 26.8 m -- about twice the
+    real spacing, on a bridge a crew lines an arch up on from several
+    hundred metres out.
+
+    Trimming to the inventory length lands them within about a metre of
+    laying the centre span symmetrically about the middle, which is what
+    the navigation side (``derive_piers``) has always done.
+    """
+    from coxswain.river.bridges import BRIDGE_STRUCTURE
+
+    from coxswain.river import charles
+    from coxswain.river.charts import CourseGeometry
+
+    geometry = CourseGeometry(channel=charles.charles_channel())
+    checked = 0
+    for gate, _distance in geometry.gates_on_course():
+        structure = BRIDGE_STRUCTURE.get(gate.name)
+        if structure is None or not getattr(structure, "structure_length",
+                                            None):
+            continue
+        if not getattr(structure, "max_span", None) or structure.main_spans != 3:
+            continue
+        start = np.asarray(gate.start, dtype=float)
+        end = np.asarray(gate.end, dtype=float)
+        full = float(np.hypot(*(end - start)))
+        length = float(structure.structure_length)
+        if not 0.0 < length < full:
+            continue
+
+        offset = 0.5 * (full - length)
+        drawn = [offset + length * k / 3.0 for k in (1, 2)]
+        wanted = [full / 2.0 - structure.max_span / 2.0,
+                  full / 2.0 + structure.max_span / 2.0]
+        for got, want in zip(drawn, wanted):
+            assert abs(got - want) < 2.5, (gate.name, got, want)
+        checked += 1
+    assert checked >= 3, checked

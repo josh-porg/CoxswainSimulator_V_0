@@ -93,6 +93,12 @@ LAND_HIGH = np.array([0.46, 0.47, 0.40])
 WATER_COLOUR = np.array([0.16, 0.28, 0.36])
 
 
+#: How far below the waterline the bank is carried, m.  Enough to be
+#: under the deepest wave trough and any drawdown beside the hull, and
+#: not so much that the whole bed comes with it.
+SHELF = 4.0
+
+
 def land_mesh(terrain, wet_at, box, step: float = 8.0,
               imagery=None) -> Optional[MeshPart]:
     """A heightfield over ``box`` where ``wet_at`` says there is no water.
@@ -119,12 +125,30 @@ def land_mesh(terrain, wet_at, box, step: float = 8.0,
     height = np.maximum(height.reshape(grid_x.shape), 0.0)
     wet = wet_at(grid_x, grid_y)
 
-    # Two triangles per cell, skipping any cell touching water.
+    # The bank used to stop dead at the waterline: every cell touching
+    # water was dropped, so the ground ended in a vertical cut at z = 0
+    # with nothing under it.  The water is a *wavy* surface, so every
+    # trough that dipped below zero opened a gap you could see in
+    # through -- under the terrain, out the far side of the world.
+    #
+    # So the shoreline gets an apron.  Cells with at least one dry
+    # corner are kept, and their **wet** corners are dropped to -SHELF,
+    # which carries the ground down under the water by one cell all the
+    # way round.  Entirely-wet cells are still dropped.
+    #
+    # This is an apron and not a river bed, deliberately.  The elevation
+    # model has no bathymetry in it: over water the lidar returns the
+    # *surface*, a dead flat -0.39 m across the whole width of the
+    # Charles, which is the thing the original version of this was right
+    # to refuse to draw.  Real soundings exist -- data/charles_isobaths.csv
+    # -- and if the bed is ever wanted for its own sake that is where it
+    # has to come from, not from here.
+    height = np.where(wet, -SHELF, height)
     a = (slice(0, -1), slice(0, -1))
     b = (slice(0, -1), slice(1, None))
     c = (slice(1, None), slice(1, None))
     d = (slice(1, None), slice(0, -1))
-    keep = ~(wet[a] | wet[b] | wet[c] | wet[d])
+    keep = ~(wet[a] & wet[b] & wet[c] & wet[d])
     if not keep.any():
         return None
 
@@ -1037,11 +1061,13 @@ def _blade_surface(root, tip, edge, normal, colour=BLADE):
 
     # Fractions along the blade, and its half-width at each: narrow at
     # the neck, widest just short of the tip, squared off at the end.
-    profile = ((0.00, 0.030), (0.18, 0.085), (0.45, 0.115),
-               (0.75, 0.125), (1.00, 0.118))
+    profile = ((0.00, 0.026), (0.16, 0.082), (0.42, 0.116),
+               (0.74, 0.129), (1.00, 0.124))
     #: How far below the shaft line the blade hangs, against above it.
-    low, high = 0.62, 0.38
-    spoon = 0.045
+    #: A cleaver is markedly one-sided -- most of the area is on the
+    #: lower edge, which is the part that stays buried.
+    low, high = 0.72, 0.28
+    spoon = 0.075
 
     rows = []
     for fraction, half in profile:
@@ -1051,7 +1077,7 @@ def _blade_surface(root, tip, edge, normal, colour=BLADE):
                      centre + normal * bow + edge * (2.0 * half * high)))
 
     faces = []
-    thickness = normal * 0.008
+    thickness = normal * 0.016
     for (a0, b0), (a1, b1) in zip(rows[:-1], rows[1:]):
         for offset in (thickness, -thickness):
             p0, p1, p2, p3 = (a0 + offset, b0 + offset,
@@ -1085,11 +1111,17 @@ def oar_solids(boat, t):
         flat = np.cross(axis, np.array([0.0, 0.0, 1.0]))
         flat /= max(float(np.linalg.norm(flat)), 1e-9)
         upright = np.cross(axis, flat)
-        # Squared the face stands across the water, feathered it lies
-        # flat on it, and in between it is genuinely in between: the
-        # roll is a continuous angle, not a two-state switch.
+        # Squared the blade hangs DOWN into the water: its width runs
+        # vertically and its face looks along the direction it is being
+        # pulled.  Feathered it lies flat on the surface: width
+        # horizontal, face looking at the sky.
+        #
+        # This was inverted -- squared started from the horizontal edge,
+        # which is the feathered attitude -- so the blades were flat
+        # through the drive and on edge through the recovery, i.e.
+        # exactly out of phase with the stroke they were driving.
         angle = 0.5 * np.pi * roll
-        edge = flat * np.cos(angle) + upright * np.sin(angle)
+        edge = upright * np.cos(angle) + flat * np.sin(angle)
         normal = np.cross(axis, edge)
         built = _blade_surface(blade - axis * 0.52, blade, edge, normal)
         if built is not None:
@@ -1758,6 +1790,74 @@ def arch_bridge(start, end, width: float, level: float, depth: float,
     return MeshPart("bridge", vertices, colours, _face_normals(vertices))
 
 
+#: Landmarks that the building extract flattens, as
+#: ``(lat, lon, roof, shaft_top, belfry_top, dome_top, half_width)``.
+#:
+#: **Why this table has to exist.** Lowell House carries no ``height``
+#: tag in OpenStreetMap, so the extractor falls back to a guess from the
+#: building type -- ``height_source = 2`` -- and gets 15 m, which is the
+#: house without its tower.  That is the wrong 25 m to lose: the Lowell
+#: House bell tower is *the* mark for the Weeks turn, 250 m off the
+#: bridge, and a coxswain lines the turn up on it.
+#:
+#: **The heights here are estimates, not survey.**  They are shaped to
+#: the published description of the tower -- a Georgian brick shaft, an
+#: open belfry, and the blue and gold onion dome above it -- and they
+#: are not measured the way the bridge decks in
+#: :mod:`coxswain.river.bridges` are.  Anything that needs a real number
+#: should not read them.
+LANDMARKS = {
+    "Lowell House tower": (42.3707041, -71.1185517,
+                           15.0, 28.0, 33.0, 37.0, 4.2),
+}
+
+#: Brick, stone and the dome.
+BRICK = (0.55, 0.38, 0.33)
+STONE = (0.82, 0.80, 0.75)
+DOME = (0.24, 0.46, 0.58)
+
+
+def landmark_solids(race: str) -> Optional[MeshPart]:
+    """Towers and spires the building data flattens.  Charles only."""
+    if race != "charles" or not LANDMARKS:
+        return None
+    from ..river.charles import CHARLES_ORIGIN
+    from ..river.course import local_tangent_plane
+
+    parts = []
+    for _name, row in LANDMARKS.items():
+        lat, lon, roof, shaft, belfry, dome, half = row
+        east, north = local_tangent_plane(np.array([lat]), np.array([lon]),
+                                          CHARLES_ORIGIN)
+        x, y = float(east[0]), float(north[0])
+        parts.append(box_solid((x, y, 0.5 * (roof + shaft)),
+                               (half, half, 0.5 * (shaft - roof)),
+                               colour=BRICK))
+        # The belfry is open, so it is drawn as corner posts rather than
+        # a solid block -- daylight through it is what makes a tower
+        # read as a tower and not a chimney.
+        for sx in (-1.0, 1.0):
+            for sy in (-1.0, 1.0):
+                parts.append(_tube((x + sx * half * 0.8, y + sy * half * 0.8,
+                                    shaft),
+                                   (x + sx * half * 0.8, y + sy * half * 0.8,
+                                    belfry), 0.28, STONE, sides=6))
+        parts.append(box_solid((x, y, belfry + 0.35),
+                               (half * 0.95, half * 0.95, 0.35),
+                               colour=STONE))
+        parts.append(_sphere((x, y, belfry + 0.6 + 0.45 * (dome - belfry)),
+                             0.62 * half, DOME, rings=6, segments=10))
+        parts.append(_tube((x, y, dome), (x, y, dome + 2.4), 0.10,
+                           (0.78, 0.68, 0.35), sides=6))
+
+    parts = [part for part in parts if part is not None]
+    if not parts:
+        return None
+    vertices = np.concatenate([part.vertices for part in parts])
+    colours = np.concatenate([part.colours for part in parts])
+    return MeshPart("landmarks", vertices, colours, _face_normals(vertices))
+
+
 def bridge_solids(race: str, scene) -> Optional[MeshPart]:
     """Decks and piers for the bridges a course goes under.
 
@@ -1769,7 +1869,8 @@ def bridge_solids(race: str, scene) -> Optional[MeshPart]:
     parts = []
     if race == "charles":
         from ..river import charles
-        from ..river.bridges import MEASURED_PIERS, deck_geometry
+        from ..river.bridges import (BRIDGE_STRUCTURE, MEASURED_PIERS,
+                                     deck_geometry)
         from ..river.charles import CHARLES_ORIGIN
         from ..river.course import local_tangent_plane
         from ..river.charts import CourseGeometry
@@ -1783,7 +1884,30 @@ def bridge_solids(race: str, scene) -> Optional[MeshPart]:
             start = np.asarray(gate.start, dtype=float)
             end = np.asarray(gate.end, dtype=float)
             if form == "arch":
-                built = arch_bridge(start, end, width, level, depth, spans)
+                # Trimmed to the *bridge*, not to the line OSM draws.
+                #
+                # Western Avenue's deck way is 152 m long; the bridge in
+                # the National Bridge Inventory is 85.3 m.  The rest is
+                # approach roadway over dry land.  Dividing the whole
+                # 152 m into three equal arches put the piers 51 m apart
+                # when the centre span is 26.8 m -- roughly twice the
+                # real spacing, on the bridge a crew lines up an arch on
+                # from several hundred metres out.
+                #
+                # The inventory length, centred on the deck line, puts
+                # them within a metre of where laying the centre span
+                # symmetrically about the channel does.
+                structure = BRIDGE_STRUCTURE.get(gate.name)
+                span_length = getattr(structure, "structure_length", None)
+                low, high = start, end
+                full = float(np.hypot(*(end - start)))
+                if span_length and 0.0 < float(span_length) < full:
+                    along = (end - start) / max(full, 1e-9)
+                    middle = 0.5 * (start + end)
+                    half_len = 0.5 * float(span_length)
+                    low = middle - along * half_len
+                    high = middle + along * half_len
+                built = arch_bridge(low, high, width, level, depth, spans)
                 if built is not None:
                     parts.append(built)
                 continue
@@ -2038,6 +2162,7 @@ def build_world(race: str = "charles", reach: float = 900.0,
     if race != "charles":
         mesh.add(cut_walls())
     mesh.add(bridge_solids(race, scene))
+    mesh.add(landmark_solids(race))
     mesh.add(buoy_solids(scene.buoys))
     if guide:
         mesh.add(line_markers(course))
