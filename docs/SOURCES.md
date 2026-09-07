@@ -9603,3 +9603,80 @@ vanishing under the hull as if the boat were a breakwater.
   water. The roll turns with the dish's sign now, and a test holds
   every blade in an eight hollow-up on the feather and hollow-astern on
   the drive.
+
+## 152. Building for a machine we do not have
+
+PyInstaller does not cross-compile, and it is worth being clear about
+*why*, because it is not an oversight to be worked around. It builds by
+bundling the running interpreter together with the actual compiled
+extension modules on the machine — the `.pyd` or `.so` files for numpy,
+scipy, pygame and the rest. There is no sense in which a Windows machine
+holds the Mach-O binaries a Mac needs. So a Mac build happens on a Mac,
+and since there is no Mac in this project, it happens on a GitHub
+runner.
+
+Three things would have broken it, and **none of them shows up as a
+build failure** — every one produces an artefact that builds cleanly and
+then misbehaves on somebody else's machine, which is the whole class of
+error this packaging work exists to prevent.
+
+### The GL context
+
+macOS will not give you a 3.3 core profile unless you *also* ask for
+forward-compatible. Ask for core alone and it returns a 2.1 legacy
+context and reports success. Every `#version 330` shader then fails to
+compile, so the program dies at the first draw with a message about a
+shader — which sends you reading the shaders, where nothing is wrong.
+
+### Retina
+
+The drawable is twice the window. A Mac asked for a 1280×720 window
+gives a window measured in **points** and a 2560×1440 drawable measured
+in **pixels**, and the default framebuffer is the drawable.
+
+This matters here more than it would in most programs because the water
+does screen-space refraction: it divides `gl_FragCoord` by a `viewport`
+uniform to find where to sample the scene behind it. Size the offscreen
+buffers and that uniform from the window and every lookup is at half
+scale, across the whole surface — not a crash, just a picture that is
+quietly wrong on exactly the machines nobody here can look at.
+
+Pixels for framebuffers and viewports; points for the mouse and the HUD
+layout, which is what SDL reports them in. `test_packaging_platforms.py`
+holds that line.
+
+### The bundle
+
+A `--windowed` build on macOS writes both `dist/Coxswain/` and
+`Coxswain.app`, and only the bundle launches when double-clicked; the
+folder beside it is scaffolding. The README cannot go *inside* a bundle,
+because a bundle opens rather than browses, so the deliverable is a
+plain folder holding the `.app` with the README next to it.
+
+It must be zipped with `ditto -c -k --keepParent`, not `zip`: a plain
+zip drops the symlinks and executable bits inside the bundle, and it
+then will not start.
+
+### Intel, on purpose
+
+Built on `macos-13`, the last Intel runner. An x86_64 build runs on
+Apple Silicon under Rosetta 2; an arm64 build will not start at all on
+an Intel Mac, and plenty of crews are still on 2019 MacBooks. One
+download that works everywhere beats two that people have to choose
+between.
+
+### Gatekeeper
+
+The app is unsigned, so the first launch is refused outright with a
+message saying it is "damaged" and a single Cancel button. It is not
+damaged — macOS quarantines anything downloaded that is not signed by a
+registered developer. Right-click then Open is the way past it, once.
+`packaging/README-mac.txt` leads with that, because anyone not told will
+reasonably conclude the download is corrupt and report it as broken.
+
+### A tag can only be built if it contains the build tooling
+
+The first dispatch was against `v0.2` and failed at the install step on
+a missing `requirements-build.txt`. The runner checks out the tag and
+builds *that tree*, and v0.2 predates the file. Obvious once seen, and
+the workflow input now says so.
