@@ -15,3 +15,10 @@ out/
 # and the other extractors. 190 MB of PDFs has no business in git.
 data/raw/
 data/local/
+
+# packaged builds -- PyInstaller output, hundreds of megabytes of it.
+# Rebuildable any time with tools/build_exe.py, and GitHub rejects any
+# single file over 100 MB, so this must never be committed.
+dist/
+build/
+*.spec
