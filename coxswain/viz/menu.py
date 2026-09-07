@@ -201,7 +201,7 @@ def weather_choices():
 
 
 def options_menu(audio: str = "full", quality: str = "standard",
-                 weather: str = "hazy") -> Menu:
+                 weather: str = "hazy", wind: float = 5.0) -> Menu:
     """Graphics and sound, reached from either menu."""
     modes = audio_choices()
     grades = quality_choices()
@@ -215,6 +215,10 @@ def options_menu(audio: str = "full", quality: str = "standard",
         Choice("weather", "Weather", weather_choices(),
                index=max([i for i, w in enumerate(WEATHERS)
                           if w[0] == weather] + [0])),
+        # Wind lives here rather than on the setup menu because it is
+        # weather: it sets the chop, and now the micro-ripple with it.
+        Choice("wind", "Wind", (), numeric=(0.0, 16.0, 1.0),
+               value=float(wind), unit="m/s"),
         Choice("back", "Back", (), action="back"),
     ]
     return Menu("Graphics and sound", rows)
@@ -234,8 +238,6 @@ def setup_menu(boat: str = "4+", course: str = "charles",
                          + [0])),
         Choice("rate", "Stroke rate", (), numeric=(16.0, 44.0, 1.0),
                value=float(rate), unit="spm"),
-        Choice("wind", "Wind", (), numeric=(0.0, 16.0, 1.0),
-               value=float(wind), unit="m/s"),
         Choice("start", "Push off", (), action="start"),
         Choice("options", "Graphics and sound", (), action="options"),
         Choice("controls", "Controls", (), action="controls"),
@@ -256,8 +258,6 @@ def pause_menu(rate: float = 30.0, wind: float = 5.0) -> Menu:
         Choice("resume", "Back to it", (), action="resume"),
         Choice("rate", "Stroke rate", (), numeric=(16.0, 44.0, 1.0),
                value=float(rate), unit="spm"),
-        Choice("wind", "Wind", (), numeric=(0.0, 16.0, 1.0),
-               value=float(wind), unit="m/s"),
         Choice("restart", "Restart this course", (), action="restart"),
         Choice("setup", "Change boat or course", (), action="setup"),
         Choice("options", "Graphics and sound", (), action="options"),
@@ -523,7 +523,8 @@ def blurb_for(menu: "Menu") -> str:
     if row.key == "rate":
         return "The crew's rating.  Changes the whole cycle, including sound."
     if row.key == "wind":
-        return "Sets the chop through the JONSWAP relations, as the report does."
+        return ("Sets the chop through the JONSWAP relations, and the "
+                "ripple with it.  At nothing, glass.")
     if row.key == "audio":
         return ("Full is the measured envelope; Events is catches and "
                 "finishes only.")

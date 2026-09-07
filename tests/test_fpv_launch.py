@@ -51,7 +51,8 @@ def test_setup_menu_runs_and_can_be_closed(dummy_video):
     import fpv
 
     args = fpv.main.__globals__["argparse"].Namespace(
-        boat="4+", race="charles", rate=30.0, wind=5.0)
+        boat="4+", race="charles", rate=30.0, wind=5.0, audio="full",
+        quality="standard", weather="hazy", no_sound=True)
     pygame.event.post(pygame.event.Event(pygame.QUIT))
     assert fpv.run_setup_menu(dummy_video, args) is None
 
@@ -61,8 +62,14 @@ def test_setup_menu_hands_back_the_choices(dummy_video):
     import fpv
 
     args = fpv.main.__globals__["argparse"].Namespace(
-        boat="8+", race="totl", rate=28.0, wind=3.0)
-    for _ in range(4):                      # down to the "Push off" row
+        boat="8+", race="totl", rate=28.0, wind=3.0, audio="full",
+        quality="standard", weather="hazy", no_sound=True)
+    # Walk to "Push off" by name rather than by counting keystrokes:
+    # counting broke the moment a row was added, which is a test
+    # reporting the menu's shape rather than its behaviour.
+    from coxswain.viz.menu import setup_menu
+    start_row = [row.key for row in setup_menu().rows].index("start")
+    for _ in range(start_row):
         pygame.event.post(pygame.event.Event(
             pygame.KEYDOWN, key=pygame.K_DOWN))
     pygame.event.post(pygame.event.Event(
@@ -70,7 +77,7 @@ def test_setup_menu_hands_back_the_choices(dummy_video):
     picked = fpv.run_setup_menu(dummy_video, args)
     assert picked is not None, "enter on the action row should start"
     assert picked["boat"] == "8+" and picked["race"] == "totl"
-    assert picked["rate"] == 28.0 and picked["wind"] == 3.0
+    assert picked["rate"] == 28.0
 
 
 def test_main_opens_the_menu_without_an_unbound_name(dummy_video,

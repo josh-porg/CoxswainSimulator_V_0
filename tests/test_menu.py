@@ -72,7 +72,12 @@ def test_the_pause_menu_offers_the_things_that_can_change_live():
     course cannot, so those send you back to setup rather than pretending."""
     menu = pause_menu(rate=28.0, wind=7.0)
     keys = [row.key for row in menu.rows]
-    assert "rate" in keys and "wind" in keys
+    # Rate is on the pause menu itself; wind moved in with the weather,
+    # because that is what it is -- it sets the chop and the ripple.
+    assert "rate" in keys
+    assert "options" in keys
+    from coxswain.viz.menu import options_menu
+    assert "wind" in [row.key for row in options_menu().rows]
     assert "boat" not in keys and "race" not in keys
     assert "setup" in keys
     assert menu.by_key("rate").value == 28.0

@@ -96,8 +96,11 @@ SKY = (0.52, 0.60, 0.68)
 #: dark object is half lost, so 1/2600 is a clear morning and 1/420 is
 #: the kind of river fog that has crews rowing on sound.
 WEATHER = {
+    # Even a clear day has air in it.  With no fog at all the far bank
+    # sits at the same apparent distance as the near one and the reach
+    # goes flat, so "clear" is a long visibility rather than none.
     "clear": ((0.30, 0.47, 0.70), (0.68, 0.76, 0.83),
-              (0.40, 0.34, 0.24), 1.0 / 3400.0, 40.0, 0.55),
+              (0.40, 0.34, 0.24), 1.0 / 2200.0, 46.0, 0.55),
     "hazy": ((0.36, 0.50, 0.68), (0.71, 0.77, 0.82),
              (0.34, 0.30, 0.22), 1.0 / 2600.0, 34.0, 0.45),
     "overcast": ((0.60, 0.63, 0.66), (0.74, 0.76, 0.78),
@@ -132,12 +135,26 @@ FOG_HEIGHT = 34.0
 #: Tuned down from 0.085, which read as sparkle rather than texture:
 #: at that amplitude the second normal was competing with the chop
 #: instead of sitting under it, which is the one thing it must not do.
+#:
+#: This is the amplitude at :data:`RIPPLE_FULL_WIND`; below that it
+#: scales away, because it has to.  Micro-ripple is the wind's
+#: fingerprint on the surface -- it is what the first metre per second
+#: of a breeze does before there is any wave to speak of -- so with no
+#: wind there is none of it, and a calm lake at dawn really is a sheet
+#: of glass.  Scaling it as the square root of wind speed rather than
+#: linearly keeps a light air from looking like nothing at all.
 RIPPLE_SLOPE = 0.038
+
+#: Wind speed, m/s, at which the ripple reaches full amplitude.
+RIPPLE_FULL_WIND = 6.0
 RIPPLE_SCALE = 1.35
 RIPPLE_FADE = 45.0
 
 #: How much rougher the small scale is where the water has been stirred.
-RIPPLE_WAKE_GAIN = 1.6
+#: Down from 1.6: at that gain the wake pattern came back through the
+#: ripple as concentric rings of sparkle, which is the texture reporting
+#: the shape underneath it rather than sitting on it.
+RIPPLE_WAKE_GAIN = 0.8
 
 VERTEX_SHADER = """#version 330
 in vec3 in_pos;
@@ -470,7 +487,13 @@ vec3 water_normal(vec3 world, vec2 baked_slope, float range,
     // contributes, plus the foam the puddles carry.  Taken from the
     // wake and near field rather than from the chop, because wind waves
     // do not leave a rougher surface behind them and a wake does.
-    float stirred = foam;
+    // How stirred this patch is, computed the SAME way on both sides of
+    // the exact_within boundary.  It was measured differently inside
+    // and out -- from the per-pixel height there, from the interpolated
+    // slope here -- which put a step in the ripple amplitude on a
+    // circle around the boat, and that circle is the edge that showed
+    // up in the water.  Both terms below are continuous everywhere.
+    float stirred = foam + 3.0 * length(baked_slope);
     if (distance(world.xy, boat.xy) < exact_within) {
         // Differenced at a step finer than the cells, so the answer is
         // the surface's slope and not the mesh's.
@@ -479,10 +502,8 @@ vec3 water_normal(vec3 world, vec2 baked_slope, float range,
         float hx = surface(world.xy + vec2(e, 0.0), junk);
         float hy = surface(world.xy + vec2(0.0, e), junk);
         g = vec2((hx - h) / e, (hy - h) / e);
-        stirred += 6.0 * abs(h - sea(world.xy, time));
     } else {
         g = sea_slope(world.xy) + baked_slope;
-        stirred += 3.0 * length(baked_slope);
     }
     g += ripple(world.xy, range, stirred);
     return normalize(vec3(-g.x, -g.y, 1.0));
@@ -1174,13 +1195,15 @@ def run_setup_menu(screen, args):
                     chosen = menu.settings()
                     menu = options_menu(audio=args.audio,
                                         quality=args.quality,
-                                        weather=args.weather)
+                                        weather=args.weather,
+                                        wind=args.wind)
                     continue
                 if action == "back":
                     picked = menu.settings()
                     args.audio = picked["audio"]
                     args.quality = picked["quality"]
                     args.weather = picked["weather"]
+                    args.wind = picked["wind"]
                     menu = setup_menu(boat=chosen["boat"],
                                       course=chosen["race"],
                                       rate=chosen["rate"],
@@ -1304,6 +1327,20 @@ def main(argv=None):
     parser.add_argument("--boat", default="4+",
                         choices=("4+", "8+", "2x", "1x"))
     parser.add_argument("--rate", type=float, default=30.0)
+    parser.add_argument("--cam-up", type=float, default=6.0,
+                        dest="cam_up",
+                        help="height above the seat for --freecam")
+    parser.add_argument("--cam-pitch", type=float, default=-0.15,
+                        dest="cam_pitch",
+                        help="freecam pitch, radians; negative looks down")
+    parser.add_argument("--cam-yaw", type=float, default=0.0,
+                        dest="cam_yaw", help="freecam yaw, radians")
+    parser.add_argument("--ripple", type=float, default=None,
+                        help="micro-ripple slope amplitude; 0 turns it off")
+    parser.add_argument("--exact-within", type=float, default=None,
+                        dest="exact_within",
+                        help="radius, m, within which the surface is "
+                             "differentiated per pixel")
     parser.add_argument("--weather", default="hazy",
                         choices=tuple(WEATHER),
                         help="what the air is doing")
@@ -1382,7 +1419,7 @@ def main(argv=None):
             pygame.quit()
             return 0
         args.boat, args.race = picked["boat"], picked["race"]
-        args.rate, args.wind = picked["rate"], picked["wind"]
+        args.rate = picked["rate"]
 
     print("building %s ..." % args.race)
     clock0 = time.perf_counter()
@@ -1460,7 +1497,9 @@ def main(argv=None):
         # is an unbound local -- the third time that exact shape of
         # mistake has been made in this file.
         _eye, _target, _up = seat_camera(fresh_state(), boat)
-        freecam = FreeCamera(_eye + np.array([0.0, 0.0, 6.0]), pitch=-0.15)
+        freecam = FreeCamera(_eye + np.array([0.0, 0.0, float(args.cam_up)]),
+                             yaw=float(args.cam_yaw),
+                             pitch=float(args.cam_pitch))
 
     # The stroke, out loud.  From the bow of a four you cannot see the
     # blades go in, and without the catch there is nothing in the seat
@@ -1634,6 +1673,13 @@ def main(argv=None):
         "standard": (RIPPLE_SLOPE, 16.0),
         "high": (RIPPLE_SLOPE, 26.0),
     }.get(args.quality, (RIPPLE_SLOPE, 16.0))
+    # Scaled by the wind, so calm water is glass.
+    _wind_factor = min(1.0, max(float(args.wind), 0.0) / RIPPLE_FULL_WIND)
+    _ripple *= _wind_factor ** 0.5
+    if args.ripple is not None:
+        _ripple = float(args.ripple)
+    if args.exact_within is not None:
+        _exact = float(args.exact_within)
     _optional(water_prog, ripple_slope_amp=_ripple,
               ripple_scale=RIPPLE_SCALE, ripple_fade=RIPPLE_FADE,
               exact_within=_exact, ripple_wake_gain=RIPPLE_WAKE_GAIN)
@@ -1891,12 +1937,6 @@ def main(argv=None):
                             loop.simulator = simulator
                             if audio is not None:
                                 audio.boat = boat
-                        if abs(settings["wind"] - args.wind) > 1e-9:
-                            args.wind = settings["wind"]
-                            water_prog["waves"].write(
-                                sea_for(args.wind, args.fetch,
-                                        np.radians(args.wind_from))
-                                .as_uniform().tobytes())
                         menu, paused = None, False
                     elif action == "restart":
                         loop.start(fresh_state())
@@ -1905,7 +1945,8 @@ def main(argv=None):
                     elif action == "options":
                         menu = options_menu(audio=args.audio,
                                             quality=args.quality,
-                                            weather=args.weather)
+                                            weather=args.weather,
+                                            wind=args.wind)
                     elif action == "back":
                         picked = menu.settings()
                         if picked["audio"] != args.audio:
@@ -1918,6 +1959,17 @@ def main(argv=None):
                                 from coxswain.viz.strokeaudio import StrokeAudio
                                 audio = StrokeAudio(boat, mode=args.audio)
                         args.quality = picked["quality"]
+                        if abs(picked["wind"] - args.wind) > 1e-9:
+                            args.wind = picked["wind"]
+                            water_prog["waves"].write(
+                                sea_for(args.wind, args.fetch,
+                                        np.radians(args.wind_from))
+                                .as_uniform().tobytes())
+                            _optional(water_prog, ripple_slope_amp=(
+                                RIPPLE_SLOPE
+                                * (min(1.0, args.wind / RIPPLE_FULL_WIND)
+                                   ** 0.5)
+                                if args.quality != "minimal" else 0.0))
                         if picked["weather"] != args.weather:
                             # Weather is only uniforms, so it can change
                             # mid-outing without rebuilding anything.
