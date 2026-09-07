@@ -59,9 +59,8 @@ from coxswain.sim.simulator import RowingSimulator          # noqa: E402
 from coxswain.viz.planscene import oar_lines                # noqa: E402
 from coxswain.viz.strokeaudio import shell_of               # noqa: E402
 from coxswain.viz.water import (KELVIN_HALF_ANGLE,          # noqa: E402
-                                load_nearfield,
-                                PuddleTrail, kelvin_wavelength, sea_for,
-                                wake_table)
+                                load_nearfield, load_wavefield,
+                                PuddleTrail, sea_for)
 from coxswain.viz.worldmesh import _face_normals            # noqa: E402
 from coxswain.viz.worldmesh import build_world, hull_solid  # noqa: E402
 
@@ -123,6 +122,8 @@ void main() {
 #: Texture unit the hull's near-field map lives on.  Unit 0 belongs to
 #: the HUD blit; sharing it was a 2.5 m wave beside the boat.
 NEAR_UNIT = 1
+#: And the baked wave pattern on the next one.
+WAVE_UNIT = 2
 
 #: The moving water patch: how far it reaches, and how many divisions
 #: across it.
@@ -151,15 +152,18 @@ uniform vec4 waves[8];        // amplitude, wavenumber, direction, phase
 uniform vec4 puddles[16];     // east, north, strength, unused
 uniform vec3 boat;            // east, north, heading
 uniform float speed;
-uniform float wake_k;         // 2 pi g / V^2, the transverse wavenumber
-uniform float wake_amp;
+uniform sampler3D wave_map;   // baked wave pattern, slices in speed
+uniform vec2 wave_lo;         // its box in the boat frame
+uniform vec2 wave_hi;
+uniform vec3 wave_size;       // samples along, across, in speed
+uniform float wave_speed_lo;  // speeds the slices span
+uniform float wave_speed_hi;
 uniform float hull_length;    // bow-to-stern source separation
 uniform sampler2D near_map;   // baked near-field shape, F(x, y)
 uniform vec2 near_lo;         // its box in the boat frame
 uniform vec2 near_hi;
 uniform vec2 near_size;       // samples in the baked grid
 uniform float wind_to;        // bearing the wind blows toward
-uniform float tan_wedge;      // tan(19.47 deg)
 uniform float time;
 
 const float G = 9.80665;
@@ -180,61 +184,44 @@ float sea(vec2 p, float t) {
     return h;
 }
 
-// One Kelvin system, from a disturbance at `offset` along the hull.
+// The wave pattern the hull radiates, from the free-surface Green's
+// function -- baked by coxswain.hydro.havelock and sampled here.
 //
-// Zero outside the 19.47-degree wedge, and a(x) = A/sqrt(x) inside it,
-// which is what spreading the wave-resistance energy across the
-// widening wedge gives.
-float wake_from(vec2 p, float offset, float amp) {
+// This replaces the hand-built Kelvin wedge.  The wedge had the right
+// angle and the right transverse wavelength and guessed everything
+// else; this is the same thin-ship source sheet and the same Green's
+// function Michell's wave resistance comes from, so the divergent and
+// transverse systems, the bow-stern interference and the way the
+// pattern reshapes with speed all come out of one integral, and the
+// amplitude is pinned to the wave resistance by an energy closure.
+//
+// The wavelengths scale with U^2, so unlike the near field this cannot
+// be one texture times a speed factor: it is a stack of slices in speed
+// and the third texture coordinate interpolates between them.
+float wake(vec2 p) {
+    if (speed < wave_speed_lo) return 0.0;
     float c = cos(-boat.z), s = sin(-boat.z);
     vec2 d = p - boat.xy;
-    float along = -(d.x * c - d.y * s) + offset;   // positive astern
+    float along = d.x * c - d.y * s;          // positive toward the bow
     float across = d.x * s + d.y * c;
-    if (along < 0.15) return 0.0;
-    float limit = tan_wedge * along;
-    if (abs(across) > limit) return 0.0;
-    float fade = exp(-along / 120.0) / sqrt(max(along, 0.4));
-    float edge = abs(across) / max(limit, 1e-6);
-    // Riding up toward the cusp lines is where a real wake is steepest,
-    // and it is what makes the divergent V read from the stem.
-    float crest = 0.35 + 0.65 * edge * edge * edge;
-    return amp * fade * crest * cos(wake_k * along);
-}
-
-// The hull as TWO disturbances, not one.
-//
-// A single system centred on the boat has no V leaving the stem: the
-// wedge just begins under the boat, which is not what a coxswain sees.
-// The bow throws a pair of crests that run slightly wider than the hull
-// and open out behind it.  Havelock models a ship as a pressure source
-// at the bow and a sink at the stern, a waterline length apart, and
-// superposing their two Kelvin systems gives both that bow V and the
-// bow-stern interference -- the same interference that puts the humps
-// in a wave-resistance curve.  The stern system is weaker and opposite
-// in sign, because it is a sink.
-float wake(vec2 p) {
-    if (speed < 0.4) return 0.0;
-    float half_len = 0.5 * hull_length;
-    return wake_from(p, -half_len, wake_amp)
-         - wake_from(p, half_len, 0.55 * wake_amp);
+    vec3 uv = vec3((vec2(along, across) - wave_lo) / (wave_hi - wave_lo),
+                   (min(speed, wave_speed_hi) - wave_speed_lo)
+                   / (wave_speed_hi - wave_speed_lo));
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 0.0;
+    // Half-texel correction in every axis, as for the near field.
+    uv = uv * (wave_size - 1.0) / wave_size + 0.5 / wave_size;
+    vec2 e = min(uv.xy, 1.0 - uv.xy);
+    float edge = clamp(min(e.x, e.y) / 0.08, 0.0, 1.0);
+    return texture(wave_map, uv).r * edge;
 }
 
 // Puddles: a vortex pair that spreads and flattens as it ages.
 //
-// They used to be a fixed 1.5 m Gaussian carrying a fixed 1.85 m ring,
-// which was wrong twice over.  A crew drops four of them within two and
-// a half metres of each other, so four fixed-width rings overlapped and
-// summed -- constructively, because they shared a wavelength -- into a
-// 0.10 m peak beside the hull that sat in the same place relative to
-// the boat every stroke.  And a ring that never widens eventually
-// outruns the grid: cells reach 0.99 m at fifty metres against a
-// Nyquist limit of 0.92, so the oldest ones alias into spikes.
-//
-// A real puddle does neither.  It spreads as it decays, its structure
-// coarsening as it goes, and it is gone inside a few seconds.  Widening
-// the Gaussian and lengthening the ring with age fixes the summing and
-// the aliasing at once, because by the time a puddle reaches the coarse
-// part of the grid it has no fine structure left to alias.
+// A crew drops four within two and a half metres of each other, so
+// fixed-width rings summed constructively into a peak beside the hull
+// every stroke, and a ring that never widens eventually outruns the
+// grid and aliases.  A real puddle does neither: it spreads as it
+// decays, its structure coarsening, and is gone in a few seconds.
 float puddle(vec2 p, out float foam) {
     float h = 0.0;
     foam = 0.0;
@@ -247,10 +234,7 @@ float puddle(vec2 p, out float foam) {
         if (r > 2.5 * spread) continue;
         float k = 3.4 / (1.0 + 2.2 * age);        // ring coarsens
         float ring = exp(-r * r / (spread * spread)) * cos(r * k);
-        // Amplitude falls faster than the strength so the four a crew
-        // drops together cannot stack into a peak.
         h += 0.030 * strength * strength * ring;
-        // Foam is a fresh-water effect and goes within a second or two.
         foam = max(foam, pow(strength, 3.0) * exp(-r * r / 1.4));
     }
     return h;
@@ -607,6 +591,40 @@ def main(argv=None):
     water_prog["deep"].value = (0.055, 0.115, 0.155)
     water_prog["hull_length"].value = float(boat.length)
     water_prog["wind_to"].value = float(np.radians(args.wind_from) + np.pi)
+    wave = load_wavefield(shell_of(boat))
+    if wave is not None:
+        w_speeds, w_east, w_north, w_field = wave
+        wave_tex = ctx.texture3d(
+            (len(w_east), len(w_north), len(w_speeds)), 1,
+            np.ascontiguousarray(w_field, dtype="f4"), dtype="f4")
+        wave_tex.filter = (moderngl.LINEAR, moderngl.LINEAR)
+        wave_tex.repeat_x = wave_tex.repeat_y = wave_tex.repeat_z = False
+        wave_tex.use(WAVE_UNIT)
+        water_prog["wave_map"].value = WAVE_UNIT
+        water_prog["wave_lo"].value = (float(w_east[0]), float(w_north[0]))
+        water_prog["wave_hi"].value = (float(w_east[-1]), float(w_north[-1]))
+        water_prog["wave_size"].value = (float(len(w_east)),
+                                         float(len(w_north)),
+                                         float(len(w_speeds)))
+        water_prog["wave_speed_lo"].value = float(w_speeds[0])
+        water_prog["wave_speed_hi"].value = float(w_speeds[-1])
+        print("   wave field: %d slices %.1f..%.1f m/s, %dx%d, "
+              "%+.3f..%+.3f m at 4.5 m/s -- from the Green's function"
+              % (len(w_speeds), w_speeds[0], w_speeds[-1], len(w_east),
+                 len(w_north),
+                 w_field[np.argmin(np.abs(w_speeds - 4.5))].min(),
+                 w_field[np.argmin(np.abs(w_speeds - 4.5))].max()))
+    else:
+        wave_tex = ctx.texture3d((2, 2, 2), 1, np.zeros(8, dtype="f4"),
+                                 dtype="f4")
+        wave_tex.use(WAVE_UNIT)
+        water_prog["wave_map"].value = WAVE_UNIT
+        water_prog["wave_lo"].value = (-1.0, -1.0)
+        water_prog["wave_hi"].value = (1.0, 1.0)
+        water_prog["wave_size"].value = (2.0, 2.0, 2.0)
+        water_prog["wave_speed_lo"].value = 1e9
+        water_prog["wave_speed_hi"].value = 2e9
+        print("   wave field: not baked (run tools/bake_nearfield.py)")
     near = load_nearfield(shell_of(boat))
     if near is not None:
         n_east, n_north, n_field = near
@@ -644,7 +662,6 @@ def main(argv=None):
         water_prog["near_hi"].value = (1.0, 1.0)
         water_prog["near_size"].value = (2.0, 2.0)
         print("   near field: not baked (run tools/bake_nearfield.py)")
-    water_prog["tan_wedge"].value = float(np.tan(KELVIN_HALF_ANGLE))
     grid = water_grid()
     water_buffer = ctx.buffer(grid.tobytes())
     water_vao = ctx.vertex_array(water_prog,
@@ -652,11 +669,7 @@ def main(argv=None):
     field = sea
     water_prog["waves"].write(field.as_uniform().tobytes())
     trail = PuddleTrail()
-    # Wake amplitude from the hull's own wave resistance, tabulated once.
-    wake_speed, wake_scale = wake_table(boat)
-    print("   wake: Michell wave resistance gives %.3f m at 10 m astern "
-          "at 4.5 m/s" % (float(np.interp(4.5, wake_speed, wake_scale))
-                          / np.sqrt(10.0)))
+
     print("   water: H_s %.3f m, T_p %.2f s at %.0f m/s over %.0f m fetch; "
           "%d triangles; far plane sunk to %.3f m"
           % (field.significant_height, field.peak_period, args.wind,
@@ -691,10 +704,6 @@ def main(argv=None):
         water_prog["boat"].value = (float(state[0]), float(state[1]),
                                     float(state[5]))
         water_prog["speed"].value = speed
-        water_prog["wake_k"].value = float(
-            2.0 * np.pi / max(kelvin_wavelength(speed), 0.5))
-        water_prog["wake_amp"].value = float(
-            np.interp(speed, wake_speed, wake_scale))
         water_prog["time"].value = float(t)
         # Drop a pair of puddles at each catch -- the same phase that
         # fires the catch in strokeaudio, so what you hear and what you
@@ -715,6 +724,7 @@ def main(argv=None):
             draw.last_phase = phase
         water_prog["puddles"].write(trail.as_uniform(t).tobytes())
         near_tex.use(NEAR_UNIT)          # never trust the binding
+        wave_tex.use(WAVE_UNIT)
         water_vao.render()
         vertices, colours = boat_geometry(boat, hull, t, state)
         if vertices is not None and len(vertices):

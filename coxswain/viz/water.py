@@ -22,9 +22,19 @@ says when: above about 1/7 a wave breaks, and none of this applies.
 
 What the boat does to it
 ------------------------
-A hull moving at speed drags a **Kelvin wake**, and that is not random at
-all -- it is a stationary-phase superposition of the same elementary
-waves, and it has exact geometry:
+The shader draws the hull's own disturbance from two baked fields: the
+near field (:mod:`coxswain.hydro.nearfield`, pile-up and drawdown,
+``U^2/g`` times a shape) and the radiated wave pattern
+(:mod:`coxswain.hydro.havelock`, the free-surface Green's function, in
+slices of speed).  See :func:`load_nearfield` and :func:`load_wavefield`.
+
+What follows -- :func:`kelvin_height`, :func:`hull_wake`,
+:func:`wake_amplitude` -- is the **reduced wedge model** the Green's
+function replaced.  It is kept because its geometry is exact where the
+two overlap and it is the cheap reference the tests measure the full
+field against.  A hull moving at speed drags a **Kelvin wake**, and that
+is not random at all -- it is a stationary-phase superposition of the
+same elementary waves, and it has exact geometry:
 
 * the wake is confined to a wedge of half-angle
   :data:`KELVIN_HALF_ANGLE` = arcsin(1/3) = 19.47 degrees, and this is
@@ -59,7 +69,7 @@ import numpy as np
 
 __all__ = ["KELVIN_HALF_ANGLE", "WaveField", "kelvin_wavelength",
            "PuddleTrail", "sea_for", "wake_amplitude", "wake_table",
-           "hull_wake", "load_nearfield", "hull_shelter"]
+           "hull_wake", "load_nearfield", "load_wavefield", "hull_shelter"]
 
 GRAVITY = 9.80665
 
@@ -187,6 +197,29 @@ def load_nearfield(shell: str = "four"):
         return None
     return (blob["%s_east" % shell], blob["%s_north" % shell],
             blob["%s_field" % shell])
+
+
+def load_wavefield(shell: str = "four"):
+    """``(speeds, east, north, waves)`` for a shell, or ``None``.
+
+    The radiated wave pattern from :mod:`coxswain.hydro.havelock`, as
+    slices in speed -- already in metres, the closure applied.  Produced
+    by ``tools/bake_nearfield.py``.  This is what the shader draws as the
+    wake; :func:`hull_wake` and :func:`kelvin_height` below are the
+    reduced wedge model it replaced, kept as the reference the tests use
+    for the geometry it shares with the full field.
+    """
+    import os
+
+    path = os.path.join(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))), "data", "nearfield.npz")
+    if not os.path.exists(path):
+        return None
+    blob = np.load(path)
+    if ("%s_wave" % shell) not in blob:
+        return None
+    return (blob["%s_wave_speeds" % shell], blob["%s_wave_east" % shell],
+            blob["%s_wave_north" % shell], blob["%s_wave" % shell])
 
 
 def wake_amplitude(wave_resistance: float, half_angle: float = None) -> float:

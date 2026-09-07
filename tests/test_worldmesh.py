@@ -40,18 +40,35 @@ def test_the_water_plane_covers_the_boat():
     assert np.allclose(part.vertices[:, 2], 0.0)
 
 
-def test_buildings_are_walls_and_not_roofs():
-    """Twelve triangles for a four-sided building: two per wall, no top.
+def test_buildings_are_closed_boxes_facing_outward():
+    """Eight wall triangles facing out, and a cap on top.
 
-    From 0.55 m off the water a roof is never visible, and skipping the
-    top faces halves the count for nothing you can see.
+    This used to assert *no* roof, on the reasoning that from 0.55 m off
+    the water you never see one.  That is true of a building on the far
+    bank and false of one up a hillside, which is most of Seattle: an
+    open box seen from below shows the inside of its far wall through
+    the missing near one.  So a building is closed now, and -- the bug
+    that made every building render inside-out -- every wall faces away
+    from the building rather than into it.
     """
     square = np.array([[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]])
     part = building_walls([square], [12.0])
     assert part is not None
-    assert part.triangles == 8            # 4 walls x 2
+    tri = part.vertices.reshape(-1, 3, 3)
+    normal = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])
+    vertical = np.abs(normal[:, 2]) > 1e-6 * np.linalg.norm(normal, axis=1)
+    walls, cap = tri[~vertical], tri[vertical]
+    assert len(walls) == 8                         # 4 walls x 2
+    assert len(cap) >= 2                           # a roof, however drawn
     assert part.vertices[:, 2].max() == pytest.approx(12.0)
     assert part.vertices[:, 2].min() == pytest.approx(0.0)
+    # Outward: each wall's normal points away from the footprint centre.
+    centre = np.array([5.0, 5.0, 6.0])
+    outward = np.einsum("ij,ij->i", normal[~vertical],
+                        walls.mean(axis=1) - centre)
+    assert (outward > 0.0).all()
+    # And the cap faces up, not into the building.
+    assert (normal[vertical][:, 2] > 0.0).all()
 
 
 def test_a_short_building_is_skipped():
@@ -64,7 +81,12 @@ def test_buildings_outside_the_box_are_skipped():
     far = near + 5000.0
     part = building_walls([near, far], [10.0, 10.0],
                           box=(-100.0, -100.0, 100.0, 100.0))
-    assert part.triangles == 8            # only the near one
+    alone = building_walls([near], [10.0])
+    # Only the near one: the same geometry as drawing it by itself, and
+    # nothing anywhere near +5000.  Not a triangle count, which changed
+    # when buildings gained a roof and would change again with a gable.
+    assert part.triangles == alone.triangles
+    assert part.vertices[:, :2].max() < 100.0
 
 
 def test_the_markers_follow_the_course_at_a_spacing():

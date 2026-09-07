@@ -78,7 +78,7 @@ class HavelockField:
     """Free-surface elevation radiated by a thin-ship source sheet."""
 
     def __init__(self, offsets, stations: int = 81, levels: int = 21,
-                 angles: int = 240, decay_cutoff: float = 25.0):
+                 angles: int = 4000, decay_cutoff: float = 12.0):
         from .michell import elliptical_offsets
 
         self.offsets = offsets
@@ -118,33 +118,64 @@ class HavelockField:
 
     def elevation(self, east, north, speed: float,
                   scale: float = 1.0) -> np.ndarray:
-        """Wave elevation on a grid, in the **boat frame**, unscaled.
+        """Wave elevation on a grid, in the **boat frame**.
 
         ``east`` along the hull (positive forward, origin amidships),
-        ``north`` across.  Returns ``(len(north), len(east))``.  The
-        result is ``scale`` times the raw integral; see
-        :func:`closure_scale` for what ``scale`` should be.
+        ``north`` across.  Returns ``(len(north), len(east))`` times
+        ``scale``; see :func:`closure_scale` for what ``scale`` is.
+
+        **The quadrature has to resolve the phase, and the first version
+        did not.**  The integrand carries ``sin(k0 lam s)`` with ``s`` the
+        distance astern, which at forty metres and lam ~ 18 is 360 rad --
+        and 240 points in ``u`` put over five radians between samples at
+        the high end.  Under-resolved, the oscillations that are supposed
+        to cancel outside the Kelvin wedge do not, and the pattern came
+        out filling a 48 degree half-angle instead of 19.47.  It is the
+        same aliasing :meth:`MichellWave.resistance` warns about for its
+        station grid, arriving through the other variable.
+
+        Four thousand points fixes it, and it is affordable because the
+        sum separates.  For any point astern of the whole hull every
+        station is behind it, the radiation-condition Heaviside is
+        satisfied outright, and the x-dependence collapses to one complex
+        exponential per lambda: the field is an (X x L) by (L x Y)
+        product.  Only the strip alongside the hull, where some stations
+        are ahead and some behind, needs the explicit loop.
         """
         east = np.asarray(east, dtype=float)
         north = np.asarray(north, dtype=float)
         k0, lam, weight = self._quadrature(speed)
-        # Depth-integrated strength of each station at each lambda.
         decay = np.exp(np.clip(k0 * lam[:, None] ** 2 * self.level[None, :],
-                               -700.0, 0.0))                # (L, Z)
+                               -700.0, 0.0))                       # (L, Z)
         strength = np.einsum("lz,xz->lx", decay, self.slope) \
-            * self._dz                                       # (L, X)
-        across = np.cos(k0 * lam[:, None] * np.sqrt(lam[:, None] ** 2 - 1.0)
-                        * north[None, :])                    # (L, Y)
+            * self._dz * self._dx                                  # (L, X)
+        across = np.cos(k0 * lam[:, None]
+                        * np.sqrt(np.maximum(lam[:, None] ** 2 - 1.0, 0.0))
+                        * north[None, :])                          # (L, Y)
         out = np.zeros((len(north), len(east)))
-        for e_index, xe in enumerate(east):
-            astern = self.station - xe                       # xi_i - x
+
+        # Astern of the stern: everything separates.
+        stern = float(self.station.min())
+        far = east < stern
+        if far.any():
+            # P(lam) = sum_i D_i exp(i k0 lam xi_i); eta ~ Im[P e^{-i k0 lam x}]
+            spectrum = np.einsum("lx,lx->l", strength,
+                                 np.exp(1j * k0 * lam[:, None]
+                                        * self.station[None, :]))  # (L,)
+            carrier = np.exp(-1j * k0 * lam[:, None] * east[None, far])  # (L, Xf)
+            along = (weight[:, None] * (spectrum[:, None] * carrier).imag)  # (L, Xf)
+            out[:, far] = across.T @ along                            # (Y, Xf)
+
+        # Alongside the hull: the Heaviside decides station by station.
+        near = ~far
+        for e_index in np.nonzero(near)[0]:
+            astern = self.station - east[e_index]
             behind = astern > 0.0
             if not behind.any():
                 continue
-            phase = np.sin(k0 * lam[:, None] * astern[None, behind])  # (L, Xb)
-            along = np.einsum("lx,lx->l", strength[:, behind], phase) \
-                * self._dx                                   # (L,)
-            out[:, e_index] = (weight * along) @ across      # (Y,)
+            phase = np.sin(k0 * lam[:, None] * astern[None, behind])
+            along = np.einsum("lx,lx->l", strength[:, behind], phase)
+            out[:, e_index] = (weight * along) @ across
         return scale * out
 
 

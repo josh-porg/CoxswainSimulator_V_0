@@ -1,4 +1,12 @@
-r"""Bake the hull's near-field surface disturbance, once, for the trainer.
+r"""Bake the hull's surface disturbance, once, for the trainer.
+
+Two fields per shell.  The **near field** -- pile-up at the stem and
+drawdown along the midbody -- from :mod:`coxswain.hydro.nearfield`, one
+texture scaled by ``U^2/g`` at run time.  The **wave field** -- the
+Kelvin pattern the hull radiates -- from :mod:`coxswain.hydro.havelock`,
+a stack of slices in speed because its wavelengths change with speed.
+Together they are the hull's whole disturbance from one source sheet and
+one Green's function, and they replace the hand-built wedge.
 
     python tools/bake_nearfield.py
 
@@ -68,6 +76,25 @@ def main(argv=None):
         shells["%s_north" % name] = north.astype(np.float32)
         shells["%s_field" % name] = field.astype(np.float32)
         shells["%s_length" % name] = np.float32(boat.length)
+
+        # The radiated wave pattern, from the free-surface Green's
+        # function, over a set of speeds.  Unlike the near field it does
+        # not scale as U^2/g -- k0 = g/U^2 sets every wavelength -- so it
+        # is stored as slices and interpolated in speed at run time.
+        from coxswain.hydro.havelock import bake_wave
+
+        speeds, w_east, w_north, waves, scales = bake_wave(boat)
+        print("   wave field: %d speeds %.1f..%.1f m/s, %dx%d each; closure "
+              "scale %.3f..%.3f; at 4.5 m/s %+.3f..%+.3f m"
+              % (len(speeds), speeds[0], speeds[-1], len(w_east),
+                 len(w_north), scales.min(), scales.max(),
+                 waves[np.argmin(np.abs(speeds - 4.5))].min(),
+                 waves[np.argmin(np.abs(speeds - 4.5))].max()))
+        shells["%s_wave_speeds" % name] = speeds.astype(np.float32)
+        shells["%s_wave_east" % name] = w_east.astype(np.float32)
+        shells["%s_wave_north" % name] = w_north.astype(np.float32)
+        shells["%s_wave" % name] = waves.astype(np.float32)
+        shells["%s_wave_scale" % name] = scales.astype(np.float32)
 
     target = os.path.join(os.path.dirname(os.path.dirname(
         os.path.abspath(__file__))), args.out)
