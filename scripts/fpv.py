@@ -392,6 +392,70 @@ def look_at(eye, target, up):
     return matrix
 
 
+class FreeCamera:
+    """A camera flown by hand, for looking at the course rather than rowing.
+
+    Checking whether a bridge's piers are where the survey says, or
+    whether the terrain reaches the water, means getting an eye to that
+    spot -- and from the seat that costs a row up the course at racing
+    speed with the crew in the way.  This detaches the eye from the boat
+    entirely.
+
+    Yaw and pitch in radians, position in world metres.  Deliberately a
+    plain fly-camera with no collision and no gravity: it is an
+    inspection tool, and every constraint it grew would be one more
+    thing between the eye and the thing being looked at.
+    """
+
+    #: Metres per second, and what the shift key multiplies it by.
+    SPEED = 26.0
+    SPRINT = 6.0
+    LOOK = 0.0022
+
+    def __init__(self, eye, yaw: float = 0.0, pitch: float = 0.0):
+        self.eye = np.asarray(eye, dtype=float).copy()
+        self.yaw = float(yaw)
+        self.pitch = float(pitch)
+
+    def forward(self):
+        return np.array([np.cos(self.pitch) * np.cos(self.yaw),
+                         np.cos(self.pitch) * np.sin(self.yaw),
+                         np.sin(self.pitch)])
+
+    def turn(self, dx: float, dy: float) -> None:
+        self.yaw -= dx * self.LOOK
+        self.pitch = float(np.clip(self.pitch - dy * self.LOOK,
+                                   -1.55, 1.55))
+
+    def move(self, keys, dt: float, pygame) -> None:
+        ahead = self.forward()
+        flat = np.array([ahead[0], ahead[1], 0.0])
+        norm = float(np.linalg.norm(flat))
+        flat = flat / norm if norm > 1e-9 else np.array([1.0, 0.0, 0.0])
+        left = np.array([-flat[1], flat[0], 0.0])
+
+        step = self.SPEED * dt
+        if keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]:
+            step *= self.SPRINT
+        if keys[pygame.K_w]:
+            self.eye += ahead * step
+        if keys[pygame.K_s]:
+            self.eye -= ahead * step
+        if keys[pygame.K_a]:
+            self.eye += left * step
+        if keys[pygame.K_d]:
+            self.eye -= left * step
+        if keys[pygame.K_e]:
+            self.eye[2] += step
+        if keys[pygame.K_q]:
+            self.eye[2] -= step
+
+    def view(self):
+        """``(eye, target, up)``, the same shape :func:`seat_camera` gives."""
+        return (self.eye.copy(), self.eye + self.forward(),
+                np.array([0.0, 0.0, 1.0]))
+
+
 def seat_camera(state, boat, sway: float = 1.0, look=None):
     """``(eye, target, up)`` for whoever is looking out of the boat.
 
@@ -656,6 +720,11 @@ def main(argv=None):
     parser.add_argument("--boat", default="4+",
                         choices=("4+", "8+", "2x", "1x"))
     parser.add_argument("--rate", type=float, default=30.0)
+    parser.add_argument("--samples", type=int, default=4,
+                        help="multisample anti-aliasing; 0 turns it off")
+    parser.add_argument("--freecam", action="store_true",
+                        help="fly the camera around the course instead of "
+                             "sitting in the boat")
     parser.add_argument("--no-menu", action="store_true",
                         help="skip the setup menu and use the flags")
     parser.add_argument("--physics", type=float, default=100.0)
@@ -772,6 +841,7 @@ def main(argv=None):
     steers_with_rudder = boat.rig.has_coxswain
     looking_ahead = False
     showing_controls = False
+    freecam = None
 
     course = scene.course
     station = np.concatenate([[0.0], np.cumsum(
@@ -790,6 +860,13 @@ def main(argv=None):
 
     loop = FixedStepLoop(simulator, rate=args.physics)
     loop.start(fresh_state())
+    if args.freecam:
+        # Started here rather than with the rest of the loop state:
+        # fresh_state is defined just above, and reaching for it earlier
+        # is an unbound local -- the third time that exact shape of
+        # mistake has been made in this file.
+        _eye, _target, _up = seat_camera(fresh_state(), boat)
+        freecam = FreeCamera(_eye + np.array([0.0, 0.0, 6.0]), pitch=-0.15)
 
     # The stroke, out loud.  From the bow of a four you cannot see the
     # blades go in, and without the catch there is nothing in the seat
@@ -818,10 +895,42 @@ def main(argv=None):
         pygame.display.gl_set_attribute(
             pygame.GL_CONTEXT_PROFILE_MASK,
             pygame.GL_CONTEXT_PROFILE_CORE)
+        # Multisampling.  Nearly everything in this scene is a long
+        # near-horizontal edge -- the gunwale, the oar looms, the far
+        # bank, the bridge chords -- and those are the worst case for
+        # aliasing: a one-pixel-wide edge crawling as the boat yaws.
+        # MSAA is asked for on the framebuffer rather than done in a
+        # shader because the driver does it for free on the edges, which
+        # is exactly where the problem is.  Requested, not required: if
+        # the Intel UHD part will not give 4 samples, the context still
+        # comes up (see the fallback below) rather than failing to start
+        # on the one machine this has to run on.
+        if args.samples > 0:
+            pygame.display.gl_set_attribute(
+                pygame.GL_MULTISAMPLEBUFFERS, 1)
+            pygame.display.gl_set_attribute(
+                pygame.GL_MULTISAMPLESAMPLES, int(args.samples))
         pygame.display.set_caption("%s -- the seat" % scene.name)
-        screen = pygame.display.set_mode((args.width, args.height),
-                                         pygame.OPENGL | pygame.DOUBLEBUF)
+        try:
+            screen = pygame.display.set_mode((args.width, args.height),
+                                             pygame.OPENGL | pygame.DOUBLEBUF)
+        except pygame.error:
+            # No multisample visual: drop it and take the jaggies rather
+            # than not starting.
+            pygame.display.gl_set_attribute(pygame.GL_MULTISAMPLEBUFFERS, 0)
+            pygame.display.gl_set_attribute(pygame.GL_MULTISAMPLESAMPLES, 0)
+            screen = pygame.display.set_mode((args.width, args.height),
+                                             pygame.OPENGL | pygame.DOUBLEBUF)
         ctx = moderngl.create_context()
+        got = pygame.display.gl_get_attribute(pygame.GL_MULTISAMPLESAMPLES)
+        if got:
+            ctx.enable(moderngl.DEPTH_TEST)
+            try:
+                ctx.multisample = True
+            except Exception:
+                pass
+        print("   %dx multisampling" % got if got
+              else "   no multisampling available")
         target = ctx.screen
 
     ctx.enable(moderngl.DEPTH_TEST | moderngl.CULL_FACE)
@@ -952,9 +1061,12 @@ def main(argv=None):
         the previous frame was, so a catch can be detected by the wrap."""
         # Facing astern in a scull, unless you are looking over your
         # shoulder to see where you are going.
-        _seat, _height, facing = viewpoint(boat)
-        look = -facing if looking_ahead else facing
-        eye, target_point, up = seat_camera(state, boat, look=look)
+        if freecam is not None:
+            eye, target_point, up = freecam.view()
+        else:
+            _seat, _height, facing = viewpoint(boat)
+            look = -facing if looking_ahead else facing
+            eye, target_point, up = seat_camera(state, boat, look=look)
         view = look_at(eye, target_point, up)
         program["mvp"].write((projection @ view).T.tobytes(order="C"))
         program["eye"].value = tuple(float(v) for v in eye)
@@ -1079,12 +1191,24 @@ def main(argv=None):
                 if event.key == pygame.K_ESCAPE:
                     menu = pause_menu(rate=args.rate, wind=args.wind)
                     paused = True
-                elif event.key == pygame.K_q:
+                elif event.key == pygame.K_q and freecam is None:
                     running = False
                 elif event.key == pygame.K_SPACE:
                     paused = not paused
                 elif event.key == pygame.K_c:
                     rudder = 0.0
+                elif event.key == pygame.K_F1:
+                    # Detach the eye from the boat, and put it back.
+                    if freecam is None:
+                        here, _t, _u = seat_camera(loop.pose(), boat)
+                        freecam = FreeCamera(here + np.array([0.0, 0.0, 4.0]),
+                                             pitch=-0.12)
+                        pygame.mouse.set_visible(False)
+                        pygame.event.set_grab(True)
+                    else:
+                        freecam = None
+                        pygame.event.set_grab(False)
+                        pygame.mouse.set_visible(args.control != "mouse")
                 elif event.key == pygame.K_v:
                     # Over the shoulder.  In a scull this is the only
                     # way to see where you are going; in a coxed boat it
@@ -1104,7 +1228,14 @@ def main(argv=None):
                     rudder = split = 0.0
 
         keys = pygame.key.get_pressed()
-        if args.control == "mouse":
+        if freecam is not None:
+            # The flying camera takes the whole keyboard and the mouse:
+            # WASD share letters with the steering and the pressure
+            # split, so they cannot both be live.
+            freecam.move(keys, frame, pygame)
+            dx, dy = pygame.mouse.get_rel()
+            freecam.turn(float(dx), float(dy))
+        elif args.control == "mouse":
             offset = (pygame.mouse.get_pos()[0] - args.width * 0.5) \
                 / (args.width * MOUSE_SPAN * 0.5)
             rudder = float(np.clip(offset, -1.0, 1.0)) * RUDDER_LIMIT
@@ -1114,7 +1245,7 @@ def main(argv=None):
             if turn:
                 rudder = float(np.clip(rudder + turn * RUDDER_RATE * frame,
                                        -RUDDER_LIMIT, RUDDER_LIMIT))
-        press = keys[pygame.K_e] - keys[pygame.K_w]
+        press = 0 if freecam is not None else             keys[pygame.K_e] - keys[pygame.K_w]
         if press:
             split = float(np.clip(split + press * SPLIT_RATE * frame,
                                   -SPLIT_LIMIT, SPLIT_LIMIT))
@@ -1166,7 +1297,10 @@ def main(argv=None):
                     clock.get_fps()),
                  # Nobody guesses this, and without it the pause menu
                  # and everything in it may as well not exist.
-                 "Esc menu    V look astern    Space freeze"]
+                 ("F1 free camera    Esc menu    V look astern"
+                  if freecam is None else
+                  "FREE CAMERA  WASD move  QE down/up  shift fast  "
+                  "F1 back to the boat")]
         if menu is not None or showing_controls:
             if showing_controls:
                 draw_controls(overlay, font, font,
