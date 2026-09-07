@@ -79,14 +79,19 @@ def synthesise_ambient(wind_speed: float, seed: int = 7):
     when = 0.0
     while when < AMBIENT_SECONDS:
         start = int(when * RATE)
-        length = int(RATE * rng.uniform(0.5, 1.1))
+        length = int(RATE * rng.uniform(1.2, 2.6))
         ramp = np.linspace(0.0, 1.0, length)
         shape = np.sin(np.pi * ramp) ** 1.6 * rng.uniform(0.4, 1.0)
         stop = min(start + length, n)
         envelope[start:stop] = np.maximum(envelope[start:stop],
                                           shape[:stop - start])
-        when += rng.uniform(0.6, 1.6)
-    wash *= envelope * (0.10 + 0.22 * breeze)
+        # Slow and irregular, deliberately.  The first version washed
+        # every 0.6-1.6 s, which is a stroke rate, and under a crew at
+        # 30 it was heard as more stroke -- a second set of blades going
+        # in.  Water at a bank is a longer, lazier thing than that, and
+        # it never keeps time.
+        when += rng.uniform(1.8, 4.5)
+    wash *= envelope * (0.05 + 0.13 * breeze)
 
     gull = np.zeros(n)
     for _ in range(int(rng.integers(1, 3))):
@@ -111,8 +116,16 @@ def synthesise_ambient(wind_speed: float, seed: int = 7):
     ramp = np.linspace(0.0, 1.0, fade)
     cross = mix[-fade:] * (1.0 - ramp) + mix[:fade] * ramp
     loop = np.concatenate([mix[fade:-fade], cross])
-    peak = float(np.max(np.abs(loop)))
-    return loop / max(peak, 1e-9) * 0.9
+    # Levelled to a target RMS that follows the breeze, NOT to the peak.
+    # Peak-normalising each loop threw the absolute gains away: a dead
+    # calm came out within a decibel of a fresh breeze, because both
+    # were scaled to the same peak and only their spectra differed.
+    # The gains above set the balance between the layers; this sets
+    # how loud the whole thing is, and a calm is meant to be quiet.
+    target = 0.035 + 0.16 * breeze ** 1.2
+    rms = float(np.sqrt(np.mean(loop * loop)))
+    loop = loop * (target / max(rms, 1e-9))
+    return np.clip(loop, -0.95, 0.95)
 
 
 class AmbientAudio:

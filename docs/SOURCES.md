@@ -9577,3 +9577,29 @@ or two is gone inside an eight, a ten-metre swell is dented, twenty
 metres passes untouched, and a single, half the length, breaks up
 less. The previous version damped everything alike, which had a swell
 vanishing under the hull as if the boat were a breakwater.
+
+## 143. Four things a coxswain saw
+
+* **Back from Weather crashed the game.** The setup menu is rebuilt
+  from its own remembered settings on the way back, and it looked there
+  for a wind it no longer carries -- wind had moved to the weather menu.
+  A `KeyError` on every exit. The launch test now walks Weather, turns
+  the wind up, comes Back, and pushes off.
+* **The bow sheet ended in a flat edge.** It was measured outboard from
+  a constant half-beam, so it was a band of full width right up to the
+  stem, where the hull is a point. It is measured from the waterline
+  `b(x)` now, narrows with the hull and closes to the stem, with the
+  tuft ahead of the stem taken radially from the stem point so the
+  front is round -- the V a real bow wave makes.
+* **The lapping was heard as stroke.** It washed every 0.6–1.6 s, which
+  is a stroke rate, and under a crew at 30 it sounded like a second set
+  of blades going in. Water at a bank is slower and never keeps time:
+  1.8–4.5 s, quieter. And the loop is levelled to a target RMS that
+  follows the breeze rather than to its peak; peak-normalising had put
+  a dead calm within a decibel of a fresh breeze.
+* **The starboard blades feathered upside down.** The roll turned the
+  same way on both sides while the dish's sign flips between them, so
+  one side came round hollow-to-the-sky and the other hollow-to-the-
+  water. The roll turns with the dish's sign now, and a test holds
+  every blade in an eight hollow-up on the feather and hollow-astern on
+  the drive.

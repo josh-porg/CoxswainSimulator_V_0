@@ -136,3 +136,49 @@ def test_loading_screen_repaints_and_reports_failure(dummy_video):
             fpv.run_loading(dummy_video, "Building", explode)
     finally:
         pygame.display.flip = original
+
+
+def test_weather_and_back_do_not_crash_the_setup_menu(dummy_video):
+    """Open Weather from the setup menu, come Back, then push off.
+
+    "Back" from the weather menu crashed the game: the setup menu is
+    rebuilt from its own remembered settings, and it looked there for a
+    wind it no longer carries -- wind had moved to the weather menu --
+    so every exit from Weather was a KeyError.  This walks that exact
+    path by key, so the row order can change without the test lying.
+    """
+    import fpv
+    from coxswain.viz.menu import setup_menu, weather_menu
+
+    args = fpv.main.__globals__["argparse"].Namespace(
+        boat="4+", race="charles", rate=30.0, wind=5.0, audio="full",
+        quality="standard", weather="hazy", no_sound=True)
+
+    def rows_of(menu):
+        return [row.key for row in menu.rows]
+
+    def press(key):
+        pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=key))
+
+    # Down to "Weather", Enter.
+    for _ in range(rows_of(setup_menu()).index("weather")):
+        press(pygame.K_DOWN)
+    press(pygame.K_RETURN)
+    # Down to "Wind", turn it up one, then down to "Back", Enter.
+    weather_rows = rows_of(weather_menu())
+    for _ in range(weather_rows.index("wind")):
+        press(pygame.K_DOWN)
+    press(pygame.K_RIGHT)
+    for _ in range(weather_rows.index("back") - weather_rows.index("wind")):
+        press(pygame.K_DOWN)
+    press(pygame.K_RETURN)
+    # Back on the setup menu: down to "Push off", Enter.
+    for _ in range(rows_of(setup_menu()).index("start")):
+        press(pygame.K_DOWN)
+    press(pygame.K_RETURN)
+
+    picked = fpv.run_setup_menu(dummy_video, args)
+    assert picked is not None, "the menu should have started, not died"
+    assert picked["boat"] == "4+" and picked["race"] == "charles"
+    # And the wind the weather menu set survived the trip.
+    assert args.wind == 6.0

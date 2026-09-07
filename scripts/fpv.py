@@ -947,13 +947,28 @@ float waterline_foam(vec2 p) {
     hull_frame(p, along, across);
     float half_len = 0.5 * hull_length;
     float half_beam = 0.5 * hull_beam;
-    float out_across = abs(across) - half_beam;
-    if (along < -0.5 * half_len || along > half_len + 0.9
-     || out_across > 0.75 || out_across < -0.3) return 0.0;
+    if (along < -0.5 * half_len || along > half_len + 1.5) return 0.0;
 
-    // Half-breadth slope of a parabolic waterline, |b'(x)| = 2 b x / L^2,
-    // taken over the forward half of the hull where the entry is.
+    // The waterline itself, b(x) = b0 (1 - (x/L)^2): the sheet sits
+    // just outboard of THAT, not of a constant half-beam.  Measured
+    // from the constant, the sheet was a band of full width right up to
+    // the stem -- where the hull is a point -- and stopped there in a
+    // flat edge.  Measured from the waterline it narrows with the hull
+    // and closes to the stem: the V a real bow wave makes.  Ahead of
+    // the stem the distance is taken from the stem point itself, so
+    // the tuft there is round, not a lid.
     float x = clamp(along, 0.0, half_len) / half_len;
+    float waterline = half_beam * (1.0 - x * x);
+    float out_across;
+    if (along > half_len) {
+        out_across = length(vec2(along - half_len, across));
+    } else {
+        out_across = abs(across) - waterline;
+    }
+    if (out_across > 0.9 || out_across < -0.3) return 0.0;
+
+    // Half-breadth slope of that waterline, |b'(x)| = 2 b x / L^2,
+    // over the forward half of the hull where the entry is.
     float slope = 2.0 * half_beam * x / half_len;
     float head = (speed * slope) * (speed * slope) / (2.0 * 9.80665);
     // Normalised against a shell at race pace so the visual amplitude
@@ -973,8 +988,14 @@ float waterline_foam(vec2 p) {
     // The sheet hugs the side.  Its lateral reach is the run-up head
     // itself -- centimetres -- plus what the breaking throws, so it is
     // a line of broken water along the entry and a tuft at the stem.
-    float reach = 0.12 + 0.10 * sheet + 0.25 * at_stem * (max(run_up, 0.0) + plunge);
+    // The reach opens out aft of the stem as the sheet spreads, which
+    // with the waterline narrowing forward is what makes the point.
+    float spread = smoothstep(0.0, 3.5, half_len - along);
+    float reach = (0.05 + 0.12 * spread) + 0.10 * sheet
+                + 0.25 * at_stem * (max(run_up, 0.0) + plunge);
     float band = exp(-max(out_across, 0.0) / reach);
+    // And the sheet fades aft rather than being cut off.
+    band *= 1.0 - smoothstep(-0.2 * half_len, -0.5 * half_len, along);
 
     // Streaks, carried aft at the flow speed: the whitewater slides
     // past the hull, which is the single strongest cue that it is water
@@ -1724,10 +1745,16 @@ def run_setup_menu(screen, args):
                                       ("wind", "wind")):
                         if key in picked:
                             setattr(args, name, picked[key])
-                    menu = setup_menu(boat=chosen["boat"],
-                                      course=chosen["race"],
-                                      rate=chosen["rate"],
-                                      wind=chosen["wind"])
+                    # ``chosen`` is the setup menu's own settings, and wind
+                    # is no longer one of them -- it lives on the weather
+                    # menu -- so it comes from args, which the weather
+                    # menu has just written.  Reading it from ``chosen``
+                    # was a KeyError on every "Back", which is to say the
+                    # weather menu crashed the game on the way out.
+                    menu = setup_menu(boat=chosen.get("boat", args.boat),
+                                      course=chosen.get("race", args.race),
+                                      rate=chosen.get("rate", args.rate),
+                                      wind=args.wind)
                     continue
                 if action == "start":
                     # NOT stopped here: the world takes half a minute to

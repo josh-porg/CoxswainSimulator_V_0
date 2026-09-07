@@ -1097,6 +1097,30 @@ def _blade_surface(root, tip, edge, normal, colour=BLADE):
     return MeshPart("blade", vertices, colours, _face_normals(vertices))
 
 
+def blade_frame(axis, rim, lie, toward_bow, roll):
+    """``(edge, dish)`` of a blade rolled ``roll`` of the way to the feather.
+
+    ``rim`` runs across the blade and points up when squared, ``lie`` is
+    the horizontal across-blade direction, and ``toward_bow`` is the
+    sign that puts the dish's back toward the bow on the drive -- which
+    differs between the two sides of the boat, because a port and a
+    starboard oar point opposite ways.
+
+    The roll turns with that same sign.  It used to turn the same way
+    on both sides, and since the dish sign flips between them, one
+    side feathered with its hollow to the sky and the other with its
+    hollow to the water: the starboard blades feathered upside down.
+    Feathered, the hollow faces up on both sides -- the way every rower
+    carries a blade on the recovery -- which is what the test holds.
+    """
+    axis = np.asarray(axis, dtype=float)
+    angle = 0.5 * np.pi * float(roll)
+    edge = (np.asarray(rim, dtype=float) * np.cos(angle)
+            + np.asarray(lie, dtype=float) * np.sin(angle) * float(toward_bow))
+    dish = float(toward_bow) * np.cross(axis, edge)
+    return edge, dish
+
+
 def oar_solids(boat, t):
     """Both looms and both blades of every oar, in the hull frame.
 
@@ -1144,9 +1168,7 @@ def oar_solids(boat, t):
         # Squared the blade hangs DOWN into the water: width vertical,
         # face along the pull.  Feathered it lies flat: width
         # horizontal, face at the sky.
-        angle = 0.5 * np.pi * roll
-        edge = rim * np.cos(angle) + lie * np.sin(angle)
-        normal = toward_bow * np.cross(axis, edge)
+        edge, normal = blade_frame(axis, rim, lie, toward_bow, roll)
         built = _blade_surface(blade - axis * 0.52, blade, edge, normal)
         if built is not None:
             parts.append(built)
