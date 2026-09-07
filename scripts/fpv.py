@@ -170,9 +170,22 @@ NEAR_FRACTION = 0.30
 #: (the wake, the near field, the puddles) vary slowly compared with the
 #: cell size and are still interpolated from the vertices.
 WATER_SLOPE_GLSL = """
-uniform vec4 waves[8];
-uniform float time;
 const float SLOPE_G = 9.80665;
+
+//: How far from the boat the surface is differentiated per pixel, m.
+//:
+//: Inside this the whole surface -- chop, wake, near field and puddles
+//: -- is evaluated three times a fragment and differenced.  That is the
+//: water a coxswain actually inspects, a few metres either side of the
+//: hull, and it is where the fast-varying parts live: a puddle is under
+//: a metre across and the near field is baked at 0.13 m, both far finer
+//: than the 0.19 m cells there, so interpolating THEIR slope from the
+//: vertices left the mesh visible however good the chop had become.
+//:
+//: Outside it the baked parts are smooth against a cell and the
+//: interpolated slope is indistinguishable, so only the chop is done
+//: exactly and the cost falls away with distance.
+const float EXACT_WITHIN = 16.0;
 
 vec2 sea_slope(vec2 p) {
     vec2 g = vec2(0.0);
@@ -190,18 +203,27 @@ vec2 sea_slope(vec2 p) {
 }
 
 vec3 water_normal(vec3 world, vec2 baked_slope) {
-    vec2 g = sea_slope(world.xy) + baked_slope;
+    vec2 g;
+    if (distance(world.xy, boat.xy) < EXACT_WITHIN) {
+        // Differenced at a step finer than the cells, so the answer is
+        // the surface's slope and not the mesh's.
+        float e = 0.05, junk;
+        float h  = surface(world.xy, junk);
+        float hx = surface(world.xy + vec2(e, 0.0), junk);
+        float hy = surface(world.xy + vec2(0.0, e), junk);
+        g = vec2((hx - h) / e, (hy - h) / e);
+    } else {
+        g = sea_slope(world.xy) + baked_slope;
+    }
     return normalize(vec3(-g.x, -g.y, 1.0));
 }
 """
 
 
-WATER_VERTEX = """#version 330
-in vec2 in_grid;
-out vec3 v_world;
-out vec3 v_normal;
-out vec2 v_slope;
-out float v_foam;
+#: Uniforms describing the surface, shared by both shader stages.
+#: Declared once so the vertex and the fragment cannot disagree about
+#: what the water is.
+WATER_UNIFORMS_GLSL = """
 uniform mat4 mvp;
 uniform vec2 centre;          // the patch follows the boat
 uniform vec4 waves[8];        // amplitude, wavenumber, direction, phase
@@ -221,7 +243,12 @@ uniform vec2 near_hi;
 uniform vec2 near_size;       // samples in the baked grid
 uniform float wind_to;        // bearing the wind blows toward
 uniform float time;
+"""
 
+#: The surface itself.  Spliced into the vertex shader, which displaces
+#: the grid by it, and into the fragment shaders, which differentiate it
+#: per pixel near the boat.
+WATER_SURFACE_GLSL = """
 const float G = 9.80665;
 
 // The sea: a sum of components, each a solution of the linearised free
@@ -351,7 +378,15 @@ float surface(vec2 p, out float foam) {
     return sea(p, time) * shelter(p)
          + wake(p) + near_field(p) + puddle(p, foam);
 }
+"""
 
+WATER_VERTEX = """#version 330
+in vec2 in_grid;
+out vec3 v_world;
+out vec3 v_normal;
+out vec2 v_slope;
+out float v_foam;
+""" + WATER_UNIFORMS_GLSL + WATER_SURFACE_GLSL + """
 void main() {
     vec2 p = in_grid + centre;
     float foam;
@@ -381,6 +416,7 @@ in vec3 v_world;
 in vec3 v_normal;
 in vec2 v_slope;
 in float v_foam;
+__WATER_SHARED__
 out vec4 f_colour;
 uniform vec3 sun;
 uniform vec3 sky;
@@ -421,6 +457,7 @@ in vec3 v_world;
 in vec3 v_normal;
 in vec2 v_slope;
 in float v_foam;
+__WATER_SHARED__
 out vec4 f_colour;
 uniform vec3 sun;
 uniform vec3 sky;
@@ -434,7 +471,6 @@ uniform float near_plane;
 uniform float far_plane;
 uniform float refract_scale;
 uniform int reflect_steps;
-uniform mat4 mvp;
 __WATER_SLOPE__
 
 float linear_depth(float raw) {
@@ -547,9 +583,12 @@ void main() {
 
 # The shared slope code goes into both fragment shaders.  Done here
 # rather than by hand in each so the two cannot drift apart.
-WATER_FRAGMENT = WATER_FRAGMENT.replace("__WATER_SLOPE__", WATER_SLOPE_GLSL)
-WATER_FRAGMENT_RICH = WATER_FRAGMENT_RICH.replace("__WATER_SLOPE__",
-                                                  WATER_SLOPE_GLSL)
+for _name in ("WATER_FRAGMENT", "WATER_FRAGMENT_RICH"):
+    _text = globals()[_name]
+    _text = _text.replace("__WATER_SHARED__",
+                          WATER_UNIFORMS_GLSL + WATER_SURFACE_GLSL)
+    globals()[_name] = _text.replace("__WATER_SLOPE__", WATER_SLOPE_GLSL)
+del _name, _text
 
 
 def water_grid(reach: float = WATER_REACH,
@@ -1185,36 +1224,53 @@ def main(argv=None):
     ctx.cull_face = "back"
 
     # The rich water shader reads the opaque scene, so it cannot be in
-    # the same pass as the thing it reads.  The world goes into
-    # `scene_fbo`; its colour is copied forward into `water_fbo`, which
-    # SHARES the depth texture so the water still depth-tests against
-    # the bank it is lapping; the water and the boat draw there, reading
-    # the untouched copy; and the result is blitted to the screen.
+    # the same pass as the thing it reads.
     #
-    # One real cost: these framebuffers are not multisampled, so the
-    # MSAA asked for on the default framebuffer does not apply on the
-    # richer settings.  Resolving a multisampled colour texture into a
-    # sampleable one is another pass again, and the aliasing it would
-    # fix is less obtrusive than the flat opaque water it replaces.
-    scene_fbo = water_fbo = None
-    scene_colour = scene_depth_tex = composed = None
+    # Everything draws into ONE multisampled buffer.  After the world is
+    # laid down, its colour and depth are resolved out into plain
+    # textures for the water to sample; the water and the boat then go
+    # on drawing into that same multisampled buffer, which still holds
+    # the world's depth, so the water tests against the bank it is
+    # lapping and composites over the shore for free.  The result is
+    # resolved to the screen at the end.
+    #
+    # A multisampled depth buffer cannot be read with texture() in
+    # GL 3.3, so the resolve was needed whatever happened; doing it this
+    # way also keeps the antialiasing, which the first version of this
+    # threw away by rendering the whole scene to plain textures.
+    scene_fbo = resolve_fbo = None
+    scene_colour = scene_depth_tex = None
     # Enabled headless too: --shot is how this gets looked at without a
     # person watching, and a water shader that cannot be screenshotted
     # cannot be checked.
     if rich_water:
         size = (args.width, args.height)
+        samples = max(int(args.samples), 0)
+        if samples > 0:
+            try:
+                scene_fbo = ctx.framebuffer(
+                    color_attachments=[ctx.renderbuffer(size, 3,
+                                                        samples=samples)],
+                    depth_attachment=ctx.depth_renderbuffer(
+                        size, samples=samples))
+            except Exception as error:
+                print("   no multisampled buffer (%s); water is aliased"
+                      % type(error).__name__)
+                samples = 0
+        if samples == 0:
+            scene_fbo = ctx.framebuffer(
+                color_attachments=[ctx.renderbuffer(size, 3)],
+                depth_attachment=ctx.depth_renderbuffer(size))
         scene_colour = ctx.texture(size, 3)
         scene_colour.filter = (moderngl.LINEAR, moderngl.LINEAR)
         scene_colour.repeat_x = scene_colour.repeat_y = False
         scene_depth_tex = ctx.depth_texture(size)
         scene_depth_tex.filter = (moderngl.NEAREST, moderngl.NEAREST)
         scene_depth_tex.repeat_x = scene_depth_tex.repeat_y = False
-        composed = ctx.texture(size, 3)
-        composed.filter = (moderngl.LINEAR, moderngl.LINEAR)
-        scene_fbo = ctx.framebuffer(color_attachments=[scene_colour],
-                                    depth_attachment=scene_depth_tex)
-        water_fbo = ctx.framebuffer(color_attachments=[composed],
-                                    depth_attachment=scene_depth_tex)
+        resolve_fbo = ctx.framebuffer(color_attachments=[scene_colour],
+                                      depth_attachment=scene_depth_tex)
+        print("   rich water on a %s buffer"
+              % ("%dx multisampled" % samples if samples else "plain"))
     program = ctx.program(vertex_shader=VERTEX_SHADER,
                           fragment_shader=FRAGMENT_SHADER)
     program["sun"].value = tuple(np.array([0.42, 0.30, 0.85])
@@ -1377,10 +1433,8 @@ def main(argv=None):
             # Carry the world forward into the buffer the water draws
             # into, so the water reads an untouched copy of what is
             # behind it rather than the surface it is drawing.
-            water_fbo.use()
-            scene_colour.use(SCENE_UNIT)
-            _opaque_blit(ctx, SCENE_UNIT)
-            scene_depth_tex.use(DEPTH_UNIT)
+            ctx.copy_framebuffer(resolve_fbo, scene_fbo)
+            scene_fbo.use()
         # The water goes on after the land, so the shore reads through it
         # at the edges and the patch does not have to be clipped.
         speed = float(np.hypot(state[6], state[7]))
@@ -1424,9 +1478,8 @@ def main(argv=None):
                 oar_vao.render(vertices=len(vertices))
         if scene_fbo is not None:
             # And out to the screen, so the HUD has something to sit on.
+            ctx.copy_framebuffer(target, scene_fbo)
             target.use()
-            composed.use(SCENE_UNIT)
-            _opaque_blit(ctx, SCENE_UNIT)
 
     draw.last_phase = 0.0
 
