@@ -2121,6 +2121,20 @@ def main(argv=None):
         pygame.display.gl_set_attribute(
             pygame.GL_CONTEXT_PROFILE_MASK,
             pygame.GL_CONTEXT_PROFILE_CORE)
+        if sys.platform == "darwin":
+            # macOS will not give you a 3.3 core profile unless you also
+            # ask for forward-compatible.  Ask for core alone and it
+            # hands back a 2.1 legacy context without complaining, and
+            # then every `#version 330` shader in this file fails to
+            # compile -- so the program dies at the first draw with a
+            # message about the shader rather than about the context,
+            # which sends you looking in the wrong place entirely.
+            #
+            # Apple's OpenGL is deprecated but present, and 4.1 is the
+            # ceiling.  Nothing here needs past 3.3.
+            pygame.display.gl_set_attribute(
+                pygame.GL_CONTEXT_FLAGS,
+                pygame.GL_CONTEXT_FORWARD_COMPATIBLE_FLAG)
         # Multisampling.  Nearly everything in this scene is a long
         # near-horizontal edge -- the gunwale, the oar looms, the far
         # bank, the bridge chords -- and those are the worst case for
@@ -2159,6 +2173,33 @@ def main(argv=None):
               else "   no multisampling available")
         target = ctx.screen
 
+    # How big the drawable actually is, in PIXELS.
+    #
+    # On a Retina display these are not the window's numbers.  A Mac
+    # asked for a 1280x720 window gives you a 1280x720 window measured
+    # in POINTS and a 2560x1440 drawable measured in pixels, and the
+    # default framebuffer is the drawable.  Size the offscreen buffers
+    # from the window and the water samples the scene at half scale,
+    # which puts the screen-space refraction and reflection lookups in
+    # the wrong place across the whole surface -- subtly wrong, and only
+    # on the machines nobody here can test on.
+    #
+    # So: pixels for anything that is a framebuffer or a viewport;
+    # points for the mouse and the HUD layout, which SDL reports in
+    # points and which therefore already agree with args.width.
+    draw_width, draw_height = args.width, args.height
+    if not headless:
+        try:
+            size = ctx.screen.size
+            if size and size[0] > 0 and size[1] > 0:
+                draw_width, draw_height = int(size[0]), int(size[1])
+        except Exception:                                # pragma: no cover
+            pass
+        if (draw_width, draw_height) != (args.width, args.height):
+            print("   drawable %dx%d for a %dx%d window (%.1fx scaling)"
+                  % (draw_width, draw_height, args.width, args.height,
+                     draw_width / float(args.width)))
+
     ctx.enable(moderngl.DEPTH_TEST | moderngl.CULL_FACE)
     ctx.cull_face = "back"
 
@@ -2183,7 +2224,7 @@ def main(argv=None):
     # person watching, and a water shader that cannot be screenshotted
     # cannot be checked.
     if rich_water:
-        size = (args.width, args.height)
+        size = (draw_width, draw_height)
         samples = max(int(args.samples), 0)
         if samples > 0:
             try:
@@ -2416,7 +2457,8 @@ def main(argv=None):
     if scene_fbo is not None:
         water_prog["scene"].value = SCENE_UNIT
         water_prog["scene_depth"].value = DEPTH_UNIT
-        water_prog["viewport"].value = (float(args.width), float(args.height))
+        water_prog["viewport"].value = (float(draw_width),
+                                        float(draw_height))
         water_prog["near_plane"].value = 0.25
         water_prog["far_plane"].value = float(FAR)
         # How hard the surface bends what is behind it, before the 1/range
@@ -2649,8 +2691,15 @@ def main(argv=None):
     clock = pygame.time.Clock()
     font = pygame.font.SysFont("consolas,dejavusansmono,monospace", 17)
     overlay = pygame.Surface((args.width, args.height), pygame.SRCALPHA)
+    # The HUD is laid out in POINTS, because that is what pygame's fonts
+    # and mouse coordinates are in, and it is then stretched over the
+    # drawable.  On a 1:1 display that stretch is the identity and
+    # NEAREST keeps the text pin-sharp; on a Retina display it is a 2x
+    # magnification, where NEAREST would give visibly blocky letters.
     hud_texture = ctx.texture((args.width, args.height), 4)
-    hud_texture.filter = (moderngl.NEAREST, moderngl.NEAREST)
+    _hud_smooth = (draw_width, draw_height) != (args.width, args.height)
+    hud_texture.filter = ((moderngl.LINEAR, moderngl.LINEAR) if _hud_smooth
+                          else (moderngl.NEAREST, moderngl.NEAREST))
     rudder, split, paused, running, frames = 0.0, 0.0, False, True, 0
     menu, restart_session = None, False
     if args.control == "mouse":

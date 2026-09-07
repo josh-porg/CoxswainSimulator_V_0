@@ -206,15 +206,41 @@ def main(argv=None):
     result = subprocess.run(command, cwd=ROOT)
     if result.returncode != 0:
         return result.returncode
-    where = os.path.join(ROOT, "dist",
-                         args.name if args.onedir else args.name + ".exe")
+    # What PyInstaller produced and what actually gets sent are not the
+    # same thing on every platform.
+    #
+    # On macOS a --windowed build writes BOTH dist/<name>/ and
+    # dist/<name>.app.  The bare folder cannot be launched by
+    # double-clicking -- macOS runs .app bundles -- so the bundle is the
+    # deliverable and the folder beside it is scaffolding.  And a README
+    # cannot go *inside* a bundle, because a bundle opens rather than
+    # browses, so there the deliverable is a plain folder holding the
+    # .app with the README next to it.
+    mac_bundle = (sys.platform == "darwin" and args.onedir
+                  and os.path.isdir(os.path.join(ROOT, "dist",
+                                                 args.name + ".app")))
+    if mac_bundle:
+        where = os.path.join(ROOT, "dist", args.name + "-mac")
+        if os.path.isdir(where):
+            shutil.rmtree(where)
+        os.makedirs(where)
+        shutil.move(os.path.join(ROOT, "dist", args.name + ".app"),
+                    os.path.join(where, args.name + ".app"))
+    else:
+        where = os.path.join(ROOT, "dist",
+                             args.name if args.onedir
+                             else args.name + (".exe" if os.name == "nt"
+                                               else ""))
 
     # The README ships *inside* the folder, so it has to be copied in
     # after PyInstaller has written it.  It lives in the repository
     # rather than being typed into dist/ by hand: the first copy was,
     # and a `rm -rf dist` erased it silently -- the zip would have gone
     # out with no instructions in it and nothing would have complained.
-    readme = os.path.join(ROOT, "packaging", "README.txt")
+    readme = os.path.join(ROOT, "packaging",
+                          "README-mac.txt" if mac_bundle else "README.txt")
+    if not os.path.exists(readme):
+        readme = os.path.join(ROOT, "packaging", "README.txt")
     if args.onedir and os.path.exists(readme):
         shutil.copy2(readme, os.path.join(where, "README.txt"))
         print("   README.txt copied in")
@@ -225,6 +251,12 @@ def main(argv=None):
     print("\nwrote %s" % where)
     if os.path.isfile(where):
         print("   %.0f MB" % (os.path.getsize(where) / 1e6))
+    elif os.path.isdir(where):
+        total = sum(os.path.getsize(os.path.join(base, name))
+                    for base, _dirs, files in os.walk(where)
+                    for name in files
+                    if not os.path.islink(os.path.join(base, name)))
+        print("   %.0f MB" % (total / 1e6))
     print("Hand that to anyone; it needs no Python.")
     return 0
 

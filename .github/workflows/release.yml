@@ -1,0 +1,118 @@
+# Build the trainer for Windows and macOS, and attach both to a release.
+#
+# WHY THIS EXISTS
+# ---------------
+# PyInstaller does not cross-compile.  It works by bundling the running
+# interpreter and the actual binary extension modules from the machine
+# it is on, so a macOS build has to happen on a macOS machine.  There is
+# no Mac here, and GitHub gives free runners for public repositories, so
+# the Mac build happens there.
+#
+# Both platforms build from the SAME tag and the same pinned
+# requirements, so the two downloads can only differ by platform.
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build and upload to"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: windows
+            artifact: Coxswain
+          # macos-13 is the last Intel runner; macos-14 and later are
+          # Apple Silicon.  Built on Intel deliberately: an x86_64 build
+          # runs on Apple Silicon through Rosetta 2, but an arm64 build
+          # will not start at all on an Intel Mac, and plenty of crews
+          # are still on 2019 MacBooks.  One download that works
+          # everywhere beats two that people have to choose between.
+          - os: macos-13
+            name: mac
+            artifact: Coxswain-mac
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install what the trainer needs
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-build.txt
+
+      - name: Build
+        run: python tools/build_exe.py --onedir
+
+      - name: Check the payload actually got in
+        shell: bash
+        run: |
+          # A build that succeeds and ships without its data files dies
+          # on somebody else's machine, which is the failure this whole
+          # arrangement exists to avoid.  So: does it run, headless, on
+          # every course, from the built artefact?
+          set -e
+          if [ "${{ matrix.name }}" = "mac" ]; then
+            APP="dist/Coxswain-mac/Coxswain.app/Contents/MacOS/Coxswain"
+          else
+            APP="dist/Coxswain/Coxswain.exe"
+          fi
+          for course in charles totl hotl; do
+            echo "--- $course"
+            SDL_VIDEODRIVER=dummy "$APP" --race "$course" --boat 8+ \
+              --no-menu --shot "/tmp/$course.png" --width 320 --height 180
+          done
+          echo "all three courses ran"
+
+      - name: Zip it
+        shell: bash
+        run: |
+          cd dist
+          if [ "${{ matrix.name }}" = "mac" ]; then
+            # ditto, not zip: it preserves the symlinks and the
+            # executable bits inside a .app bundle, and a plain zip
+            # quietly breaks the bundle so it will not launch.
+            ditto -c -k --sequesterRsrc --keepParent \
+              Coxswain-mac ../Coxswain-mac.zip
+          else
+            7z a -tzip ../Coxswain-windows.zip Coxswain >/dev/null
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Coxswain-${{ matrix.name }}
+          path: Coxswain-*.zip
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - name: Attach both to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          ls -la
+          gh release upload "$TAG" Coxswain-*.zip --clobber --repo "$REPO"

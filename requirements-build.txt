@@ -1,0 +1,20 @@
+# Exactly what the trainer needs at run time, plus PyInstaller.
+#
+# NOT the whole research environment: pyvista, vtk, casadi, imageio
+# and ffmpeg are all installed here and none of them is reachable
+# from the trainer, which renders through ModernGL.  They were 194
+# MB of a 756 MB build before being excluded, so a CI runner should
+# not install them at all.
+#
+# Pinned at the versions the Windows build was verified against, so
+# a Mac build differs by platform and not by library version too.
+numpy==2.5.2
+scipy==1.18.0
+pygame==2.6.1
+moderngl==5.12.0
+glcontext==3.0.0
+pillow==12.3.0
+matplotlib==3.11.1
+numba==0.67.0
+llvmlite==0.49.0
+pyinstaller==6.22.2
