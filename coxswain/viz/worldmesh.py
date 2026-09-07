@@ -1116,21 +1116,37 @@ def oar_solids(boat, t):
         if length < 1e-6:
             continue
         axis = axis / length
-        flat = np.cross(axis, np.array([0.0, 0.0, 1.0]))
-        flat /= max(float(np.linalg.norm(flat)), 1e-9)
-        upright = np.cross(axis, flat)
-        # Squared the blade hangs DOWN into the water: its width runs
-        # vertically and its face looks along the direction it is being
-        # pulled.  Feathered it lies flat on the surface: width
-        # horizontal, face looking at the sky.
+        # The blade's own frame, built with its signs decided rather
+        # than inherited from whichever way a cross product happened to
+        # come out.  Both of the following were wrong that way, and in
+        # opposite directions on the two sides of the boat, which is
+        # exactly why a port and a starboard oar are not mirror images
+        # of one another.
         #
-        # This was inverted -- squared started from the horizontal edge,
-        # which is the feathered attitude -- so the blades were flat
-        # through the drive and on edge through the recovery, i.e.
-        # exactly out of phase with the stroke they were driving.
+        # ``rim`` runs across the blade and points UP when squared, so
+        # the long side of the profile -- which is taken along -rim --
+        # hangs below the shaft, where it belongs.
+        vertical = np.array([0.0, 0.0, 1.0])
+        rim = vertical - axis * float(axis @ vertical)
+        rim /= max(float(np.linalg.norm(rim)), 1e-9)
+        if rim[2] < 0.0:
+            rim = -rim
+        lie = np.cross(axis, rim)
+        lie /= max(float(np.linalg.norm(lie)), 1e-9)
+
+        # Which way the spoon is dished.  On the drive the blade pushes
+        # water astern, so its hollow face looks astern and its back
+        # bulges toward the bow.  Decided once, squared, and carried
+        # through the roll -- deciding it per frame would break as soon
+        # as the blade feathered and the normal went vertical.
+        toward_bow = 1.0 if float(np.cross(axis, rim)[0]) > 0.0 else -1.0
+
+        # Squared the blade hangs DOWN into the water: width vertical,
+        # face along the pull.  Feathered it lies flat: width
+        # horizontal, face at the sky.
         angle = 0.5 * np.pi * roll
-        edge = upright * np.cos(angle) + flat * np.sin(angle)
-        normal = np.cross(axis, edge)
+        edge = rim * np.cos(angle) + lie * np.sin(angle)
+        normal = toward_bow * np.cross(axis, edge)
         built = _blade_surface(blade - axis * 0.52, blade, edge, normal)
         if built is not None:
             parts.append(built)

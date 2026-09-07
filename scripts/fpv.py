@@ -61,7 +61,8 @@ from coxswain.sim.realtime import (ControlInput,            # noqa: E402
 from coxswain.sim.simulator import RowingSimulator          # noqa: E402
 from coxswain.viz.menu import (build_boat, chart_surface,    # noqa: E402
                                draw_controls, draw_menu,
-                               handle_key, pause_menu, setup_menu,
+                               handle_key, options_menu, pause_menu,
+                               quality_settings, setup_menu,
                                start_music, stop_music)
 from coxswain.viz.planscene import oar_lines                # noqa: E402
 from coxswain.viz.strokeaudio import shell_of               # noqa: E402
@@ -606,6 +607,7 @@ def run_setup_menu(screen, args):
     small = pygame.font.SysFont("dejavusans,arial", 15)
     menu = setup_menu(boat=args.boat, course=args.race, rate=args.rate,
                       wind=args.wind)
+    chosen = menu.settings()
     overlay = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
     showing_controls = False
     while True:
@@ -625,6 +627,20 @@ def run_setup_menu(screen, args):
                 if action == "controls":
                     showing_controls = True
                     continue
+                if action == "options":
+                    chosen = menu.settings()
+                    menu = options_menu(audio=args.audio,
+                                        quality=args.quality)
+                    continue
+                if action == "back":
+                    picked = menu.settings()
+                    args.audio = picked["audio"]
+                    args.quality = picked["quality"]
+                    menu = setup_menu(boat=chosen["boat"],
+                                      course=chosen["race"],
+                                      rate=chosen["rate"],
+                                      wind=chosen["wind"])
+                    continue
                 if action == "start":
                     # NOT stopped here: the world takes half a minute to
                     # build after this, and silence landing the instant
@@ -638,8 +654,10 @@ def run_setup_menu(screen, args):
         # Behind the menu: the soundings for whichever course is
         # highlighted, so the backdrop changes as you choose and is a
         # chart of somewhere real rather than a flat colour.
-        chosen = menu.settings().get("race")
-        chart = chart_surface(chosen, screen.get_size())
+        showing = menu.settings()
+        if "race" in showing:
+            chosen = showing
+        chart = chart_surface(chosen.get("race"), screen.get_size())
         if chart is not None:
             screen.blit(chart, (0, 0))
         else:
@@ -741,6 +759,9 @@ def main(argv=None):
     parser.add_argument("--boat", default="4+",
                         choices=("4+", "8+", "2x", "1x"))
     parser.add_argument("--rate", type=float, default=30.0)
+    parser.add_argument("--quality", default="standard",
+                        choices=("low", "standard", "high"),
+                        help="water detail against frame rate")
     parser.add_argument("--samples", type=int, default=4,
                         help="multisample anti-aliasing; 0 turns it off")
     parser.add_argument("--freecam", action="store_true",
@@ -766,7 +787,7 @@ def main(argv=None):
     parser.add_argument("--wind-from", type=float, default=200.0,
                         help="bearing the wind blows from, degrees")
     parser.add_argument("--audio", default="full",
-                        choices=("events", "full"),
+                        choices=("events", "full", "off"),
                         help="events: catch, release and a bed.  full: one "
                              "clip a stroke following the measured "
                              "spectral envelope through the cycle")
@@ -831,6 +852,10 @@ def main(argv=None):
                                   trees=not args.no_trees)
         return sea, trough, mesh, scene, build_boat(args.boat, args.rate)
 
+    divisions, keep_trees = quality_settings(args.quality)
+    if not keep_trees:
+        args.no_trees = True
+
     label = "Building %s" % dict(
         charles="the Charles", totl="Tail of the Lake",
         hotl="Head of the Lake").get(args.race, args.race)
@@ -894,6 +919,9 @@ def main(argv=None):
     # view that separates drive from recovery -- which makes calling the
     # boat impossible, and calling is what this is for.
     audio = None
+    # "off" is a mode in the menu and a way of saying no sound at all.
+    if args.audio == "off":
+        args.no_sound = True
     if not args.no_sound and not args.shot:
         from coxswain.viz.strokeaudio import StrokeAudio
         audio = StrokeAudio(boat, mode=args.audio)
@@ -1051,7 +1079,7 @@ def main(argv=None):
         water_prog["near_hi"].value = (1.0, 1.0)
         water_prog["near_size"].value = (2.0, 2.0)
         print("   near field: not baked (run tools/bake_nearfield.py)")
-    grid = water_grid()
+    grid = water_grid(divisions=divisions)
     water_buffer = ctx.buffer(grid.tobytes())
     water_vao = ctx.vertex_array(water_prog,
                                  [(water_buffer, "2f", "in_grid")])
@@ -1203,6 +1231,22 @@ def main(argv=None):
                         loop.start(fresh_state())
                         rudder = split = 0.0
                         menu, paused = None, False
+                    elif action == "options":
+                        menu = options_menu(audio=args.audio,
+                                            quality=args.quality)
+                    elif action == "back":
+                        picked = menu.settings()
+                        if picked["audio"] != args.audio:
+                            args.audio = picked["audio"]
+                            # Rebuilt rather than retuned: the mode
+                            # decides which envelope is loaded.
+                            if args.audio == "off":
+                                audio = None
+                            else:
+                                from coxswain.viz.strokeaudio import StrokeAudio
+                                audio = StrokeAudio(boat, mode=args.audio)
+                        args.quality = picked["quality"]
+                        menu = pause_menu(rate=args.rate, wind=args.wind)
                     elif action == "controls":
                         showing_controls = True
                     elif action in ("setup", "quit"):

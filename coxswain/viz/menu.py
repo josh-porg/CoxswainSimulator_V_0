@@ -24,7 +24,8 @@ from typing import Callable, List, Optional, Sequence, Tuple
 __all__ = ["Choice", "Menu", "boat_choices", "course_choices",
            "setup_menu", "pause_menu", "build_boat",
            "start_music", "stop_music", "music_path",
-           "chart_surface", "draw_controls", "CONTROLS"]
+           "chart_surface", "draw_controls", "CONTROLS",
+           "options_menu", "quality_settings", "QUALITY", "AUDIO_MODES"]
 
 
 #: Shells a coxswain might sit in, as ``(key, label, seats, coxed)``.
@@ -153,6 +154,56 @@ def course_choices():
     return [(key, label) for key, label, _blurb in COURSES]
 
 
+#: Sound modes, as ``(key, label)``.
+AUDIO_MODES = (("full", "Full"), ("events", "Events only"), ("off", "Off"))
+
+#: Graphics presets, as ``(key, label, water_divisions, trees)``.
+#:
+#: There is one setting because there is one thing worth trading: the
+#: water grid, which is a quarter of a million triangles at Standard and
+#: the only part of the scene that is rebuilt every frame.  Low also
+#: drops the distant trees, which is the other thing an integrated part
+#: spends its fill rate on.  The control exists now so that a machine
+#: slower than this one has somewhere to go.
+QUALITY = (
+    ("low", "Low", 240, False),
+    ("standard", "Standard", 340, True),
+    ("high", "High", 420, True),
+)
+
+
+def audio_choices():
+    return [(key, label) for key, label in AUDIO_MODES]
+
+
+def quality_choices():
+    return [(key, label) for key, label, _divisions, _trees in QUALITY]
+
+
+def quality_settings(key: str):
+    """``(water_divisions, trees)`` for a preset key."""
+    for name, _label, divisions, trees in QUALITY:
+        if name == key:
+            return divisions, bool(trees)
+    return 340, True
+
+
+def options_menu(audio: str = "full", quality: str = "standard") -> Menu:
+    """Graphics and sound, reached from either menu."""
+    modes = audio_choices()
+    grades = quality_choices()
+    rows = [
+        Choice("audio", "Sound", modes,
+               index=max([i for i, m in enumerate(modes) if m[0] == audio]
+                         + [0])),
+        Choice("quality", "Graphics", grades,
+               index=max([i for i, q in enumerate(grades) if q[0] == quality]
+                         + [0])),
+        Choice("back", "Back", (), action="back"),
+    ]
+    return Menu("Graphics and sound", rows)
+
+
 def setup_menu(boat: str = "4+", course: str = "charles",
                rate: float = 30.0, wind: float = 5.0) -> Menu:
     """The menu shown before anything is built."""
@@ -170,6 +221,7 @@ def setup_menu(boat: str = "4+", course: str = "charles",
         Choice("wind", "Wind", (), numeric=(0.0, 16.0, 1.0),
                value=float(wind), unit="m/s"),
         Choice("start", "Push off", (), action="start"),
+        Choice("options", "Graphics and sound", (), action="options"),
         Choice("controls", "Controls", (), action="controls"),
         Choice("quit", "Quit", (), action="quit"),
     ]
@@ -192,6 +244,7 @@ def pause_menu(rate: float = 30.0, wind: float = 5.0) -> Menu:
                value=float(wind), unit="m/s"),
         Choice("restart", "Restart this course", (), action="restart"),
         Choice("setup", "Change boat or course", (), action="setup"),
+        Choice("options", "Graphics and sound", (), action="options"),
         Choice("controls", "Controls", (), action="controls"),
         Choice("quit", "Quit", (), action="quit"),
     ]
@@ -455,6 +508,11 @@ def blurb_for(menu: "Menu") -> str:
         return "The crew's rating.  Changes the whole cycle, including sound."
     if row.key == "wind":
         return "Sets the chop through the JONSWAP relations, as the report does."
+    if row.key == "audio":
+        return ("Full is the measured envelope; Events is catches and "
+                "finishes only.")
+    if row.key == "quality":
+        return "Trades water detail for frame rate.  Applies on the next start."
     return ""
 
 
