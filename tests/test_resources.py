@@ -48,3 +48,41 @@ def test_the_packaged_payload_lists_everything_that_is_needed():
 
 def test_not_frozen_in_a_checkout():
     assert frozen() is False
+
+
+def test_the_payload_covers_every_course_not_just_one():
+    """The hand-written list missed charles_isobaths.csv, so the build
+    ran Seattle fine and died on the Charles.  Each course's own data
+    must be in the payload, and this names them per course so a passing
+    test cannot again mean "one course works"."""
+    import sys
+
+    sys.path.insert(0, os.path.join(project_root(), "tools"))
+    import build_exe
+
+    payload = set(os.path.basename(name)
+                  for name in build_exe.discover_payload())
+    per_course = {
+        "charles": ("charles_dem.tif", "charles_structures.npz",
+                    "charles_isobaths.csv", "charles_obstructions.json"),
+        "totl": ("seattle_dem.npz", "seattle_structures.npz",
+                 "seattle_water.json", "totl_course.npy"),
+        "hotl": ("hotl_course.npy", "hotl_buoys.npy",
+                 "lake_union_depth.npz", "seattle_bridge_outlines.json"),
+    }
+    for course, names in per_course.items():
+        for name in names:
+            assert name in payload, "%s needs %s" % (course, name)
+
+
+def test_the_payload_is_derived_rather_than_typed():
+    """If this ever becomes a literal list again it will drift from the
+    code, which is how the last one went wrong."""
+    import sys
+
+    sys.path.insert(0, os.path.join(project_root(), "tools"))
+    import build_exe
+
+    found = build_exe.discover_payload()
+    assert len(found) >= 20
+    assert all(name.startswith(("coxswain/data/", "data/")) for name in found)

@@ -134,7 +134,19 @@ class RowingSimulator:
         # turns it on, and ``tests/test_kernels.py`` holds the two paths
         # to round-off of each other so they cannot drift apart.
         if fast:
-            boat.mesh.use_fast = True
+            # Only when there is actually a compiled kernel to route to.
+            #
+            # ``use_fast`` sends the wetted-surface sweep to
+            # ``_hullkernel.submerged_kernel``, which without Numba is the
+            # plain-Python reference: a loop over every panel, and far
+            # slower than the vectorised NumPy path it was meant to beat.
+            # So asking for speed on a machine with no Numba bought the
+            # slowest of the three options.  The packaged build does ship
+            # Numba, but nothing guarantees an installed copy has it, and
+            # a flag called ``fast`` should never select the slow path.
+            from ..hydro._hullkernel import HAVE_NUMBA
+
+            boat.mesh.use_fast = bool(HAVE_NUMBA)
         self.coxswain = Coxswain() if coxswain is None else coxswain
         if rudder is not None:
             self.coxswain.rudder_override = rudder

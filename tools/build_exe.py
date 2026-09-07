@@ -6,21 +6,22 @@ The point of this is to be able to hand the thing to a coxswain who has
 never opened a terminal.  They get one file, they double-click it, they
 get the setup menu.
 
-What has to go in, and why it is not automatic
-----------------------------------------------
+What has to go in, and why the list is read out of the code
+----------------------------------------------------------
 PyInstaller follows ``import`` statements, and most of what this program
-needs at run time is **not imported** -- it is loaded from
-``coxswain/data`` by file name: the elevation model, the orthophoto, the
-building and tree extracts, the bathymetry, the bridge inventory, the
-baked near-field and wave textures, the stroke envelopes.  Miss one and
-the executable builds cleanly and then fails on somebody else's machine
-with a missing-file error, which is the worst possible way to find out.
-So the data directory is listed explicitly and its size is reported,
-and :func:`check_payload` refuses to build if something the trainer
-needs is absent.
+needs at run time is **not imported** -- it is loaded by file name: the
+elevation model, the orthophoto, the building and tree extracts, the
+bathymetry, the bridge inventory, the traced courses and their buoys,
+the baked water textures, the stroke envelopes.  Miss one and the build
+succeeds and the program dies on somebody else's machine, which is the
+worst possible way to find out.
 
-The courses are traced files under ``data/`` at the repository root
-rather than inside the package, so those are collected too.
+That is not hypothetical.  The first version of this listed the files by
+hand, got seventeen of the twenty-three, and the six it missed included
+``charles_isobaths.csv`` -- so the packaged build printed "building
+charles ..." and stopped.  It passed its own test only because that test
+ran the Seattle course.  :func:`discover_payload` now reads the list out
+of the source, so adding a data file to the code adds it to the build.
 
 Size
 ----
@@ -39,26 +40,86 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-#: Everything the trainer opens by name at run time.  Anything here that
-#: is missing stops the build rather than shipping a broken executable.
-NEEDED = (
-    "coxswain/data/seattle_dem.npz",
-    "coxswain/data/seattle_imagery.jpg",
-    "coxswain/data/seattle_structures.npz",
-    "coxswain/data/seattle_trees.npz",
-    "coxswain/data/seattle_bridges.npz",
-    "coxswain/data/charles_dem.tif",
-    "coxswain/data/charles_structures.npz",
-    "coxswain/data/lake_union_depth.npz",
-    "coxswain/data/nearfield.npz",
-    "coxswain/data/stroke_envelope.npz",
-    "data/seattle_water.json",
-    "data/seattle_obstructions.json",
-    "data/seattle_bridge_outlines.json",
-    "data/totl_course.npy",
-    "data/totl_buoys.npy",
-    "data/hotl_course.npy",
-    "data/hotl_buoys.npy",
+#: Where data files live, relative to the repository root.
+DATA_DIRS = ("coxswain/data", "data")
+
+#: Extensions that are data rather than code or output.
+DATA_SUFFIXES = (".npz", ".npy", ".json", ".csv", ".tif", ".tiff", ".jpg")
+
+#: Names that are *written* rather than read, so they are not payload.
+NOT_PAYLOAD = ("frame.png",)
+
+
+def discover_payload():
+    """Every data file the trainer opens by name, found by reading the code.
+
+    **This is derived, not hand-written, and that is the whole point.**
+    The first version of this list was typed out from memory.  It had
+    seventeen entries and the trainer needs twenty-three; the six it
+    missed included ``charles_isobaths.csv``, so the packaged build
+    started, said "building charles ...", and died -- on somebody else's
+    machine, which is exactly the failure this check exists to prevent.
+    It passed my own test only because that test happened to run the
+    Seattle course.
+
+    So the list is now read out of the source: every string literal that
+    looks like a data file name, resolved against the two directories
+    they live in.  Adding a new data file to the code adds it here
+    automatically.
+    """
+    import re
+
+    pattern = re.compile(r'["\']([A-Za-z0-9_\-.]+\.(?:%s))["\']'
+                         % "|".join(x.lstrip(".") for x in DATA_SUFFIXES))
+    sources = []
+    for base, dirs, files in os.walk(os.path.join(ROOT, "coxswain")):
+        dirs[:] = [d for d in dirs if d != "__pycache__"]
+        sources += [os.path.join(base, f) for f in files if f.endswith(".py")]
+    for name in ("fpv.py", "render_totl.py", "render_hotl.py"):
+        candidate = os.path.join(ROOT, "scripts", name)
+        if os.path.exists(candidate):
+            sources.append(candidate)
+
+    wanted = set()
+    for path in sources:
+        with open(path, encoding="utf-8", errors="ignore") as handle:
+            wanted.update(pattern.findall(handle.read()))
+
+    found = []
+    for name in sorted(wanted):
+        if name in NOT_PAYLOAD:
+            continue
+        for folder in DATA_DIRS:
+            relative = "%s/%s" % (folder, name)
+            if os.path.exists(os.path.join(ROOT, relative)):
+                found.append(relative)
+                break
+    return found
+
+
+#: Filled on first use by :func:`discover_payload`.
+NEEDED = tuple(discover_payload()) if os.path.isdir(ROOT) else ()
+
+#: Left out of the build, with what each costs.
+#:
+#: PyInstaller pulls in whatever is importable, and this project is a
+#: research codebase that also does PyVista rendering, movie writing and
+#: symbolic optimisation.  None of that runs in the trainer, and it was
+#: 194 MB of a 756 MB build: a quarter of the download for code that is
+#: never executed.
+#:
+#: **Numba is kept**, deliberately, and it is the largest single thing in
+#: the build at 115 MB of LLVM.  It buys 2.95 ms a step against 3.85 --
+#: 23% -- and while both fit inside the 10 ms budget for 100 Hz physics
+#: on this machine, the people this is being sent to may not have this
+#: machine.  Headroom on an unknown laptop is worth more than a smaller
+#: download.
+EXCLUDED = (
+    "vtk", "vtkmodules", "pyvista", "pyvistaqt",      # ~110 MB, PyVista
+    "imageio_ffmpeg", "imageio",                      # ~84 MB, movies
+    "casadi",                                         # the MPC work
+    "tkinter", "IPython", "pytest", "sphinx",
+    "matplotlib.backends._backend_tk",
 )
 
 #: Imported dynamically, so PyInstaller cannot see them from the source.
@@ -70,7 +131,7 @@ HIDDEN = ("scipy.spatial", "scipy.ndimage", "scipy.interpolate",
 def check_payload():
     """``(present, missing)`` of the data files the trainer needs."""
     present, missing = [], []
-    for name in NEEDED:
+    for name in NEEDED or discover_payload():
         path = os.path.join(ROOT, name)
         (present if os.path.exists(path) else missing).append(name)
     return present, missing
@@ -99,8 +160,10 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     present, missing = check_payload()
-    print("data the trainer needs: %d of %d present, %.0f MB"
-          % (len(present), len(NEEDED), payload_size(present)))
+    print("data the trainer needs: %d of %d present, %.0f MB "
+          "(found by reading the source, not by hand)"
+          % (len(present), len(present) + len(missing),
+             payload_size(present)))
     if missing:
         print("\nMISSING -- the build would produce a broken executable:")
         for name in missing:
@@ -116,12 +179,14 @@ def main(argv=None):
                "--name", args.name,
                "--paths", os.path.join(ROOT, "scripts"),
                "--onedir" if args.onedir else "--onefile"]
-    for name in NEEDED:
+    for name in (NEEDED or discover_payload()):
         target = os.path.dirname(name).replace("\\", "/")
         command += ["--add-data",
                     "%s%s%s" % (os.path.join(ROOT, name), separator, target)]
     for module in HIDDEN:
         command += ["--hidden-import", module]
+    for module in EXCLUDED:
+        command += ["--exclude-module", module]
     command.append(os.path.join(ROOT, "scripts", "fpv.py"))
 
     if args.dry_run:
