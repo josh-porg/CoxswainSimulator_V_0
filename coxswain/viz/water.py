@@ -59,7 +59,7 @@ import numpy as np
 
 __all__ = ["KELVIN_HALF_ANGLE", "WaveField", "kelvin_wavelength",
            "PuddleTrail", "sea_for", "wake_amplitude", "wake_table",
-           "hull_wake"]
+           "hull_wake", "load_nearfield", "hull_shelter"]
 
 GRAVITY = 9.80665
 
@@ -167,6 +167,26 @@ def sea_for(wind: float, fetch: float, bearing: float = 0.0,
     phase = rng.uniform(0.0, 2.0 * np.pi, COMPONENTS)
     return WaveField(amplitude, wavenumber, direction, phase,
                      significant_height=height, peak_period=period)
+
+
+def load_nearfield(shell: str = "four"):
+    """``(east, north, F)`` for a shell, or ``None`` if not baked.
+
+    ``F`` is the geometric part of the hull's own surface disturbance:
+    multiply by ``U^2 / g`` for metres.  Produced by
+    ``tools/bake_nearfield.py`` from :mod:`coxswain.hydro.nearfield`.
+    """
+    import os
+
+    path = os.path.join(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))), "data", "nearfield.npz")
+    if not os.path.exists(path):
+        return None
+    blob = np.load(path)
+    if ("%s_field" % shell) not in blob:
+        return None
+    return (blob["%s_east" % shell], blob["%s_north" % shell],
+            blob["%s_field" % shell])
 
 
 def wake_amplitude(wave_resistance: float, half_angle: float = None) -> float:
@@ -278,6 +298,66 @@ def hull_wake(along, across, speed: float, amplitude: float,
     stern = kelvin_height(np.asarray(along) + half, across, speed,
                           amplitude=stern_share * amplitude)
     return bow - stern
+
+
+#: How much of the short-wave energy the hull and crew take out of the
+#: air directly to leeward, and over what distance it comes back, m.
+SHELTER_DEPTH = 0.55
+SHELTER_RECOVERY = 14.0
+#: Amplitude gain against the windward side, and how far it reaches, m.
+WINDWARD_GAIN = 0.35
+WINDWARD_REACH = 1.6
+
+
+def hull_shelter(east, north, boat_east, boat_north, heading, wind_from,
+                 length, beam):
+    """Factor on the local wave amplitude near the hull, from wind shelter.
+
+    A shell sitting in wind chop does two things to the water around it,
+    and neither is wave diffraction: at 0.5 m of beam against a two-metre
+    wave the hull is very nearly transparent, so scattering is not the
+    mechanism.
+
+    What it does do is **block the wind**.  The hull, the riggers and
+    four bodies stand about a metre out of the water, and short wind
+    waves are sustained by the wind acting on them continuously -- take
+    the air away and they decay within metres.  That is the patch of calm
+    that sits to leeward of a boat.  It recovers downwind over
+    :data:`SHELTER_RECOVERY`, as the wind re-establishes the short-wave
+    field over its own fetch.
+
+    To windward the surface piles against the side: partly the waves
+    meeting an obstacle, partly the hull's own displacement.  It is a
+    much smaller effect than the lee and reaches only
+    :data:`WINDWARD_REACH`.
+
+    **The shadow's width depends on the boat's aspect to the wind.**  A
+    hull lying beam-on to the breeze shelters a strip as long as it is;
+    bow-on it shelters almost nothing.  That is the projected width of
+    the hull across the wind, and it is what makes the effect look right
+    when a crew turns.
+    """
+    east = np.asarray(east, dtype=float)
+    north = np.asarray(north, dtype=float)
+    # Unit vector the wind blows TOWARD.
+    blow = np.array([np.cos(wind_from + np.pi), np.sin(wind_from + np.pi)])
+    axis = np.array([np.cos(heading), np.sin(heading)])
+    across_wind = abs(axis[0] * blow[1] - axis[1] * blow[0])   # |a x w|
+    along_wind = abs(axis[0] * blow[0] + axis[1] * blow[1])    # |a . w|
+    half_width = 0.5 * (length * across_wind + beam * along_wind)
+
+    dx = east - float(boat_east)
+    dy = north - float(boat_north)
+    downwind = dx * blow[0] + dy * blow[1]
+    lateral = np.abs(-dx * blow[1] + dy * blow[0])
+
+    inside = np.clip(1.0 - (lateral - half_width) / 1.5, 0.0, 1.0)
+    lee = np.where(downwind > 0.0,
+                   SHELTER_DEPTH * np.exp(-downwind / SHELTER_RECOVERY), 0.0)
+    windward = np.where(downwind < 0.0,
+                        WINDWARD_GAIN * np.exp(downwind / WINDWARD_REACH),
+                        0.0)
+    return 1.0 - inside * lee + inside * windward
 
 
 @dataclass

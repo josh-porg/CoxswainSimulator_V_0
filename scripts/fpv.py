@@ -57,7 +57,9 @@ from coxswain.sim.realtime import (ControlInput,            # noqa: E402
                                    FixedStepLoop, LiveControl)
 from coxswain.sim.simulator import RowingSimulator          # noqa: E402
 from coxswain.viz.planscene import oar_lines                # noqa: E402
+from coxswain.viz.strokeaudio import shell_of               # noqa: E402
 from coxswain.viz.water import (KELVIN_HALF_ANGLE,          # noqa: E402
+                                load_nearfield,
                                 PuddleTrail, kelvin_wavelength, sea_for,
                                 wake_table)
 from coxswain.viz.worldmesh import _face_normals            # noqa: E402
@@ -148,6 +150,10 @@ uniform float speed;
 uniform float wake_k;         // 2 pi g / V^2, the transverse wavenumber
 uniform float wake_amp;
 uniform float hull_length;    // bow-to-stern source separation
+uniform sampler2D near_map;   // baked near-field shape, F(x, y)
+uniform vec2 near_lo;         // its box in the boat frame
+uniform vec2 near_hi;
+uniform vec2 near_size;       // samples in the baked grid
 uniform float tan_wedge;      // tan(19.47 deg)
 uniform float time;
 
@@ -224,8 +230,34 @@ float puddle(vec2 p, out float foam) {
     return h;
 }
 
+// The water the hull itself pushes about, baked.
+//
+// eta = (U^2 / g) * F(x, y) with F a function of the hull's shape alone,
+// so the thin-ship source sum is done once offline and this is a texture
+// lookup.  It is the near field -- stagnation at the stem, acceleration
+// along the midbody -- and it is what the Kelvin construction, which is
+// a far-field description, has nothing to say about.
+float near_field(vec2 p) {
+    float c = cos(-boat.z), s = sin(-boat.z);
+    vec2 d = p - boat.xy;
+    float along = d.x * c - d.y * s;      // positive toward the bow
+    float across = d.x * s + d.y * c;
+    vec2 uv = (vec2(along, across) - near_lo) / (near_hi - near_lo);
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 0.0;
+    // Half-texel correction: the baked grid holds N samples spanning the
+    // box inclusively, but a texture's samples sit at texel CENTRES, so
+    // a naive 0..1 mapping shifts the whole field by half a cell -- four
+    // centimetres across a hull half a metre wide, and one-sided.
+    uv = uv * (near_size - 1.0) / near_size + 0.5 / near_size;
+    // Fade at the edges of the baked box so it cannot leave a seam where
+    // it hands over to the radiated wake.
+    vec2 e = min(uv, 1.0 - uv);
+    float edge = clamp(min(e.x, e.y) / 0.12, 0.0, 1.0);
+    return texture(near_map, uv).r * speed * speed / 9.80665 * edge;
+}
+
 float surface(vec2 p, out float foam) {
-    return sea(p, time) + wake(p) + puddle(p, foam);
+    return sea(p, time) + wake(p) + near_field(p) + puddle(p, foam);
 }
 
 void main() {
@@ -522,6 +554,32 @@ def main(argv=None):
     water_prog["far"].value = FAR
     water_prog["deep"].value = (0.055, 0.115, 0.155)
     water_prog["hull_length"].value = float(boat.length)
+    near = load_nearfield(shell_of(boat))
+    if near is not None:
+        n_east, n_north, n_field = near
+        near_tex = ctx.texture((len(n_east), len(n_north)), 1,
+                               np.ascontiguousarray(n_field, dtype="f4"),
+                               dtype="f4")
+        near_tex.filter = (moderngl.LINEAR, moderngl.LINEAR)
+        near_tex.repeat_x = near_tex.repeat_y = False
+        near_tex.use(0)
+        water_prog["near_map"].value = 0
+        water_prog["near_lo"].value = (float(n_east[0]), float(n_north[0]))
+        water_prog["near_hi"].value = (float(n_east[-1]), float(n_north[-1]))
+        water_prog["near_size"].value = (float(len(n_east)),
+                                         float(len(n_north)))
+        print("   near field: baked %dx%d, %+.1f..%+.1f m along the hull, "
+              "peak %+.3f m at 4.5 m/s"
+              % (len(n_east), len(n_north), n_east[0], n_east[-1],
+                 float(np.abs(n_field).max()) * 4.5 ** 2 / 9.80665))
+    else:
+        near_tex = ctx.texture((2, 2), 1, np.zeros(4, dtype="f4"), dtype="f4")
+        near_tex.use(0)
+        water_prog["near_map"].value = 0
+        water_prog["near_lo"].value = (-1.0, -1.0)
+        water_prog["near_hi"].value = (1.0, 1.0)
+        water_prog["near_size"].value = (2.0, 2.0)
+        print("   near field: not baked (run tools/bake_nearfield.py)")
     water_prog["tan_wedge"].value = float(np.tan(KELVIN_HALF_ANGLE))
     grid = water_grid()
     water_buffer = ctx.buffer(grid.tobytes())
