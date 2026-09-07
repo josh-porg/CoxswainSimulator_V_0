@@ -713,8 +713,35 @@ def hull_solid(boat, deck: float = 0.30, colour=(0.88, 0.89, 0.86),
                           [xa, sa, height]])
             shades.extend([shade] * 6)
 
-    strip(seat_x, bow, deck, deck_colour)
-    strip(stern, seat_x, float(floor), (0.22, 0.23, 0.24))
+    # Where the boat is open, and where it is decked over.
+    #
+    # This used to be one cut at the coxswain's seat: deck ahead of it,
+    # floor behind.  In a bow-loader that is right, because the cox is
+    # in the bow and everything forward of them is foredeck.  In a
+    # stern-coxed eight it puts a deck at gunwale height over the whole
+    # length of the crew, and the rowers stand up through it -- eight
+    # people sunk to the chest in a lid.
+    #
+    # A shell is open over its crew and decked at both ends, so that is
+    # what gets built: a cockpit spanning the seats (and the coxswain,
+    # who sits in it), with the interior floor set below the gunwale
+    # rather than down at the keel, and short decks fore and aft.
+    seats_x = [float(seat.station_x) for seat in boat.rig.seats]
+    cockpit_stern = min(seats_x) - 0.90
+    cockpit_bow = max(seats_x) + 0.90
+    if boat.rig.coxswain_position is not None:
+        cox_x = float(boat.rig.coxswain_position[0])
+        cockpit_stern = min(cockpit_stern, cox_x - 0.55)
+        # A bow-loader's cockpit reaches just past their head, which is
+        # why only a couple of feet ahead of the face is ever open.
+        cockpit_bow = max(cockpit_bow, cox_x + float(cockpit))
+    cockpit_stern = max(cockpit_stern, stern)
+    cockpit_bow = min(cockpit_bow, bow)
+
+    interior = min(float(deck) - 0.10, max(float(floor), 0.12))
+    strip(cockpit_bow, bow, deck, deck_colour)
+    strip(stern, cockpit_stern, deck, deck_colour)
+    strip(cockpit_stern, cockpit_bow, interior, (0.22, 0.23, 0.24))
 
     vertices = np.asarray(faces, dtype="f4").reshape(-1, 3)
     colours = np.asarray(shades, dtype="f4")
@@ -950,6 +977,92 @@ def oar_pose(boat, t, water_z: float = 0.0,
     return poses
 
 
+#: Where in the recovery the hands cross the knees and the roll-up
+#: starts, as a fraction of the recovery.  Before this the blade is flat
+#: on the feather; after it, it rolls square by the catch.
+SQUARE_UP_AT = 0.55
+
+#: How much of the *cycle* the feather takes.  It is a flick of the
+#: inside wrist at the finish and it is fast -- much faster than the
+#: roll up, which is a progressive turn of the handle through the last
+#: of the recovery.  Drawing both at the same speed loses the asymmetry,
+#: and that asymmetry is one of the things a coxswain watches for.
+FEATHER_SPAN = 0.045
+
+
+def blade_roll(boat, t) -> float:
+    """Blade rotation: 0 squared, 1 fully feathered.
+
+    Squared through the drive, because the face has to be square to the
+    water to move any.  Feathered off the finish with a flick, held flat
+    through the recovery so it runs clear of the water, then rolled back
+    square through the last of the recovery, starting where the hands
+    cross the knees and finishing at the catch.
+    """
+    period = float(boat.timing.period)
+    if period <= 0.0:
+        return 0.0
+    phase = (float(t) % period) / period
+    drive = float(boat.timing.drive_fraction)
+    if phase < drive:
+        return 0.0                                   # squared, pulling
+    through = (phase - drive) / max(1.0 - drive, 1e-9)
+    feather = FEATHER_SPAN / max(1.0 - drive, 1e-9)
+    if through < feather:
+        return through / feather                     # the flick
+    if through < SQUARE_UP_AT:
+        return 1.0                                   # flat, running
+    # The roll up: smooth, and finished by the catch.
+    left = (through - SQUARE_UP_AT) / max(1.0 - SQUARE_UP_AT, 1e-9)
+    return float(0.5 * (1.0 + np.cos(np.pi * min(left, 1.0))))
+
+
+def _blade_surface(root, tip, edge, normal, colour=BLADE):
+    """One blade, as a curved hatchet rather than a flat rectangle.
+
+    A modern sweep blade is asymmetric -- deeper below the shaft line
+    than above it, squared off at the tip -- and it is *spooned*, curved
+    across its width so it holds water.  Drawn as a flat rectangle it
+    reads as a paddle off a raft.  The outline below is taken across the
+    blade at a few stations, each offset along ``normal`` by a parabolic
+    spoon, and closed on both faces so it is still a solid when it turns
+    edge on at the feather.
+    """
+    root = np.asarray(root, dtype=float)
+    tip = np.asarray(tip, dtype=float)
+    axis = tip - root
+    length = float(np.linalg.norm(axis))
+    if length < 1e-6:
+        return None
+
+    # Fractions along the blade, and its half-width at each: narrow at
+    # the neck, widest just short of the tip, squared off at the end.
+    profile = ((0.00, 0.030), (0.18, 0.085), (0.45, 0.115),
+               (0.75, 0.125), (1.00, 0.118))
+    #: How far below the shaft line the blade hangs, against above it.
+    low, high = 0.62, 0.38
+    spoon = 0.045
+
+    rows = []
+    for fraction, half in profile:
+        centre = root + axis * fraction
+        bow = spoon * 4.0 * fraction * (1.0 - fraction)
+        rows.append((centre + normal * bow - edge * (2.0 * half * low),
+                     centre + normal * bow + edge * (2.0 * half * high)))
+
+    faces = []
+    thickness = normal * 0.008
+    for (a0, b0), (a1, b1) in zip(rows[:-1], rows[1:]):
+        for offset in (thickness, -thickness):
+            p0, p1, p2, p3 = (a0 + offset, b0 + offset,
+                              b1 + offset, a1 + offset)
+            faces += [[p0, p1, p2], [p0, p2, p3],
+                      [p0, p2, p1], [p0, p3, p2]]
+    vertices = np.asarray(faces, dtype="f4").reshape(-1, 3)
+    colours = np.tile(np.asarray(colour, dtype="f4"), (len(vertices), 1))
+    return MeshPart("blade", vertices, colours, _face_normals(vertices))
+
+
 def oar_solids(boat, t):
     """Both looms and both blades of every oar, in the hull frame.
 
@@ -959,6 +1072,7 @@ def oar_solids(boat, t):
     surface turning rather than a small thing moving.
     """
     parts = []
+    roll = blade_roll(boat, t)
     for handle, pivot, blade, _lift, drive in oar_pose(boat, t):
         parts.append(_tube(handle, pivot, 0.024, LOOM, sides=6))
         parts.append(_tube(pivot, blade, 0.021, LOOM, sides=6))
@@ -970,30 +1084,16 @@ def oar_solids(boat, t):
         axis = axis / length
         flat = np.cross(axis, np.array([0.0, 0.0, 1.0]))
         flat /= max(float(np.linalg.norm(flat)), 1e-9)
-        edge = flat if drive else np.cross(axis, flat)
-        # Squared, the face stands across the water; feathered it lies
-        # flat on it.  Either way the blade is a surface, so it is drawn
-        # as a thin slab rather than a sheet -- a sheet vanishes when it
-        # turns edge-on, which is exactly when the feather happens.
-        thin = (np.cross(axis, edge)
-                if drive else flat) * 0.012
-        root = blade - axis * 0.46
-        for sign in (-1.0, 1.0):
-            parts.append(_tube(root + thin * sign, blade + thin * sign,
-                               0.001, BLADE, sides=4))
-        half = edge * 0.125
-        corners = [root - half, root + half, blade + half, blade - half]
-        faces = []
-        for offset in (thin, -thin):
-            quad = [corner + offset for corner in corners]
-            faces += [[quad[0], quad[1], quad[2]],
-                      [quad[0], quad[2], quad[3]],
-                      [quad[0], quad[2], quad[1]],
-                      [quad[0], quad[3], quad[2]]]
-        vertices = np.asarray(faces, dtype="f4").reshape(-1, 3)
-        colours = np.tile(np.asarray(BLADE, dtype="f4"), (len(vertices), 1))
-        parts.append(MeshPart("blade", vertices, colours,
-                              _face_normals(vertices)))
+        upright = np.cross(axis, flat)
+        # Squared the face stands across the water, feathered it lies
+        # flat on it, and in between it is genuinely in between: the
+        # roll is a continuous angle, not a two-state switch.
+        angle = 0.5 * np.pi * roll
+        edge = flat * np.cos(angle) + upright * np.sin(angle)
+        normal = np.cross(axis, edge)
+        built = _blade_surface(blade - axis * 0.52, blade, edge, normal)
+        if built is not None:
+            parts.append(built)
 
     parts = [part for part in parts if part is not None]
     if not parts:

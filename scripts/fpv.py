@@ -5,7 +5,8 @@ r"""The coxswain's seat, in real time.
     python scripts/fpv.py --shot out/fpv/seat.png  # one frame, no window
 
 0.55 m off the water in the bow of a four, looking forward over four
-backs.  The **only** view from which "does this steer like a boat" is a
+backs -- or up in the stern of an eight, where the crew face you, or in
+the stroke's seat of a scull, facing astern.  The **only** view from which "does this steer like a boat" is a
 question with an answer: from up here the bank swinging across the bow is
 the cue a coxswain actually uses, and no plan view reproduces it.
 
@@ -33,8 +34,10 @@ mouse                 the stick, with ``--control mouse``; left is port
 left / right, A / D   the stick, by key; it stays where you put it
 M                     hand the stick between mouse and keys
 C                     centre the stick
-W / E                 pressure split
-R                     restart          Space  pause          Esc  quit
+W / E                 pressure split -- the only steering a scull has
+V                     look over your shoulder
+Esc                   the menu: rate, wind, restart, controls, boat
+R                     restart          Space  freeze          Q  quit
 ====================  ====================================================
 """
 
@@ -56,7 +59,8 @@ from coxswain.sim.control import Coxswain                   # noqa: E402
 from coxswain.sim.realtime import (ControlInput,            # noqa: E402
                                    FixedStepLoop, LiveControl)
 from coxswain.sim.simulator import RowingSimulator          # noqa: E402
-from coxswain.viz.menu import (build_boat, draw_menu,        # noqa: E402
+from coxswain.viz.menu import (build_boat, chart_surface,    # noqa: E402
+                               draw_controls, draw_menu,
                                handle_key, pause_menu, setup_menu,
                                start_music, stop_music)
 from coxswain.viz.planscene import oar_lines                # noqa: E402
@@ -518,6 +522,7 @@ def run_setup_menu(screen, args):
     menu = setup_menu(boat=args.boat, course=args.race, rate=args.rate,
                       wind=args.wind)
     overlay = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
+    showing_controls = False
     while True:
         clock.tick(60)
         for event in pygame.event.get():
@@ -525,10 +530,16 @@ def run_setup_menu(screen, args):
                 stop_music()
                 return None
             if event.type == pygame.KEYDOWN:
+                if showing_controls:
+                    showing_controls = False       # any key goes back
+                    continue
                 if event.key == pygame.K_ESCAPE:
                     stop_music()
                     return None
                 action = handle_key(menu, event.key)
+                if action == "controls":
+                    showing_controls = True
+                    continue
                 if action == "start":
                     # NOT stopped here: the world takes half a minute to
                     # build after this, and silence landing the instant
@@ -539,8 +550,19 @@ def run_setup_menu(screen, args):
                 if action == "quit":
                     stop_music()
                     return None
-        screen.fill((18, 24, 29))
-        draw_menu(overlay, menu, font, small, screen.get_size())
+        # Behind the menu: the soundings for whichever course is
+        # highlighted, so the backdrop changes as you choose and is a
+        # chart of somewhere real rather than a flat colour.
+        chosen = menu.settings().get("race")
+        chart = chart_surface(chosen, screen.get_size())
+        if chart is not None:
+            screen.blit(chart, (0, 0))
+        else:
+            screen.fill((18, 24, 29))
+        if showing_controls:
+            draw_controls(overlay, font, small, screen.get_size())
+        else:
+            draw_menu(overlay, menu, font, small, screen.get_size())
         screen.blit(overlay, (0, 0))
         pygame.display.flip()
 
@@ -749,6 +771,7 @@ def main(argv=None):
     # pygame import that broke every launch.
     steers_with_rudder = boat.rig.has_coxswain
     looking_ahead = False
+    showing_controls = False
 
     course = scene.course
     station = np.concatenate([[0.0], np.cumsum(
@@ -1012,6 +1035,9 @@ def main(argv=None):
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == pygame.KEYDOWN:
+                if showing_controls:
+                    showing_controls = False
+                    continue
                 if menu is not None:
                     action = handle_key(menu, event.key)
                     if event.key == pygame.K_ESCAPE:
@@ -1044,6 +1070,8 @@ def main(argv=None):
                         loop.start(fresh_state())
                         rudder = split = 0.0
                         menu, paused = None, False
+                    elif action == "controls":
+                        showing_controls = True
                     elif action in ("setup", "quit"):
                         restart_session = action == "setup"
                         running = False
@@ -1105,7 +1133,7 @@ def main(argv=None):
             rudder = float(np.clip(-1.4 * error, -RUDDER_LIMIT, RUDDER_LIMIT))
             live.set(ControlInput(rudder=rudder))
 
-        if not paused and menu is None:
+        if not paused and menu is None and not showing_controls:
             loop.advance(frame)
             if audio is not None:
                 audio.update(loop.t)
@@ -1127,15 +1155,25 @@ def main(argv=None):
         seconds = 500.0 / speed if speed > 0.2 else 0.0
         lines = ["%d:%04.1f   %.2f m/s   rate %.0f"
                  % (int(seconds // 60), seconds % 60, speed, boat.timing.rate),
-                 "stick %+.0f%% (%+.1f deg)   yaw %+.2f deg/s"
-                 % (100 * rudder / RUDDER_LIMIT, math.degrees(rudder),
-                    math.degrees(pose[11])),
+                 ("stick %+.0f%% (%+.1f deg)   yaw %+.2f deg/s"
+                  % (100 * rudder / RUDDER_LIMIT, math.degrees(rudder),
+                     math.degrees(pose[11]))
+                  if steers_with_rudder else
+                  "no rudder -- steer on pressure (W / E)"
+                  "   yaw %+.2f deg/s" % math.degrees(pose[11])),
                  "roll %+.1f deg   pitch %+.1f deg   %.0f fps"
                  % (math.degrees(pose[3]), math.degrees(pose[4]),
-                    clock.get_fps())]
-        if menu is not None:
-            draw_menu(overlay, menu, font, font,
-                      (args.width, args.height))
+                    clock.get_fps()),
+                 # Nobody guesses this, and without it the pause menu
+                 # and everything in it may as well not exist.
+                 "Esc menu    V look astern    Space freeze"]
+        if menu is not None or showing_controls:
+            if showing_controls:
+                draw_controls(overlay, font, font,
+                              (args.width, args.height))
+            else:
+                draw_menu(overlay, menu, font, font,
+                          (args.width, args.height))
             hud_texture.write(_surface_bytes(pygame, overlay))
             hud_texture.use(0)
             _blit(ctx, hud_texture)

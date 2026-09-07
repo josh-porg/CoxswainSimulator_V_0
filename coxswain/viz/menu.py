@@ -23,7 +23,8 @@ from typing import Callable, List, Optional, Sequence, Tuple
 
 __all__ = ["Choice", "Menu", "boat_choices", "course_choices",
            "setup_menu", "pause_menu", "build_boat",
-           "start_music", "stop_music", "music_path"]
+           "start_music", "stop_music", "music_path",
+           "chart_surface", "draw_controls", "CONTROLS"]
 
 
 #: Shells a coxswain might sit in, as ``(key, label, seats, coxed)``.
@@ -169,6 +170,7 @@ def setup_menu(boat: str = "4+", course: str = "charles",
         Choice("wind", "Wind", (), numeric=(0.0, 16.0, 1.0),
                value=float(wind), unit="m/s"),
         Choice("start", "Push off", (), action="start"),
+        Choice("controls", "Controls", (), action="controls"),
         Choice("quit", "Quit", (), action="quit"),
     ]
     return Menu("Coxswain", rows)
@@ -190,6 +192,7 @@ def pause_menu(rate: float = 30.0, wind: float = 5.0) -> Menu:
                value=float(wind), unit="m/s"),
         Choice("restart", "Restart this course", (), action="restart"),
         Choice("setup", "Change boat or course", (), action="setup"),
+        Choice("controls", "Controls", (), action="controls"),
         Choice("quit", "Quit", (), action="quit"),
     ]
     return Menu("Paused", rows)
@@ -243,7 +246,7 @@ def build_boat(key: str, rate: float, catalog=None):
 INK = (233, 240, 245)
 DIM = (150, 164, 176)
 PICK = (255, 146, 72)
-PANEL = (12, 17, 21, 226)
+PANEL = (12, 17, 21, 188)
 
 
 #: Menu music.  Mixkit item 754, "Romantic 03", under the Mixkit Free
@@ -298,6 +301,134 @@ def stop_music(fade_ms: int = 600) -> None:
             pygame.mixer.music.fadeout(int(fade_ms))
     except Exception:
         pass
+
+
+#: The keys, in one place, so the menu and the docs cannot disagree.
+CONTROLS = (
+    ("Steering", ""),
+    ("left / right, A / D", "the stick, by key"),
+    ("mouse", "the stick, with mouse steering on"),
+    ("M", "hand steering between mouse and keys"),
+    ("C", "centre the stick"),
+    ("", ""),
+    ("Crew", ""),
+    ("W / E", "pressure split -- more work on one side"),
+    ("", ""),
+    ("View", ""),
+    ("V", "look over your shoulder"),
+    ("", ""),
+    ("Session", ""),
+    ("Esc", "the menu: rate, wind, restart, change boat"),
+    ("Space", "freeze"),
+    ("R", "restart the course"),
+    ("Q", "quit"),
+)
+
+#: Which file the depth soundings come from, per course.
+CHART_DATA = {
+    "charles": ("data", "charles_isobaths.csv"),
+    "totl": ("coxswain", "data", "lake_union_depth.npz"),
+    "hotl": ("coxswain", "data", "lake_union_depth.npz"),
+}
+
+_CHARTS: dict = {}
+
+
+def chart_surface(race: str, size):
+    """A faint bathymetric chart of the course, to sit behind the menu.
+
+    Real soundings rather than a picture of some water: the Charles
+    isobaths and the Lake Union depth grid are already in the build,
+    because the courses are laid out against them.  A flat panel of
+    colour behind the menu is not *wrong*, but this costs one pass over
+    a point cloud and tells you something true about where you are
+    about to row.
+
+    Cached per course and size.  Returns ``None`` if the data is not
+    there, and the caller falls back to plain colour.
+    """
+    import numpy as np
+    import pygame
+
+    key = (race, tuple(size))
+    if key in _CHARTS:
+        return _CHARTS[key]
+
+    from ..core.resources import data_path
+
+    parts = CHART_DATA.get(race)
+    surface = None
+    try:
+        path = data_path(*parts) if parts else None
+        if path is None or not __import__("os").path.exists(path):
+            raise FileNotFoundError(path)
+        if path.endswith(".npz"):
+            blob = np.load(path)
+            points = np.asarray(blob["depth_xy"], dtype=float)
+            depth = np.asarray(blob["depth"], dtype=float)
+        else:
+            raw = np.genfromtxt(path, delimiter=",", names=True)
+            points = np.column_stack([raw["lon"], raw["lat"]]).astype(float)
+            depth = np.asarray(raw["depth_m"], dtype=float)
+
+        width, height = size
+        surface = pygame.Surface(size)
+        surface.fill((13, 18, 23))
+        low, high = np.nanmin(points, axis=0), np.nanmax(points, axis=0)
+        span = np.maximum(high - low, 1e-9)
+        scale = 0.92 * min(width / span[0], height / span[1])
+        centre = 0.5 * (low + high)
+        screen_x = (width / 2 + (points[:, 0] - centre[0]) * scale)
+        screen_y = (height / 2 - (points[:, 1] - centre[1]) * scale)
+
+        deep = np.nanmax(depth) if np.isfinite(depth).any() else 1.0
+        shade = np.clip(np.abs(depth) / max(abs(deep), 1e-6), 0.0, 1.0)
+        inside = ((screen_x >= 0) & (screen_x < width)
+                  & (screen_y >= 0) & (screen_y < height))
+        for x, y, value in zip(screen_x[inside], screen_y[inside],
+                               shade[inside]):
+            tone = (int(26 + 34 * (1.0 - value)),
+                    int(46 + 58 * (1.0 - value)),
+                    int(62 + 74 * (1.0 - value)))
+            surface.fill(tone, (int(x), int(y), 2, 2))
+    except Exception:
+        surface = None
+
+    _CHARTS[key] = surface
+    return surface
+
+
+def draw_controls(surface, font, small, size) -> None:
+    """The key list, over whatever is behind it."""
+    import pygame
+
+    width, height = size
+    surface.fill((0, 0, 0, 0))
+    panel_w = min(int(width * 0.78), 620)
+    panel_h = min(int(height * 0.88), 34 * len(CONTROLS) + 96)
+    left, top = (width - panel_w) // 2, (height - panel_h) // 2
+    panel = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)
+    panel.fill(PANEL)
+    pygame.draw.rect(panel, (70, 82, 92), panel.get_rect(), 1)
+    surface.blit(panel, (left, top))
+
+    surface.blit(font.render("Controls", True, INK), (left + 28, top + 20))
+    y = top + 62
+    step = max(18, (panel_h - 108) // max(len(CONTROLS), 1))
+    for key, what in CONTROLS:
+        if not key and not what:
+            y += step // 2
+            continue
+        if not what:                      # a heading
+            surface.blit(small.render(key.upper(), True, PICK),
+                         (left + 28, y))
+        else:
+            surface.blit(small.render(key, True, INK), (left + 44, y))
+            surface.blit(small.render(what, True, DIM), (left + 250, y))
+        y += step
+    text = small.render("any key to go back", True, DIM)
+    surface.blit(text, ((width - text.get_width()) // 2,
+                        top + panel_h - 28))
 
 
 def blurb_for(menu: "Menu") -> str:

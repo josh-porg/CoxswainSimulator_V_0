@@ -55,6 +55,11 @@ re-centres it for you. Holding a straight course is your job.
   M               hand the stick between the mouse and the keys
   C               centre the stick
   W / E           pressure split -- more work on one side than the other
+  V               look over your shoulder
+
+A double or a single has no rudder at all. In those you steer entirely
+on pressure, with W and E, and you sit facing the stern like the rower
+you are -- V looks over your shoulder to see where you are going.
 
 A sweep four turns toward the stroke side with the rudder centred. That
 is not a bug; it is the thing you spend a race correcting.
@@ -63,8 +68,9 @@ is not a bug; it is the thing you spend a race correcting.
 WHILE YOU ARE ROWING
 --------------------
 
-  Esc     pause -- change stroke rate or wind, restart, or come back
-          here to change boat or course
+  Esc     the menu -- change stroke rate or wind, restart, read the
+          controls, or go back and change boat or course.  There is a
+          reminder along the bottom of the screen.
   Space   freeze it
   R       restart the course
   Q       quit

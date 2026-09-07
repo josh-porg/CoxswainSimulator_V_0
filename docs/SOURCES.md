@@ -9264,3 +9264,85 @@ seven evenly spaced legs there instead, from dividing the length by the
 inventory span. Both bridges now get the same open steelwork the
 Seattle canal bridges do, and the surveyed piers go where they were
 measured.
+
+## 130. The menu offered two boats that crashed
+
+Picking a double or a single killed the trainer outright:
+
+    TypeError: 'NoneType' object is not subscriptable
+
+A coxless boat has `rig.coxswain_position` set to `None`, and both
+`hull_solid` and `seat_camera` indexed it without asking. Nothing
+caught it because the packaging tests choose *courses*, not boats, and
+every render check had been run on a four or an eight — so half the
+menu had never been launched.
+
+The fix is `worldmesh.viewpoint`, which both now go through. It returns
+where the viewer sits, how high their eye is, and **which way they
+face**: +1 toward the bow for a coxswain, −1 astern for a sculler, who
+sits in the stroke's place looking back down the water they have
+already covered. `V` looks over the shoulder.
+
+These boats also have **no rudder**. They are steered by pulling harder
+on one side, so the stick is forced to zero on them and the HUD says so
+rather than leaving a control that visibly does nothing.
+
+`tests/test_every_boat_launches.py` now builds every shell in the menu
+and drives everything that reads the rig, with no GL context, in about
+four seconds. The invariant that a menu must not offer something that
+cannot be built is cheap to hold and was not being held.
+
+## 131. Feather and square-up, which are not the same speed
+
+The blade was squared through the drive and feathered through the
+recovery, switched between the two states instantly at each end. Both
+halves of that are wrong in the same way: the interesting part of
+blade-work is the *transitions*, and they are not symmetric.
+
+The feather is a flick of the inside wrist at the finish and it is
+fast. The square-up is a progressive roll of the handle through the
+last of the recovery, starting where the hands cross the knees —
+`SQUARE_UP_AT`, 55% of the way through the recovery — and finishing at
+the catch. `blade_roll` returns a continuous 0 (squared) to 1
+(feathered) with that asymmetry in it: a flick over 4.5% of the cycle,
+then flat, then a raised-cosine roll up.
+
+The blade itself is no longer a rectangle. A modern sweep blade is a
+hatchet: asymmetric about the shaft, deeper below the line than above,
+widest just short of a squared-off tip, and *spooned* — curved across
+its width so it holds water. `_blade_surface` builds that outline at
+five stations with a parabolic spoon, closed on both faces so it stays
+solid when it turns edge-on, which is exactly when the feather happens.
+
+## 132. The eight was decked over its own crew
+
+`hull_solid` made one cut at the coxswain's seat: deck ahead of it,
+floor behind. In a bow-loader that is right — the cox is in the bow and
+everything forward is foredeck. In a stern-coxed eight the coxswain is
+at the *back*, so "ahead of the seat" is the entire length of the crew,
+and the boat got a lid at gunwale height with eight people standing
+through it to the chest.
+
+A shell is open over its crew and decked at both ends, so that is what
+is built now: a cockpit spanning the seats and the coxswain, its floor
+set below the gunwale rather than down at the keel, with short decks
+fore and aft. The bow-loader comes out unchanged in character — its
+cockpit reaches `cockpit` metres past the cox's seat, which is why only
+a couple of feet ahead of the face is ever open.
+
+## 133. A menu that says where you are, and a controls screen
+
+Three things were missing rather than wrong. Nothing told you `Esc`
+opens the menu, so the pause menu and everything in it may as well not
+have existed; there is a line along the bottom of the HUD now. There
+was no list of controls anywhere in the program; there is a Controls
+screen on both menus, built from one `CONTROLS` table so the menu and
+the README cannot drift apart.
+
+And the menu sat on flat colour. It now sits on the **soundings for
+whichever course is highlighted** — the Charles isobaths and the Lake
+Union depth grid, both already in the build because the courses are
+laid out against them — so the backdrop changes as you choose and is a
+chart of somewhere real. It costs one pass over a point cloud, about
+0.08 s, cached per course and size, and falls back to plain colour if
+the data is missing. The panel alpha came down so it shows through.
