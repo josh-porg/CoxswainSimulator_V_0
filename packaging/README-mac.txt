@@ -34,8 +34,23 @@ then drag Coxswain.app onto the Terminal window -- that types its
 location for you -- and press Return. Then open the app normally.
 
 Keep Coxswain.app and this README wherever you like; the app is
-self-contained. Nothing to install, no Python needed. Works on both
-Intel and Apple Silicon Macs.
+self-contained. Nothing to install, no Python needed.
+
+
+APPLE SILICON ONLY -- CHECK BEFORE YOU DOWNLOAD
+------------------------------------------------
+
+This needs a Mac with an Apple chip: an M1, M2, M3, M4 or later, which
+means any Mac bought from late 2020 onwards.
+
+It will NOT run on an Intel Mac. If yours is from 2019 or earlier, or
+if the Apple menu > About This Mac says "Intel", this build cannot
+start on it and there is nothing you can do at your end.
+
+I would build an Intel version if I could. The free Mac build machines
+that GitHub provides are all Apple chips now, and the Intel ones are a
+paid tier. If you are on an Intel Mac and want to try it, tell me and
+I will look at what it would take.
 
 
 FIRST SCREEN

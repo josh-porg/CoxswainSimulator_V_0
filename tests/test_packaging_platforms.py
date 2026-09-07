@@ -18,6 +18,8 @@ import io
 import os
 import re
 
+import pytest
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
@@ -117,14 +119,52 @@ def test_every_platform_has_its_own_instructions():
         assert "coxswain" in text
 
 
-def test_the_workflow_builds_for_intel_so_it_runs_everywhere():
-    """An arm64 build will not start on an Intel Mac; an x86_64 build
-    runs on Apple Silicon under Rosetta.  One download beats two."""
+def test_the_macos_runner_label_is_one_that_still_exists():
+    """A retired runner label does not fail -- it queues for ever.
+
+    This began as macos-13, the last free Intel runner, so that one
+    x86_64 download would also cover Apple Silicon through Rosetta.
+    GitHub retired the label, and the job sat queued for fifty minutes
+    with no runner able to match it while the other two were picked up
+    in seconds.  Nothing reported an error; there is simply no runner.
+
+    So the label is checked against the ones GitHub actually publishes.
+    If this fails, look at what images exist before changing the number.
+    """
+    yaml = pytest.importorskip("yaml")
+    with io.open(os.path.join(ROOT, ".github", "workflows", "release.yml"),
+                 encoding="utf-8") as handle:
+        spec = yaml.safe_load(handle)
+
+    # The VALUES, not the file's text: the comment above the matrix
+    # explains the macos-13 history and would trip a substring search.
+    runners = [entry["os"] for entry
+               in spec["jobs"]["build"]["strategy"]["matrix"]["include"]]
+    retired = {"macos-11", "macos-12", "macos-13"}
+    assert not (set(runners) & retired), (
+        "%s is retired; a job asking for it queues for ever"
+        % (set(runners) & retired))
+    assert any(r.startswith("macos-") for r in runners), runners
+
     workflow = read(".github", "workflows", "release.yml")
-    assert "macos-13" in workflow, "macos-14+ runners are Apple Silicon"
     assert "ditto" in workflow, (
         "a plain zip breaks the symlinks inside a .app bundle")
-    # Ad-hoc signing is what turns "damaged" into "cannot be verified".
+
+
+def test_the_mac_readme_says_apple_silicon_only():
+    """Every free macOS runner is arm64 now, so the build cannot run on
+    an Intel Mac at all.  Someone on a 2019 MacBook has to be told that
+    on the way in, not after downloading 200 MB."""
+    text = read("packaging", "README-mac.txt").lower()
+    assert "apple silicon" in text
+    assert "intel" in text, "Intel Macs must be named as unsupported"
+
+
+def test_the_bundle_is_ad_hoc_signed():
+    """Signing is what turns "damaged" into "cannot be verified", which
+    is the difference between a download people abandon and one they
+    open."""
+    workflow = read(".github", "workflows", "release.yml")
     assert "codesign --force --deep --sign -" in workflow
 
 

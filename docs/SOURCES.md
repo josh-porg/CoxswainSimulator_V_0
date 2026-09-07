@@ -9734,3 +9734,31 @@ still parsed, and the shell still ran — `apt-get install ... libegl1 n
 libgles2 ...` would simply have tried to install a package called `n`.
 Worth remembering that a valid-looking workflow is not a working one,
 and that `cat -A` settles it in a second.
+
+## 154. A retired runner label does not fail, it waits for ever
+
+The macOS job sat queued for fifty minutes without ever starting, while
+the Windows and Linux jobs of the same run were picked up in three
+seconds. That asymmetry is the tell: a backlog would have delayed all
+three.
+
+`runs-on: macos-13` had been chosen deliberately — the last free Intel
+runner, so that a single x86_64 download would also cover Apple Silicon
+through Rosetta 2, rather than making people pick. The reasoning was
+right and the premise had expired underneath it. GitHub has retired the
+label. Every macOS image it still publishes is arm64 (`macos-14-arm64`,
+`macos-15`, `macos-26`), and Intel is now a paid "-large" tier.
+
+**Nothing reports this.** The job does not fail with "no runner matches
+these labels"; it queues, indefinitely, looking exactly like a busy
+queue. `gh api .../jobs` showing `runner_name` empty for that job and
+populated for the other two is what settles it.
+
+So the build is Apple Silicon only, which means a 2020 Mac or later, and
+the README says so before the download rather than after it. An Intel
+Mac cannot run it at all.
+
+The test that guards this reads the **matrix values** rather than
+searching the file's text, because the comment explaining this history
+contains the string `macos-13` and a substring search trips on its own
+explanation.
