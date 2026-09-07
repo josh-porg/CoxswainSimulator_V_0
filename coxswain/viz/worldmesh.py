@@ -608,6 +608,38 @@ def box_solid(centre, half, colour=(0.62, 0.60, 0.56)) -> MeshPart:
     return MeshPart("box", vertices, colours, _face_normals(vertices))
 
 
+def viewpoint(boat):
+    """``(seat, eye_height, facing)`` for whoever is looking out of this boat.
+
+    A coxed boat has a coxswain and the rig says where they sit.  A
+    double or a single has nobody, and ``rig.coxswain_position`` is
+    ``None`` -- which crashed the trainer outright the first time
+    anybody picked one out of the menu, because both the hull builder
+    and the camera indexed it without asking.
+
+    So a coxless boat seats you in the stroke's place, **facing the
+    stern**, which is where a sculler looks: at the water they have
+    already been over.  ``facing`` is +1 toward the bow and -1 astern,
+    and it is why steering one of these is a matter of looking over a
+    shoulder.
+    """
+    rig = boat.rig
+    if rig.coxswain_position is not None:
+        return (np.asarray(rig.coxswain_position, dtype=float),
+                float(rig.coxswain_eye_height), 1.0)
+
+    stern_most = min(float(seat.station_x) for seat in rig.seats)
+    eye = 0.62
+    crew = getattr(boat, "crew", None)
+    if crew:
+        # Anchor to the rower's own head rather than to the coxswain's
+        # eye height, which is measured from a different seat and comes
+        # out above the top of their skull.
+        head = min(crew, key=lambda m: float(m.rower.station.x_ankle))
+        eye = float(head.rower.skeleton(0.0)["head"][2]) + CREW_LIFT - 0.03
+    return np.array([stern_most, 0.0, 0.0]), eye, -1.0
+
+
 def hull_solid(boat, deck: float = 0.30, colour=(0.88, 0.89, 0.86),
                deck_colour=(0.74, 0.76, 0.74),
                cockpit: float = 0.25,
@@ -657,7 +689,7 @@ def hull_solid(boat, deck: float = 0.30, colour=(0.88, 0.89, 0.86),
     # rungs are explicit, the winding is written down rather than
     # inherited from a convex hull, and the assertion below holds it:
     # every deck and floor triangle faces up.
-    seat_x = float(boat.rig.coxswain_position[0]) + float(cockpit)
+    seat_x = float(viewpoint(boat)[0][0]) + float(cockpit)
     bow, stern = float(ring[:, 0].max()), float(ring[:, 0].min())
 
     def edges_at(x):

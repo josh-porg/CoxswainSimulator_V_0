@@ -82,3 +82,12 @@ Does it steer like a boat? That is the whole question. Specifically:
 
 The sound is recorded from real practices, not synthesised, so if the
 timing feels off to you it probably is.
+
+
+CREDITS
+-------
+
+Menu music is "Romantic 03" by Mixkit, used under the Mixkit Free
+License. Everything else -- the courses, the scenery, the physics and
+the stroke sound -- is built from public survey data and from
+recordings of real outings.

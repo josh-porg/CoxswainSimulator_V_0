@@ -67,7 +67,7 @@ from coxswain.viz.water import (KELVIN_HALF_ANGLE,          # noqa: E402
 from coxswain.viz.worldmesh import _face_normals            # noqa: E402
 from coxswain.viz.worldmesh import (build_world,             # noqa: E402
                                     crew_solids, hull_solid,
-                                    oar_solids)
+                                    oar_solids, viewpoint)
 
 RUDDER_LIMIT = 0.20
 RUDDER_RATE = 0.55
@@ -388,8 +388,12 @@ def look_at(eye, target, up):
     return matrix
 
 
-def seat_camera(state, boat, sway: float = 1.0):
-    """``(eye, target, up)`` for the coxswain's head.
+def seat_camera(state, boat, sway: float = 1.0, look=None):
+    """``(eye, target, up)`` for whoever is looking out of the boat.
+
+    ``look`` overrides which way they face: +1 toward the bow, -1
+    astern.  A sculler sits facing astern and glances over a shoulder,
+    which is what that override is for.
 
     A bow-loader puts the cox in the bow, lying back: the seat is at
     ``rig.coxswain_position`` and the eye ``rig.coxswain_eye_height``
@@ -397,11 +401,14 @@ def seat_camera(state, boat, sway: float = 1.0):
     tipping with the boat is most of what tells you the boat is alive.
     """
     rotation = hull_to_abs(np.asarray(state[3:6], dtype=float))
-    seat = np.asarray(boat.rig.coxswain_position, dtype=float).copy()
-    seat[2] += float(boat.rig.coxswain_eye_height)
+    seat, eye_height, facing = viewpoint(boat)
+    seat = np.asarray(seat, dtype=float).copy()
+    seat[2] += float(eye_height)
     position = np.asarray(state[0:3], dtype=float)
     eye = position + rotation @ (seat * np.array([1.0, sway, 1.0]))
-    forward = rotation @ np.array([1.0, 0.0, 0.0])
+    if look is not None:
+        facing = float(look)
+    forward = rotation @ np.array([float(facing), 0.0, 0.0])
     up = rotation @ np.array([0.0, 0.0, 1.0])
     return eye, eye + forward, up
 
@@ -735,6 +742,13 @@ def main(argv=None):
     simulator = RowingSimulator(boat, coxswain=cox, fast=True)
     hull = hull_solid(boat)
     crew = crew_poses(boat)
+    # Set here rather than beside the rest of the loop state: ``draw``
+    # closes over both and is called once before the loop starts, so
+    # assigning them later is an unbound free variable on the first
+    # frame -- which is the same mistake, in the same file, as the
+    # pygame import that broke every launch.
+    steers_with_rudder = boat.rig.has_coxswain
+    looking_ahead = False
 
     course = scene.course
     station = np.concatenate([[0.0], np.cumsum(
@@ -913,7 +927,11 @@ def main(argv=None):
     def draw(state, t):
         """One frame.  ``draw.last_phase`` remembers where in the stroke
         the previous frame was, so a catch can be detected by the wrap."""
-        eye, target_point, up = seat_camera(state, boat)
+        # Facing astern in a scull, unless you are looking over your
+        # shoulder to see where you are going.
+        _seat, _height, facing = viewpoint(boat)
+        look = -facing if looking_ahead else facing
+        eye, target_point, up = seat_camera(state, boat, look=look)
         view = look_at(eye, target_point, up)
         program["mvp"].write((projection @ view).T.tobytes(order="C"))
         program["eye"].value = tuple(float(v) for v in eye)
@@ -1039,6 +1057,11 @@ def main(argv=None):
                     paused = not paused
                 elif event.key == pygame.K_c:
                     rudder = 0.0
+                elif event.key == pygame.K_v:
+                    # Over the shoulder.  In a scull this is the only
+                    # way to see where you are going; in a coxed boat it
+                    # turns round and shows you the crew from in front.
+                    looking_ahead = not looking_ahead
                 elif event.key == pygame.K_m:
                     args.control = "keys" if args.control == "mouse" \
                         else "mouse"
@@ -1069,6 +1092,8 @@ def main(argv=None):
                                   -SPLIT_LIMIT, SPLIT_LIMIT))
         else:
             split -= np.sign(split) * min(abs(split), SPLIT_RETURN * frame)
+        if not steers_with_rudder:
+            rudder = 0.0
         live.set(ControlInput(rudder=rudder, pressure_split=split))
 
         if args.autopilot:

@@ -9152,3 +9152,115 @@ that every deck and floor triangle faces up, and the bridge builder
 takes the direction a face should look as an argument rather than
 inferring it from vertex order.
 
+
+## 126. The menu music, and what its licence does and does not allow
+
+The track under the setup menu is Mixkit item 754, "Romantic 03",
+shipped as `coxswain/data/menu_music.mp3`.
+
+It is used under the **Mixkit Free License**, whose terms as published
+are that items may be used in commercial and non-commercial work with
+no attribution required, and that they may **not** be redistributed or
+sold on their own, nor used as the substance of a product — a music
+pack, a template, a sample library. Background audio in a free trainer
+that is given away is squarely a permitted use; the asset is not what
+anybody is downloading this for.
+
+Two things follow that are worth writing down rather than remembering.
+The first is that although attribution is not required, the credit is
+in `coxswain/viz/menu.py` beside the constant and here, because a
+licence that lives only in somebody's memory of where a file came from
+is a licence that is lost the first time the file is copied. The second
+is that this is a reading of the published terms and not legal advice:
+if the trainer is ever sold, or the track ends up anywhere it could be
+extracted as music rather than heard as background, the licence should
+be re-read before that happens.
+
+The file is 4.1 MB and 102 seconds, and it loops. It is registered with
+the build through `DATA_SUFFIXES` in `tools/build_exe.py` — `.mp3` had
+to be added there, because the payload is discovered by scanning the
+source for data-file names and a suffix the scanner does not know about
+is a file the packaged build ships without.
+
+## 127. The crew, and five things about them that were wrong
+
+The seat view drew no people at all. In a bow-loaded four that is
+nearly right, since the crew are behind you; in an eight it is not,
+because you sit in the stern and the crew are the view. Both boats
+looked identical out of the window, which is the one comparison that
+should never have come out equal.
+
+They are drawn from `JointDrivenRower.skeleton` and its `BONES` — the
+same joints the PyVista scene uses and the same chain the dynamics are
+integrated from, so the bodies cannot drift out of step with the boat
+they are driving. `skeleton` resolves both arms in three dimensions
+including the trunk rotation, which matters: a sweep rower has both
+hands on one handle and is wound round toward it, and a mirrored figure
+reads as sculling.
+
+What was wrong, in the order it was found:
+
+1. **The rowers face you.** They face the stern, and in a stern-coxed
+   boat that is where you are sitting. Not their backs.
+2. **The coxswain was above them.** At the old seat height the cox's eye
+   sat 19 cm over the crew's heads, looking down on them. The rowers
+   were the ones misplaced, not the coxswain: see (4).
+3. **Limbs were square prisms.** `_strut` is right for a truss member and
+   wrong for an arm at two metres. `_tube` is the round one.
+4. **The crew were sunk into the hull to the waist.** The model's seat
+   plane is 0.104 m above the waterline; a real shell's deck is three or
+   four inches below the gunwale and the seat an inch or two above the
+   deck, which against this hull's 0.30 m gunwale puts a backside near
+   0.25. `CREW_LIFT` raises the drawn crew by the difference. **This is
+   a render offset and the underlying model is still low** — if the seat
+   really is 0.15 m out then the crew's mass is 0.15 m out with it,
+   which flatters the roll inertia. Correcting that means moving the
+   station in the kinematics and re-checking everything calibrated
+   against it, which is not a thing to do quietly while making a picture
+   look right.
+5. **Heads were lengths of pipe.** They are spheres.
+
+The hands are the interesting case. The kinematics already solve them
+onto the handle, so hands and handle agree exactly in the model — and
+the fix for the oars (§128) tilts the drawn loom, which would take them
+straight off it. So the hands are the one part of the body that does
+*not* get `CREW_LIFT`; they ride the loom instead, and by an amount
+interpolated along it, because a sweep rower's two hands sit at
+different points on the shaft and lifting both by the handle's own rise
+pulls the inboard one 5 cm off the wood.
+
+## 128. The oars were being drawn, and were invisible
+
+They were flat horizontal quads at a constant 0.32 m. A horizontal
+ribbon seen from a horizontal eye is a line, so from the seat there was
+nothing there; and the blades, at oarlock height for the whole cycle,
+never touched the water.
+
+The oar model is genuinely planar. `handle_position` and
+`blade_position` both return points at oarlock height, because the
+dynamics only ever needed the horizontal sweep — blade immersion is
+carried as a factor, not as geometry. So the vertical is reconstructed
+in `oar_pose`, for the picture only, from the one thing that fixes it:
+the oar is rigid and pivots about the lock. Put the blade where it
+belongs — buried on the drive, clear on the recovery — and the handle
+height follows from the lever ratio. Nothing in the dynamics reads it.
+
+The blade is squared on the drive and feathered on the recovery, which
+is the most legible cue in the frame for where in the cycle the crew is:
+a whole surface turning, rather than a small thing moving.
+
+## 129. The Grand Junction trestle, drawn as a plank
+
+The Charles' two non-arch bridges were a flat slab on two piers at the
+thirds. The Grand Junction is a 149 m steel railway trestle standing on
+a long row of legs, and it is the first structure of the race.
+
+Its pier positions have been surveyed since before this renderer
+existed: `MEASURED_PIERS` carries five, from OpenStreetMap
+`bridge:support=pier` polygons, at 28, 53, 78, 96 and 121 m along the
+deck. They were being read by the navigation code — `derive_piers` uses
+them for keep-out intervals — and ignored by the picture, which put
+seven evenly spaced legs there instead, from dividing the length by the
+inventory span. Both bridges now get the same open steelwork the
+Seattle canal bridges do, and the surveyed piers go where they were
+measured.
