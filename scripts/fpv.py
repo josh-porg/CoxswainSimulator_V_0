@@ -990,8 +990,12 @@ float waterline_foam(vec2 p) {
     // a line of broken water along the entry and a tuft at the stem.
     // The reach opens out aft of the stem as the sheet spreads, which
     // with the waterline narrowing forward is what makes the point.
+    // A real sheet is centimetres; drawn at centimetres it vanishes
+    // from a few metres away, and the point of it is to be seen.  So
+    // it opens from a hand's width at the stem to about a quarter of a
+    // metre a few metres aft, still closing to the point.
     float spread = smoothstep(0.0, 3.5, half_len - along);
-    float reach = (0.05 + 0.12 * spread) + 0.10 * sheet
+    float reach = (0.10 + 0.15 * spread) + 0.10 * sheet
                 + 0.25 * at_stem * (max(run_up, 0.0) + plunge);
     float band = exp(-max(out_across, 0.0) / reach);
     // And the sheet fades aft rather than being cut off.
