@@ -19,7 +19,13 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Existing tag to build and upload to"
+        description: >-
+          Tag to build and upload to.  It must point at a commit that
+          CONTAINS this workflow and requirements-build.txt, because the
+          runner checks out the tag and builds that tree -- dispatching
+          against an older tag checks out code that has no build tooling
+          in it and fails at the install step.  Normally: make a new tag
+          and push it, which runs this anyway.
         required: true
 
 permissions:
@@ -115,4 +121,11 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           ls -la
+          # Create the release if it is not there yet, so that pushing a
+          # tag is all it takes.  Uploading to a tag with no release is
+          # an error, and that is easy to hit when the tag push is what
+          # started this in the first place.
+          if ! gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            gh release create "$TAG" --repo "$REPO" --title "Coxswain $TAG"               --notes "Windows and macOS builds are attached below."               --latest
+          fi
           gh release upload "$TAG" Coxswain-*.zip --clobber --repo "$REPO"

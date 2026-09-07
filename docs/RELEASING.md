@@ -20,6 +20,44 @@ python tools/build_exe.py --onedir
 Then zip `dist/Coxswain` so the archive contains a single `Coxswain/`
 folder, and attach it to a release.
 
+### The Mac build, and why it is not made here
+
+PyInstaller does not cross-compile. It bundles the running interpreter
+and the actual binary extension modules from the machine it is on, so a
+macOS build has to be made on macOS. There is no Mac in this project, so
+`.github/workflows/release.yml` builds both platforms on GitHub runners
+and attaches them to the release:
+
+```bash
+gh workflow run release.yml -f tag=v0.2
+gh run watch <id> --exit-status
+```
+
+Pushing a `v*` tag runs it too. It builds on **macos-13**, the last
+Intel runner, on purpose: an x86_64 build runs on Apple Silicon through
+Rosetta 2, but an arm64 build will not start at all on an Intel Mac, and
+plenty of crews are still on 2019 MacBooks. One download that works
+everywhere beats two that people have to choose between.
+
+Three macOS-specific things are easy to get wrong and none of them shows
+up as a build failure:
+
+* **The GL context.** macOS will not give a 3.3 core profile unless you
+  also request forward-compatible. Ask for core alone and it hands back
+  a 2.1 legacy context without complaining, and every `#version 330`
+  shader then fails to compile -- so it dies at the first draw with a
+  message about a shader.
+* **Retina.** The drawable is twice the window. Framebuffers and the
+  water's `viewport` uniform are in pixels; the mouse and HUD layout are
+  in points, which is what SDL reports them in.
+* **`ditto`, not `zip`.** A plain zip drops the symlinks and executable
+  bits inside a `.app`, and the bundle then will not launch.
+
+The app is unsigned, so the first launch needs right-click then Open.
+`packaging/README-mac.txt` leads with that, because macOS's own message
+says the app is "damaged" and offers only a Cancel button -- anyone not
+told will report it as broken.
+
 ### In the browser
 
 1. Go to the repository, then **Releases**, then **Draft a new release**.
