@@ -159,16 +159,17 @@ AUDIO_MODES = (("full", "Full"), ("events", "Events only"), ("off", "Off"))
 
 #: Graphics presets, as ``(key, label, water_divisions, trees)``.
 #:
-#: There is one setting because there is one thing worth trading: the
-#: water grid, which is a quarter of a million triangles at Standard and
-#: the only part of the scene that is rebuilt every frame.  Low also
-#: drops the distant trees, which is the other thing an integrated part
-#: spends its fill rate on.  The control exists now so that a machine
-#: slower than this one has somewhere to go.
+#: Two things are traded.  The water grid is a quarter of a million
+#: triangles at Standard and the only part of the scene rebuilt every
+#: frame.  And **Minimal keeps the original water shader** -- a Fresnel
+#: mix between a deep colour and a flat sky, opaque, reflecting nothing
+#: -- while Standard and High run the second pass: screen-space
+#: refraction with depth absorption, and a reflection distorted by the
+#: waves.  Minimal also drops the distant trees.
 QUALITY = (
-    ("low", "Low", 240, False),
-    ("standard", "Standard", 340, True),
-    ("high", "High", 420, True),
+    ("minimal", "Minimal", 240, False, False),
+    ("standard", "Standard", 340, True, True),
+    ("high", "High", 420, True, True),
 )
 
 
@@ -177,15 +178,15 @@ def audio_choices():
 
 
 def quality_choices():
-    return [(key, label) for key, label, _divisions, _trees in QUALITY]
+    return [(key, label) for key, label, _d, _t, _r in QUALITY]
 
 
 def quality_settings(key: str):
-    """``(water_divisions, trees)`` for a preset key."""
-    for name, _label, divisions, trees in QUALITY:
+    """``(water_divisions, trees, rich_water)`` for a preset key."""
+    for name, _label, divisions, trees, rich in QUALITY:
         if name == key:
-            return divisions, bool(trees)
-    return 340, True
+            return divisions, bool(trees), bool(rich)
+    return 340, True, True
 
 
 def options_menu(audio: str = "full", quality: str = "standard") -> Menu:

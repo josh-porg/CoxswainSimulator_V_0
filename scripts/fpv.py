@@ -353,6 +353,144 @@ void main() {
 """
 
 
+#: The richer water shader: screen-space refraction, depth absorption
+#: and a wave-distorted reflection.
+#:
+#: What the minimal one does is mix a deep colour toward the sky by a
+#: Fresnel term.  That gets chop reading as chop -- a slope becomes a
+#: brightness -- and it is all it does: the water is opaque, it reflects
+#: a single flat sky colour, and nothing behind it is visible through
+#: it.  Real water is translucent, absorbs by depth, and reflects a
+#: distorted picture of what is above it.
+#:
+#: This wants the opaque scene already rendered, so it runs in a second
+#: pass over a colour and depth texture of the world.
+WATER_FRAGMENT_RICH = """#version 330
+in vec3 v_world;
+in vec3 v_normal;
+in float v_foam;
+out vec4 f_colour;
+uniform vec3 sun;
+uniform vec3 sky;
+uniform vec3 eye;
+uniform float far;
+uniform vec3 deep;
+uniform sampler2D scene;
+uniform sampler2D scene_depth;
+uniform vec2 viewport;
+uniform float near_plane;
+uniform float far_plane;
+uniform float refract_scale;
+uniform int reflect_steps;
+uniform mat4 mvp;
+
+float linear_depth(float raw) {
+    float ndc = raw * 2.0 - 1.0;
+    return (2.0 * near_plane * far_plane)
+         / (far_plane + near_plane - ndc * (far_plane - near_plane));
+}
+
+void main() {
+    vec3 n = normalize(v_normal);
+    vec3 to_eye = normalize(eye - v_world);
+    vec2 uv = gl_FragCoord.xy / viewport;
+
+    // --- refraction ----------------------------------------------------
+    // The surface bends what is behind it.  Offsetting the lookup by the
+    // slope is the whole of it; the offset shrinks with distance so the
+    // far water does not smear, and it is clamped so a steep wave cannot
+    // pull in a sample from off the far side of the screen.
+    float range = max(length(v_world - eye), 1.0);
+    vec2 bend = n.xy * refract_scale / range;
+    bend = clamp(bend, vec2(-0.06), vec2(0.06));
+    vec2 under_uv = clamp(uv + bend, vec2(0.001), vec2(0.999));
+
+    float here = linear_depth(gl_FragCoord.z);
+    float behind = linear_depth(texture(scene_depth, under_uv).r);
+    // A refracted sample that turns out to be IN FRONT of the water is
+    // something sticking up out of it -- a hull, a pier -- and dragging
+    // that into the water is the classic artefact.  Fall back to the
+    // undisplaced sample there.
+    if (behind < here) {
+        under_uv = uv;
+        behind = linear_depth(texture(scene_depth, uv).r);
+    }
+    float thickness = max(behind - here, 0.0);
+
+    vec3 under = texture(scene, under_uv).rgb;
+    // Beer-Lambert: what survives the water column.  Longer wavelengths
+    // go first, which is why depth reads blue-green rather than grey.
+    vec3 absorb = exp(-thickness * vec3(0.62, 0.38, 0.26));
+    vec3 refracted = mix(deep, under * absorb, absorb);
+
+    // --- reflection ----------------------------------------------------
+    // A short screen-space march along the reflected ray.  It picks up
+    // the bank, the bridges and the crew; where it finds nothing it
+    // falls back to the sky, which is what most of a reflected ray hits
+    // from 0.6 m off the water anyway.
+    vec3 ray = reflect(-to_eye, n);
+    // The sky as the surface sees it: brighter overhead, and darker
+    // toward the horizon where a wave face turns away from it.  This is
+    // where the wave-dependent distortion lives -- the reflected ray
+    // swings with the surface normal, so a chop pattern becomes a
+    // pattern of light, without any search at all.
+    float up = clamp(ray.z, 0.0, 1.0);
+    vec3 mirror = mix(sky * 0.86, sky * 1.08, pow(up, 0.6));
+    float hit = 0.0;
+    // A reflection off a water surface goes UP.  Without this the march
+    // happily finds the drowned part of the bank -- the apron carried
+    // below the waterline -- and paints it on the surface as blocks.
+    if (reflect_steps > 0 && ray.z > 0.02) {
+        vec3 march = v_world;
+        float step_len = 0.6 + range * 0.05;
+        for (int i = 0; i < reflect_steps; ++i) {
+            march += ray * step_len;
+            vec4 clip = mvp * vec4(march, 1.0);
+            if (clip.w <= 0.0) break;
+            vec3 ndc = clip.xyz / clip.w;
+            vec2 probe = ndc.xy * 0.5 + 0.5;
+            if (probe.x < 0.0 || probe.x > 1.0
+             || probe.y < 0.0 || probe.y > 1.0) break;
+            float scene_z = linear_depth(texture(scene_depth, probe).r);
+            float ray_z = linear_depth(ndc.z * 0.5 + 0.5);
+            // Reject anything below the surface as well: only what
+            // stands above the water can be reflected in it.
+            if (march.z > v_world.z
+             && ray_z > scene_z && ray_z - scene_z < step_len * 3.0) {
+                mirror = texture(scene, probe).rgb;
+                // Fade the hit out at the edges of the screen, where a
+                // screen-space reflection has no information and a hard
+                // stop is more obvious than no reflection at all.
+                vec2 edge = smoothstep(vec2(0.0), vec2(0.12), probe)
+                          * smoothstep(vec2(0.0), vec2(0.12), 1.0 - probe);
+                // Confidence falls off with how far the march had to go:
+                // from 0.6 m above the water the reflected ray is almost
+                // horizontal, so a late hit covers an enormous distance
+                // in one step and lands as a hard patch.  Taken at less
+                // than full strength it tints the surface instead of
+                // replacing it, which is what a real reflection at a
+                // grazing angle does anyway.
+                float trust = 1.0 - float(i) / float(reflect_steps);
+                hit = edge.x * edge.y * (0.30 + 0.45 * trust);
+                break;
+            }
+            step_len *= 1.35;
+        }
+    }
+    mirror = mix(mix(sky * 0.86, sky * 1.08, pow(up, 0.6)), mirror, hit);
+
+    // --- put them together ---------------------------------------------
+    float fresnel = 0.02 + 0.98 * pow(1.0 - max(dot(n, to_eye), 0.0), 5.0);
+    vec3 lit = mix(refracted, mirror, clamp(fresnel, 0.0, 1.0));
+    float spec = pow(max(dot(reflect(-sun, n), to_eye), 0.0), 90.0);
+    lit += vec3(1.0, 0.98, 0.92) * spec * 0.65;
+    lit += vec3(0.75) * v_foam * 0.55;
+    float haze = clamp(length(v_world - eye) / far, 0.0, 1.0);
+    f_colour = vec4(mix(lit, sky, haze * haze), 1.0);
+}
+"""
+
+
 def water_grid(reach: float = WATER_REACH,
                divisions: int = WATER_DIVISIONS):
     """A graded grid of triangles, in boat-relative coordinates.
@@ -760,7 +898,7 @@ def main(argv=None):
                         choices=("4+", "8+", "2x", "1x"))
     parser.add_argument("--rate", type=float, default=30.0)
     parser.add_argument("--quality", default="standard",
-                        choices=("low", "standard", "high"),
+                        choices=("minimal", "standard", "high"),
                         help="water detail against frame rate")
     parser.add_argument("--samples", type=int, default=4,
                         help="multisample anti-aliasing; 0 turns it off")
@@ -852,7 +990,7 @@ def main(argv=None):
                                   trees=not args.no_trees)
         return sea, trough, mesh, scene, build_boat(args.boat, args.rate)
 
-    divisions, keep_trees = quality_settings(args.quality)
+    divisions, keep_trees, rich_water = quality_settings(args.quality)
     if not keep_trees:
         args.no_trees = True
 
@@ -984,6 +1122,38 @@ def main(argv=None):
 
     ctx.enable(moderngl.DEPTH_TEST | moderngl.CULL_FACE)
     ctx.cull_face = "back"
+
+    # The rich water shader reads the opaque scene, so it cannot be in
+    # the same pass as the thing it reads.  The world goes into
+    # `scene_fbo`; its colour is copied forward into `water_fbo`, which
+    # SHARES the depth texture so the water still depth-tests against
+    # the bank it is lapping; the water and the boat draw there, reading
+    # the untouched copy; and the result is blitted to the screen.
+    #
+    # One real cost: these framebuffers are not multisampled, so the
+    # MSAA asked for on the default framebuffer does not apply on the
+    # richer settings.  Resolving a multisampled colour texture into a
+    # sampleable one is another pass again, and the aliasing it would
+    # fix is less obtrusive than the flat opaque water it replaces.
+    scene_fbo = water_fbo = None
+    scene_colour = scene_depth_tex = composed = None
+    # Enabled headless too: --shot is how this gets looked at without a
+    # person watching, and a water shader that cannot be screenshotted
+    # cannot be checked.
+    if rich_water:
+        size = (args.width, args.height)
+        scene_colour = ctx.texture(size, 3)
+        scene_colour.filter = (moderngl.LINEAR, moderngl.LINEAR)
+        scene_colour.repeat_x = scene_colour.repeat_y = False
+        scene_depth_tex = ctx.depth_texture(size)
+        scene_depth_tex.filter = (moderngl.NEAREST, moderngl.NEAREST)
+        scene_depth_tex.repeat_x = scene_depth_tex.repeat_y = False
+        composed = ctx.texture(size, 3)
+        composed.filter = (moderngl.LINEAR, moderngl.LINEAR)
+        scene_fbo = ctx.framebuffer(color_attachments=[scene_colour],
+                                    depth_attachment=scene_depth_tex)
+        water_fbo = ctx.framebuffer(color_attachments=[composed],
+                                    depth_attachment=scene_depth_tex)
     program = ctx.program(vertex_shader=VERTEX_SHADER,
                           fragment_shader=FRAGMENT_SHADER)
     program["sun"].value = tuple(np.array([0.42, 0.30, 0.85])
@@ -999,14 +1169,30 @@ def main(argv=None):
                        "in_colour")]))
 
     # -- the water ------------------------------------------------------
-    water_prog = ctx.program(vertex_shader=WATER_VERTEX,
-                             fragment_shader=WATER_FRAGMENT)
+    water_prog = ctx.program(
+        vertex_shader=WATER_VERTEX,
+        fragment_shader=(WATER_FRAGMENT_RICH if scene_fbo is not None
+                         else WATER_FRAGMENT))
     water_prog["sun"].value = tuple(np.array([0.42, 0.30, 0.85])
                                     / np.linalg.norm([0.42, 0.30, 0.85]))
     water_prog["sky"].value = SKY
     water_prog["far"].value = FAR
     water_prog["deep"].value = (0.055, 0.115, 0.155)
     water_prog["hull_length"].value = float(boat.length)
+    #: Texture units 0-2 are the HUD, the near field and the wave table.
+    SCENE_UNIT, DEPTH_UNIT = 3, 4
+    if scene_fbo is not None:
+        water_prog["scene"].value = SCENE_UNIT
+        water_prog["scene_depth"].value = DEPTH_UNIT
+        water_prog["viewport"].value = (float(args.width), float(args.height))
+        water_prog["near_plane"].value = 0.25
+        water_prog["far_plane"].value = float(FAR)
+        # How hard the surface bends what is behind it, before the 1/range
+        # falloff.  Set by eye against the near water: enough that a wave
+        # visibly displaces the bank behind it, not so much that the
+        # shoreline swims.
+        water_prog["refract_scale"].value = 5.5
+        water_prog["reflect_steps"].value = 12
     water_prog["wind_to"].value = float(np.radians(args.wind_from) + np.pi)
     wave = load_wavefield(shell_of(boat))
     if wave is not None:
@@ -1119,9 +1305,21 @@ def main(argv=None):
         view = look_at(eye, target_point, up)
         program["mvp"].write((projection @ view).T.tobytes(order="C"))
         program["eye"].value = tuple(float(v) for v in eye)
-        target.clear(SKY[0], SKY[1], SKY[2], 1.0)
+        # Pass one: the opaque world, into its own buffer when the
+        # water is going to read it back.
+        first = scene_fbo if scene_fbo is not None else target
+        first.use()
+        first.clear(SKY[0], SKY[1], SKY[2], 1.0)
         for vao in static:
             vao.render()
+        if scene_fbo is not None:
+            # Carry the world forward into the buffer the water draws
+            # into, so the water reads an untouched copy of what is
+            # behind it rather than the surface it is drawing.
+            water_fbo.use()
+            scene_colour.use(SCENE_UNIT)
+            _opaque_blit(ctx, SCENE_UNIT)
+            scene_depth_tex.use(DEPTH_UNIT)
         # The water goes on after the land, so the shore reads through it
         # at the edges and the patch does not have to be clipped.
         speed = float(np.hypot(state[6], state[7]))
@@ -1152,6 +1350,9 @@ def main(argv=None):
         water_prog["puddles"].write(trail.as_uniform(t).tobytes())
         near_tex.use(NEAR_UNIT)          # never trust the binding
         wave_tex.use(WAVE_UNIT)
+        if scene_fbo is not None:
+            scene_colour.use(SCENE_UNIT)
+            scene_depth_tex.use(DEPTH_UNIT)
         water_vao.render()
         vertices, colours = boat_geometry(boat, hull, t, state, crew)
         if vertices is not None and len(vertices):
@@ -1160,6 +1361,11 @@ def main(argv=None):
             if blob.nbytes <= oar_buffer.size:
                 oar_buffer.write(blob.tobytes())
                 oar_vao.render(vertices=len(vertices))
+        if scene_fbo is not None:
+            # And out to the screen, so the HUD has something to sit on.
+            target.use()
+            composed.use(SCENE_UNIT)
+            _opaque_blit(ctx, SCENE_UNIT)
 
     draw.last_phase = 0.0
 
@@ -1439,6 +1645,39 @@ def _surface_bytes(pygame, surface):
 
 
 _BLIT = {}
+
+
+def _opaque_blit(ctx, unit: int) -> None:
+    """Copy a full-screen colour texture, ignoring depth entirely.
+
+    Used to carry one framebuffer's colour into the next.  Depth test
+    and depth write are both off: the depth buffer being copied *into*
+    is the world's, and it has to survive so the water still tests
+    against the bank.
+    """
+    import moderngl
+
+    if "opaque" not in _BLIT:
+        program = ctx.program(
+            vertex_shader='''#version 330
+            in vec2 in_pos; out vec2 uv;
+            void main(){ uv = in_pos * 0.5 + 0.5;
+                         gl_Position = vec4(in_pos, 0.0, 1.0); }''',
+            fragment_shader='''#version 330
+            in vec2 uv; out vec4 f; uniform sampler2D image;
+            void main(){ f = vec4(texture(image, uv).rgb, 1.0); }''')
+        quad = np.array([-1, -1, 3, -1, -1, 3], dtype="f4")
+        buffer = ctx.buffer(quad.tobytes())
+        _BLIT["opaque"] = ctx.vertex_array(program,
+                                           [(buffer, "2f", "in_pos")])
+        _BLIT["opaque_program"] = program
+    # DEPTH_TEST off is enough on its own: with the test disabled the
+    # depth buffer is not written either, so the world's depth survives
+    # the copy.  (moderngl has no depth_mask on the context.)
+    ctx.disable(moderngl.DEPTH_TEST)
+    _BLIT["opaque_program"]["image"].value = int(unit)
+    _BLIT["opaque"].render()
+    ctx.enable(moderngl.DEPTH_TEST)
 
 
 def _hud_blit(ctx):
