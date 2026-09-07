@@ -1,4 +1,5 @@
-# Build the trainer for Windows and macOS, and attach both to a release.
+# Build the trainer for Windows, macOS and Linux, and attach all
+# three to a release.
 #
 # WHY THIS EXISTS
 # ---------------
@@ -8,8 +9,8 @@
 # no Mac here, and GitHub gives free runners for public repositories, so
 # the Mac build happens there.
 #
-# Both platforms build from the SAME tag and the same pinned
-# requirements, so the two downloads can only differ by platform.
+# All three build from the SAME tag and the same pinned
+# requirements, so the downloads can only differ by platform.
 
 name: Release
 
@@ -49,6 +50,16 @@ jobs:
           - os: macos-13
             name: mac
             artifact: Coxswain-mac
+          # ubuntu-22.04, not ubuntu-latest.  A Linux binary links
+          # against the glibc it was BUILT against and will not start on
+          # anything older: build on 24.04 (glibc 2.39) and it refuses
+          # to run on Debian 12, Mint 21 or Ubuntu 22.04 itself, which
+          # is most of the machines anyone actually has.  22.04 is glibc
+          # 2.35 and runs on everything newer, which is the direction
+          # compatibility works in.
+          - os: ubuntu-22.04
+            name: linux
+            artifact: Coxswain
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -59,6 +70,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Install the libraries SDL and OpenGL need
+        if: matrix.name == 'linux'
+        run: |
+          # Only for the smoke test below: pygame's wheel carries its
+          # own SDL, but SDL still dlopen's the system's GL and audio
+          # libraries at run time, and a bare runner has none of them.
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libgl1 libglx-mesa0 libegl1 \
+            libgles2 libsdl2-2.0-0 libasound2 libpulse0 libxrandr2 \
+            libxcursor1 libxi6 libxinerama1 xvfb
 
       - name: Install what the trainer needs
         run: |
@@ -76,23 +98,64 @@ jobs:
           # arrangement exists to avoid.  So: does it run, headless, on
           # every course, from the built artefact?
           set -e
-          if [ "${{ matrix.name }}" = "mac" ]; then
-            APP="dist/Coxswain-mac/Coxswain.app/Contents/MacOS/Coxswain"
-          else
-            APP="dist/Coxswain/Coxswain.exe"
-          fi
+          case "${{ matrix.name }}" in
+            mac)   APP="dist/Coxswain-mac/Coxswain.app/Contents/MacOS/Coxswain" ;;
+            linux) APP="dist/Coxswain/Coxswain" ;;
+            *)     APP="dist/Coxswain/Coxswain.exe" ;;
+          esac
+          # SDL_VIDEODRIVER=dummy gets a window with no display, but
+          # the headless path still makes a real standalone GL context
+          # and a bare runner has no GLX to give it -- so on Linux the
+          # whole thing runs under a virtual X server.
+          RUN=""
+          [ "${{ matrix.name }}" = "linux" ] && RUN="xvfb-run -a"
           for course in charles totl hotl; do
             echo "--- $course"
-            SDL_VIDEODRIVER=dummy "$APP" --race "$course" --boat 8+ \
+            SDL_VIDEODRIVER=dummy $RUN "$APP" --race "$course" --boat 8+ \
               --no-menu --shot "/tmp/$course.png" --width 320 --height 180
           done
           echo "all three courses ran"
+
+      - name: Sign the bundle, so macOS does not call it damaged
+        if: matrix.name == 'mac'
+        run: |
+          # Ad-hoc signing: a signature with no identity behind it.  It
+          # is free, needs no Apple account, and it is NOT notarisation
+          # -- Gatekeeper will still ask before the first launch.
+          #
+          # What it changes is WHICH question it asks.  An unsigned
+          # bundle that has been quarantined fails signature validation
+          # outright, and macOS reports that as "Coxswain is damaged and
+          # can't be opened" with a single Cancel button -- which reads
+          # as a corrupt download, and is the single most likely reason
+          # somebody gives up before ever seeing the boat.
+          #
+          # Ad-hoc signed, the signature is valid, it is only unknown.
+          # So the message becomes "unidentified developer", which is
+          # accurate, and right-click then Open works cleanly.
+          #
+          # --deep because a PyInstaller bundle carries a hundred-odd
+          # nested .so files that each need covering; --force because
+          # PyInstaller writes its own placeholder signature first.
+          codesign --force --deep --sign - dist/Coxswain-mac/Coxswain.app
+          codesign --verify --deep --strict --verbose=2 \
+            dist/Coxswain-mac/Coxswain.app
+          echo "--- what Gatekeeper will see ---"
+          spctl --assess --type execute --verbose=4 \
+            dist/Coxswain-mac/Coxswain.app 2>&1 || true
 
       - name: Zip it
         shell: bash
         run: |
           cd dist
-          if [ "${{ matrix.name }}" = "mac" ]; then
+          if [ "${{ matrix.name }}" = "linux" ]; then
+            # tar.gz, not zip: the executable bit has to survive, and a
+            # zip does not reliably carry it.  Someone unzipping to a
+            # non-executable binary gets "permission denied" and no clue
+            # why.
+            chmod +x Coxswain/Coxswain
+            tar -czf ../Coxswain-linux.tar.gz Coxswain
+          elif [ "${{ matrix.name }}" = "mac" ]; then
             # ditto, not zip: it preserves the symlinks and the
             # executable bits inside a .app bundle, and a plain zip
             # quietly breaks the bundle so it will not launch.
@@ -105,7 +168,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: Coxswain-${{ matrix.name }}
-          path: Coxswain-*.zip
+          path: |
+            Coxswain-*.zip
+            Coxswain-*.tar.gz
 
   publish:
     needs: build
@@ -114,7 +179,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           merge-multiple: true
-      - name: Attach both to the release
+      - name: Attach them all to the release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.inputs.tag || github.ref_name }}
@@ -128,4 +193,5 @@ jobs:
           if ! gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
             gh release create "$TAG" --repo "$REPO" --title "Coxswain $TAG"               --notes "Windows and macOS builds are attached below."               --latest
           fi
-          gh release upload "$TAG" Coxswain-*.zip --clobber --repo "$REPO"
+          gh release upload "$TAG" Coxswain-*.zip Coxswain-*.tar.gz \
+            --clobber --repo "$REPO"

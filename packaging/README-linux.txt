@@ -6,36 +6,36 @@ run on a real physics model, and what I want back is what feels wrong
 about it.
 
 
-HOW TO RUN IT -- ONE EXTRA CLICK THE FIRST TIME
------------------------------------------------
+HOW TO RUN IT
+-------------
 
-RIGHT-CLICK on Coxswain.app and choose "Open". Then click "Open" again
-in the box that appears.
+Unpack it and run the binary:
 
-That is it. Afterwards, double-clicking works normally.
+    tar -xzf Coxswain-linux.tar.gz
+    cd Coxswain
+    ./Coxswain
 
-The reason: macOS quarantines anything downloaded from the internet
-unless it is signed by a developer registered with Apple, which costs
-99 dollars a year and I have not paid it. So the first launch asks
-whether you are sure. Right-click then Open is how you say yes; a plain
-double-click only offers you Cancel.
+Nothing to install, no Python needed. Keep the whole folder together --
+the binary needs the _internal folder beside it.
 
-The app IS signed, just not by anyone Apple knows, so the message you
-get should say the developer "cannot be verified" -- which is true. If
-you instead see the word "damaged", the download did not survive the
-trip; delete it and download it again rather than fighting it.
+If it will not start, you are probably missing the system OpenGL and
+SDL libraries. On Debian or Ubuntu:
 
-If macOS still will not budge, open Terminal, type this with a space
-after it, and do NOT press Return yet:
+    sudo apt install libgl1 libegl1 libsdl2-2.0-0 libasound2
 
-    xattr -dr com.apple.quarantine
+On Fedora:
 
-then drag Coxswain.app onto the Terminal window -- that types its
-location for you -- and press Return. Then open the app normally.
+    sudo dnf install mesa-libGL mesa-libEGL SDL2 alsa-lib
 
-Keep Coxswain.app and this README wherever you like; the app is
-self-contained. Nothing to install, no Python needed. Works on both
-Intel and Apple Silicon Macs.
+Built on Ubuntu 22.04, so it needs glibc 2.35 or newer. That covers
+Ubuntu 22.04 and later, Debian 12 and later, and current Fedora, Arch
+and Mint. Anything older will say something about GLIBC_2.35 not being
+found, and there is no way around that short of a rebuild.
+
+Wayland works through XWayland. If you get an SDL error about the video
+driver, try:
+
+    SDL_VIDEODRIVER=x11 ./Coxswain
 
 
 FIRST SCREEN
@@ -85,7 +85,6 @@ What feels wrong. Especially:
 KNOWN, AND NOT WORTH REPORTING
 ------------------------------
 
-  - It is not signed, hence the song and dance above.
   - The crew rows a metronomic stroke and never catches a crab.
   - Buildings are extruded footprints, so they are the right shape in
     plan and flat-topped where a real roof is not.

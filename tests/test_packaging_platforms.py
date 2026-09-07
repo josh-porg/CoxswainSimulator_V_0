@@ -89,14 +89,32 @@ def test_the_drawable_size_is_used_for_framebuffers_not_the_window_size():
 
 
 def test_the_mac_instructions_cover_gatekeeper():
-    """An unsigned bundle is refused outright on first open, with only a
-    Cancel button, and the message says "damaged" -- which it is not.
-    Someone who is not told about right-click-then-Open simply cannot
-    run it, and will report it as broken."""
+    """Gatekeeper refuses the first launch and offers only Cancel.
+
+    Someone not told about right-click-then-Open simply cannot run it,
+    and will reasonably report the download as broken.  The README also
+    has to distinguish the two messages, because they mean different
+    things: "cannot be verified" is expected and is got past by opening
+    it, while "damaged" after ad-hoc signing means the download really
+    did arrive corrupt and should be fetched again.
+    """
     text = read("packaging", "README-mac.txt").lower()
     assert "right-click" in text
     assert "quarantine" in text
-    assert "damaged" in text, "the exact wording macOS shows should appear"
+    assert "cannot be verified" in text
+    assert "damaged" in text
+
+
+def test_every_platform_has_its_own_instructions():
+    """The awkward part differs per platform, so one shared README would
+    be two thirds irrelevant to every reader."""
+    for leaf, must in (("README.txt", "unknown publisher"),
+                       ("README-mac.txt", "right-click"),
+                       ("README-linux.txt", "glibc")):
+        text = read("packaging", leaf).lower()
+        assert must in text, (leaf, must)
+        # Every one of them has to say what to do first.
+        assert "coxswain" in text
 
 
 def test_the_workflow_builds_for_intel_so_it_runs_everywhere():
@@ -106,3 +124,15 @@ def test_the_workflow_builds_for_intel_so_it_runs_everywhere():
     assert "macos-13" in workflow, "macos-14+ runners are Apple Silicon"
     assert "ditto" in workflow, (
         "a plain zip breaks the symlinks inside a .app bundle")
+    # Ad-hoc signing is what turns "damaged" into "cannot be verified".
+    assert "codesign --force --deep --sign -" in workflow
+
+
+def test_linux_is_built_against_an_old_enough_glibc():
+    """A Linux binary will not start against a glibc older than the one
+    it was built on, and that is most people's machines if you build on
+    the newest runner.  tar, not zip, so the executable bit survives."""
+    workflow = read(".github", "workflows", "release.yml")
+    assert "ubuntu-22.04" in workflow, "ubuntu-latest is too new to ship"
+    assert "tar -czf" in workflow
+    assert "chmod +x" in workflow

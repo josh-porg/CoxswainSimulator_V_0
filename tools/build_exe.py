@@ -237,8 +237,17 @@ def main(argv=None):
     # rather than being typed into dist/ by hand: the first copy was,
     # and a `rm -rf dist` erased it silently -- the zip would have gone
     # out with no instructions in it and nothing would have complained.
-    readme = os.path.join(ROOT, "packaging",
-                          "README-mac.txt" if mac_bundle else "README.txt")
+    # Each platform gets its own instructions, because the awkward part
+    # is different on each: Gatekeeper on macOS, the executable bit and
+    # glibc on Linux, SmartScreen on Windows.  One shared README would
+    # be two thirds irrelevant to every reader.
+    if mac_bundle:
+        leaf = "README-mac.txt"
+    elif sys.platform.startswith("linux"):
+        leaf = "README-linux.txt"
+    else:
+        leaf = "README.txt"
+    readme = os.path.join(ROOT, "packaging", leaf)
     if not os.path.exists(readme):
         readme = os.path.join(ROOT, "packaging", "README.txt")
     if args.onedir and os.path.exists(readme):
