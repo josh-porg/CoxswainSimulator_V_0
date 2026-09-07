@@ -81,7 +81,7 @@ def test_arch_bridges_are_drawn_at_their_inventory_length():
     laying the centre span symmetrically about the middle, which is what
     the navigation side (``derive_piers``) has always done.
     """
-    from coxswain.river.bridges import BRIDGE_STRUCTURE
+    from coxswain.river.bridges import BRIDGE_STRUCTURE, derive_piers
 
     from coxswain.river import charles
     from coxswain.river.charts import CourseGeometry
@@ -102,10 +102,16 @@ def test_arch_bridges_are_drawn_at_their_inventory_length():
         if not 0.0 < length < full:
             continue
 
-        offset = 0.5 * (full - length)
-        drawn = [offset + length * k / 3.0 for k in (1, 2)]
-        wanted = [full / 2.0 - structure.max_span / 2.0,
-                  full / 2.0 + structure.max_span / 2.0]
+        piers = derive_piers(gate, geometry.channel)
+        if len(piers) < 2:
+            continue
+        # Centred on the channel, as derive_piers lays it, then divided
+        # into three.  Centring on the deck line instead put Western
+        # Avenue's arches 27 m out, because the river does not run under
+        # the middle of the road.
+        middle = 0.5 * (float(piers[0].centre) + float(piers[-1].centre))
+        drawn = [middle - length / 2.0 + length * k / 3.0 for k in (1, 2)]
+        wanted = [float(piers[0].centre), float(piers[-1].centre)]
         for got, want in zip(drawn, wanted):
             assert abs(got - want) < 2.5, (gate.name, got, want)
         checked += 1

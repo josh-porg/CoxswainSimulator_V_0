@@ -1925,7 +1925,7 @@ def bridge_solids(race: str, scene) -> Optional[MeshPart]:
                     # rest of the inventory length either side.
                     middle = 0.5 * (start + end)
                     try:
-                        piers = derive_piers(gate, geometry.raster)
+                        piers = derive_piers(gate, geometry.channel)
                     except Exception:
                         piers = ()
                     if len(piers) >= 2:
