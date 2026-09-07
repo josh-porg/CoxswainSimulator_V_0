@@ -760,7 +760,8 @@ TRUNK = (0.26, 0.20, 0.15)
 
 
 def tree_solids(stand, box, limit: int = 80000, near=None,
-                min_height: float = 3.0) -> Optional[MeshPart]:
+                min_height: float = 3.0, ground_at=None,
+                shore: float = 0.25) -> Optional[MeshPart]:
     """Trees as a trunk and a low-poly crown.
 
     The bank of a river is trees, and leaving them out is why the first
@@ -807,6 +808,34 @@ def tree_solids(stand, box, limit: int = 80000, near=None,
     if gap is not None:
         gap = gap[:limit]
 
+    # **Stand them on the ground, and not in the river.**
+    #
+    # Buildings were put on the terrain when the vertical datum was
+    # fixed; trees were missed, so every one sat at z = 0 -- the
+    # waterline.  On a rising bank they were buried to the knees, and any
+    # whose position falls over water (the canopy polygons overlap it)
+    # stood *in* the river: 1,753 triangles of conifer spire growing out
+    # of the water beside the course, which is exactly what a spike looks
+    # like from the seat.  A tree below the shoreline is bad data, not a
+    # short tree, so it is dropped rather than floated.
+    if ground_at is not None:
+        try:
+            floor = np.asarray(ground_at(points[index, 0],
+                                         points[index, 1]), dtype=float)
+        except Exception:                          # pragma: no cover
+            floor = np.zeros(len(index))
+        dry = floor >= shore
+        if not dry.all():
+            print("   %d trees dropped for standing in the water"
+                  % int((~dry).sum()))
+        index, floor = index[dry], floor[dry]
+        if gap is not None:
+            gap = gap[dry]
+        if not len(index):
+            return None
+    else:
+        floor = np.zeros(len(index))
+
     # Two levels of detail, split by distance from the **course**, not
     # from the camera, because the mesh is built once and uploaded once.
     # A tree near the line is a trunk and an eight-facet crown; a far one
@@ -825,6 +854,7 @@ def tree_solids(stand, box, limit: int = 80000, near=None,
     faces, shades = [], []
     for slot, i in enumerate(index):
         x, y = points[i]
+        base_z = float(floor[slot])
         height = float(heights[i])
         form = int(forms[i]) if i < len(forms) else 0
         crown_colour = CROWN[form % len(CROWN)]
@@ -867,9 +897,10 @@ def tree_solids(stand, box, limit: int = 80000, near=None,
                         np.asarray(crown_colour, dtype="f4"), (6, 1)))
             continue
         # Trunk: a square post up to the crown.
-        stem = 0.40 * height
+        stem = base_z + 0.40 * height
         radius = max(0.018 * height, 0.05)
-        trunk = box_solid((x, y, 0.5 * stem), (radius, radius, 0.5 * stem),
+        trunk = box_solid((x, y, 0.5 * (base_z + stem)),
+                          (radius, radius, 0.5 * (stem - base_z)),
                           colour=TRUNK)
         faces.append(trunk.vertices)
         shades.append(trunk.colours)
@@ -881,7 +912,7 @@ def tree_solids(stand, box, limit: int = 80000, near=None,
         # up is forty triangles instead of eight, and the silhouette
         # stops having corners in it.  Conifers keep a single ring and a
         # point, because a conifer really is a cone.
-        top = height
+        top = base_z + height
         apex = [x, y, top]
         base = [x, y, stem]
         crown = []
@@ -1355,13 +1386,14 @@ def build_world(race: str = "charles", reach: float = 900.0,
     except Exception as error:                # pragma: no cover
         print("   (no imagery, flat colour throughout: %s)" % str(error)[:60])
 
+    def ground_at(east, north):
+        """Height of the ground above the water, never below it."""
+        return np.maximum(terrain.height_above_water(east, north), 0.0)
+
     mesh = WorldMesh()
     mesh.add(water_plane(course.mean(axis=0), level=water_level))
     mesh.add(land_mesh(terrain, wet_at, box, step=step, imagery=photo))
     if with_buildings:
-        def ground_at(east, north):
-            return np.maximum(terrain.height_above_water(east, north), 0.0)
-
         mesh.add(building_walls(structures.polygons, structures.heights,
                                 getattr(structures, "base", None), box=box,
                                 imagery=photo, near=course,
@@ -1393,7 +1425,8 @@ def build_world(race: str = "charles", reach: float = 900.0,
                 from ..river.structures import charles_trees as tree_stand
             else:
                 from ..river.structures import seattle_trees as tree_stand
-            mesh.add(tree_solids(tree_stand(), box, near=course))
+            mesh.add(tree_solids(tree_stand(), box, near=course,
+                                 ground_at=ground_at))
         except Exception as error:            # pragma: no cover
             print("   (no trees: %s)" % str(error)[:60])
     if race != "charles":

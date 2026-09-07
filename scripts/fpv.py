@@ -215,7 +215,22 @@ float wake(vec2 p) {
          - wake_from(p, half_len, 0.55 * wake_amp);
 }
 
-// Puddles: a decaying dimple where a blade went in.
+// Puddles: a vortex pair that spreads and flattens as it ages.
+//
+// They used to be a fixed 1.5 m Gaussian carrying a fixed 1.85 m ring,
+// which was wrong twice over.  A crew drops four of them within two and
+// a half metres of each other, so four fixed-width rings overlapped and
+// summed -- constructively, because they shared a wavelength -- into a
+// 0.10 m peak beside the hull that sat in the same place relative to
+// the boat every stroke.  And a ring that never widens eventually
+// outruns the grid: cells reach 0.99 m at fifty metres against a
+// Nyquist limit of 0.92, so the oldest ones alias into spikes.
+//
+// A real puddle does neither.  It spreads as it decays, its structure
+// coarsening as it goes, and it is gone inside a few seconds.  Widening
+// the Gaussian and lengthening the ring with age fixes the summing and
+// the aliasing at once, because by the time a puddle reaches the coarse
+// part of the grid it has no fine structure left to alias.
 float puddle(vec2 p, out float foam) {
     float h = 0.0;
     foam = 0.0;
@@ -223,10 +238,16 @@ float puddle(vec2 p, out float foam) {
         float strength = puddles[i].z;
         if (strength <= 0.0) continue;
         float r = length(p - puddles[i].xy);
-        if (r > 4.0) continue;
-        float ring = exp(-r * r / 2.2) * cos(r * 3.4);
-        h += 0.055 * strength * ring;
-        foam = max(foam, strength * exp(-r * r / 1.4));
+        float age = 1.0 - strength;               // 0 fresh, 1 spent
+        float spread = 1.5 + 3.0 * age;           // metres
+        if (r > 2.5 * spread) continue;
+        float k = 3.4 / (1.0 + 2.2 * age);        // ring coarsens
+        float ring = exp(-r * r / (spread * spread)) * cos(r * k);
+        // Amplitude falls faster than the strength so the four a crew
+        // drops together cannot stack into a peak.
+        h += 0.030 * strength * strength * ring;
+        // Foam is a fresh-water effect and goes within a second or two.
+        foam = max(foam, pow(strength, 3.0) * exp(-r * r / 1.4));
     }
     return h;
 }
