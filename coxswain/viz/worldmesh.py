@@ -93,6 +93,9 @@ LAND_HIGH = np.array([0.46, 0.47, 0.40])
 WATER_COLOUR = np.array([0.16, 0.28, 0.36])
 
 
+#: How far the gunwale stands above the deck, m.
+GUNWALE = 0.055
+
 #: How far below the waterline the bank is carried, m.  Enough to be
 #: under the deepest wave trough and any drawdown beside the hull, and
 #: not so much that the whole bed comes with it.
@@ -690,13 +693,18 @@ def hull_solid(boat, deck: float = 0.30, colour=(0.88, 0.89, 0.86),
                                   ring[:, 0] - centre[0]))
     ring = ring[order]
 
+    # The sides run past the deck.  A shell's gunwale is a rail standing
+    # proud of the washboard, not a flush edge, and from the seat it is
+    # the line you see the water against -- the one piece of the boat
+    # that is always in the frame with the horizon behind it.
+    rail = float(deck) + GUNWALE
     faces, shades = [], []
     nxt = np.roll(ring, -1, axis=0)
     for a, b in zip(ring, nxt):
         low_a = [a[0], a[1], 0.0]
         low_b = [b[0], b[1], 0.0]
-        top_a = [a[0], a[1], deck]
-        top_b = [b[0], b[1], deck]
+        top_a = [a[0], a[1], rail]
+        top_b = [b[0], b[1], rail]
         faces += [[low_a, low_b, top_b], [low_a, top_b, top_a]]
         shades += [colour] * 6
     # The foredeck and the cockpit floor, as **strips across the boat**.
@@ -1870,7 +1878,7 @@ def bridge_solids(race: str, scene) -> Optional[MeshPart]:
     if race == "charles":
         from ..river import charles
         from ..river.bridges import (BRIDGE_STRUCTURE, MEASURED_PIERS,
-                                     deck_geometry)
+                                     deck_geometry, derive_piers)
         from ..river.charles import CHARLES_ORIGIN
         from ..river.course import local_tangent_plane
         from ..river.charts import CourseGeometry
@@ -1903,13 +1911,46 @@ def bridge_solids(race: str, scene) -> Optional[MeshPart]:
                 full = float(np.hypot(*(end - start)))
                 if span_length and 0.0 < float(span_length) < full:
                     along = (end - start) / max(full, 1e-9)
+                    length = float(span_length)
+                    # Centred on the CHANNEL, not on the deck line.  The
+                    # river does not run under the middle of the road:
+                    # centring Western Avenue's 85 m of arches on its
+                    # 152 m deck way put them 27 m from where the
+                    # navigation side has always had the piers, which is
+                    # more than an arch width on the bridge a crew picks
+                    # its arch on from several hundred metres out.
+                    #
+                    # derive_piers lays the centre span symmetrically
+                    # about the wet opening; the side spans take up the
+                    # rest of the inventory length either side.
                     middle = 0.5 * (start + end)
-                    half_len = 0.5 * float(span_length)
-                    low = middle - along * half_len
-                    high = middle + along * half_len
+                    try:
+                        piers = derive_piers(gate, geometry.raster)
+                    except Exception:
+                        piers = ()
+                    if len(piers) >= 2:
+                        centre_at = 0.5 * (float(piers[0].centre)
+                                           + float(piers[-1].centre))
+                        middle = start + along * centre_at
+                    low = middle - along * (0.5 * length)
+                    high = middle + along * (0.5 * length)
                 built = arch_bridge(low, high, width, level, depth, spans)
                 if built is not None:
                     parts.append(built)
+                # The arches are the bridge; the rest of the way is the
+                # approach, which in life is a road on an embankment
+                # running onto the bank.  Trimming the arches to the
+                # inventory length without this left the bridge floating
+                # in the middle of the river with a gap at each end.
+                for far, near in ((start, low), (high, end)):
+                    run = float(np.hypot(*(np.asarray(near)
+                                           - np.asarray(far))))
+                    if run < 1.0:
+                        continue
+                    middle = 0.5 * (np.asarray(far) + np.asarray(near))
+                    heading = (np.asarray(near) - np.asarray(far)) / run
+                    parts.append(_slab(middle, heading, run, width, level,
+                                       max(0.35 * depth, 0.4)))
                 continue
             # Not an arch.  Eliot is NBI 4/9, a steel deck truss, and
             # the Grand Junction is a 149 m steel trestle -- both were

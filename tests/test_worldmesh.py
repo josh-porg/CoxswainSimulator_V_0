@@ -102,11 +102,23 @@ def test_markers_need_a_line():
     assert line_markers(np.zeros((1, 2))) is None
 
 
-def test_the_land_stops_at_the_waterline():
-    """Cells touching water are dropped, because lidar over water is not
-    water (SOURCES §105) and a bank that dives under the river looks
-    exactly like a bank that is wrong."""
-    from coxswain.viz.worldmesh import land_mesh
+def test_the_bank_carries_under_the_water_but_only_just():
+    """The shoreline gets an apron, and open water still gets nothing.
+
+    This test used to assert the opposite -- that every cell touching
+    water was dropped -- on the grounds that lidar over water is not
+    water.  That reasoning still holds and is why the apron is a fixed
+    skirt rather than the elevation model: over the Charles the lidar
+    returns a dead flat -0.39 m across the whole width, which is a
+    water surface, not a bed.
+
+    What was wrong was stopping the ground dead at z = 0.  The water is
+    drawn as a *wavy* surface, so every trough below zero opened a gap
+    at the bank that you could see straight through.  So cells with a
+    dry corner are kept and their wet corners dropped to -SHELF, and
+    cells that are entirely wet are still dropped.
+    """
+    from coxswain.viz.worldmesh import SHELF, land_mesh
 
     class FlatTerrain:
         def height_above_water(self, east, north):
@@ -117,9 +129,19 @@ def test_the_land_stops_at_the_waterline():
 
     part = land_mesh(FlatTerrain(), wet_at, (0.0, 0.0, 100.0, 40.0), step=10.0)
     assert part is not None
-    # Nothing is emitted past the waterline, allowing for the cell that
-    # straddles it being dropped whole.
-    assert part.vertices[:, 0].max() <= 50.0
+
+    # The apron reaches one cell past the waterline and no further:
+    # open water beyond that is the water's business.
+    assert part.vertices[:, 0].max() <= 60.0 + 1e-6
+    assert part.vertices[:, 0].max() > 50.0
+
+    # It goes down, so a wave trough cannot see under the bank, and it
+    # stops at the skirt rather than descending for ever.
+    low = part.vertices[:, 2].min()
+    assert low == pytest.approx(-SHELF), low
+    # Dry ground is untouched.
+    dry = part.vertices[part.vertices[:, 0] < 50.0]
+    assert dry[:, 2].min() >= 0.0
 
 
 def test_the_seat_is_where_a_coxswains_head_is():
