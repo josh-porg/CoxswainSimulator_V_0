@@ -120,6 +120,10 @@ void main() {
 """
 
 
+#: Texture unit the hull's near-field map lives on.  Unit 0 belongs to
+#: the HUD blit; sharing it was a 2.5 m wave beside the boat.
+NEAR_UNIT = 1
+
 #: The moving water patch: how far it reaches, and how many divisions
 #: across it.
 #:
@@ -611,8 +615,19 @@ def main(argv=None):
                                dtype="f4")
         near_tex.filter = (moderngl.LINEAR, moderngl.LINEAR)
         near_tex.repeat_x = near_tex.repeat_y = False
-        near_tex.use(0)
-        water_prog["near_map"].value = 0
+        # Texture unit ONE, not zero, and re-bound every frame below.
+        #
+        # This was bound to unit 0 once at setup, and the HUD overlay is
+        # blitted from unit 0 every frame.  From the second frame on the
+        # water shader was therefore sampling the HUD as the hull's
+        # near-field elevation: a white pixel reads 1.0, times U^2/g, is
+        # a 2.5 m wave -- in the boat frame, so it followed the hull, and
+        # to one side, because that is where the bright pixels map into
+        # the near-field box.  It never showed in a headless render
+        # because headless mode never draws the HUD, which is why every
+        # probe of the height field came back clean.
+        near_tex.use(NEAR_UNIT)
+        water_prog["near_map"].value = NEAR_UNIT
         water_prog["near_lo"].value = (float(n_east[0]), float(n_north[0]))
         water_prog["near_hi"].value = (float(n_east[-1]), float(n_north[-1]))
         water_prog["near_size"].value = (float(len(n_east)),
@@ -623,8 +638,8 @@ def main(argv=None):
                  float(np.abs(n_field).max()) * 4.5 ** 2 / 9.80665))
     else:
         near_tex = ctx.texture((2, 2), 1, np.zeros(4, dtype="f4"), dtype="f4")
-        near_tex.use(0)
-        water_prog["near_map"].value = 0
+        near_tex.use(NEAR_UNIT)
+        water_prog["near_map"].value = NEAR_UNIT
         water_prog["near_lo"].value = (-1.0, -1.0)
         water_prog["near_hi"].value = (1.0, 1.0)
         water_prog["near_size"].value = (2.0, 2.0)
@@ -699,6 +714,7 @@ def main(argv=None):
                     trail.drop(float(tip[0]), float(tip[1]), t)
             draw.last_phase = phase
         water_prog["puddles"].write(trail.as_uniform(t).tobytes())
+        near_tex.use(NEAR_UNIT)          # never trust the binding
         water_vao.render()
         vertices, colours = boat_geometry(boat, hull, t, state)
         if vertices is not None and len(vertices):
