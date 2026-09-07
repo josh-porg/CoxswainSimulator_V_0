@@ -36,7 +36,7 @@ import numpy as np
 
 __all__ = ["MeshPart", "WorldMesh", "land_mesh", "water_plane",
            "building_walls", "skyline_walls", "roof_rise", "outlines_over_massing", "photo_colour", "ribbon", "line_markers", "buoy_solids",
-           "hull_solid", "tree_solids", "arch_bridge", "cut_walls",
+           "hull_solid", "tree_solids", "arch_bridge", "truss_bridge", "cut_walls",
            "dock_solids", "bridge_solids",
            "box_solid", "build_world"]
 
@@ -1094,6 +1094,115 @@ SPRINGING = 0.12
 PIER_FRACTION = 0.13
 
 
+def _strut(a, b, radius, colour):
+    """A square prism between two points -- one member of a truss."""
+    a = np.asarray(a, dtype=float)
+    b = np.asarray(b, dtype=float)
+    axis = b - a
+    length = float(np.linalg.norm(axis))
+    if length < 1e-6:
+        return None
+    axis = axis / length
+    # Any two directions perpendicular to the member.
+    guide = np.array([0.0, 0.0, 1.0])
+    if abs(float(axis @ guide)) > 0.95:
+        guide = np.array([1.0, 0.0, 0.0])
+    u = np.cross(axis, guide)
+    u /= max(np.linalg.norm(u), 1e-9)
+    v = np.cross(axis, u)
+    faces = []
+    corner = [u * radius + v * radius, u * radius - v * radius,
+              -u * radius - v * radius, -u * radius + v * radius]
+    lo = [a + c for c in corner]
+    hi = [b + c for c in corner]
+    for i in range(4):
+        j = (i + 1) % 4
+        faces += [[lo[i], lo[j], hi[j]], [lo[i], hi[j], hi[i]]]
+    faces += [[hi[0], hi[1], hi[2]], [hi[0], hi[2], hi[3]]]
+    faces += [[lo[0], lo[2], lo[1]], [lo[0], lo[3], lo[2]]]
+    vertices = np.asarray(faces, dtype="f4").reshape(-1, 3)
+    # Outward-facing, by construction rather than by hope.
+    tri = vertices.reshape(-1, 3, 3)
+    centre = 0.5 * (a + b)
+    normal = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])
+    inward = np.einsum("ij,ij->i", normal, tri.mean(axis=1) - centre) < 0.0
+    tri[inward] = tri[inward][:, ::-1]
+    vertices = tri.reshape(-1, 3)
+    colours = np.tile(np.asarray(colour, dtype="f4"), (len(vertices), 1))
+    return MeshPart("strut", vertices, colours, _face_normals(vertices))
+
+
+def truss_bridge(start, end, width: float, level: float, depth: float,
+                 span: float, colour=(0.55, 0.55, 0.53),
+                 pier_colour=(0.52, 0.51, 0.48)):
+    """A steel deck truss, **open**, as Seattle's canal bridges are.
+
+    The Ship Canal Bridge and the Fremont Bridge carry their structure
+    below the deck and you look straight through it: two chords with a
+    zig-zag web between them, on piers.  Drawing them as a solid slab --
+    which is what this did -- gets the deck height right and the whole
+    character wrong, because the thing a crew sees approaching one is
+    daylight through steelwork.
+
+    This is the construction :mod:`coxswain.viz.river3d` already used for
+    the PyVista scene (parallel chords of constant depth, a zig-zag web,
+    piers carrying the bottom chord); it is brought over so the two
+    renderers agree.  Panel length is a fraction of the span, which is
+    what sets how coarse the lattice looks.
+    """
+    start = np.asarray(start, dtype=float)[:2]
+    end = np.asarray(end, dtype=float)[:2]
+    length = float(np.hypot(*(end - start)))
+    if length < 1.0:
+        return None
+    along = (end - start) / length
+    across = np.array([-along[1], along[0]])
+    half = 0.5 * float(width)
+    member = max(0.045 * depth, 0.35)
+    bottom = level - depth
+    parts = [_slab(0.5 * (start + end), along, length, width, level,
+                   max(0.12 * depth, 0.5))]
+
+    def at(distance, side, height):
+        xy = start + along * distance + across * (side * half)
+        return np.array([xy[0], xy[1], height])
+
+    # Chords down each side, and the web between them.
+    panel = max(span / 6.0, 8.0)
+    stations = np.arange(0.0, length + panel, panel)
+    stations = np.clip(stations, 0.0, length)
+    for side in (-0.86, 0.86):
+        for a, b in zip(stations[:-1], stations[1:]):
+            if b - a < 1e-6:
+                continue
+            parts.append(_strut(at(a, side, bottom), at(b, side, bottom),
+                                member, colour))
+            # Zig-zag: bottom-to-deck and back, alternating.
+            up = at(a, side, level - 0.12 * depth)
+            parts.append(_strut(at(a, side, bottom), up, 0.8 * member,
+                                colour))
+            parts.append(_strut(at(a, side, bottom),
+                                at(b, side, level - 0.12 * depth),
+                                0.7 * member, colour))
+    # Cross-bracing between the two trusses, so it reads as a box.
+    for a in stations[::2]:
+        parts.append(_strut(at(a, -0.86, bottom), at(a, 0.86, bottom),
+                            0.7 * member, colour))
+    # Piers under the bottom chord, at the main span.
+    count = max(int(round(length / max(span, 1.0))), 1)
+    for step in range(1, count):
+        foot = start + (end - start) * (step / count)
+        parts.append(box_solid((foot[0], foot[1], 0.5 * bottom),
+                               (0.055 * span + 1.0, 0.055 * span + 1.0,
+                                0.5 * bottom), colour=pier_colour))
+    parts = [p for p in parts if p is not None]
+    if not parts:
+        return None
+    vertices = np.concatenate([p.vertices for p in parts])
+    colours = np.concatenate([p.colours for p in parts])
+    return MeshPart("bridges", vertices, colours, _face_normals(vertices))
+
+
 def arch_bridge(start, end, width: float, level: float, depth: float,
                 spans: int, colour=(0.72, 0.71, 0.67),
                 pier_colour=(0.58, 0.57, 0.54), samples: int = 13):
@@ -1239,8 +1348,36 @@ def bridge_solids(race: str, scene) -> Optional[MeshPart]:
             for bridge in canal_bridges():
                 middle = np.asarray(bridge.centre, dtype=float)
                 along = np.asarray(bridge.axis, dtype=float)
-                parts.append(_slab(middle, along, bridge.length,
-                                   max(bridge.width, 8.0), 10.7, 1.6))
+                level = bridge.deck_height
+                depth = bridge.structure_depth
+                width = max(bridge.width, 8.0)
+                half = 0.5 * bridge.length
+                start = middle - along * half
+                end = middle + along * half
+                if bridge.form == "arch":
+                    spans = max(int(round(bridge.length
+                                          / max(bridge.main_span, 1.0))), 1)
+                    built = arch_bridge(start, end, width, level, depth,
+                                        spans)
+                    if built is not None:
+                        parts.append(built)
+                        continue
+                if bridge.form == "truss":
+                    built = truss_bridge(start, end, width, level, depth,
+                                         max(bridge.main_span, 20.0))
+                    if built is not None:
+                        parts.append(built)
+                        continue
+                parts.append(_slab(middle, along, bridge.length, width,
+                                   level, depth))
+                count = max(int(round(bridge.length
+                                      / max(bridge.main_span, 1.0))), 1)
+                for step in range(1, count):
+                    foot = start + (end - start) * (step / count)
+                    parts.append(box_solid(
+                        (foot[0], foot[1], 0.5 * (level - depth)),
+                        (2.2, 2.2, 0.5 * (level - depth)),
+                        colour=(0.50, 0.49, 0.46)))
         except Exception:
             return None
     if not parts:

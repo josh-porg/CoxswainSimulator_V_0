@@ -23,6 +23,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from coxswain.core.resources import data_path      # noqa: E402
 from coxswain.boats import catalog                             # noqa: E402
 from coxswain.river.buoys import one_sided_limits              # noqa: E402
 from coxswain.river.buoys import summary as buoy_summary       # noqa: E402
@@ -36,8 +37,8 @@ from coxswain.river.seattle import (SEATTLE_ORIGIN,             # noqa: E402
 from coxswain.river.trajectory import ReducedModel              # noqa: E402
 from coxswain.viz.race_render import RaceScene, TraceLine, render_all  # noqa: E402
 
-COURSE_PATH = "data/totl_course.npy"
-BUOY_PATH = "data/totl_buoys.npy"
+COURSE_PATH = data_path("data", "totl_course.npy")
+BUOY_PATH = data_path("data", "totl_buoys.npy")
 #: How far either side of a buoy the limit binds, m.
 BUOY_REACH = 40.0
 #: Clearance a shell needs off a mark, m -- blade plus nerves.

@@ -56,6 +56,8 @@ from coxswain.sim.control import Coxswain                   # noqa: E402
 from coxswain.sim.realtime import (ControlInput,            # noqa: E402
                                    FixedStepLoop, LiveControl)
 from coxswain.sim.simulator import RowingSimulator          # noqa: E402
+from coxswain.viz.menu import (build_boat, draw_menu,        # noqa: E402
+                               handle_key, pause_menu, setup_menu)
 from coxswain.viz.planscene import oar_lines                # noqa: E402
 from coxswain.viz.strokeaudio import shell_of               # noqa: E402
 from coxswain.viz.water import (KELVIN_HALF_ANGLE,          # noqa: E402
@@ -447,13 +449,49 @@ def oar_geometry(boat, t, state):
             np.asarray(colours, dtype="f4"))
 
 
+def run_setup_menu(screen, args):
+    """Modal setup menu on a plain pygame window.
+
+    Returns the chosen settings, or ``None`` if the window was closed.
+    This runs *before* the GL context exists, because the course it
+    picks decides what world to build.
+    """
+    clock = pygame.time.Clock()
+    font = pygame.font.SysFont("dejavusans,arial", 22)
+    small = pygame.font.SysFont("dejavusans,arial", 15)
+    menu = setup_menu(boat=args.boat, course=args.race, rate=args.rate,
+                      wind=args.wind)
+    overlay = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
+    while True:
+        clock.tick(60)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return None
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    return None
+                action = handle_key(menu, event.key)
+                if action == "start":
+                    return menu.settings()
+                if action == "quit":
+                    return None
+        screen.fill((18, 24, 29))
+        draw_menu(overlay, menu, font, small, screen.get_size())
+        screen.blit(overlay, (0, 0))
+        pygame.display.flip()
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--race", default="charles",
                         choices=("charles", "totl", "hotl"))
+    parser.add_argument("--boat", default="4+",
+                        choices=("4+", "8+", "2x", "1x"))
     parser.add_argument("--rate", type=float, default=30.0)
+    parser.add_argument("--no-menu", action="store_true",
+                        help="skip the setup menu and use the flags")
     parser.add_argument("--physics", type=float, default=100.0)
     parser.add_argument("--width", type=int, default=1180)
     parser.add_argument("--height", type=int, default=680)
@@ -471,7 +509,7 @@ def main(argv=None):
     parser.add_argument("--fetch", type=float, default=900.0, help="fetch, m")
     parser.add_argument("--wind-from", type=float, default=200.0,
                         help="bearing the wind blows from, degrees")
-    parser.add_argument("--audio", default="events",
+    parser.add_argument("--audio", default="full",
                         choices=("events", "full"),
                         help="events: catch, release and a bed.  full: one "
                              "clip a stroke following the measured "
@@ -493,6 +531,20 @@ def main(argv=None):
 
     import moderngl
 
+    if not args.shot and not args.no_menu:
+        # A plain window first, so a coxswain can choose a boat and a
+        # course without knowing what a command-line flag is.  The GL
+        # context comes afterwards, over the same window.
+        pygame.init()
+        pygame.display.set_caption("Coxswain")
+        screen = pygame.display.set_mode((args.width, args.height))
+        picked = run_setup_menu(screen, args)
+        if picked is None:
+            pygame.quit()
+            return 0
+        args.boat, args.race = picked["boat"], picked["race"]
+        args.rate, args.wind = picked["rate"], picked["wind"]
+
     print("building %s ..." % args.race)
     clock0 = time.perf_counter()
     # The sea first: the flat far-water quad has to be sunk below the
@@ -507,8 +559,10 @@ def main(argv=None):
     print("   %d triangles in %d parts, %.1f s"
           % (mesh.triangles, len(mesh.parts), time.perf_counter() - clock0))
 
-    boat = catalog.coxed_four(rate=args.rate, rower_mass=68.0,
-                              rower_stature=1.70, coxswain_mass=68.0)
+    boat, made = build_boat(args.boat, args.rate)
+    if made != args.boat:
+        print("   (no %s in the catalog; rowing a %s)" % (args.boat, made))
+    args.boat = made
     live = LiveControl()
     cox = Coxswain(rudder_override=live.rudder, pressure_split=live.split)
     simulator = RowingSimulator(boat, coxswain=cox, fast=True)
@@ -758,6 +812,7 @@ def main(argv=None):
     hud_texture = ctx.texture((args.width, args.height), 4)
     hud_texture.filter = (moderngl.NEAREST, moderngl.NEAREST)
     rudder, split, paused, running, frames = 0.0, 0.0, False, True, 0
+    menu, restart_session = None, False
     if args.control == "mouse":
         pygame.mouse.set_visible(False)
         pygame.mouse.set_pos((args.width // 2, args.height // 2))
@@ -768,7 +823,45 @@ def main(argv=None):
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == pygame.KEYDOWN:
-                if event.key in (pygame.K_ESCAPE, pygame.K_q):
+                if menu is not None:
+                    action = handle_key(menu, event.key)
+                    if event.key == pygame.K_ESCAPE:
+                        action = "resume"
+                    if action == "resume":
+                        settings = menu.settings()
+                        if abs(settings["rate"] - args.rate) > 1e-9:
+                            args.rate = settings["rate"]
+                            # Rebuilding the boat restarts the crew's
+                            # cycle, so the phase jumps once.  That is a
+                            # real transient and not worth hiding; the
+                            # alternative is retiming mid-stroke, which
+                            # puts a step in the force.
+                            boat, _made = build_boat(args.boat, args.rate)
+                            hull = hull_solid(boat)
+                            simulator = RowingSimulator(boat, coxswain=cox,
+                                                        fast=True)
+                            loop.simulator = simulator
+                            if audio is not None:
+                                audio.boat = boat
+                        if abs(settings["wind"] - args.wind) > 1e-9:
+                            args.wind = settings["wind"]
+                            water_prog["waves"].write(
+                                sea_for(args.wind, args.fetch,
+                                        np.radians(args.wind_from))
+                                .as_uniform().tobytes())
+                        menu, paused = None, False
+                    elif action == "restart":
+                        loop.start(fresh_state())
+                        rudder = split = 0.0
+                        menu, paused = None, False
+                    elif action in ("setup", "quit"):
+                        restart_session = action == "setup"
+                        running = False
+                    continue
+                if event.key == pygame.K_ESCAPE:
+                    menu = pause_menu(rate=args.rate, wind=args.wind)
+                    paused = True
+                elif event.key == pygame.K_q:
                     running = False
                 elif event.key == pygame.K_SPACE:
                     paused = not paused
@@ -815,7 +908,7 @@ def main(argv=None):
             rudder = float(np.clip(-1.4 * error, -RUDDER_LIMIT, RUDDER_LIMIT))
             live.set(ControlInput(rudder=rudder))
 
-        if not paused:
+        if not paused and menu is None:
             loop.advance(frame)
             if audio is not None:
                 audio.update(loop.t)
@@ -843,6 +936,16 @@ def main(argv=None):
                  "roll %+.1f deg   pitch %+.1f deg   %.0f fps"
                  % (math.degrees(pose[3]), math.degrees(pose[4]),
                     clock.get_fps())]
+        if menu is not None:
+            draw_menu(overlay, menu, font, font,
+                      (args.width, args.height))
+            hud_texture.write(_surface_bytes(pygame, overlay))
+            hud_texture.use(0)
+            _blit(ctx, hud_texture)
+            pygame.display.flip()
+            frames += 1
+            continue
+
         overlay.fill((0, 0, 0, 0))
         for row, text in enumerate(lines):
             overlay.blit(font.render(text, True, (233, 240, 245)),
@@ -884,6 +987,10 @@ def main(argv=None):
 
     pygame.quit()
     print("%d frames, %d physics steps" % (frames, loop.steps))
+    if restart_session:
+        # "Change boat or course": the world has to be rebuilt, so the
+        # session starts again from the top rather than being patched.
+        return main(argv)
     return 0
 
 

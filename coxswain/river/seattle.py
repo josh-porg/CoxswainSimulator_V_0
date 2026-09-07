@@ -586,6 +586,25 @@ CANAL_BRIDGES = {
     "Ship Canal Bridge": "LAKE WASH SHIP CANAL",
     "University Bridge": "PORTAGE BAY",
     "Montlake Bridge": "MONTLAKE CUT",
+    # The two a Lake Union crew actually steers by.  The Aurora Bridge
+    # stands over the north-west corner of the lake and is the landmark
+    # on that water; the Fremont Bridge closes the canal beyond it.
+    # Neither was in this table, so neither was ever drawn -- and the
+    # Aurora outline was not even in the fetched data.
+    "Aurora Bridge": "LAKE UNION",
+    "Fremont Bridge": "SHIP CANAL",
+}
+
+#: Structural form, from OpenStreetMap's ``bridge:structure`` on the
+#: outline.  NBI's design code cannot separate an arch from a deck truss
+#: -- both are item 43B code 9 -- and OSM can, which is the same split
+#: :mod:`coxswain.viz.river3d` uses.
+BRIDGE_FORM = {
+    "Aurora Bridge": "arch",
+    "University Bridge": "arch",
+    "Montlake Bridge": "arch",
+    "Ship Canal Bridge": "truss",
+    "Fremont Bridge": "truss",
 }
 #: Clearance a shell needs off a fender or pier, m: half an oar span and
 #: a little.
@@ -630,6 +649,17 @@ class CanalBridge:
     main_span: float
     #: NBI horizontal navigation clearance, m.
     opening: float
+    #: NBI deck height above the water, m.  **Per bridge**: the Aurora
+    #: deck stands 53 m up and the Ship Canal Bridge 47, where the
+    #: Montlake bascule is 11, and drawing them all at one height put
+    #: two of the tallest bridges in Seattle down at the waterline.
+    deck_height: float = 10.7
+    #: NBI structure depth, m -- how far the structure hangs below the
+    #: deck.  12.2 m of steel under the Aurora Bridge is most of what
+    #: you see of it from a boat.
+    structure_depth: float = 1.6
+    #: ``"arch"``, ``"truss"`` or ``"beam"``.
+    form: str = "beam"
 
     @property
     def normal(self) -> np.ndarray:
@@ -702,7 +732,10 @@ def canal_bridges(origin=SEATTLE_ORIGIN) -> List[CanalBridge]:
             length=float(along.max() - along.min()),
             width=float(across.max() - across.min()),
             main_span=float(record["max_span"]),
-            opening=float(record["horizontal_clearance"])))
+            opening=float(record["horizontal_clearance"]),
+            deck_height=float(record["deck_height"]),
+            structure_depth=float(record["structure_depth"]),
+            form=BRIDGE_FORM.get(entry["name"], "beam")))
     return sorted(out, key=lambda b: b.centre[0])
 
 
