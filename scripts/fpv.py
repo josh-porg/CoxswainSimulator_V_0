@@ -84,6 +84,31 @@ SPLIT_LIMIT, SPLIT_RATE, SPLIT_RETURN = 1.0, 1.8, 1.4
 FAR = 2600.0
 SKY = (0.52, 0.60, 0.68)
 
+#: The dome, as ``(zenith, horizon, glow)``.  A New England overcast:
+#: the zenith holds some blue, the horizon washes out toward white, and
+#: the glow is the sun's place behind the cloud rather than a disc.
+SKY_ZENITH = (0.36, 0.50, 0.68)
+SKY_HORIZON = (0.71, 0.77, 0.82)
+SUN_GLOW = (0.34, 0.30, 0.22)
+
+#: Fog: extinction per metre, and the height over which the haze thins.
+#:
+#: 1/2600 is roughly where the old linear ramp reached full strength, so
+#: the far bank sits about where it did; the difference is that this one
+#: never saturates abruptly and thins as you rise out of it.  The height
+#: scale is deliberately low -- river haze lies on the river.
+FOG_DENSITY = 1.0 / 2600.0
+FOG_HEIGHT = 34.0
+
+#: The second normal: slope amplitude, spatial frequency, and how far
+#: out it is worth drawing.  Slope, not height -- see the shader.
+#: Tuned down from 0.085, which read as sparkle rather than texture:
+#: at that amplitude the second normal was competing with the chop
+#: instead of sitting under it, which is the one thing it must not do.
+RIPPLE_SLOPE = 0.038
+RIPPLE_SCALE = 1.35
+RIPPLE_FADE = 45.0
+
 VERTEX_SHADER = """#version 330
 in vec3 in_pos;
 in vec3 in_normal;
@@ -106,6 +131,85 @@ void main() {
 }
 """
 
+#: Sky and fog, shared by everything that used to reach for one flat
+#: colour: the sky itself, the haze on the land, the haze on the water,
+#: and the water's reflection.
+#:
+#: The old sky was a single RGB used as the clear colour and as the fog
+#: colour, so the dome was a flat wall, the horizon had no glow, and the
+#: fog could not agree with the sky because it *was* the sky, everywhere
+#: at once.  Three changes:
+#:
+#: * a gradient from zenith to horizon, with a broad glow around the sun,
+#:   so the light has a place it comes from;
+#: * fog that is exponential rather than linear -- extinction along a
+#:   ray is exp(-density * distance), which is what actually happens,
+#:   and unlike a linear ramp it has no distance at which it abruptly
+#:   saturates;
+#: * a height term, because the haze over a river sits ON the river.
+#:   The integral of an exponentially-stratified density along a ray has
+#:   a closed form, so this is not a fudge factor: it is the analytic
+#:   optical depth for that profile.
+#:
+#: The fog colour is then the sky in the direction being looked along,
+#: which is what makes a far bank sit *in* the air rather than under a
+#: grey wash, and the water's reflections are fogged with the same
+#: function so a reflected bank fades exactly as the real one does.
+SKY_FOG_GLSL = """
+uniform vec3 sky_zenith;
+uniform vec3 sky_horizon;
+uniform vec3 sun_glow;
+uniform float fog_density;
+uniform float fog_height;
+
+vec3 sky_colour(vec3 dir, vec3 sun_dir) {
+    vec3 d = normalize(dir);
+    // Up the dome.  The power keeps most of the change near the
+    // horizon, where the air path is long, instead of spreading it
+    // evenly over a quarter turn.
+    float up = clamp(d.z, 0.0, 1.0);
+    vec3 base = mix(sky_horizon, sky_zenith, pow(up, 0.42));
+    // A broad glow rather than a disc: the sun is behind cloud here.
+    float towards = max(dot(d, normalize(sun_dir)), 0.0);
+    base += sun_glow * pow(towards, 6.0) * 0.55;
+    base += sun_glow * pow(towards, 2.0) * 0.10;
+    return base;
+}
+
+// Optical depth through air whose density falls off exponentially with
+// height, integrated along the ray.  The limit as the ray flattens out
+// is handled explicitly; without it the horizon divides by zero.
+float fog_depth(vec3 from, vec3 to) {
+    vec3 ray = to - from;
+    float distance = length(ray);
+    if (distance < 1e-4) return 0.0;
+    float rise = ray.z;
+    float at_eye = exp(-max(from.z, 0.0) / fog_height);
+    float integral;
+    if (abs(rise) < 1e-3) {
+        integral = at_eye * distance;
+    } else {
+        integral = at_eye * fog_height * distance / rise
+                 * (1.0 - exp(-rise / fog_height));
+    }
+    return fog_density * max(integral, 0.0);
+}
+
+vec3 apply_fog(vec3 colour, vec3 from, vec3 to) {
+    float depth = fog_depth(from, to);
+    float keep = exp(-depth);
+    return mix(sky_colour(normalize(to - from), vec3(0.0, 0.0, 1.0)),
+               colour, keep);
+}
+
+vec3 apply_fog_lit(vec3 colour, vec3 from, vec3 to, vec3 sun_dir) {
+    float depth = fog_depth(from, to);
+    float keep = exp(-depth);
+    return mix(sky_colour(normalize(to - from), sun_dir), colour, keep);
+}
+"""
+
+
 FRAGMENT_SHADER = """#version 330
 in vec3 v_colour;
 in vec3 v_normal;
@@ -115,16 +219,44 @@ uniform vec3 sun;
 uniform vec3 sky;
 uniform vec3 eye;
 uniform float far;
+__SKY_FOG__
 void main() {
-    float v_depth = length(v_world - eye);
     // A single directional light with a generous ambient: this is an
     // overcast New England morning, not a stage.
     float lambert = max(dot(normalize(v_normal), sun), 0.0);
     vec3 lit = v_colour * (0.55 + 0.45 * lambert);
-    // Distance fog, which is what stops the far bank reading as near.
-    float haze = clamp(v_depth / far, 0.0, 1.0);
-    haze = haze * haze;
-    f_colour = vec4(mix(lit, sky, haze), 1.0);
+    // Fogged toward the sky in the direction being looked along, so the
+    // far bank sits in the air rather than under a flat wash.
+    f_colour = vec4(apply_fog_lit(lit, eye, v_world, sun), 1.0);
+}
+"""
+
+#: A dome drawn behind everything, so the sky has structure to fog into.
+SKY_VERTEX = """#version 330
+in vec2 in_pos;
+out vec3 v_ray;
+uniform mat4 inverse_vp;
+void main() {
+    // A full-screen triangle, unprojected to a direction per pixel.
+    vec4 near = inverse_vp * vec4(in_pos, -1.0, 1.0);
+    vec4 far_point = inverse_vp * vec4(in_pos, 1.0, 1.0);
+    v_ray = far_point.xyz / far_point.w - near.xyz / near.w;
+    gl_Position = vec4(in_pos, 1.0, 1.0);
+}
+"""
+
+SKY_FRAGMENT = """#version 330
+in vec3 v_ray;
+out vec4 f_colour;
+uniform vec3 sun;
+__SKY_FOG__
+void main() {
+    vec3 dir = normalize(v_ray);
+    vec3 colour = sky_colour(dir, sun);
+    // Below the horizon the dome is not seen directly -- the water is
+    // in the way -- but the reflection march can look there, so it is
+    // held at the horizon colour rather than going dark.
+    f_colour = vec4(colour, 1.0);
 }
 """
 
@@ -185,7 +317,74 @@ const float SLOPE_G = 9.80665;
 //: Outside it the baked parts are smooth against a cell and the
 //: interpolated slope is indistinguishable, so only the chop is done
 //: exactly and the cost falls away with distance.
-const float EXACT_WITHIN = 16.0;
+uniform float exact_within;
+
+// --- micro-ripple, the second normal ---------------------------------
+//
+// The physics-based surface -- chop, wake, near field, puddles -- is
+// everything with a length scale a boat cares about.  What it has no
+// term for is the centimetre-scale texture that makes water look wet:
+// the cat's paw of the wind on the surface.
+//
+// So a second normal is laid over the first, from simplex noise, and it
+// is DELIBERATELY not allowed near the height field.  It perturbs the
+// normal only; nothing displaces the geometry and nothing reaches the
+// physics.  Its amplitude is a slope, not a height, and it is small --
+// enough to break up a mirror, not enough to be mistaken for chop.
+//
+// It fades out with distance, which is not laziness: a ripple a few
+// centimetres across, seen at fifty metres, is far below one pixel, and
+// drawn anyway it is just aliasing.
+uniform float ripple_slope_amp;
+uniform float ripple_scale;
+uniform float ripple_fade;
+
+vec3 simplex_permute(vec3 x) {
+    return mod(((x * 34.0) + 1.0) * x, 289.0);
+}
+
+float simplex(vec2 v) {
+    const vec4 C = vec4(0.211324865405187, 0.366025403784439,
+                        -0.577350269189626, 0.024390243902439);
+    vec2 i  = floor(v + dot(v, C.yy));
+    vec2 x0 = v - i + dot(i, C.xx);
+    vec2 i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+    vec4 x12 = x0.xyxy + C.xxzz;
+    x12.xy -= i1;
+    i = mod(i, 289.0);
+    vec3 p = simplex_permute(simplex_permute(i.y + vec3(0.0, i1.y, 1.0))
+                             + i.x + vec3(0.0, i1.x, 1.0));
+    vec3 m = max(0.5 - vec3(dot(x0, x0), dot(x12.xy, x12.xy),
+                            dot(x12.zw, x12.zw)), 0.0);
+    m = m * m; m = m * m;
+    vec3 x = 2.0 * fract(p * C.www) - 1.0;
+    vec3 h = abs(x) - 0.5;
+    vec3 ox = floor(x + 0.5);
+    vec3 a0 = x - ox;
+    m *= 1.79284291400159 - 0.85373472095314 * (a0 * a0 + h * h);
+    vec3 g;
+    g.x  = a0.x  * x0.x  + h.x  * x0.y;
+    g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+    return 130.0 * dot(m, g);
+}
+
+// Two octaves, drifting with the wind, differenced for a slope.  The
+// second octave runs the other way so the pattern does not read as one
+// sheet sliding.
+vec2 ripple(vec2 p, float range) {
+    float fade = clamp(1.0 - range / ripple_fade, 0.0, 1.0);
+    if (fade <= 0.0 || ripple_slope_amp <= 0.0) return vec2(0.0);
+    vec2 drift = vec2(cos(wind_to), sin(wind_to)) * time;
+    float e = 0.05;
+    vec2 q = p * ripple_scale;
+    vec2 a = q - drift * 0.35;
+    vec2 b = q * 2.7 + drift.yx * 0.20;
+    float h  = simplex(a) + 0.5 * simplex(b);
+    float hx = simplex(a + vec2(e, 0.0)) + 0.5 * simplex(b + vec2(e, 0.0));
+    float hy = simplex(a + vec2(0.0, e)) + 0.5 * simplex(b + vec2(0.0, e));
+    return vec2(hx - h, hy - h) / e
+         * ripple_slope_amp * fade * fade;
+}
 
 vec2 sea_slope(vec2 p) {
     vec2 g = vec2(0.0);
@@ -202,9 +401,9 @@ vec2 sea_slope(vec2 p) {
     return g;
 }
 
-vec3 water_normal(vec3 world, vec2 baked_slope) {
+vec3 water_normal(vec3 world, vec2 baked_slope, float range) {
     vec2 g;
-    if (distance(world.xy, boat.xy) < EXACT_WITHIN) {
+    if (distance(world.xy, boat.xy) < exact_within) {
         // Differenced at a step finer than the cells, so the answer is
         // the surface's slope and not the mesh's.
         float e = 0.05, junk;
@@ -215,6 +414,7 @@ vec3 water_normal(vec3 world, vec2 baked_slope) {
     } else {
         g = sea_slope(world.xy) + baked_slope;
     }
+    g += ripple(world.xy, range);
     return normalize(vec3(-g.x, -g.y, 1.0));
 }
 """
@@ -423,19 +623,21 @@ uniform vec3 sky;
 uniform vec3 eye;
 uniform float far;
 uniform vec3 deep;
+__SKY_FOG__
 __WATER_SLOPE__
 void main() {
-    vec3 n = water_normal(v_world, v_slope);
+    float range = length(v_world - eye);
+    vec3 n = water_normal(v_world, v_slope, range);
     vec3 to_eye = normalize(eye - v_world);
     // Water is mostly a mirror at grazing angles and mostly dark looking
     // straight down, which is the whole reason chop reads as chop: the
     // Fresnel term turns a slope into a brightness.
     float fresnel = pow(1.0 - max(dot(n, to_eye), 0.0), 3.0);
-    vec3 base = mix(deep, sky, clamp(0.08 + 0.55 * fresnel, 0.0, 1.0));
+    vec3 mirror = sky_colour(reflect(-to_eye, n), sun);
+    vec3 base = mix(deep, mirror, clamp(0.08 + 0.55 * fresnel, 0.0, 1.0));
     float spec = pow(max(dot(reflect(-sun, n), to_eye), 0.0), 60.0);
     vec3 lit = base + vec3(0.9) * spec * 0.5 + vec3(0.75) * v_foam * 0.55;
-    float haze = clamp(length(v_world - eye) / far, 0.0, 1.0);
-    f_colour = vec4(mix(lit, sky, haze * haze), 1.0);
+    f_colour = vec4(apply_fog_lit(lit, eye, v_world, sun), 1.0);
 }
 """
 
@@ -471,6 +673,7 @@ uniform float near_plane;
 uniform float far_plane;
 uniform float refract_scale;
 uniform int reflect_steps;
+__SKY_FOG__
 __WATER_SLOPE__
 
 float linear_depth(float raw) {
@@ -480,7 +683,8 @@ float linear_depth(float raw) {
 }
 
 void main() {
-    vec3 n = water_normal(v_world, v_slope);
+    float range_to_eye = length(v_world - eye);
+    vec3 n = water_normal(v_world, v_slope, range_to_eye);
     vec3 to_eye = normalize(eye - v_world);
     vec2 uv = gl_FragCoord.xy / viewport;
 
@@ -523,8 +727,7 @@ void main() {
     // where the wave-dependent distortion lives -- the reflected ray
     // swings with the surface normal, so a chop pattern becomes a
     // pattern of light, without any search at all.
-    float up = clamp(ray.z, 0.0, 1.0);
-    vec3 mirror = mix(sky * 0.86, sky * 1.08, pow(up, 0.6));
+    vec3 mirror = sky_colour(ray, sun);
     float hit = 0.0;
     // A reflection off a water surface goes UP.  Without this the march
     // happily finds the drowned part of the bank -- the apron carried
@@ -546,7 +749,11 @@ void main() {
             // stands above the water can be reflected in it.
             if (march.z > v_world.z
              && ray_z > scene_z && ray_z - scene_z < step_len * 3.0) {
-                mirror = texture(scene, probe).rgb;
+                // Fogged as the real thing is, over the path the
+                // reflected ray actually travelled, so a reflected far
+                // bank fades into the air exactly as the bank does.
+                mirror = apply_fog_lit(texture(scene, probe).rgb,
+                                       v_world, march, sun);
                 // Fade the hit out at the edges of the screen, where a
                 // screen-space reflection has no information and a hard
                 // stop is more obvious than no reflection at all.
@@ -567,7 +774,7 @@ void main() {
             step_len *= 1.35;
         }
     }
-    mirror = mix(mix(sky * 0.86, sky * 1.08, pow(up, 0.6)), mirror, hit);
+    mirror = mix(sky_colour(ray, sun), mirror, hit);
 
     // --- put them together ---------------------------------------------
     float fresnel = 0.02 + 0.98 * pow(1.0 - max(dot(n, to_eye), 0.0), 5.0);
@@ -575,20 +782,36 @@ void main() {
     float spec = pow(max(dot(reflect(-sun, n), to_eye), 0.0), 90.0);
     lit += vec3(1.0, 0.98, 0.92) * spec * 0.65;
     lit += vec3(0.75) * v_foam * 0.55;
-    float haze = clamp(length(v_world - eye) / far, 0.0, 1.0);
-    f_colour = vec4(mix(lit, sky, haze * haze), 1.0);
+    f_colour = vec4(apply_fog_lit(lit, eye, v_world, sun), 1.0);
 }
 """
 
 
 # The shared slope code goes into both fragment shaders.  Done here
 # rather than by hand in each so the two cannot drift apart.
+for _name in ("FRAGMENT_SHADER", "SKY_FRAGMENT",
+              "WATER_FRAGMENT", "WATER_FRAGMENT_RICH"):
+    globals()[_name] = globals()[_name].replace("__SKY_FOG__", SKY_FOG_GLSL)
+
 for _name in ("WATER_FRAGMENT", "WATER_FRAGMENT_RICH"):
     _text = globals()[_name]
     _text = _text.replace("__WATER_SHARED__",
                           WATER_UNIFORMS_GLSL + WATER_SURFACE_GLSL)
     globals()[_name] = _text.replace("__WATER_SLOPE__", WATER_SLOPE_GLSL)
 del _name, _text
+
+
+def _optional(program, **values) -> None:
+    """Set uniforms that the compiled shader may or may not still have.
+
+    A uniform the shader stops reading is optimised out of the program,
+    and assigning to it raises.  Everything here is genuinely optional
+    -- a leftover from the flat-sky days -- so a missing one is not an
+    error worth stopping for.
+    """
+    for name, value in values.items():
+        if name in program:
+            program[name].value = value
 
 
 def water_grid(reach: float = WATER_REACH,
@@ -1273,10 +1496,28 @@ def main(argv=None):
               % ("%dx multisampled" % samples if samples else "plain"))
     program = ctx.program(vertex_shader=VERTEX_SHADER,
                           fragment_shader=FRAGMENT_SHADER)
+    sky_prog = ctx.program(vertex_shader=SKY_VERTEX,
+                           fragment_shader=SKY_FRAGMENT)
+    sky_quad = ctx.buffer(np.array([-1, -1, 3, -1, -1, 3],
+                                   dtype="f4").tobytes())
+    sky_vao = ctx.vertex_array(sky_prog, [(sky_quad, "2f", "in_pos")])
+
+    def set_sky(prog):
+        """Every shader that fogs or reflects shares one sky."""
+        for name, value in (("sky_zenith", SKY_ZENITH),
+                            ("sky_horizon", SKY_HORIZON),
+                            ("sun_glow", SUN_GLOW),
+                            ("fog_density", FOG_DENSITY),
+                            ("fog_height", FOG_HEIGHT)):
+            if name in prog:
+                prog[name].value = value
     program["sun"].value = tuple(np.array([0.42, 0.30, 0.85])
                                  / np.linalg.norm([0.42, 0.30, 0.85]))
-    program["sky"].value = SKY
-    program["far"].value = FAR
+    # Set only if the shader still wants them.  Both were the flat sky
+    # colour and the linear fog range; with the gradient and the
+    # exponential fog in, GLSL drops whichever a shader no longer reads,
+    # and assigning to a dropped uniform is a KeyError.
+    _optional(program, sky=SKY, far=FAR)
 
     static = []
     for part in mesh.parts:
@@ -1292,10 +1533,25 @@ def main(argv=None):
                          else WATER_FRAGMENT))
     water_prog["sun"].value = tuple(np.array([0.42, 0.30, 0.85])
                                     / np.linalg.norm([0.42, 0.30, 0.85]))
-    water_prog["sky"].value = SKY
-    water_prog["far"].value = FAR
+    _optional(water_prog, sky=SKY, far=FAR)
     water_prog["deep"].value = (0.055, 0.115, 0.155)
     water_prog["hull_length"].value = float(boat.length)
+    for _prog in (program, sky_prog, water_prog):
+        set_sky(_prog)
+    # The second normal and the per-pixel surface are the two things
+    # that cost real fragment work, so they are what the quality setting
+    # actually buys.  Minimal keeps a short exact radius -- the water
+    # right under the eye still has to be smooth, because the mesh
+    # showing through it is the most obvious fault there is -- and no
+    # ripple at all, which is six simplex evaluations a fragment saved.
+    _ripple, _exact = {
+        "minimal": (0.0, 7.0),
+        "standard": (RIPPLE_SLOPE, 16.0),
+        "high": (RIPPLE_SLOPE, 26.0),
+    }.get(args.quality, (RIPPLE_SLOPE, 16.0))
+    _optional(water_prog, ripple_slope_amp=_ripple,
+              ripple_scale=RIPPLE_SCALE, ripple_fade=RIPPLE_FADE,
+              exact_within=_exact)
     #: Texture units 0-2 are the HUD, the near field and the wave table.
     SCENE_UNIT, DEPTH_UNIT = 3, 4
     if scene_fbo is not None:
@@ -1427,6 +1683,16 @@ def main(argv=None):
         first = scene_fbo if scene_fbo is not None else target
         first.use()
         first.clear(SKY[0], SKY[1], SKY[2], 1.0)
+        # The dome first, behind everything.  Depth test off so it fills
+        # the frame, depth write off so it does not occlude the world.
+        inverse_vp = np.linalg.inv(projection @ view)
+        sky_prog["inverse_vp"].write(inverse_vp.T.astype("f4")
+                                     .tobytes(order="C"))
+        sky_prog["sun"].value = tuple(np.array([0.42, 0.30, 0.85])
+                                      / np.linalg.norm([0.42, 0.30, 0.85]))
+        ctx.disable(moderngl.DEPTH_TEST)
+        sky_vao.render()
+        ctx.enable(moderngl.DEPTH_TEST)
         for vao in static:
             vao.render()
         if scene_fbo is not None:
