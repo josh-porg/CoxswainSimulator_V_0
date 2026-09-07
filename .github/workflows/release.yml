@@ -168,10 +168,26 @@ jobs:
           esac
           RUN=""
           [ "${{ matrix.name }}" = "linux" ] && RUN="xvfb-run -a"
+
+          # `timeout` is GNU coreutils and macOS does not ship it.  The
+          # first version of this bound used it unconditionally and so
+          # failed the ONE platform that had never hung -- the guard
+          # against a hang became the thing that broke the build.
+          # gtimeout is coreutils under Homebrew; if neither is there,
+          # run unbounded rather than not at all.
+          if command -v timeout >/dev/null 2>&1; then
+            LIMIT="timeout 240"
+          elif command -v gtimeout >/dev/null 2>&1; then
+            LIMIT="gtimeout 240"
+          else
+            LIMIT=""
+            echo "note: no timeout command here; running unbounded"
+          fi
+
           ok=1
           for course in charles totl hotl; do
             echo "--- $course"
-            if SDL_VIDEODRIVER=dummy timeout 240 $RUN "$APP"                  --race "$course" --boat 8+ --no-menu                  --shot "/tmp/$course.png" --width 320 --height 180; then
+            if SDL_VIDEODRIVER=dummy $LIMIT $RUN "$APP"                  --race "$course" --boat 8+ --no-menu                  --shot "/tmp/$course.png" --width 320 --height 180; then
               echo "    rendered"
             else
               echo "    FAILED or timed out (exit $?)"

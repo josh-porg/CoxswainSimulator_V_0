@@ -191,6 +191,12 @@ def test_the_render_check_cannot_hang_the_release():
     assert "timeout 240" in workflow, (
         "every render invocation needs a bound; without one a stuck "
         "runner blocks the publish job for ever")
+    # ...but `timeout` is GNU coreutils and macOS does not ship it.
+    # Using it unconditionally failed the one platform that had never
+    # hung: the guard against a hang became the thing that broke the
+    # build.  So its absence has to be handled.
+    assert "gtimeout" in workflow, "macOS has no `timeout`"
+    assert "command -v timeout" in workflow
 
 
 def test_the_payload_is_verified_without_needing_a_gpu():
