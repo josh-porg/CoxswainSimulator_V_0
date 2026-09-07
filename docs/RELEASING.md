@@ -20,6 +20,29 @@ python tools/build_exe.py --onedir
 Then zip `dist/Coxswain` so the archive contains a single `Coxswain/`
 folder, and attach it to a release.
 
+### Three platforms, one tag
+
+`.github/workflows/release.yml` builds Windows, macOS and Linux from the
+same tag and the same pinned requirements, and attaches all three to the
+release. Pushing a `v*` tag runs it; the release is created if it does
+not exist yet, so a tag push is all it takes.
+
+The link to hand out never changes and never needs to:
+
+    https://github.com/josh-porg/CoxswainSimulator_V_0/releases/latest
+
+`/releases/latest` redirects to whatever the newest release is.
+
+| Platform | Runner | Ships as | Why that runner |
+|---|---|---|---|
+| Windows | `windows-latest` | `Coxswain-windows.zip` | |
+| macOS | `macos-13` | `Coxswain-mac.zip` | last Intel runner; x86_64 runs on Apple Silicon under Rosetta, arm64 will not start on Intel at all |
+| Linux | `ubuntu-22.04` | `Coxswain-linux.tar.gz` | glibc 2.35; a binary will not start against an older glibc than it was built on |
+
+Linux ships as `tar.gz`, not `zip`, because the executable bit has to
+survive. Its smoke test runs under `xvfb`, because the headless path
+still makes a real standalone GL context and a bare runner has no GLX.
+
 ### The Mac build, and why it is not made here
 
 PyInstaller does not cross-compile. It bundles the running interpreter
@@ -53,7 +76,19 @@ up as a build failure:
 * **`ditto`, not `zip`.** A plain zip drops the symlinks and executable
   bits inside a `.app`, and the bundle then will not launch.
 
-The app is unsigned, so the first launch needs right-click then Open.
+The app is **ad-hoc signed** in CI (`codesign --force --deep --sign -`),
+which is free and needs no Apple account. That is not notarisation and
+does not remove Gatekeeper's prompt -- it changes which prompt. An
+unsigned quarantined bundle fails signature validation outright and
+macOS calls it "damaged" with a single Cancel button, which reads as a
+corrupt download and is the likeliest reason someone gives up. Ad-hoc
+signed, the signature is valid and merely unknown, so it says the
+developer "cannot be verified" and right-click then Open works cleanly.
+
+Notarisation would remove the prompt entirely and costs 99 dollars a
+year for an Apple Developer account.
+
+The first launch still needs right-click then Open.
 `packaging/README-mac.txt` leads with that, because macOS's own message
 says the app is "damaged" and offers only a Cancel button -- anyone not
 told will report it as broken.

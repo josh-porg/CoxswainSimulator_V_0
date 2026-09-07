@@ -9680,3 +9680,57 @@ The first dispatch was against `v0.2` and failed at the install step on
 a missing `requirements-build.txt`. The runner checks out the tag and
 builds *that tree*, and v0.2 predates the file. Obvious once seen, and
 the workflow input now says so.
+
+## 153. Linux, and Gatekeeper's exact wording
+
+### glibc decides who can run it
+
+A Linux binary links against the glibc it was **built** against and will
+not start on anything older. Build on the newest runner and it refuses
+to run on Ubuntu 22.04, Debian 12 or Mint 21 — which is most of the
+machines anyone has. `ubuntu-22.04` is glibc 2.35 and runs on everything
+newer, which is the direction compatibility works in. The same reasoning
+as choosing the Intel Mac runner, and the same answer: build against the
+older thing.
+
+It ships as `tar.gz` rather than `zip` because the executable bit has to
+survive. A zip does not reliably carry it, and someone who unpacks to a
+non-executable binary gets "permission denied" with nothing to suggest
+why.
+
+The headless smoke test runs under `xvfb`. `SDL_VIDEODRIVER=dummy` gets
+a window with no display, but the headless render path still creates a
+real standalone GL context, and a bare runner has no GLX to give it.
+
+### Ad-hoc signing changes the question, not the answer
+
+macOS refuses an unsigned quarantined bundle with **"Coxswain is damaged
+and can't be opened"** and a single Cancel button. It is not damaged.
+That message is what signature validation failure looks like, and it
+reads to any normal person as a corrupt download — which makes it the
+likeliest single reason a tester gives up before ever seeing the boat.
+
+`codesign --force --deep --sign -` is an ad-hoc signature: real, valid,
+with no identity behind it. Free, and needing no Apple account. It does
+**not** remove the prompt — only notarisation does that, and that needs
+a paid developer account. What it changes is the wording: the signature
+is now valid and merely unknown, so macOS says the developer "cannot be
+verified", and right-click then Open works cleanly.
+
+The useful consequence is diagnostic. After ad-hoc signing, "damaged"
+means the download really did arrive corrupt, so the README can tell
+people to fetch it again rather than fight it — advice that would have
+been wrong before.
+
+`--deep` because a PyInstaller bundle carries a hundred-odd nested `.so`
+files that each need covering, and `--force` because PyInstaller writes
+its own placeholder signature first.
+
+### A note on writing YAML from a script
+
+Five line continuations in the workflow were written as the literal two
+characters `\` and `n` rather than a backslash and a newline. The YAML
+still parsed, and the shell still ran — `apt-get install ... libegl1 n
+libgles2 ...` would simply have tried to install a package called `n`.
+Worth remembering that a valid-looking workflow is not a working one,
+and that `cat -A` settles it in a second.
