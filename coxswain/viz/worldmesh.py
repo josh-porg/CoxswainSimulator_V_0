@@ -724,15 +724,49 @@ def hull_solid(boat, deck: float = 0.30, colour=(0.88, 0.89, 0.86),
     seat_x = float(viewpoint(boat)[0][0]) + float(cockpit)
     bow, stern = float(ring[:, 0].max()), float(ring[:, 0].min())
 
+    # Each side of the outline as a curve of half-breadth against
+    # station, so the deck can be cut to the hull's actual width at any
+    # x.  The previous version took the widest point within 1.2 m of a
+    # station, which at the stem is the beam a metre back -- so the
+    # deck ended in a blunt square and the bow, which on a shell is a
+    # knife, read as a barge.  The tip vertices sit at zero beam and are
+    # in both curves, so the interpolation closes to a point there.
+    _port = ring[ring[:, 1] >= -1e-6]
+    _starboard = ring[ring[:, 1] <= 1e-6]
+    _port = _port[np.argsort(_port[:, 0])]
+    _starboard = _starboard[np.argsort(_starboard[:, 0])]
+
     def edges_at(x):
-        """``(y_port, y_starboard)`` of the hull at station ``x``."""
-        near = ring[np.abs(ring[:, 0] - x) < 1.2]
-        if len(near) < 2:
-            near = ring[np.argsort(np.abs(ring[:, 0] - x))[:4]]
-        return float(near[:, 1].min()), float(near[:, 1].max())
+        """``(y_starboard, y_port)`` of the hull at station ``x``."""
+        return (float(np.interp(x, _starboard[:, 0], _starboard[:, 1])),
+                float(np.interp(x, _port[:, 0], _port[:, 1])))
+
+    def graded(x0, x1, count):
+        """Stations from ``x0`` to ``x1`` crowded toward both ends.
+
+        Cosine spacing: the same clustering a wing or a hull section is
+        panelled with, because the curvature is at the ends.  A shell
+        is straight-sided for most of its length and turns through its
+        whole entry in the last metre or two, and even stations put one
+        vertex in that metre and a dozen along the flat.
+        """
+        theta = np.linspace(0.0, np.pi, int(count))
+        return 0.5 * (x0 + x1) + 0.5 * (x0 - x1) * np.cos(theta)
+
+    # Resample the outline itself on graded stations, so the sides get
+    # the same refinement as the deck: the convex hull hands back one
+    # vertex at the stem, and the hull walls between it and the next
+    # were a single long facet across the whole entry.
+    _bow_x, _stern_x = float(ring[:, 0].max()), float(ring[:, 0].min())
+    _stations = graded(_stern_x, _bow_x, 60)
+    _s_side = np.column_stack([_stations, [edges_at(x)[0] for x in _stations]])
+    _p_side = np.column_stack([_stations, [edges_at(x)[1] for x in _stations]])
+    # Starboard forward, port aft: counter-clockwise from above, which
+    # is the winding the side walls below are built for.
+    ring = np.vstack([_s_side, _p_side[::-1][1:-1]])
 
     def strip(x0, x1, height, shade):
-        stations = np.linspace(x0, x1, 14)
+        stations = graded(x0, x1, 22)
         for xa, xb in zip(stations[:-1], stations[1:]):
             pa, sa = edges_at(xa)
             pb, sb = edges_at(xb)
