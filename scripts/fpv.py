@@ -523,10 +523,11 @@ def run_setup_menu(screen, args):
                     return None
                 action = handle_key(menu, event.key)
                 if action == "start":
-                    # Faded rather than cut: the world takes half a
-                    # minute to build after this and silence arriving
-                    # abruptly reads as a crash.
-                    stop_music()
+                    # NOT stopped here: the world takes half a minute to
+                    # build after this, and silence landing the instant
+                    # you press go is the loudest possible signal that
+                    # something has died.  It plays over the loading
+                    # screen and fades when the boat appears.
                     return menu.settings()
                 if action == "quit":
                     stop_music()
@@ -535,6 +536,86 @@ def run_setup_menu(screen, args):
         draw_menu(overlay, menu, font, small, screen.get_size())
         screen.blit(overlay, (0, 0))
         pygame.display.flip()
+
+
+LOADING_TIPS = (
+    "The stick stays where you put it.  Nothing re-centres it for you.",
+    "A sweep four turns toward the stroke side with the rudder centred.",
+    "Press M to hand steering between the mouse and the arrow keys.",
+    "Escape pauses: stroke rate, wind, restart, or change boat.",
+    "The stroke sound is recorded from real outings, not synthesised.",
+    "In an eight you sit in the stern and the crew face you.",
+)
+
+
+def run_loading(screen, label, work):
+    """Run ``work()`` on a worker thread behind an animated screen.
+
+    Building a course is half a minute of terrain, buildings and trees.
+    Done on the main thread the window stops repainting, Windows paints
+    it grey and titles it "not responding", and it reads exactly like a
+    crash -- which, for someone who was handed an unsigned exe and told
+    to click through a security warning, is the moment they give up.
+
+    So the build goes to a thread and this draws while it runs.  The
+    work is pure computation handing back arrays; it touches no GL
+    context, which is what makes it safe to move off the main thread.
+    """
+    import threading
+
+    import pygame          # module-level pygame does not exist here
+
+    done, failed = {}, {}
+
+    def run():
+        try:
+            done["value"] = work()
+        except BaseException as exc:                  # re-raised below
+            failed["value"] = exc
+
+    thread = threading.Thread(target=run, daemon=True)
+    thread.start()
+
+    clock = pygame.time.Clock()
+    title = pygame.font.SysFont("dejavusans,arial", 26)
+    small = pygame.font.SysFont("dejavusans,arial", 15)
+    width, height = screen.get_size()
+    started = time.perf_counter()
+    tip = LOADING_TIPS[int(started) % len(LOADING_TIPS)]
+
+    while thread.is_alive():
+        clock.tick(30)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pass                # the build finishes; quitting is later
+        elapsed = time.perf_counter() - started
+        screen.fill((18, 24, 29))
+        text = title.render(label, True, (233, 240, 245))
+        screen.blit(text, ((width - text.get_width()) // 2, height // 2 - 60))
+
+        # An indeterminate bar: a band sliding inside a track.  Honest,
+        # because there is no progress number to report -- a fake
+        # percentage that stalls at 90 is worse than none.
+        track = pygame.Rect((width - 380) // 2, height // 2, 380, 6)
+        pygame.draw.rect(screen, (44, 54, 62), track)
+        span = 120
+        travel = (track.width + span) * ((elapsed * 0.45) % 1.0) - span
+        band = pygame.Rect(track.x + max(0, int(travel)), track.y,
+                           int(min(span, min(track.width - travel, travel + span))),
+                           track.height)
+        if band.width > 0:
+            pygame.draw.rect(screen, (255, 146, 72), band)
+
+        for row, line in ((0, "%.0f seconds" % elapsed), (1, tip)):
+            text = small.render(line, True, (150, 164, 176))
+            screen.blit(text, ((width - text.get_width()) // 2,
+                               height // 2 + 28 + row * 26))
+        pygame.display.flip()
+
+    thread.join()
+    if "value" in failed:
+        raise failed["value"]
+    return done.get("value")
 
 
 def main(argv=None):
@@ -587,6 +668,11 @@ def main(argv=None):
 
     import moderngl
 
+    # Defined before the branch, not inside it: the loading screen below
+    # tests ``screen is not None`` and --no-menu skips this block
+    # entirely, so leaving it to be assigned here is a NameError on
+    # exactly the path the packaging tests use.
+    screen = None
     if not args.shot and not args.no_menu:
         # A plain window first, so a coxswain can choose a boat and a
         # course without knowing what a command-line flag is.  The GL
@@ -612,19 +698,35 @@ def main(argv=None):
 
     print("building %s ..." % args.race)
     clock0 = time.perf_counter()
-    # The sea first: the flat far-water quad has to be sunk below the
-    # deepest trough of the near field, or it hides them.
-    sea = sea_for(args.wind, args.fetch, np.radians(args.wind_from))
-    trough = float(np.sum(sea.amplitude)) if len(sea.amplitude) else 0.0
-    mesh, scene = build_world(args.race, reach=args.reach, step=args.step,
-                              water_level=-1.25 * trough - 0.02,
-                              with_buildings=not args.no_buildings,
-                              guide=not args.no_guide,
-                              trees=not args.no_trees)
+
+    def build_everything():
+        """All the heavy work, and none of it touching GL."""
+        # The sea first: the flat far-water quad has to be sunk below
+        # the deepest trough of the near field, or it hides them.
+        sea = sea_for(args.wind, args.fetch, np.radians(args.wind_from))
+        trough = float(np.sum(sea.amplitude)) if len(sea.amplitude) else 0.0
+        mesh, scene = build_world(args.race, reach=args.reach, step=args.step,
+                                  water_level=-1.25 * trough - 0.02,
+                                  with_buildings=not args.no_buildings,
+                                  guide=not args.no_guide,
+                                  trees=not args.no_trees)
+        return sea, trough, mesh, scene, build_boat(args.boat, args.rate)
+
+    label = "Building %s" % dict(
+        charles="the Charles", totl="Tail of the Lake",
+        hotl="Head of the Lake").get(args.race, args.race)
+    if screen is not None:
+        sea, trough, mesh, scene, (boat, made) = run_loading(
+            screen, label, build_everything)
+    else:
+        sea, trough, mesh, scene, (boat, made) = build_everything()
     print("   %d triangles in %d parts, %.1f s"
           % (mesh.triangles, len(mesh.parts), time.perf_counter() - clock0))
+    # The menu music has been playing over the loading screen; fade it
+    # out now the world exists, so the stroke is the first thing heard.
+    if screen is not None:
+        stop_music(900)
 
-    boat, made = build_boat(args.boat, args.rate)
     if made != args.boat:
         print("   (no %s in the catalog; rowing a %s)" % (args.boat, made))
     args.boat = made

@@ -87,3 +87,45 @@ def test_main_opens_the_menu_without_an_unbound_name(dummy_video,
 
     monkeypatch.setattr(fpv, "run_setup_menu", lambda screen, args: None)
     assert fpv.main(["--race", "totl"]) == 0
+
+
+def test_loading_screen_repaints_and_reports_failure(dummy_video):
+    """The build runs on a thread and the screen keeps drawing.
+
+    Two things matter and both have bitten already.  The window must
+    repaint, because a frozen one is titled "not responding" by Windows
+    and reads as a crash.  And a build that raises must raise *here*
+    rather than being swallowed on the worker thread, leaving a bar
+    sliding forever over a program that has already failed.
+
+    This also covers the same unbound-name trap as the tests above:
+    fpv.py has no module-level pygame, so every function that draws
+    needs its own import, and run_loading was written without one.
+    """
+    import time
+
+    import fpv
+
+    frames = {"n": 0}
+    original = pygame.display.flip
+
+    def counted():
+        frames["n"] += 1
+        original()
+
+    pygame.display.flip = counted
+    try:
+        assert fpv.run_loading(dummy_video, "Building",
+                               lambda: time.sleep(0.6) or "built") == "built"
+        assert frames["n"] > 8, frames["n"]
+
+        class Boom(Exception):
+            pass
+
+        def explode():
+            raise Boom("build failed")
+
+        with pytest.raises(Boom):
+            fpv.run_loading(dummy_video, "Building", explode)
+    finally:
+        pygame.display.flip = original

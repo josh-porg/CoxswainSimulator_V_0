@@ -747,6 +747,36 @@ def buoy_solids(buoys, height: float = 0.45,
 #: trees sit well back from the water.  A crown is still clearly a crown
 #: at a couple of hundred metres from a seat half a metre off the water,
 #: and that is the distance that decides this, not a round number.
+def _sphere(centre, radius, colour, rings: int = 5, segments: int = 8):
+    """A low-polygon sphere.  Heads are round; nothing else here is."""
+    centre = np.asarray(centre, dtype=float)
+    lats = np.linspace(-np.pi / 2.0, np.pi / 2.0, int(rings) + 1)
+    lons = np.linspace(0.0, 2.0 * np.pi, int(segments), endpoint=False)
+
+    def point(lat, lon):
+        return centre + radius * np.array([np.cos(lat) * np.cos(lon),
+                                           np.cos(lat) * np.sin(lon),
+                                           np.sin(lat)])
+
+    faces = []
+    for i in range(int(rings)):
+        for j in range(int(segments)):
+            k = (j + 1) % int(segments)
+            a = point(lats[i], lons[j])
+            b = point(lats[i], lons[k])
+            c = point(lats[i + 1], lons[k])
+            d = point(lats[i + 1], lons[j])
+            faces += [[a, b, c], [a, c, d]]
+    vertices = np.asarray(faces, dtype="f4").reshape(-1, 3)
+    tri = vertices.reshape(-1, 3, 3)
+    normal = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])
+    inward = np.einsum("ij,ij->i", normal, tri.mean(axis=1) - centre) < 0.0
+    tri[inward] = tri[inward][:, ::-1]
+    vertices = tri.reshape(-1, 3)
+    colours = np.tile(np.asarray(colour, dtype="f4"), (len(vertices), 1))
+    return MeshPart("sphere", vertices, colours, _face_normals(vertices))
+
+
 def _tube(a, b, radius, colour, sides: int = 8):
     """A round prism between two points.
 
@@ -792,6 +822,23 @@ def _tube(a, b, radius, colour, sides: int = 8):
     colours = np.tile(np.asarray(colour, dtype="f4"), (len(vertices), 1))
     return MeshPart("tube", vertices, colours, _face_normals(vertices))
 
+
+#: How far the drawn crew is raised off the kinematic model, m.
+#:
+#: The model puts the seat plane 0.104 m above the waterline.  A real
+#: shell's deck sits three or four inches below the gunwale and the seat
+#: an inch or two above the deck, which with this hull's 0.30 m gunwale
+#: puts a rower's backside at about 0.25 -- so drawn literally the crew
+#: were sunk into the boat up to the waist, rowing from inside it.
+#:
+#: This is a **render offset only**; nothing in the dynamics reads it.
+#: That is a compromise rather than a fix: if the seat really is 0.15 m
+#: low then the crew's mass is 0.15 m low too, which flatters the roll
+#: inertia and the trim.  Correcting it properly means moving the
+#: station in the kinematics and re-checking everything calibrated
+#: against it, which is not a thing to do quietly at the same time as
+#: making the picture look right.
+CREW_LIFT = 0.146
 
 #: Kit and skin.  Muted on purpose: in a stern-coxed boat the crew fill
 #: the middle of the frame, and anything saturated there pulls the eye
@@ -983,8 +1030,26 @@ def crew_solids(boat, t, scale: float = 1.0):
             for name in [n for n in joints if n.startswith("elbow")]:
                 rise = hand_rise.get(name.split("_", 1)[-1], 0.0)
                 joints[name] = joints[name] + np.array([0.0, 0.0, rise * 0.5])
+        # Everything but the hands rises onto the seat.  The hands do
+        # not: they are on the loom, and the loom is hung off an oarlock
+        # 0.38 m above the water that has not moved.  Lifting them too
+        # would take them straight back off the shaft that the whole
+        # previous fix put them on.  The elbow splits the difference,
+        # which is what an elbow does.
+        for name in joints:
+            if name.startswith("hand"):
+                continue
+            rise = CREW_LIFT * (0.5 if name.startswith("elbow") else 1.0)
+            joints[name] = joints[name] + np.array([0.0, 0.0, rise])
+
         for start, end in rower.BONES:
             if start not in joints or end not in joints:
+                continue
+            if end == "head":
+                # A head is a sphere, not a length of pipe.
+                parts.append(_tube(joints[start], joints[end], 0.045, SKIN))
+                parts.append(_sphere(joints[end] + np.array([0.0, 0.0, 0.05]),
+                                     0.105, SKIN))
                 continue
             radius, colour = _bone_style(start, end)
             parts.append(_tube(joints[start], joints[end],
@@ -1385,7 +1450,7 @@ def _strut(a, b, radius, colour):
 
 def truss_bridge(start, end, width: float, level: float, depth: float,
                  span: float, colour=(0.55, 0.55, 0.53),
-                 pier_colour=(0.52, 0.51, 0.48)):
+                 pier_colour=(0.52, 0.51, 0.48), piers=None):
     """A steel deck truss, **open**, as Seattle's canal bridges are.
 
     The Ship Canal Bridge and the Fremont Bridge carry their structure
@@ -1439,10 +1504,18 @@ def truss_bridge(start, end, width: float, level: float, depth: float,
     for a in stations[::2]:
         parts.append(_strut(at(a, -0.86, bottom), at(a, 0.86, bottom),
                             0.7 * member, colour))
-    # Piers under the bottom chord, at the main span.
-    count = max(int(round(length / max(span, 1.0))), 1)
-    for step in range(1, count):
-        foot = start + (end - start) * (step / count)
+    # Piers under the bottom chord.  Surveyed stations are used when the
+    # caller has them -- the Grand Junction trestle's five are measured
+    # from OSM ``bridge:support=pier`` polygons and sit at 28, 53, 78, 96
+    # and 121 m, which is neither evenly spaced nor the seven that
+    # dividing by the span length produces.
+    if piers is not None:
+        feet = [start + along * float(distance) for distance in piers]
+    else:
+        count = max(int(round(length / max(span, 1.0))), 1)
+        feet = [start + (end - start) * (step / count)
+                for step in range(1, count)]
+    for foot in feet:
         parts.append(box_solid((foot[0], foot[1], 0.5 * bottom),
                                (0.055 * span + 1.0, 0.055 * span + 1.0,
                                 0.5 * bottom), colour=pier_colour))
@@ -1564,7 +1637,9 @@ def bridge_solids(race: str, scene) -> Optional[MeshPart]:
     parts = []
     if race == "charles":
         from ..river import charles
-        from ..river.bridges import deck_geometry
+        from ..river.bridges import MEASURED_PIERS, deck_geometry
+        from ..river.charles import CHARLES_ORIGIN
+        from ..river.course import local_tangent_plane
         from ..river.charts import CourseGeometry
 
         geometry = CourseGeometry(channel=charles.charles_channel())
@@ -1580,18 +1655,29 @@ def bridge_solids(race: str, scene) -> Optional[MeshPart]:
                 if built is not None:
                     parts.append(built)
                 continue
-            middle = 0.5 * (start + end)
-            span = float(np.hypot(*(end - start)))
-            along = (end - start) / max(span, 1e-9)
-            # Not an arch: a slab across the river, plus a pier at each
-            # third.  Eliot is NBI 4/9, a steel deck truss, and the
-            # Grand Junction is a steel trestle.
-            parts.append(_slab(middle, along, span, width, level, depth))
-            for fraction in (0.33, 0.67):
-                foot = start + (end - start) * fraction
-                parts.append(box_solid((foot[0], foot[1], level * 0.5),
-                                       (1.4, 1.4, level * 0.5),
-                                       colour=(0.50, 0.49, 0.46)))
+            # Not an arch.  Eliot is NBI 4/9, a steel deck truss, and
+            # the Grand Junction is a 149 m steel trestle -- both were
+            # drawn as a plain slab on two piers at the thirds, which
+            # for the trestle is the one bridge on the reach whose whole
+            # character is a long row of legs in the water.  They get
+            # the same open steelwork the Seattle bridges do, and where
+            # the piers have been surveyed they go where they were
+            # measured rather than at even fractions.
+            length = float(np.hypot(*(end - start)))
+            along = (end - start) / max(length, 1e-9)
+            stations = None
+            measured = MEASURED_PIERS.get(gate.name)
+            if measured:
+                lats = np.array([point[0] for point in measured])
+                lons = np.array([point[1] for point in measured])
+                east, north = local_tangent_plane(lats, lons, CHARLES_ORIGIN)
+                stations = sorted(
+                    float((np.array([e, n]) - start) @ along)
+                    for e, n in zip(east, north))
+            built = truss_bridge(start, end, width, level, depth,
+                                 span=float(_span or 18.0), piers=stations)
+            if built is not None:
+                parts.append(built)
     else:
         try:
             from ..river.seattle import canal_bridges
