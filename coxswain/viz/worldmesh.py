@@ -1917,7 +1917,6 @@ def arch_bridge(start, end, width: float, level: float, depth: float,
         edges = np.array([0.0] + inner + [length])
     else:
         edges = np.linspace(0.0, length, spans + 1)
-    arch = length / spans
 
     def point(distance, side, height):
         xy = start + along * distance + across * (side * half)
@@ -1957,9 +1956,29 @@ def arch_bridge(start, end, width: float, level: float, depth: float,
 
     # Piers: the solid between the springing and the water, at each
     # junction between arches and at the abutments.
-    for index in range(spans + 1):
-        centre = index * arch
-        thick = PIER_FRACTION * arch
+    #
+    # At ``edges`` -- the SAME stations the arches were just cut
+    # between -- and not at even fractions of the length.  These were
+    # two loops with two different ideas of where the piers are: the
+    # openings followed the measured stations and the solids followed
+    # ``index * length / spans``, which agree only when the bays happen
+    # to be equal.  On Western Avenue, where the navigable arch is set
+    # by the channel and the side arches take up the rest, the solid
+    # pier stood 17 m from the springing it was meant to carry, and an
+    # arch hung in the air past its own pier.  Weeks never showed it,
+    # because its bays are even and the two loops coincide there.
+    #
+    # Thickness is taken from the narrower neighbouring bay, so a pier
+    # between a wide arch and a narrow one is sized for the narrow one
+    # and never eats it.
+    for index in range(len(edges)):
+        centre = float(edges[index])
+        neighbours = []
+        if index > 0:
+            neighbours.append(float(edges[index] - edges[index - 1]))
+        if index < len(edges) - 1:
+            neighbours.append(float(edges[index + 1] - edges[index]))
+        thick = PIER_FRACTION * min(neighbours)
         a = max(centre - 0.5 * thick, 0.0)
         b = min(centre + 0.5 * thick, length)
         for side in (1.0, -1.0):
@@ -2136,9 +2155,20 @@ def bridge_solids(race: str, scene) -> Optional[MeshPart]:
                 span_length = getattr(structure, "structure_length", None)
                 low, high = start, end
                 full = float(np.hypot(*(end - start)))
-                if span_length and 0.0 < float(span_length) < full:
+                bays = []
+                # NOT gated on the inventory length.  Weeks is a
+                # footbridge and so is not in the NBI; gating on
+                # ``structure_length`` skipped this whole block for it
+                # and drew three even bays over the full 108.7 m deck
+                # way -- piers at 36 and 72 m where the navigation side
+                # has them at 31 and 59, and 24 m of arches standing on
+                # dry land at the Cambridge end.  The wet run and the
+                # derived piers exist whether or not the inventory does.
+                length = (float(span_length)
+                          if span_length and 0.0 < float(span_length) < full
+                          else None)
+                if True:
                     along = (end - start) / max(full, 1e-9)
-                    length = float(span_length)
                     # Centred on the CHANNEL, not on the deck line.  The
                     # river does not run under the middle of the road:
                     # centring Western Avenue's 85 m of arches on its
@@ -2171,12 +2201,27 @@ def bridge_solids(race: str, scene) -> Optional[MeshPart]:
                     except Exception:
                         piers = ()
                     wet = _raw_waterway(gate, geometry.channel)
-                    if wet is None:
+                    if wet is not None:
+                        # Centred on the WATER.  The comment above said
+                        # so and the arithmetic below it did not: the
+                        # inventory length was still laid out about the
+                        # deck line, as a bound, and on Western Avenue
+                        # -- whose 152 m deck way is not centred on the
+                        # river -- that started the arches 26 m up the
+                        # Boston bank.  Length is the inventory figure
+                        # or the wet run plus an abutment each end,
+                        # whichever is longer (River Street's inventory
+                        # is shorter than its river).
+                        middle = 0.5 * (wet[0] + wet[1])
+                        need = (wet[1] - wet[0]) + 2.0 * ABUTMENT
+                        span = max(length or 0.0, need)
+                        span_lo, span_hi = middle - 0.5 * span, middle + 0.5 * span
+                    elif length is not None:
                         span_lo, span_hi = (0.5 * (full - length),
                                             0.5 * (full + length))
                     else:
-                        span_lo = min(wet[0] - ABUTMENT, 0.5 * (full - length))
-                        span_hi = max(wet[1] + ABUTMENT, 0.5 * (full + length))
+                        # Neither: nothing to trim to, the deck way stands.
+                        span_lo, span_hi = 0.0, full
                     span_lo = max(span_lo, 0.0)
                     span_hi = min(span_hi, full)
                     low = start + along * span_lo

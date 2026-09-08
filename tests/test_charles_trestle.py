@@ -159,3 +159,168 @@ def test_every_arch_bridge_reaches_dry_land():
         assert high >= wet[1] - 1e-6, (gate.name, high, wet)
         checked += 1
     assert checked >= 4, checked
+
+
+def test_arch_piers_stand_under_the_arch_springings():
+    """The solid piers must be where the openings are cut, in the MESH.
+
+    ``arch_bridge`` cut its openings between the measured pier stations
+    and then drew its solid piers at even fractions of the length -- two
+    loops with two ideas of where a pier is, agreeing only when the bays
+    happen to be equal.  Western Avenue's are not: its navigable arch is
+    set by the channel and the side arches take up the rest, and the
+    solid pier stood 17.3 m from the springing it was meant to carry.
+    River Street was 6.0 m out, Larz Anderson 5.4 m.  Weeks, with even
+    bays, never showed it.
+
+    Every earlier test here checked *stations* on the navigation side.
+    This one reads the drawn geometry back, because that is where the
+    bug lived.
+    """
+    from coxswain.viz.worldmesh import arch_bridge
+
+    start = np.array([0.0, 0.0])
+    end = np.array([113.6, 0.0])
+    pier_colour = (0.58, 0.57, 0.54)
+    stations = [55.1, 81.9]                    # Western Avenue, measured
+    mesh = arch_bridge(start, end, 18.0, 7.5, 1.4, 3, piers=stations,
+                       pier_colour=pier_colour)
+    assert mesh is not None
+
+    # Pier faces are the ones in the pier colour; take their x-centres
+    # and cluster them, which gives one station per solid.
+    is_pier = np.all(np.abs(mesh.colours - np.asarray(pier_colour)) < 1e-6,
+                     axis=1)
+    xs = mesh.vertices[is_pier, 0]
+    assert len(xs), "no pier faces found -- did the colour change?"
+    found = []
+    # A pier is 0.13 of a bay thick -- 3.5 m on the 26.8 m centre span
+    # -- so its two faces must land in ONE cluster: split only on a gap
+    # wider than any pier could be.
+    for x in sorted(set(np.round(xs, 3))):
+        if not found or x - found[-1][-1] > 8.0:
+            found.append([x])
+        else:
+            found[-1].append(x)
+    centres = sorted(float(np.mean(group)) for group in found)
+    wanted = [0.0, 55.1, 81.9, 113.6]
+    assert len(centres) == len(wanted), centres
+    for got, want in zip(centres, wanted):
+        # An abutment is trimmed to the end of the bridge, so it sits
+        # half a pier inboard; the inner piers must be dead on.
+        tolerance = 0.5 * 0.13 * 26.8 + 0.05 if want in (0.0, 113.6) else 0.05
+        assert abs(got - want) < tolerance, (got, want, centres)
+
+    # And the even layout it replaced would have FAILED this: 37.9 and
+    # 75.8 are nowhere near 55.1 and 81.9.
+    for wrong in (37.9, 75.8):
+        assert min(abs(wrong - c) for c in centres) > 5.0
+
+
+def test_a_pier_is_sized_for_its_narrower_neighbour():
+    """A pier between a wide arch and a narrow one must not eat the narrow one."""
+    from coxswain.viz.worldmesh import PIER_FRACTION, arch_bridge
+
+    pier_colour = (0.58, 0.57, 0.54)
+    # One 60 m bay and one 10 m bay.
+    mesh = arch_bridge(np.array([0.0, 0.0]), np.array([70.0, 0.0]), 12.0,
+                       6.0, 1.0, 2, piers=[60.0], pier_colour=pier_colour)
+    is_pier = np.all(np.abs(mesh.colours - np.asarray(pier_colour)) < 1e-6,
+                     axis=1)
+    xs = mesh.vertices[is_pier, 0]
+    inner = xs[(xs > 50.0) & (xs < 68.0)]
+    width = float(inner.max() - inner.min())
+    # Sized on the 10 m bay, not on the 60 m one.
+    assert width <= PIER_FRACTION * 10.0 + 1e-3, width      # float32
+    assert width > 0.5
+
+
+def _arch_meshes_on_the_course():
+    """Every arch bridge the real assembly path builds, keyed by gate.
+
+    ``bridge_solids`` hands back ONE merged part, so each bridge is
+    recovered by projecting the vertices onto its own gate line and
+    keeping those within the gate's run and 15 m of its axis.
+    """
+    from coxswain.river import charles
+    from coxswain.river.bridges import deck_geometry
+    from coxswain.river.charts import CourseGeometry
+    from coxswain.viz.worldmesh import bridge_solids
+
+    geometry = CourseGeometry(channel=charles.charles_channel())
+    merged = bridge_solids("charles", None)
+    assert merged is not None
+    out = []
+    for gate, _d in geometry.gates_on_course():
+        if (deck_geometry(gate.name) or ("",))[0] != "arch":
+            continue
+        start = np.asarray(gate.start, dtype=float)
+        end = np.asarray(gate.end, dtype=float)
+        full = float(np.hypot(*(end - start)))
+        along = (end - start) / full
+        across = np.array([-along[1], along[0]])
+        rel = merged.vertices[:, :2] - start
+        near = ((np.abs(rel @ across) < 15.0) & (rel @ along > -1.0)
+                & (rel @ along < full + 1.0))
+        assert near.any(), gate.name
+        out.append((gate, merged.vertices[near], merged.colours[near]))
+    return geometry, out
+
+
+def test_every_arch_bridge_has_its_piers_where_navigation_has_them():
+    """Read the mesh back and check it against ``derive_piers``, per bridge.
+
+    Not a check on stations -- earlier tests do that -- but on the drawn
+    solids, through the same assembly path the renderer uses.  It found
+    two separate bugs: the solid piers drawn at even fractions while
+    the openings followed the measured stations (Western Avenue 17.3 m
+    out), and Weeks skipped by a gate on an inventory length a footbridge
+    does not have (13.4 m out, and arches on dry land).
+    """
+    from coxswain.river.bridges import derive_piers
+
+    geometry, bridges = _arch_meshes_on_the_course()
+    assert len(bridges) >= 4, [g.name for g, _v, _c in bridges]
+    pier_colour = np.asarray((0.58, 0.57, 0.54))
+    checked = 0
+    for gate, vertices, colours in bridges:
+        start = np.asarray(gate.start, dtype=float)
+        end = np.asarray(gate.end, dtype=float)
+        along = (end - start) / float(np.hypot(*(end - start)))
+        piers = derive_piers(gate, geometry.channel)
+        if len(piers) < 1:
+            continue
+        is_pier = np.all(np.abs(colours - pier_colour) < 1e-6, axis=1)
+        assert is_pier.any(), gate.name
+        stations = (vertices[is_pier, :2] - start) @ along
+        for pier in piers:
+            want = float(pier.centre)
+            nearest = float(np.min(np.abs(stations - want)))
+            # Inside the solid, or at worst against its face.
+            assert nearest < 2.0, (gate.name, want, nearest)
+        checked += 1
+    assert checked >= 4, checked
+
+
+def test_no_arch_bridge_stands_on_dry_land_past_its_abutments():
+    """Arches end within an abutment of the water, both ends."""
+    from coxswain.viz.worldmesh import ABUTMENT, _raw_waterway
+
+    geometry, bridges = _arch_meshes_on_the_course()
+    arch_colour = np.asarray((0.72, 0.71, 0.67))
+    for gate, vertices, colours in bridges:
+        wet = _raw_waterway(gate, geometry.channel)
+        if wet is None:
+            continue
+        start = np.asarray(gate.start, dtype=float)
+        end = np.asarray(gate.end, dtype=float)
+        along = (end - start) / float(np.hypot(*(end - start)))
+        # The ARCH faces only: the approach slabs legitimately run on
+        # to the deck-way ends over dry land.
+        is_arch = np.all(np.abs(colours - arch_colour) < 1e-6, axis=1)
+        assert is_arch.any(), gate.name
+        stations = (vertices[is_arch, :2] - start) @ along
+        assert stations.min() >= wet[0] - ABUTMENT - 6.0, (
+            gate.name, float(stations.min()), wet)
+        assert stations.max() <= wet[1] + ABUTMENT + 6.0, (
+            gate.name, float(stations.max()), wet)
