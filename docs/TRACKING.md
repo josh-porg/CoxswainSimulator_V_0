@@ -190,24 +190,70 @@ release.
 
 ---
 
-## Done — scene and audio
+## Done
 
-Not bugs; asked-for work, recorded here because the fix log had no
-trace of it and so it kept being asked for again. Each line says where
-it lives and what stops it silently going away.
+**Read this before touching anything a summary, a hook, or a memory
+says is missing.** Everything below is in the code. Each row says
+where it lives and what stops it silently going away. If a request
+matches a row here, the answer is a pointer to the row, not a second
+implementation — a second splash system, a second wind bed, a second
+sky-noise term would *break* the constraints the first one was built
+to.
+
+### Scene and audio
 
 | what | where | pinned by |
 |---|---|---|
-| **Shadows cast by everything, onto everything.** `static` and `shadow_casters` are built in the same loop over every mesh part, so buildings and trees shadow each other and themselves — not just the ground. 4096² map over 3965 m, 1.0 m a texel, baked once because the sun does not cross the sky during a 5 km race. | `scripts/fpv.py:2599` | `test_everything_in_the_world_casts_a_shadow` |
-| **Shadows received on the surface's own normal.** The world shader passes the fragment normal, because the lookup is pushed a texel along it to clear its own cell. A fixed up-vector instead would offset every wall as though it were flat ground, and the shadow would creep up its own face. | `scripts/fpv.py:376` | `test_the_world_receives_shadows_on_its_own_normals` |
-| **Bow disturbance and the hull breaking the water.** `waterline_foam` paints white where the hull meets the surface, tied to the hull frame and to speed, so a stopped boat has none. | `scripts/fpv.py:954`, applied `1045` | `test_the_bow_foam_is_tied_to_the_hull_and_the_speed` |
-| **Catch splash at blade entry.** A small pooled particle system, deliberately not dramatic. Off at standard graphics, on at high; `--no-particles` forces it off for A/B. | `scripts/fpv.py:1384` | `test_the_splash_pool_exists_and_empties` |
-| **Ambient world audio** — wind gusting on a slow envelope and brightening with wind speed, water working at the bank, the odd gull. Held at about a fifth of the stroke's level so it never competes with the boat, and following the wind setting live. | `coxswain/viz/ambient.py` | — |
-| **Low-frequency variation in the grey sky.** Two octaves of simplex over the exponential gradient, amplitude 0.045 and gated on overcast, so a clear day takes almost none and the gradient still dominates. | `scripts/fpv.py:287` | `test_the_sky_noise_stays_under_the_gradient` (amplitude ≤ 0.08) |
+| **Shadows cast by everything, onto everything.** `static` and `shadow_casters` are built in the same loop over every mesh part, so buildings and trees shadow each other and themselves — not just the ground. 4096² map over 3965 m, 1.0 m a texel, baked once because the sun does not cross the sky during a 5 km race. | `scripts/fpv.py` `shadow_casters` | `test_everything_in_the_world_casts_a_shadow` |
+| **Shadows received on the surface's own normal.** The world shader passes the fragment normal, because the lookup is pushed a texel along it to clear its own cell. A fixed up-vector would offset every wall as though it were flat ground. | `scripts/fpv.py` `sun_visibility(v_world, n, …)` | `test_the_world_receives_shadows_on_its_own_normals` |
+| **Bow disturbance and the hull breaking the water.** `waterline_foam` paints white where the hull meets the surface, tied to the hull frame and to speed, so a stopped boat has none. | `scripts/fpv.py` `waterline_foam` | `test_the_bow_foam_is_tied_to_the_hull_and_the_speed` |
+| **Catch splash at blade entry.** A small pooled particle burst, deliberately not dramatic. Off at standard graphics, on at high; `--no-particles` forces it off for A/B. | `scripts/fpv.py` `SplashSystem` | `test_the_splash_pool_exists_and_empties` |
+| **Splash off a blade dragging on the recovery.** Every frame, each oar on its own seat clock asks `BladeContact.immersion` at the hull's roll — the same immersion the skim drag uses — and a blade riding below the surface trickles three drops every 80 ms. A clear blade throws nothing; a blade on the drive is left alone. | `scripts/fpv.py` `DRAG_SPLASH_*` | `test_a_dragging_blade_trickles_and_a_catch_bursts`, `test_the_drag_splash_is_gated_on_the_physics_not_on_the_picture` |
+| **Ambient world audio** — wind gusting on a slow envelope and brightening with wind speed, water working at the bank, the odd gull. About a fifth of the stroke's level so it never competes with the boat; follows the wind setting live. | `coxswain/viz/ambient.py` | — |
+| **Low-frequency variation in the grey sky.** Two octaves of simplex over the exponential gradient, amplitude 0.045, gated on overcast, so a clear day takes almost none and the gradient still dominates. | `scripts/fpv.py` sky shader | `test_the_sky_noise_stays_under_the_gradient` (≤ 0.08) |
+| **Diagonal line on the water** — the detailed patch met the far plane at a hard edge. Fixed. | `763e57b` | — |
+| **Charles arch bridges: piers under the arches.** Three faults: solid piers drawn at even fractions while the openings followed the measured stations (Western Avenue 17.3 m out); Weeks skipped by a gate on an NBI length a footbridge does not have (13.4 m out, 24 m of arch on dry land); the structure centred on the deck line while the comment said channel (Western 26 m up the Boston bank). Piers now stand at the edges the arches are cut between; every arch bridge is trimmed to the water. | `coxswain/viz/worldmesh.py` `arch_bridge`, `bridge_solids` | `test_every_arch_bridge_has_its_piers_where_navigation_has_them`, `test_no_arch_bridge_stands_on_dry_land_past_its_abutments`, `test_arch_piers_stand_under_the_arch_springings` |
+| **Grand Junction trestle** drawn from the surveyed piers, not at thirds. | `truss_bridge` | `test_the_surveyed_piers_are_where_the_survey_puts_them` |
 
-The sky-noise bound is the load-bearing one: the whole request was that
-the noise not dwarf the exponential map, and an amplitude nudged from
-0.045 to 0.45 is a one-character change that no other test would catch.
+### The crew, as drawn
+
+| what | where | pinned by |
+|---|---|---|
+| **Per-seat timing in the picture.** Every rower and oar is posed at its own `t − phase·period`, the same offset the physics applies. | `coxswain/viz/worldmesh.py` `oar_pose`, `crew_solids` | `tests/unit/test_viz.py` timing tests |
+| **Blade enters and leaves over a window**, not in one frame (was a 190 mm step). | `BLADE_ENTRY`, `BLADE_EXIT`, `_smoothstep` | `test_viz` |
+| **Blades square on the drive, feathered on the recovery.** | `oar_pose` | `test_viz` |
+| **Bucket rig drawn as a bucket.** S-P-P-S from a starboard stroke: riggers, handles, blades *and* the direction each trunk winds all flip with the side. Measured on the HOCR four. | `coxswain/boats/rig.py`, `crew_solids` | `test_the_plan_puts_riggers_on_the_side_the_rower_rows` |
+| **Each rower their own size.** Link lengths from their own de Leva segments (already); girth now ∝ √(mass/stature), so a 70 kg bow is no longer drawn as slight as a 54 kg stroke. Default rower returns exactly 1.0. | `_build_factor` | `test_a_heavier_rower_is_drawn_heavier`, `test_the_drawn_crew_are_not_all_the_same_size` |
+| **Body parts where the physics puts them.** Hands on the handle, elbows split the lift, trunk rotation from the kinematics — verified joint by joint. | `crew_solids` | `test_viz` |
+
+### Physics wired into the trainer
+
+| what | where | pinned by |
+|---|---|---|
+| **Michell wave resistance** in the physics, tabulated once and interpolated. | `coxswain/boats/boat.py` `USE_MICHELL` | Holt calibration tests |
+| **Wind as the excess over still air** — no double count. 12.0 % vs the 12.2 % measured. | `coxswain/hydro/wind.py` `excess_loads` | `0111af8` tests |
+| **Blade contact**: skim drag, righting moment, lost sweep, early/late catch bounded by `square_up_fraction`. | `coxswain/crew/blade_contact.py` | `0240616` tests |
+| **Crew variability** (skill slider), **fatigue reserve** (CP / W′) with coxswain power calls. | `coxswain/crew/variability.py`, `exertion.py` | `dc93060` tests |
+| **Balance by experience** (ILC trim, phase authority), handle heights and lean matching. | `coxswain/sim/control.py` `balance_for_experience` | `5dffacb` tests |
+| **Coupled crew timing** — the hull and the crew's clocks close the loop. | `coxswain/crew/coupled.py` | `2be526d` tests |
+| **Recovery from a perturbation** measured in strokes. | `scripts/recovery.py` | — |
+
+### The boat, the crew, the menu
+
+| what | where | pinned by |
+|---|---|---|
+| **The HOCR four**, rower by rower, at its own weight and power; report and time predictions. | `scripts/my_crew.py`, `scripts/hocr_crew.py` | — |
+| **Rig editor**: top-down plan, riggers on the rowing side, stat boxes linked to each seat, presets, shell and rig change, switch side. | `coxswain/viz/rigview.py`, `fpv.run_setup_menu` | `tests/test_rigview.py` |
+| **Text entry** — type a rower in, field by field; bad input refused, not zeroed; a typed height is a measurement. | `rigview.FIELDS`, `parse_field`, `Lineup.commit_edit` | `test_a_rower_can_be_typed_in_from_the_menu` |
+| **Anonymous squad roster** — 82 rowers, 305 pieces, names removed, weight to 5 lb, time to the second, order shuffled; the sheet itself never committed. Squad presets built from it. | `scripts/build_squad_roster.py`, `data/squad_roster.csv`, `coxswain/crew/roster.py` | `tests/test_roster.py` (no-identities test) |
+| **Calibration against a real result** — 2024 Sammamish W Vet 4+ (12th, 22:07.9). | `97caa8f`, `4fe7e7e` | — |
+
+### Distribution
+
+| what | where |
+|---|---|
+| **Windows, macOS (arm64) and Linux builds** on a three-platform matrix, ad-hoc codesigned `.app`, glibc-compatible Linux, `gh` upload with retry. v0.7 live on all three. | `.github/workflows/release.yml` |
+| Release notes taken from the repository. | `packaging/RELEASE_NOTES.md` |
 
 ---
 
