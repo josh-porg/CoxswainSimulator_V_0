@@ -81,6 +81,30 @@ of results is 25:33, and the simulator would need 188 W a rower just to
 row that, which is a strong 60+ erg. But this is inference, not
 measurement.
 
+**Localised to the oar-to-hull conversion.** Over one cycle at scale
+1.0, the mean forward force the oars put into the hull is 248.7 N, and
+the crew's handle power is 1945 W. At the speed the simulator settles
+at, that is a propulsive-to-handle ratio of **0.346** -- and 0.346 is
+exactly `blade_efficiency x inboard/outboard` (0.78 x 0.445).
+
+The FORCE relation looks right: for the boat-and-crew system the
+external propulsive force is the blade's reaction, `F_handle x
+inboard/outboard`. What does not reconcile is the POWER. For the
+efficiency to reach 0.78 the boat would have to move about 2.25 times
+the handle speed; the geometry here gives nearer 1.2-1.6, and the
+shortfall is the whole gap.
+
+So the open question is narrow and worth stating exactly: whether the
+handle kinematics (and therefore `mean_handle_power`) are consistent
+with the force path, not whether the hull or the gearing is wrong.
+
+**Why no existing test caught it.** The Holt validation SCALES oar force
+until the delivered power matches a target, so it never exercises the
+handle-power-to-force relation at all -- it is calibrated around
+whatever that relation happens to be. The 6-DOF path is validated for
+force to speed and unvalidated for watts to force, and the trainer uses
+the second.
+
 **Partly settled, and it goes against the simulator.** Sammamish rowed
 this category in 2024 and finished 12th of 20 in 22:07.9. Asked what
 that took:
