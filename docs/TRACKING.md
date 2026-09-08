@@ -88,9 +88,9 @@ that took:
 * `CoursePacing` says **164 W a rower** -- a 5 km erg of 21:27.9, which
   is an ordinary masters women's score and lands mid-field exactly where
   the crew finished;
-* the 6-DOF path needs 188 W just to row 24:30, so 22:08 puts it over
-  200 W -- a sub-20:00 5 km, for a crew that came 12th. That is not
-  believable.
+* the 6-DOF path says **223 W** -- a 5 km of 19:22.6, which for a 60+
+  woman is close to national level, for a crew that came 12th of 20.
+  That is not believable.
 
 So the flat 0.80 is closer to reality than the simulator's power chain,
 and the published targets stand. What is still open is WHY the 6-DOF
