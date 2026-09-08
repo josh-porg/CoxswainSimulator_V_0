@@ -55,7 +55,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from coxswain.boats import catalog                          # noqa: E402
 from coxswain.core.frames import hull_to_abs                # noqa: E402
-from coxswain.sim.control import Coxswain                   # noqa: E402
+from coxswain.sim.control import (Coxswain,
+                                  balance_for_experience)                   # noqa: E402
 from coxswain.sim.realtime import (ControlInput,            # noqa: E402
                                    FixedStepLoop, LiveControl)
 from coxswain.sim.simulator import RowingSimulator          # noqa: E402
@@ -2125,7 +2126,8 @@ def main(argv=None):
                                   trees=not args.no_trees)
         return sea, trough, mesh, scene, build_boat(args.boat, args.rate)
 
-    divisions, keep_trees, rich_water = quality_settings(args.quality)
+    divisions, keep_trees, rich_water, want_particles = (
+        quality_settings(args.quality))
     if not keep_trees:
         args.no_trees = True
 
@@ -2161,6 +2163,16 @@ def main(argv=None):
     #: draw() closes over it and headless runs draw() before the
     #: interactive loop ever starts.
     call = 1.0
+
+    # The crew's balance reflex, graded by experience.  The bare default
+    # is a PD loop with a flat 4000 N m of authority available at every
+    # instant, which holds an eight to a quarter of a degree -- better
+    # than any crew rows.  The real limit is that the blades are the only
+    # thing to push against: on the recovery the authority is nearer 50
+    # N m, most of it from leaning the trunk rather than from the hands.
+    # Wiring that in is what makes the boat something to sit rather than
+    # something that sits itself.
+    cox.balance = balance_for_experience(boat, args.balance)
 
     simulator = RowingSimulator(boat, coxswain=cox, fast=True)
     hull = hull_solid(boat)
@@ -2712,7 +2724,10 @@ def main(argv=None):
         program, [(oar_buffer, "3f 3f 3f", "in_pos", "in_normal",
                    "in_colour")])
 
-    splashes = SplashSystem()
+    # Only built at High.  Nothing spawns into it otherwise, so the
+    # per-frame upload and draw disappear rather than running on an
+    # empty pool.
+    splashes = SplashSystem() if want_particles else None
     splash_prog = ctx.program(vertex_shader=SPLASH_VERTEX,
                               fragment_shader=SPLASH_FRAGMENT)
     # gl_PointSize is a compile-time no-op in core profile unless this is
@@ -2849,7 +2864,8 @@ def main(argv=None):
                     kick = float(np.hypot(*(np.asarray(oar)[-1] - prior))
                                 / EPS)
                     trail.drop(float(tip[0]), float(tip[1]), t)
-                    splashes.spawn(tip, kick * 0.5, t)
+                    if splashes is not None:
+                        splashes.spawn(tip, kick * 0.5, t)
             draw.last_phase = phase
         water_prog["puddles"].write(trail.as_uniform(t).tobytes())
         near_tex.use(NEAR_UNIT)          # never trust the binding
@@ -2866,7 +2882,8 @@ def main(argv=None):
                 oar_buffer.write(blob.tobytes())
                 oar_vao.render(vertices=len(vertices))
 
-        droplets = splashes.as_uniform(t)
+        droplets = (splashes.as_uniform(t) if splashes is not None
+                    else ())
         if len(droplets):
             splash_prog["mvp"].write((projection @ view).T.tobytes(
                 order="C"))
@@ -3001,7 +3018,15 @@ def main(argv=None):
                         if "skill" in picked and picked["skill"] != args.skill:
                             args.skill = picked["skill"]
                             variability = for_skill(args.skill)
-                        args.balance = picked.get("balance", args.balance)
+                        if ("balance" in picked
+                                and picked["balance"] != args.balance):
+                            args.balance = picked["balance"]
+                            # Rebuilt, not retuned: the authority comes
+                            # off the rig and the learned trim starts
+                            # over, which is right -- a different crew
+                            # has not learned this boat yet.
+                            cox.balance = balance_for_experience(
+                                boat, args.balance)
                         if abs(picked.get("wind", args.wind)
                                - args.wind) > 1e-9:
                             args.wind = picked["wind"]

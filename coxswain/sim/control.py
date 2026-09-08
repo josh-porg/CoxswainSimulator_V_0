@@ -93,6 +93,63 @@ class BalanceController:
         return float(np.clip(demand, -bound, bound))
 
 
+def balance_for_experience(boat, experience: float = 0.55,
+                           learn: bool = True) -> "BalanceController":
+    """A crew's balance reflex at a given level, 0 novice to 1 ideal.
+
+    Wires up the three things a real crew balances with and which the
+    bare PD default leaves switched off:
+
+    * **Phase authority.**  The blades are the only thing a crew can
+      push against, so on the recovery there is almost nothing -- and
+      what there is comes mostly from leaning the trunk, not from the
+      hands.  :meth:`PhaseAuthority.from_boat` already combines both.
+    * **Handle height**, which is how the moment is actually produced.
+      That path was already live: the simulator sends the command
+      through :class:`BalanceRig`, so it arrives as vertical forces at
+      the riggers and carries the pitch couple that comes with them.
+    * **Learned trim**, :class:`StrokeTrim`, which is a crew getting the
+      boat down over several strokes rather than fighting each one.
+
+    Only two numbers here are calibrated: ``handle_force`` 150 N and a
+    2-degree lean, both from :mod:`coxswain.crew.balance`.  How they
+    fall off with inexperience is **engineering judgement** -- nobody
+    has measured a novice's spare vertical handle force -- and it is
+    shaped so an ideal crew gets exactly the calibrated values.
+    """
+    import numpy as np
+
+    from ..crew.balance import PhaseAuthority
+    from ..crew.trim import StrokeTrim
+
+    experience = float(np.clip(experience, 0.0, 1.0))
+
+    # A novice has less to spare while pulling, and less trunk control.
+    handle_force = 60.0 + 90.0 * experience          # -> 150 N at ideal
+    lean = np.radians(0.7 + 1.3 * experience)        # -> 2 deg at ideal
+    authority = PhaseAuthority.from_boat(boat, handle_force=handle_force,
+                                         lean_angle=lean)
+
+    # And a slower, softer reflex: the gains are what the crew's nervous
+    # system does, the authority is what their bodies can produce.
+    reflex = 0.40 + 0.60 * experience
+
+    # Learning is the thing experience most obviously is.  A novice crew
+    # does not carry a correction from one stroke to the next; a good one
+    # has the boat sat within a few.  Built up front because the
+    # controller is frozen -- deliberately, since a control law that can
+    # be mutated mid-run is one whose behaviour cannot be reproduced.
+    trim = StrokeTrim(learning_gain=0.6 * experience,
+                      forgetting=0.70 + 0.22 * experience) if learn else None
+    return BalanceController(
+        stiffness=6000.0 * reflex,
+        damping=2000.0 * reflex,
+        authority=authority,
+        timing=boat.timing,
+        trim=trim,
+    )
+
+
 @dataclass(frozen=True)
 class HeadingController:
     """Coxswain steering: a PD loop on heading error driving the rudder.

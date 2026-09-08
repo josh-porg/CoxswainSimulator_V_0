@@ -165,7 +165,13 @@ AUDIO_MODES = (("full", "Full"), ("events", "Events only"), ("off", "Off"))
 
 #: Graphics presets, as ``(key, label, water_divisions, trees)``.
 #:
-#: Two things are traded.  The water grid is a quarter of a million
+#: Splash droplets at the catch are HIGH only.  They are the least
+#: important thing on the screen -- a coxswain has never once steered by
+#: them -- and they are the only per-frame geometry that is rebuilt and
+#: re-uploaded every frame regardless of how little of it there is.  On
+#: a part that is struggling, they are the first thing to go.
+#:
+#: Three things are traded.  The water grid is a quarter of a million
 #: triangles at Standard and the only part of the scene rebuilt every
 #: frame.  And **Minimal keeps the original water shader** -- a Fresnel
 #: mix between a deep colour and a flat sky, opaque, reflecting nothing
@@ -173,9 +179,9 @@ AUDIO_MODES = (("full", "Full"), ("events", "Events only"), ("off", "Off"))
 #: refraction with depth absorption, and a reflection distorted by the
 #: waves.  Minimal also drops the distant trees.
 QUALITY = (
-    ("minimal", "Minimal", 240, False, False),
-    ("standard", "Standard", 340, True, True),
-    ("high", "High", 420, True, True),
+    ("minimal", "Minimal", 240, False, False, False),
+    ("standard", "Standard", 340, True, True, False),
+    ("high", "High", 420, True, True, True),
 )
 
 
@@ -184,15 +190,15 @@ def audio_choices():
 
 
 def quality_choices():
-    return [(key, label) for key, label, _d, _t, _r in QUALITY]
+    return [(key, label) for key, label, _d, _t, _r, _p in QUALITY]
 
 
 def quality_settings(key: str):
-    """``(water_divisions, trees, rich_water)`` for a preset key."""
-    for name, _label, divisions, trees, rich in QUALITY:
+    """``(water_divisions, trees, rich_water, particles)`` for a preset."""
+    for name, _label, divisions, trees, rich, particles in QUALITY:
         if name == key:
-            return divisions, bool(trees), bool(rich)
-    return 340, True, True
+            return divisions, bool(trees), bool(rich), bool(particles)
+    return 340, True, True, False
 
 
 #: Weather, as ``(key, label)``.  What the air is doing, which on a

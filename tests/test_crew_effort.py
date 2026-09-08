@@ -103,3 +103,54 @@ def test_the_catalog_rows_above_what_anyone_can_hold():
     assert watts > ROWER_CRITICAL_POWER * 1.3, watts
     # And a crew asked for it empties in a couple of minutes.
     assert WPrimeBalance().endurance(watts) < 180.0
+
+
+def test_balance_experience_grades_authority_and_learning():
+    """More experience is more authority and faster learning, and the
+    ideal end lands on the calibrated numbers rather than near them."""
+    from coxswain.boats import catalog
+    from coxswain.crew.balance import PhaseAuthority
+    from coxswain.sim.control import balance_for_experience
+
+    boat = catalog.eight(rate=30, rower_mass=75, rower_stature=1.83,
+                         coxswain_mass=55)
+    novice = balance_for_experience(boat, 0.0)
+    ideal = balance_for_experience(boat, 1.0)
+
+    assert novice.authority.drive < ideal.authority.drive
+    assert novice.authority.recovery < ideal.authority.recovery
+    assert novice.stiffness < ideal.stiffness
+    assert novice.trim.learning_gain < ideal.trim.learning_gain
+
+    # The top of the slider is the module's own calibrated rig: 150 N of
+    # spare handle force and two degrees of lean.
+    calibrated = PhaseAuthority.from_boat(boat)
+    assert ideal.authority.drive == pytest.approx(calibrated.drive)
+    assert ideal.authority.recovery == pytest.approx(calibrated.recovery)
+
+
+def test_a_crew_can_barely_balance_on_the_recovery():
+    """The asymmetry that makes a boat something to sit.
+
+    The blades are the only thing to push against, so with them out of
+    the water the authority collapses -- and what is left comes mostly
+    from leaning the trunk, not from the hands.  A controller with a
+    flat moment limit misses this entirely and holds an eight far
+    steadier than any crew does.
+    """
+    from coxswain.boats import catalog
+    from coxswain.sim.control import balance_for_experience
+
+    boat = catalog.eight(rate=30, rower_mass=75, rower_stature=1.83,
+                         coxswain_mass=55)
+    authority = balance_for_experience(boat, 1.0).authority
+    assert authority.recovery < authority.drive / 10.0
+
+
+def test_particles_are_high_only():
+    """The least important thing on the screen, and the first to go."""
+    from coxswain.viz.menu import quality_settings
+
+    assert quality_settings("high")[3] is True
+    assert quality_settings("standard")[3] is False
+    assert quality_settings("minimal")[3] is False
