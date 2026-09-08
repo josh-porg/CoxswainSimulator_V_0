@@ -242,7 +242,34 @@ class BladeContact:
     #: touches down than a level one.
     approach_speed: float = 0.40
 
-    def lost_sweep(self, roll, oar_rate, side=None):
+    #: Fraction of the RECOVERY, measured back from the catch, during
+    #: which the blade is square.
+    #:
+    #: This bounds the early catch, and the bound is the point.  A blade
+    #: cannot be forced to catch while it is feathered -- it skims, and
+    #: that is the whole distinction between a blade down on the
+    #: recovery and a blade catching.  So however deep a heeled blade is
+    #: dragging, the earliest it can grip is the moment it squares, and
+    #: the most length a crew can lose is the arc swept between squaring
+    #: and the catch they intended.
+    #:
+    #: Without the bound the model let an arbitrarily deep blade catch
+    #: arbitrarily early, which at three degrees of heel was taking 40%
+    #: of the sweep off a stroke -- more than the square-up window can
+    #: physically account for.
+    #:
+    #: A quarter is a placeholder, set here so it can be moved: it is
+    #: where the hands are past the knees and the wheels are coming
+    #: forward, which is roughly where a crew squares.  Nobody has
+    #: measured it for this model.
+    square_up_fraction: float = 0.25
+
+    def square_up_window(self, timing) -> float:
+        """Seconds the blade spends square before the intended catch."""
+        return float(self.square_up_fraction
+                     * float(timing.recovery_duration))
+
+    def lost_sweep(self, roll, oar_rate, side=None, timing=None):
         """Oar angle given up because the blade went in early, radians.
 
         This is the cost the coxswain described: *"when the rower needs to
@@ -266,13 +293,18 @@ class BladeContact:
             depth = self.immersion(roll, value)
             worst = max(worst, float(depth))
         early = worst / max(self.approach_speed, 1e-6)
+        if timing is not None:
+            # A feathered blade cannot be made to catch, so no matter how
+            # deep it is dragging the grip cannot happen before it
+            # squares.  See :attr:`square_up_fraction`.
+            early = min(early, self.square_up_window(timing))
         return float(abs(oar_rate) * early)
 
-    def length_fraction(self, roll, oar_rate, total_sweep):
+    def length_fraction(self, roll, oar_rate, total_sweep, timing=None):
         """Fraction of the intended sweep the crew actually gets.
 
         One when the blades are clear; below one once a blade is in early.
         Multiply the stroke's impulse by this.
         """
-        lost = self.lost_sweep(roll, oar_rate)
+        lost = self.lost_sweep(roll, oar_rate, timing=timing)
         return float(np.clip(1.0 - lost / max(total_sweep, 1e-9), 0.0, 1.0))

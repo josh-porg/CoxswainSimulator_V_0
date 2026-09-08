@@ -3,12 +3,22 @@
 Two promises, both of which the speed work could have broken silently.
 
 **The golden trajectory.**  ``tests/data/golden_trajectory.npz`` is 12 s
-of a coxed four at rate 30, integrated at ``dt = 0.02``, recorded before
-any of the acceleration work.  Every optimisation so far -- the 3-vector
-cross product, the scalar clamp, the scalar path through the Fourier
-series -- computes the same expressions in the same order, so the
-assertion is **exact equality**, not a tolerance.  A tolerance here would
-let a real model change through disguised as rounding.
+of a coxed four at rate 30, integrated at ``dt = 0.02``.  Every
+optimisation -- the 3-vector cross product, the scalar clamp, the scalar
+path through the Fourier series -- computes the same expressions in the
+same order, so the assertion is **exact equality**, not a tolerance.  A
+tolerance here would let a real model change through disguised as
+rounding.
+
+It has been re-recorded **once**, and the reason is the point of keeping
+it.  When Michell's integral replaced the constant wave coefficient the
+boat covered 62.08 m in those twelve seconds instead of 56.31 -- a 10.2%
+change that this file refused to let pass silently, which is exactly the
+job it was written for.  The move was deliberate and is evidenced: against
+Holt's forty-seven instrumented races the old model was 5 to 13 percent
+too SLOW, and the new one halves that error on all four boat classes.
+Re-record it again only with that kind of reason and that kind of
+evidence.
 
 **Stepping equals running.**  A game loop calls
 :meth:`~coxswain.sim.simulator.RowingSimulator.step` once per tick; the

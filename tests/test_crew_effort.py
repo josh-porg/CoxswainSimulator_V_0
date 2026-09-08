@@ -285,3 +285,75 @@ def test_the_skim_pushes_the_boat_back_towards_level():
     assert moment < 0.0
     _, other = contact.loads(np.radians(-3.0), 4.6)
     assert other > 0.0
+
+
+def test_the_square_up_window_bounds_how_early_a_blade_can_catch():
+    """A feathered blade cannot be made to catch, however deep it is.
+
+    So the earliest a heeled blade can grip is the moment it squares,
+    and the most length a crew can lose is the arc swept between
+    squaring and the catch they meant to take.  Unbounded, the model let
+    an arbitrarily deep blade catch arbitrarily early: at eight degrees
+    of heel it removed the ENTIRE sweep, which no amount of heel can do.
+    """
+    import numpy as np
+
+    from coxswain.crew.blade_contact import BladeContact
+
+    boat = _eight()
+    contact = BladeContact.from_boat(boat)
+    rate = abs(float(boat.oar_sweep.rate(0.2 * boat.timing.period,
+                                         boat.timing)))
+    sweep = boat.oar_sweep.total_sweep
+
+    # The window is a fraction of the recovery, not of the whole cycle.
+    window = contact.square_up_window(boat.timing)
+    assert 0.0 < window < float(boat.timing.recovery_duration)
+
+    # Shallow: the depth still decides, and the bound changes nothing.
+    shallow = np.radians(2.0)
+    assert (contact.length_fraction(shallow, rate, sweep, timing=boat.timing)
+            == pytest.approx(contact.length_fraction(shallow, rate, sweep)))
+
+    # Deep: the bound takes over, and it does not go to zero.
+    for degrees in (5.0, 8.0, 15.0):
+        bounded = contact.length_fraction(np.radians(degrees), rate, sweep,
+                                          timing=boat.timing)
+        loose = contact.length_fraction(np.radians(degrees), rate, sweep)
+        assert bounded > loose
+        assert bounded > 0.3, (degrees, bounded)
+
+    # However deep, the loss saturates at the window's worth of arc.
+    floor = contact.length_fraction(np.radians(30.0), rate, sweep,
+                                    timing=boat.timing)
+    assert floor == pytest.approx(
+        contact.length_fraction(np.radians(15.0), rate, sweep,
+                                timing=boat.timing))
+
+
+def test_wind_costs_nothing_in_a_calm_and_something_in_a_blow():
+    """The differential is what makes wiring wind safe.
+
+    The hull's resistance was fitted to measured totals from real boats
+    in real air, so the still-air share is already inside it.  Adding the
+    whole aerodynamic load on top charges it twice.  The excess is zero
+    in a calm -- the calibration untouched -- and only the weather's own
+    contribution in a blow.
+    """
+    import numpy as np
+
+    from coxswain.hydro.wind import AeroModel
+
+    boat = _eight()
+    aero = AeroModel.calibrate(boat)
+    rotation = np.eye(3)
+    moving = np.array([5.0, 0.0, 0.0])
+
+    calm_force, calm_moment = aero.excess_loads(np.zeros(3), moving, rotation)
+    assert float(calm_force[0]) == pytest.approx(0.0, abs=1e-9)
+    assert np.allclose(np.asarray(calm_moment), 0.0, atol=1e-9)
+
+    # A headwind costs, a tailwind pays.
+    head, _ = aero.excess_loads(np.array([-5.0, 0.0, 0.0]), moving, rotation)
+    tail, _ = aero.excess_loads(np.array([5.0, 0.0, 0.0]), moving, rotation)
+    assert float(head[0]) < 0.0 < float(tail[0])

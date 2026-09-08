@@ -361,7 +361,8 @@ class RowingSimulator:
         if self.blade_contact is not None:
             oar_rate = float(boat.oar_sweep.rate(t, boat.timing))
             length_fraction = float(self.blade_contact.length_fraction(
-                float(state.roll), oar_rate, boat.oar_sweep.total_sweep))
+                float(state.roll), oar_rate, boat.oar_sweep.total_sweep,
+                timing=boat.timing))
 
         phases = boat.phase_offsets
         period = boat.timing.period
@@ -525,7 +526,18 @@ class RowingSimulator:
                                          float(state.position[1]), t)
             else:
                 true_wind = np.zeros(3)
-            wind_force, wind_moment = self.aero.loads(
+            # The EXCESS over still air, not the whole aerodynamic load.
+            #
+            # The resistance coefficients were fitted to measured totals
+            # from real boats with real crews in real air, so the
+            # still-air share is already inside them.  Adding the whole
+            # aero load on top charges it twice: it put an eight 9%
+            # above the reference it was fitted to, while against Holt's
+            # measured races the model is already too slow.
+            #
+            # What is genuinely missing is the difference the weather
+            # makes.  In a calm this contributes exactly nothing.
+            wind_force, wind_moment = self.aero.excess_loads(
                 true_wind, state.velocity, rot)
             appendage_force_hull = appendage_force_hull + wind_force
             appendage_moment_hull = appendage_moment_hull + wind_moment

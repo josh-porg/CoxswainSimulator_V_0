@@ -2181,8 +2181,18 @@ def main(argv=None):
     # version, which is where they were assumed to be running.
     from coxswain.crew.blade_contact import BladeContact
 
+    # Wind, at last, and only the part the weather adds.  The still-air
+    # share is already in the hull's calibrated resistance, so this
+    # contributes nothing in a calm and the excess in a blow -- which is
+    # what stops it being counted twice.
+    from coxswain.hydro.wind import AeroModel, UniformWind
+
+    _aero = AeroModel.calibrate(boat)
+    _wind_field = UniformWind(speed=float(args.wind),
+                              bearing=np.radians(float(args.wind_from)))
     simulator = RowingSimulator(boat, coxswain=cox, fast=True,
-                                blade_contact=BladeContact.from_boat(boat))
+                                blade_contact=BladeContact.from_boat(boat),
+                                aero=_aero, wind=_wind_field)
     hull = hull_solid(boat)
     crew = crew_poses(boat)
     # Set here rather than beside the rest of the loop state: ``draw``

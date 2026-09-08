@@ -59,16 +59,76 @@ class CrewMember:
         return self.rower.total_mass
 
 
+#: Whether hulls carry a Michell wave table by default.  See
+#: :attr:`Boat.wave_table`.
+USE_MICHELL = True
+
+#: One table per hull shape, because the integral is most of a second
+#: and every boat of a class has the same offsets.  Keyed on the
+#: offsets' contents rather than their identity, so two separately
+#: built boats of the same class share the work.
+_TABLE_CACHE = {}
+
+
+def _michell_table(offsets):
+    """The hull's own wave resistance curve, built once per hull shape."""
+    import numpy as np
+
+    from ..hydro.michell import MichellWave, elliptical_offsets
+
+    key = None
+    try:
+        stations = np.asarray(offsets.station, dtype=float)
+        half = np.asarray(offsets.half_beam, dtype=float)
+        key = (stations.tobytes(), half.tobytes(), stations.shape,
+               half.shape)
+    except Exception:                                    # pragma: no cover
+        key = None
+    if key is not None and key in _TABLE_CACHE:
+        return _TABLE_CACHE[key]
+
+    x, z, beam = elliptical_offsets(offsets, stations=641, levels=81)
+    table = MichellWave(station=x, level=z, half_beam=beam).tabulate()
+    if key is not None:
+        _TABLE_CACHE[key] = table
+    return table
+
+
 class Boat:
     """Hull + rig + crew + appendages, ready to simulate."""
 
-    #: Optional tabulated wave resistance, ``N`` against speed in m/s,
-    #: from :meth:`coxswain.hydro.michell.MichellWave.tabulate`.  When
-    #: present it REPLACES the constant wave coefficient entirely, so the
-    #: hull's wave drag comes from its own offsets rather than from a
-    #: number.  Left ``None`` the old coefficient applies, which keeps
-    #: every previously published figure reproducible.
-    wave_table = None
+    #: Tabulated wave resistance, ``N`` against speed in m/s, from
+    #: :meth:`coxswain.hydro.michell.MichellWave.tabulate`.  It REPLACES
+    #: the constant wave coefficient entirely, so wave drag comes from
+    #: the hull's own offsets rather than from a number.
+    #:
+    #: **On by default since the Holt comparison.**  Against forty-seven
+    #: instrumented 2000 m races [H20] it is better on all four boat
+    #: classes and on both independent tests: mean speed error falls from
+    #: 8.7% to 4.2%, and the surge swing -- which nothing was ever tuned
+    #: to -- moves toward the measured value in every class.
+    #:
+    #: It also settles a worry.  Michell makes the boats faster, which
+    #: looked like an overshoot until the measurement showed the model
+    #: had been 5 to 13 percent too SLOW.  The speed it adds is a
+    #: correction, not an excess.
+    #:
+    #: Set :data:`coxswain.boats.boat.USE_MICHELL` to ``False`` to get
+    #: the old constant coefficient back and reproduce figures published
+    #: before this changed.
+    _wave_table = None
+
+    @property
+    def wave_table(self):
+        if not USE_MICHELL:
+            return None
+        if self._wave_table is None:
+            self._wave_table = _michell_table(self.offsets)
+        return self._wave_table
+
+    @wave_table.setter
+    def wave_table(self, value):
+        self._wave_table = value
 
     def __init__(self, name: str, offsets: HullOffsets, rig: Rig,
                  hull_mass: float, hull_inertia: np.ndarray,

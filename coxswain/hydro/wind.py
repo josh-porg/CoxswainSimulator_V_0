@@ -231,6 +231,33 @@ class AeroModel:
             - np.asarray(velocity_abs, dtype=float)
         return np.asarray(rotation, dtype=float).T @ relative
 
+    def excess_loads(self, wind_abs, velocity_abs, rotation):
+        """Loads BEYOND the still-air drag already in the resistance model.
+
+        This is the one that can be added to a calibrated hull without
+        counting the air twice.
+
+        The hull's resistance coefficients were fitted to measured
+        totals, and those measurements were made on real boats with real
+        crews sitting in real air -- so the still-air share of the drag
+        is already inside them.  Adding :meth:`loads` on top of that
+        charges it again: it put an eight's total 9% above the reference
+        it was fitted to, and against Holt's measured races the model is
+        already too slow, not too fast.
+
+        What is genuinely missing is only the DIFFERENCE the weather
+        makes: what the air does today against what it does on a still
+        day at the same boat speed.  In a dead calm this returns zero
+        and the calibration is untouched; in a headwind it returns the
+        extra, which is the part nothing was modelling.
+        """
+        import numpy as np
+
+        actual = self.loads(wind_abs, velocity_abs, rotation)
+        still = self.loads(np.zeros(3), velocity_abs, rotation)
+        return (np.asarray(actual[0]) - np.asarray(still[0]),
+                np.asarray(actual[1]) - np.asarray(still[1]))
+
     def loads(self, wind_abs, velocity_abs, rotation):
         """``(force, moment)`` in the hull frame.
 
