@@ -25,7 +25,7 @@ import numpy as np
 
 from ..crew.anthropometry import PORT, STARBOARD
 
-__all__ = ["RIG_PATTERNS", 
+__all__ = ["RIG_PATTERNS", "RIG_PATTERNS_4", 
     "Oar", "Oarlock", "Seat", "Rig", "SWEEP_OAR", "SCULLING_OAR",
     "build_sweep_rig", "build_sculling_rig",
 ]
@@ -250,6 +250,34 @@ class Rig:
 #: the crew leaves a net yaw moment arm.  A standard alternating rig has
 #: the largest; rigs that pair same-side seats ("buckets") can cancel it
 #: almost exactly, which is the entire engineering argument for them.
+#: Rigs for a FOUR, from the stroke seat.  ``+1`` is port.
+#:
+#: A four has only three genuinely different layouts and they are all
+#: rowed.  The two alternating rigs are the same boat mirrored; the two
+#: bucket rigs put an adjacent pair on the same side, which is what the
+#: name means and what makes them worth having.
+#:
+#: A bucket rig exists to fix the stagger couple.  In an alternating
+#: four every port oarlock sits one seat astern of its starboard
+#: opposite, so the two sides' thrust lines are offset the whole length
+#: of the boat and the rig carries a standing yaw moment the rudder has
+#: to hold off.  Pairing two seats on a side cancels most of it -- at
+#: the price of a heavier roll couple, since two adjacent rowers now
+#: load the same gunwale together.
+RIG_PATTERNS_4 = {
+    # conventional alternating, port stroke
+    "standard":           (+1, -1, +1, -1),
+    # the mirror, for a starboard-side stroke
+    "starboard stroke":   (-1, +1, -1, +1),
+    # bucket with a starboard stroke: S-P-P-S, the pair in the middle
+    "bucket, stbd stroke": (-1, +1, +1, -1),
+    # bucket with a port stroke: P-S-S-P
+    "bucket, port stroke": (+1, -1, -1, +1),
+    # tandem: both stern seats on one side, both bow seats on the other
+    "tandem, port stroke": (+1, +1, -1, -1),
+    "tandem, stbd stroke": (-1, -1, +1, +1),
+}
+
 RIG_PATTERNS = {
     # conventional alternating, port stroke -- what almost every club rows
     "standard":         (+1, -1, +1, -1, +1, -1, +1, -1),

@@ -41,7 +41,13 @@ def hull_drag(boat):
         force, _ = hull_resistance(
             np.array([float(speed), 0.0, 0.0]), submerged,
             mean_wetted_length=boat.length, water=boat.water,
-            coefficients=boat.resistance)
+            coefficients=boat.resistance,
+            # The hull's own wave resistance, same as every other path
+            # takes since the Holt comparison.  Without this the pacing
+            # model -- which is what sets the published targets -- was
+            # the last thing still on the constant coefficient, so the
+            # targets and the simulator disagreed about the same boat.
+            wave_table=getattr(boat, "wave_table", None))
         return abs(float(force[0]))
     return drag
 

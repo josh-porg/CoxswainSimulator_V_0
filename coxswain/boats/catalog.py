@@ -23,7 +23,7 @@ from ..hydro.appendages import LiftingSurface
 from ..hydro.hull import parametric_offsets
 from ..hydro.resistance import FRESH_WATER, WaterProperties
 from .boat import Boat
-from .rig import RIG_PATTERNS, SCULLING_OAR, SWEEP_OAR, build_sculling_rig, build_sweep_rig
+from .rig import RIG_PATTERNS, RIG_PATTERNS_4, SCULLING_OAR, SWEEP_OAR, build_sculling_rig, build_sweep_rig
 
 __all__ = ["eight", "coxed_four", "single_scull", "CATALOG", "build"]
 
@@ -275,7 +275,8 @@ def coxed_four(rate: float = 32.0, rower_mass: float = 88.0,
                rower_stature: float = 1.90, coxswain_mass: float = 55.0,
                water: WaterProperties = FRESH_WATER,
                crew_phase_offsets: Sequence[float] = None,
-               bow_loaded: bool = True, **kwargs) -> Boat:
+               bow_loaded: bool = True, rig_pattern=None,
+               **kwargs) -> Boat:
     """Coxed four (4+).
 
     13.4 m, 0.50 m waterline beam, 51 kg minimum hull mass.  Sweep
@@ -297,9 +298,16 @@ def coxed_four(rate: float = 32.0, rower_mass: float = 88.0,
     hull_mass = 51.0
     offsets = parametric_offsets(length, beam, draft, fullness=2.6,
                                  freeboard=0.25)
+    # ``rig_pattern`` is a name from RIG_PATTERNS_4 or an explicit
+    # sequence of sides from the stroke seat.  A four is rigged more than
+    # one way in practice -- bucket rigs are common and are chosen for a
+    # reason -- and the model can only tell you what one costs if it can
+    # be built.
+    sides = (RIG_PATTERNS_4[rig_pattern]
+             if isinstance(rig_pattern, str) else rig_pattern)
     rig = build_sweep_rig(
         n_seats=4, spacing=1.22, stern_station=-2.20, span=0.83,
-        oarlock_height=0.38, oar=SWEEP_OAR, stroke_side=PORT,
+        oarlock_height=0.38, oar=SWEEP_OAR, stroke_side=PORT, sides=sides,
         # Ahead of the bow seat at +1.46 m, in the taper, lying down --
         # hence the lower reference height than a seated coxswain.
         coxswain_position=(np.array([4.30, 0.0, 0.02]) if bow_loaded
