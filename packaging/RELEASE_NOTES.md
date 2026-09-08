@@ -27,28 +27,37 @@ Debian 12+, current Fedora, Arch and Mint.
 
 ## New in this one
 
-The physics changed a good deal, and most of it you feel rather than see.
+Mostly the boat itself, and the people in it.
 
-- **The crew get tired.** They start at the pace that spends their
-  reserve exactly at the finish, and **Up / Down** calls for more or
-  less. They give what you ask until it is gone, and then they cannot,
-  whatever you call.
-- **Crew skill and balance** are sliders under Rowers, novice to ideal.
-  A ragged crew rolls the boat, and a rolling boat drags blades: an
-  unset eight loses about 13% of its speed without anybody catching a
-  crab.
-- **The boat has to be sat.** The crew can barely correct balance on the
-  recovery -- the blades are the only thing to push against -- so it is
-  something to hold rather than something that holds itself.
-- **Wind actually does something**, and by the right amount: a 5 m/s
-  headwind costs 12% of boat speed.
-- **Wave drag from the hull's own shape** rather than a fixed number,
-  which is measurably closer to instrumented race data.
-- **The crew is drawn at the timing the model uses**, so you can see
-  when they are not together.
+- **Your boat, rower by rower.** Under **Rig and crew** there is a
+  top-down plan of the shell with each seat's weight, height and 5k
+  erg beside it, the riggers drawn on the side each rower rows, and a
+  preset for the HOCR four -- bucket rigged, starboard stroke. Switch
+  a seat's side, change shell or rig, or **type a new rower in**:
+  Enter on a seat, Tab through the fields. Bad input is refused, not
+  turned into zero.
+- **Riggers on the shells.** The frame from the gunwale to the pin is
+  drawn on every boat, on the oarlock's own side. On a bucket four the
+  middle pair really do rig together now.
+- **The crew are the size they are.** Each rower is built from their
+  own height and weight, so a 70 kg bow is no longer drawn as slight as
+  a 54 kg stroke, and the stroke is the height of the stroke.
+- **Squad boats to race against**, built from a real masters squad's
+  erg scores with the names removed: Women 60+ four, Women 50s four,
+  open women's and men's eights. They pull what people that age and
+  weight actually pull -- including the spread.
+- **The Charles bridges are right.** Every arch bridge's piers now
+  stand under its arches, at the measured stations, and Weeks -- which
+  was drawn as three even arches across dry land -- sits on the water
+  where it belongs. On the bridge you line an arch up on from four
+  hundred metres out, that was up to 17 m of error.
+- **A blade that drags throws water.** On an unset boat the low side's
+  blades skim the recovery, and now you see it: a thread of spray off
+  the blade whenever the physics says it is touching, and nothing when
+  it is clear.
 
-Fixed: the diagonal line on the water, and the blade snapping in and out
-at the catch.
+Fixed: rowers all drawn the same width; the Charles arch bridges; the
+fix log itself, which now records what is done.
 
 ## What is in it
 

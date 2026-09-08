@@ -667,6 +667,84 @@ def viewpoint(boat):
     return np.array([stern_most, 0.0, 0.0]), eye, -1.0
 
 
+#: Rigger stock: anodised alloy, darker than the hull so the frame
+#: reads as a frame and not as a bulge in the gunwale.
+RIGGER = (0.30, 0.31, 0.33)
+RIGGER_RADIUS = 0.016
+
+#: Where the back-stay and the forward strut meet the gunwale, metres
+#: astern and ahead of the pin.  A euro rigger is a triangle in plan:
+#: the main arm at the pin's station and a stay each side of it, so
+#: the frame resists the pull along the boat as well as across it.
+RIGGER_STAY_AFT = 0.42
+RIGGER_STAY_FWD = 0.28
+
+
+def _edge_curves(ring):
+    """Each side of a hull outline as half-breadth against station.
+
+    ``(starboard, port)``, each ``(n, 2)`` sorted by ``x``.  The tip
+    vertices sit at zero beam and are in both, so an interpolation
+    closes to a point at the stem and the stern.
+    """
+    ring = np.asarray(ring, dtype=float)
+    port = ring[ring[:, 1] >= -1e-6]
+    starboard = ring[ring[:, 1] <= 1e-6]
+    return (starboard[np.argsort(starboard[:, 0])],
+            port[np.argsort(port[:, 0])])
+
+
+def rigger_solids(boat, deck: float = 0.30):
+    """Every rigger, in the hull frame: the frame from gunwale to pin.
+
+    The oar pivots at an oarlock 0.83 m off the centreline, on a hull
+    whose gunwale is 0.25-0.30 m out.  With nothing drawn between the
+    two, the loom passed through a point in mid-air and the boat had no
+    riggers -- which, on a bucket-rigged four, is precisely the thing a
+    coxswain looks at to see the rig.
+
+    Three struts per lock: the main arm at the pin's own station, a
+    back-stay from astern and a forward strut, all meeting at the pin.
+    Each goes to the gunwale on the LOCK'S side, read off the hull's
+    own outline at that station, so a rigger never starts inside the
+    hull or floats off it -- and never on the wrong side, because the
+    side is the oarlock's, not a guess.
+    """
+    from .planscene import boat_outline
+
+    ring = np.asarray(boat_outline(boat), dtype=float)
+    starboard, port = _edge_curves(ring)
+    rail = float(deck) + GUNWALE
+
+    def gunwale(x, side):
+        curve = port if side > 0 else starboard
+        y = float(np.interp(x, curve[:, 0], curve[:, 1]))
+        return np.array([float(x), y, rail])
+
+    parts = []
+    for seat in boat.rig.seats:
+        for lock in seat.oarlocks:
+            pin = np.asarray(lock.position, dtype=float)
+            side = int(lock.side)
+            if side == 0:
+                side = 1 if pin[1] >= 0.0 else -1
+            for dx in (0.0, -RIGGER_STAY_AFT, RIGGER_STAY_FWD):
+                foot = gunwale(pin[0] + dx, side)
+                parts.append(_tube(foot, pin, RIGGER_RADIUS, RIGGER,
+                                   sides=6))
+            # The pin itself: a short post the oar turns on.
+            parts.append(_tube(pin - np.array([0.0, 0.0, 0.05]),
+                               pin + np.array([0.0, 0.0, 0.06]),
+                               0.022, RIGGER, sides=6))
+
+    parts = [part for part in parts if part is not None]
+    if not parts:
+        return None
+    vertices = np.concatenate([part.vertices for part in parts])
+    colours = np.concatenate([part.colours for part in parts])
+    return MeshPart("riggers", vertices, colours, _face_normals(vertices))
+
+
 def hull_solid(boat, deck: float = 0.30, colour=(0.88, 0.89, 0.86),
                deck_colour=(0.74, 0.76, 0.74),
                cockpit: float = 0.25,
@@ -731,10 +809,7 @@ def hull_solid(boat, deck: float = 0.30, colour=(0.88, 0.89, 0.86),
     # deck ended in a blunt square and the bow, which on a shell is a
     # knife, read as a barge.  The tip vertices sit at zero beam and are
     # in both curves, so the interpolation closes to a point there.
-    _port = ring[ring[:, 1] >= -1e-6]
-    _starboard = ring[ring[:, 1] <= 1e-6]
-    _port = _port[np.argsort(_port[:, 0])]
-    _starboard = _starboard[np.argsort(_starboard[:, 0])]
+    _starboard, _port = _edge_curves(ring)
 
     def edges_at(x):
         """``(y_starboard, y_port)`` of the hull at station ``x``."""
@@ -817,6 +892,14 @@ def hull_solid(boat, deck: float = 0.30, colour=(0.88, 0.89, 0.86),
         raise AssertionError(
             "deck or floor triangles wound face-down: they would be "
             "culled and the coxswain would see the river through the boat")
+    # The riggers ride with the hull -- same frame, same transform every
+    # frame -- so they are part of the same mesh rather than a second
+    # thing to rotate and translate.
+    riggers = rigger_solids(boat, deck)
+    if riggers is not None:
+        vertices = np.concatenate([vertices, riggers.vertices])
+        colours = np.concatenate([colours, riggers.colours])
+        normals = np.concatenate([normals, riggers.normals])
     return MeshPart("hull", vertices, colours, normals)
 
 

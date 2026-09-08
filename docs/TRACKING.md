@@ -224,6 +224,7 @@ to.
 | **Blades square on the drive, feathered on the recovery.** | `oar_pose` | `test_viz` |
 | **Bucket rig drawn as a bucket.** S-P-P-S from a starboard stroke: riggers, handles, blades *and* the direction each trunk winds all flip with the side. Measured on the HOCR four. | `coxswain/boats/rig.py`, `crew_solids` | `test_the_plan_puts_riggers_on_the_side_the_rower_rows` |
 | **Each rower their own size.** Link lengths from their own de Leva segments (already); girth now ∝ √(mass/stature), so a 70 kg bow is no longer drawn as slight as a 54 kg stroke. Default rower returns exactly 1.0. | `_build_factor` | `test_a_heavier_rower_is_drawn_heavier`, `test_the_drawn_crew_are_not_all_the_same_size` |
+| **Riggers on every shell.** Three struts from the gunwale to the pin per oarlock, on the oarlock's own side, read off the hull outline at that station; merged into the hull mesh so they ride with it. There were none before -- the loom pivoted in mid-air. | `coxswain/viz/worldmesh.py` `rigger_solids` | `tests/test_riggers.py` |
 | **Body parts where the physics puts them.** Hands on the handle, elbows split the lift, trunk rotation from the kinematics — verified joint by joint. | `crew_solids` | `test_viz` |
 
 ### Physics wired into the trainer
