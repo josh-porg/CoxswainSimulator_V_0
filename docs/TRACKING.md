@@ -1,0 +1,106 @@
+# Bugs, gaps and things being tracked
+
+What is known to be wrong, known to be missing, or known to be a
+placeholder. Kept separate from `SOURCES.md`, which records what was
+built and why; this file records what has *not* been settled.
+
+Anything fixed moves to the bottom with the evidence that fixed it, so
+the file is also a record of what kind of thing goes wrong here.
+
+---
+
+## Open — correctness
+
+### The released build is far behind the code
+**Impact: high.** `v0.6` predates every physics change since: Michell
+wave drag, wind, crew skill, fatigue, balance authority, blade contact,
+crew timing, and the water-seam fix. Anyone who downloads the link is
+running none of it.
+
+*Next:* cut a release once the physics settles.
+
+### No model of a blade squared and immersed before the catch
+**Impact: medium.** The model has two clean regimes — a feathered skim
+on the recovery, and a normal drive — and names the third explicitly as
+out of scope ("a squared blade catching is a crab, a different
+regime"). The transition is not represented: a blade that squares while
+still in the water must grip, and that involuntary early catch is
+approximated by scaling the drive impulse from the *instantaneous* heel
+rather than latching the heel at square-up.
+
+Cannot be latched without state, because `breakdown()` is stateless for
+RK4. Would need the same `on_step` treatment the crew timing got.
+
+### Crew timing is wired in the trainer but not in `run()`
+**Impact: medium.** `CoupledCrew` advances through `FixedStepLoop.on_step`,
+which only the trainer uses. Every analysis script calling
+`RowingSimulator.run` still gets fixed phase offsets, so published
+figures do not include the resync dynamics.
+
+---
+
+## Open — numbers nobody has measured
+
+These are placeholders. Each is labelled in the code as such; this is
+the index of them.
+
+| what | value | where | basis |
+|---|---|---|---|
+| novice power scatter | 0.110 | `crew/variability.py` | extrapolated along the elite→junior slope |
+| novice timing scatter | 0.075 | `crew/variability.py` | same |
+| square-up fraction | 0.25 of recovery | `crew/blade_contact.py` | "roughly where a crew squares"; put in a constant so it can be moved |
+| balance falloff with inexperience | 60→150 N, 0.7→2.0° | `sim/control.py` | judgement; only the *ideal* end is calibrated |
+| bias as a fraction of scatter | 0.45 | `crew/variability.py` | judgement |
+| blade clearance on the recovery | 0.08 m | `crew/blade_contact.py` | typical, not measured |
+
+Also: `CP = 302.7 W` and `W' = 11.4 kJ` are literature means, not this
+crew. They set the *shape* of every pacing answer and should be
+measured before any number is quoted to an athlete.
+
+---
+
+## Open — validation gaps
+
+### Michell is still 7–9% slow on singles
+Against Holt it is excellent on doubles (+0.6%, +0.5%) and still low on
+singles (−6.7%, −9.1%). Better than the constant coefficient on all four,
+but the singles gap is real and unexplained.
+
+### Surge swing is 10–31% too large
+Model against Holt: ratios 1.31, 1.31, 1.10, 1.18. `scripts/unsteady.py`
+squares this quantity, so the error is four times worse there.
+
+### The eight is validated only by inference
+Holt measured singles and pairs. The boat this project cares about most
+has no measured counterpart in the comparison.
+
+---
+
+## Open — presentation
+
+### Headless `--frames` is slow
+About 50 s for 122 frames, because it now draws every step so that
+catch-driven effects (puddles, splash) can appear at all. Fine for
+screenshots; painful for long sequences. CI is unaffected — it passes no
+`--frames`.
+
+### Windows CI cannot render
+The runner is a headless service session with no usable OpenGL, so the
+render check warns instead of failing there and the payload is verified
+by file presence. The Windows artefact is built and run locally before
+release.
+
+---
+
+## Fixed
+
+| what it was | how it was found |
+|---|---|
+| **Diagonal line on the water.** The 110 m detailed water patch met the flat far plane at a hard edge; world-axis-aligned and following the boat, so it read as a moving diagonal. | Appeared in an overhead shot taken for something else, after three failed attempts to reproduce it from the seat — where the edge is past the horizon. |
+| **The drawn crew ignored the timing.** Physics offset every seat by `phases[i] * period`; the renderer posed every rower and oar at the same `t`, so the crew was drawn in perfect time whatever the model did. | Reported as "it didn't really look like it". |
+| **Seven models written, tested, and never called.** `CrewVariability`, both halves of `BladeContact`, `PhaseAuthority`, `StrokeTrim`, `CoupledCrew`, the Michell table, the wind model — each reachable behind a default of `None` or an unset attribute. | Asked what was actually wired, rather than what existed. |
+| **The catalog rowed at ~470 W/rower**, above world class, sustainable for 68 s. Nothing noticed because nothing related the force *scale* to watts. | Tracking the reserve made it immediate. |
+| **Wind would have double-counted.** The flat wave coefficient was absorbing the unmodelled still-air drag. Fixed by applying only the *excess* over still air. | Adding the full aero load put an eight 9% above its own calibration reference. |
+| **Blades were a quarter-turn out of phase**, flat through the drive and on edge through the recovery. | Looking at it. |
+| **Windows CI job hung for 52 minutes**, silently, blocking the whole release. | The macOS job did the same work in 5. |
+| **`macos-13` runner retired**, so the Mac job queued forever. | Asking why it was slower than the Linux build had been. |

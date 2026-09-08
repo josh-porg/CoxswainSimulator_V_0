@@ -357,3 +357,55 @@ def test_wind_costs_nothing_in_a_calm_and_something_in_a_blow():
     head, _ = aero.excess_loads(np.array([-5.0, 0.0, 0.0]), moving, rotation)
     tail, _ = aero.excess_loads(np.array([5.0, 0.0, 0.0]), moving, rotation)
     assert float(head[0]) < 0.0 < float(tail[0])
+
+
+def test_the_drawn_crew_shows_the_timing_the_physics_uses():
+    """The picture must be posed seat by seat, like the forces are.
+
+    ``simulator.breakdown`` has always offset each seat by
+    ``phases[i] * period`` -- a rower who is late is late in their oar as
+    well as their body.  The drawing did not: every rower and every oar
+    was posed at the same ``t``, so the crew was rendered in perfect
+    time whatever the model said.
+
+    That made the entire timing chain invisible.  Crew variability, the
+    resync after a roll, a rower washing out -- all of it reached the
+    boat's motion and none of it reached the picture, which is the one
+    place a coxswain reads timing.
+    """
+    import numpy as np
+
+    from coxswain.viz.worldmesh import crew_solids, oar_pose
+
+    boat = _eight()
+    when = 0.3 * boat.timing.period
+
+    def oar_angles():
+        out = []
+        for _handle, pivot, blade, _lift, _drive in oar_pose(boat, when):
+            along = np.asarray(blade)[:2] - np.asarray(pivot)[:2]
+            out.append(np.degrees(np.arctan2(along[1], along[0])))
+        return np.asarray(out)
+
+    boat.phase_offsets = np.zeros(boat.n_seats)
+    together_oars = oar_angles()
+    together_bodies = np.asarray(crew_solids(boat, when).vertices)
+
+    # A crew spread over a tenth of a stroke, which is a bad one.
+    boat.phase_offsets = np.linspace(-0.05, 0.05, boat.n_seats)
+    ragged_oars = oar_angles()
+    ragged_bodies = np.asarray(crew_solids(boat, when).vertices)
+
+    # Compared seat against the SAME seat, so the rig geometry cancels
+    # and only the timing is left.
+    moved = np.abs(ragged_oars - together_oars)
+    assert moved.max() > 5.0, moved
+    # The outer seats are furthest out of time, so they move most.
+    assert moved[0] > moved[len(moved) // 2]
+    assert moved[-1] > moved[len(moved) // 2]
+
+    assert np.abs(ragged_bodies - together_bodies).max() > 0.05
+
+    # And a crew in perfect time is drawn in perfect time.
+    boat.phase_offsets = np.zeros(boat.n_seats)
+    assert np.allclose(oar_angles(), together_oars)

@@ -1021,15 +1021,31 @@ def oar_pose(boat, t, water_z: float = 0.0,
     """
     from ..crew.oarlock import blade_position, handle_position
 
+    # Each seat at ITS OWN time, exactly as the physics does it.
+    #
+    # ``simulator.breakdown`` offsets every seat by
+    # ``phases[i] * period`` and always has -- a rower who is late is
+    # late in their oar as well as their body.  The drawing did not:
+    # every rower and every oar was posed at the same ``t``, so the crew
+    # was rendered in perfect time no matter what the model said.
+    #
+    # That made the whole timing chain invisible.  The crew variability,
+    # the coupled-oscillator resync after a roll, a rower washing out --
+    # all of it reached the boat's motion and none of it reached the
+    # picture, which is the one place a coxswain reads timing.
+    period = float(boat.timing.period)
+    phases = np.asarray(getattr(boat, "phase_offsets",
+                                np.zeros(boat.n_seats)), dtype=float)
     drive = bool(boat.timing.is_drive(t))
     target = water_z - float(bury) if drive else water_z + float(clear)
     poses = []
-    for seat in boat.rig.seats:
+    for seat_index, seat in enumerate(boat.rig.seats):
+        seat_t = float(t) - float(phases[seat_index]) * period
         for lock in seat.oarlocks:
-            handle = np.asarray(handle_position(t, boat.timing, lock,
+            handle = np.asarray(handle_position(seat_t, boat.timing, lock,
                                                 boat.oar_sweep), dtype=float)
             pivot = np.asarray(lock.position, dtype=float)
-            blade = np.asarray(blade_position(t, boat.timing, lock,
+            blade = np.asarray(blade_position(seat_t, boat.timing, lock,
                                               boat.oar_sweep), dtype=float)
             inboard = float(np.linalg.norm(handle[:2] - pivot[:2]))
             outboard = max(float(np.linalg.norm(blade[:2] - pivot[:2])), 1e-6)
@@ -1247,6 +1263,9 @@ def crew_solids(boat, t, scale: float = 1.0):
     # by the handle's own rise pulls the inboard hand off the shaft by
     # about 5 cm.  The lift is therefore interpolated along the loom.
     looms = {}
+    period = float(boat.timing.period)
+    phases = np.asarray(getattr(boat, "phase_offsets",
+                                np.zeros(boat.n_seats)), dtype=float)
     poses = oar_pose(boat, float(t))
     index = 0
     for seat_index, seat in enumerate(boat.rig.seats):
@@ -1258,7 +1277,12 @@ def crew_solids(boat, t, scale: float = 1.0):
     parts = []
     for member in boat.crew:
         rower = member.rower
-        joints = dict(rower.skeleton(float(t)))
+        # The rower's own time too.  Posing the body at the crew's mean
+        # time while its oar is at the seat's own would pull the hands
+        # off the handle -- the one constraint the whole crew model
+        # rests on.
+        seat_t = float(t) - float(phases[member.seat_index]) * period
+        joints = dict(rower.skeleton(seat_t))
         loom = looms.get(member.seat_index)
         if loom is not None and loom[2]:
             pivot, handle, lift = loom
