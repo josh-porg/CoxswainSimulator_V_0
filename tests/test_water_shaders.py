@@ -86,13 +86,13 @@ def test_quality_presets_pick_a_shader_tier():
 
     keys = [row[0] for row in QUALITY]
     assert "minimal" in keys
-    divisions, trees, rich = quality_settings("minimal")
+    divisions, trees, rich, particles = quality_settings("minimal")
     assert rich is False
     assert trees is False
     for key in keys:
         if key == "minimal":
             continue
-        _divisions, _trees, rich = quality_settings(key)
+        _divisions, _trees, rich, _particles = quality_settings(key)
         assert rich is True, key
     # And the grid genuinely gets bigger as you go up.
     sizes = [quality_settings(key)[0] for key in keys]

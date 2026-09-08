@@ -146,12 +146,40 @@ def test_weight_hurts_through_transverse_area_as_well_as_wetted(boat):
     accounts for well under the measured weight penalty, and the shortfall
     is a channel his eq. (24) has no term for.
     """
-    response = SpeedResponse(boat)
+    # Explicitly the constant coefficient: this is a statement about
+    # the model Young's algebra describes, and the shortfall it leaves.
+    response = SpeedResponse(boat, wave_table=None)
     measured = response.weight_exponent(4.23)
     wetted_only = response.area_exponent(4.23) * response.area_from_weight()
     assert measured < wetted_only < 0.0
     missing = 1.0 - wetted_only / measured
     assert 0.25 < missing < 0.60
+
+
+def test_michell_closes_most_of_that_gap(boat):
+    """And the shortfall largely goes away once wave drag knows the hull.
+
+    Under a constant coefficient the wave term is pinned to an AREA, so
+    weight reaches speed through two separable channels and a third of
+    the penalty escapes the wetted-area one.  Michell's integral works
+    from the offsets themselves, so sinking the hull changes the wave
+    resistance directly rather than through an area proxy -- and the
+    wetted-area channel then accounts for almost all of it.
+
+    Worth pinning because it is easy to read the shortfall as a fact
+    about boats.  It is a fact about the wave model: 31% against 6% for
+    the same hull at the same speed.
+    """
+    constant = SpeedResponse(boat, wave_table=None)
+    michell = SpeedResponse(boat)          # the boat's own, since Holt
+
+    def shortfall(response):
+        measured = response.weight_exponent(4.23)
+        wetted = response.area_exponent(4.23) * response.area_from_weight()
+        return 1.0 - wetted / measured
+
+    assert shortfall(michell) < 0.5 * shortfall(constant)
+    assert shortfall(michell) < 0.15
 
 
 # --------------------------------------------------------------------------

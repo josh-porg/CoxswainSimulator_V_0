@@ -111,6 +111,10 @@ def young_rate_slope(rate):
     return 1.0 / (3.0 * np.asarray(rate, dtype=float))
 
 
+#: "Not specified", as distinct from "explicitly no wave table".
+INHERIT = object()
+
+
 @dataclass
 class SpeedResponse:
     """Measured sensitivity of speed to power, wetted area and weight.
@@ -121,14 +125,24 @@ class SpeedResponse:
     """
 
     boat: object
-    wave_table: object = None
+    #: The wave model to differentiate.  Left unset it takes the boat's
+    #: own, which since the Holt comparison is Michell's integral.
+    #:
+    #: Pass ``None`` **explicitly** to force the constant coefficient --
+    #: which is a different thing from leaving it unset, and used to be
+    #: the same thing.  While every boat carried no table the two were
+    #: indistinguishable and the ambiguity was harmless; the moment
+    #: hulls started carrying one, "wave_table=None" silently began
+    #: meaning "use Michell", which is the opposite of what its only
+    #: caller wanted.  Hence the sentinel.
+    wave_table: object = INHERIT
     #: Relative step for the logarithmic derivatives.  Large enough to
     #: clear the wave table's interpolation nodes, small enough that the
     #: curvature of ``R(v)`` does not bias the central difference.
     step: float = 0.02
 
     def __post_init__(self):
-        if self.wave_table is None:
+        if self.wave_table is INHERIT:
             self.wave_table = getattr(self.boat, "wave_table", None)
 
     # -- the hull, at a given displacement -------------------------------
