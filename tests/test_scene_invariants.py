@@ -46,6 +46,36 @@ def test_everything_in_the_world_casts_a_shadow():
     assert "for caster in shadow_casters:" in text
 
 
+def test_the_world_receives_shadows_on_its_own_normals():
+    """The other half: a surface has to be shadowed AS the surface it is.
+
+    Casting is only half a shadow.  The world shader has to call
+    ``sun_visibility`` with the fragment's real normal, because the
+    lookup point is pushed out along that normal to clear its own
+    texel.  Hand it a fixed up-vector instead and every wall is offset
+    as though it were flat ground: the building still casts, still goes
+    dark in roughly the right place, and its shadow creeps a texel up
+    its own face -- a bug that reads as bad art rather than a mistake.
+
+    The flat-normal calls are the water, which really is horizontal.
+    """
+    text = source()
+    calls = [c for c in re.findall(r"sun_visibility\(([^;]*?)\)", text)
+             if "float sun_visibility" not in c]
+    assert len(calls) >= 3, calls
+
+    on_normal = [c for c in calls if re.search(r",\s*n\s*,", c)]
+    assert on_normal, "no surface passes its own normal: %r" % (calls,)
+
+    # And that normal must be normalised where the offset is applied.
+    # An un-normalised one scales the push by the vector's length and
+    # brings back the striping the offset exists to cure.
+    body = text[text.index("float sun_visibility("):]
+    body = body[:body.index("\n}")]
+    assert "normalize(normal)" in body, body
+    assert "shadow_world_texel" in body, body
+
+
 def test_the_world_actually_contains_things_to_cast():
     """The loop above is only worth having if the parts exist."""
     from coxswain.viz.worldmesh import build_world
