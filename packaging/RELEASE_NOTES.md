@@ -25,6 +25,31 @@ cannot run on an Intel Mac.
 `cd Coxswain && ./Coxswain`. Needs glibc 2.35 or newer: Ubuntu 22.04+,
 Debian 12+, current Fedora, Arch and Mint.
 
+## New in this one
+
+The physics changed a good deal, and most of it you feel rather than see.
+
+- **The crew get tired.** They start at the pace that spends their
+  reserve exactly at the finish, and **Up / Down** calls for more or
+  less. They give what you ask until it is gone, and then they cannot,
+  whatever you call.
+- **Crew skill and balance** are sliders under Rowers, novice to ideal.
+  A ragged crew rolls the boat, and a rolling boat drags blades: an
+  unset eight loses about 13% of its speed without anybody catching a
+  crab.
+- **The boat has to be sat.** The crew can barely correct balance on the
+  recovery -- the blades are the only thing to push against -- so it is
+  something to hold rather than something that holds itself.
+- **Wind actually does something**, and by the right amount: a 5 m/s
+  headwind costs 12% of boat speed.
+- **Wave drag from the hull's own shape** rather than a fixed number,
+  which is measurably closer to instrumented race data.
+- **The crew is drawn at the timing the model uses**, so you can see
+  when they are not together.
+
+Fixed: the diagonal line on the water, and the blade snapping in and out
+at the catch.
+
 ## What is in it
 
 - Three courses: Head of the Charles, Tail of the Lake, Head of the Lake
