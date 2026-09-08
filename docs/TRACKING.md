@@ -31,6 +31,24 @@ rather than latching the heel at square-up.
 Cannot be latched without state, because `breakdown()` is stateless for
 RK4. Would need the same `on_step` treatment the crew timing got.
 
+### The crew do not lean to correct the boat
+**Impact: medium.** `skeleton(t)` and `segment_state(t)` take only time
+— neither has any input for the boat's heel. So the crew never shifts
+mass laterally in response to being unset, in the physics or the
+picture.
+
+They *do* swing across the boat as part of the stroke (a sweep rower is
+wound round toward the handle; measured lateral travel is up to 0.50 m),
+and that is consistent between the drawn joints and the modelled mass.
+What is missing is the *reflex*: `trunk_lean_authority` counts leaning
+as an available balance moment, and `PhaseAuthority` includes it in the
+recovery limit, but no actual lateral mass movement happens. The moment
+arrives entirely through handle heights at the riggers.
+
+Correcting it means giving the kinematics a lean input driven by the
+balance command, which changes the crew mass field and therefore the
+trim — not a drawing change.
+
 ### Crew timing is wired in the trainer but not in `run()`
 **Impact: medium.** `CoupledCrew` advances through `FixedStepLoop.on_step`,
 which only the trainer uses. Every analysis script calling
@@ -101,6 +119,7 @@ release.
 | **Seven models written, tested, and never called.** `CrewVariability`, both halves of `BladeContact`, `PhaseAuthority`, `StrokeTrim`, `CoupledCrew`, the Michell table, the wind model — each reachable behind a default of `None` or an unset attribute. | Asked what was actually wired, rather than what existed. |
 | **The catalog rowed at ~470 W/rower**, above world class, sustainable for 68 s. Nothing noticed because nothing related the force *scale* to watts. | Tracking the reserve made it immediate. |
 | **Wind would have double-counted.** The flat wave coefficient was absorbing the unmodelled still-air drag. Fixed by applying only the *excess* over still air. | Adding the full aero load put an eight 9% above its own calibration reference. |
+| **The blade teleported in and out of the water.** Depth was taken straight from the drive flag, so it stepped 190 mm at the catch and again at the finish, inside one frame. | Asked to confirm oar heights through both phases. |
 | **Blades were a quarter-turn out of phase**, flat through the drive and on edge through the recovery. | Looking at it. |
 | **Windows CI job hung for 52 minutes**, silently, blocking the whole release. | The macOS job did the same work in 5. |
 | **`macos-13` runner retired**, so the Mac job queued forever. | Asking why it was slower than the Linux build had been. |

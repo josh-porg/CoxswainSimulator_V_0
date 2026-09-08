@@ -409,3 +409,95 @@ def test_the_drawn_crew_shows_the_timing_the_physics_uses():
     # And a crew in perfect time is drawn in perfect time.
     boat.phase_offsets = np.zeros(boat.n_seats)
     assert np.allclose(oar_angles(), together_oars)
+
+
+def test_the_drawn_oar_angle_is_the_physics_oar_angle():
+    """Not merely close -- the same call, so exactly equal.
+
+    The drawn oar takes its sweep from ``blade_position``, which is what
+    the forces are computed from.  If these ever diverge the picture is
+    describing a boat the model is not simulating.
+    """
+    import numpy as np
+
+    from coxswain.crew.oarlock import blade_position
+    from coxswain.viz.worldmesh import oar_pose
+
+    boat = _eight()
+    lock = boat.rig.seats[0].oarlocks[0]
+    pivot = np.asarray(lock.position)[:2]
+    worst = 0.0
+    for fraction in np.linspace(0.0, 1.0, 24, endpoint=False):
+        when = fraction * boat.timing.period
+        drawn = np.asarray(oar_pose(boat, when)[0][2])[:2]
+        physics = np.asarray(blade_position(when, boat.timing, lock,
+                                            boat.oar_sweep))[:2]
+        drawn_angle = np.arctan2(*(drawn - pivot)[::-1])
+        physics_angle = np.arctan2(*(physics - pivot)[::-1])
+        worst = max(worst, abs(np.degrees(drawn_angle - physics_angle)))
+    assert worst < 1e-9, worst
+
+
+def test_the_blade_does_not_teleport_in_and_out_of_the_water():
+    """It went in and came out in a single frame.
+
+    Taking the depth straight from the drive flag stepped the blade 190
+    mm at the catch and again at the finish, both instantly: it snapped
+    into the water and snapped out.  A real blade goes in over the last
+    of the squaring and leaves over the first of the feather.
+
+    This is the picture only -- the oar model is planar and the physics
+    carries immersion as a factor rather than as geometry -- but it is
+    the most-watched object in the frame.
+    """
+    import numpy as np
+
+    from coxswain.viz.worldmesh import oar_pose
+
+    boat = _eight()
+    heights = np.array([oar_pose(boat, f * boat.timing.period)[0][2][2]
+                        for f in np.linspace(0.0, 1.0, 200, endpoint=False)])
+    # Wrapped, so the catch is covered as well as the finish.
+    steps = np.abs(np.diff(np.r_[heights, heights[0]]))
+    assert steps.max() < 0.05, steps.max()
+
+    # Still properly buried through the drive and properly clear on the
+    # recovery -- smoothing must not have flattened it into a mush.
+    assert heights.min() < -0.08
+    assert heights.max() > 0.09
+
+
+def test_the_drawn_body_and_the_modelled_mass_are_the_same_rower():
+    """The picture uses joints, the physics uses segment mass centres.
+
+    Two representations of one kinematic chain, and they have to agree
+    or the crew you watch is not the crew that is moving the boat.
+    """
+    import numpy as np
+
+    boat = _eight()
+    rower = boat.crew[0].rower
+    for fraction in (0.0, 0.25, 0.5, 0.75):
+        when = fraction * boat.timing.period
+        joints = np.asarray(list(dict(rower.skeleton(when)).values()))
+        centres = np.asarray(rower.segment_state(when)[0])
+        # Every segment's mass centre lies inside the skeleton it belongs
+        # to, with a little slack for limb thickness.
+        assert (centres[:, 0] >= joints[:, 0].min() - 0.05).all()
+        assert (centres[:, 0] <= joints[:, 0].max() + 0.05).all()
+        assert (centres[:, 2] >= joints[:, 2].min() - 0.05).all()
+        assert (centres[:, 2] <= joints[:, 2].max() + 0.05).all()
+
+
+def test_the_rower_swings_across_the_boat_as_a_sweep_rower_does():
+    """A sweep rower is wound round toward one handle, so the body has
+    real lateral travel within the stroke.  A mirrored or purely
+    fore-and-aft figure would read as sculling."""
+    import numpy as np
+
+    boat = _eight()
+    rower = boat.crew[0].rower
+    lateral = np.array([[joint[1] for joint in
+                         dict(rower.skeleton(f * boat.timing.period)).values()]
+                        for f in np.linspace(0.0, 1.0, 40, endpoint=False)])
+    assert (lateral.max(axis=0) - lateral.min(axis=0)).max() > 0.05

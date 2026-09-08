@@ -1000,6 +1000,22 @@ LOOM = (0.86, 0.87, 0.83)
 BLADE = (0.20, 0.24, 0.30)
 
 
+#: How much of the cycle the blade takes to enter at the catch and to
+#: leave at the finish.  Picture only -- the oar model is planar and the
+#: physics carries blade immersion as a factor, not as geometry.
+BLADE_ENTRY = 0.05
+BLADE_EXIT = 0.07
+
+
+def _smoothstep(x):
+    x = min(max(float(x), 0.0), 1.0)
+    return x * x * (3.0 - 2.0 * x)
+
+
+def period_of(boat):
+    return max(float(boat.timing.period), 1e-9)
+
+
 def oar_pose(boat, t, water_z: float = 0.0,
              bury: float = 0.09, clear: float = 0.10):
     """``(handle, lock, blade, lift)`` for every oar, in the hull frame.
@@ -1037,7 +1053,31 @@ def oar_pose(boat, t, water_z: float = 0.0,
     phases = np.asarray(getattr(boat, "phase_offsets",
                                 np.zeros(boat.n_seats)), dtype=float)
     drive = bool(boat.timing.is_drive(t))
-    target = water_z - float(bury) if drive else water_z + float(clear)
+
+    # The blade does not teleport between buried and clear.
+    #
+    # Taking the depth straight from the drive flag put a 190 mm step in
+    # the blade's height at the catch and another at the finish, both
+    # inside one frame: the blade snapped down into the water and
+    # snapped out of it.  A real one goes in over the last of the
+    # squaring and comes out over the first of the feather -- quickly,
+    # but not instantly, and the entry is faster than the extraction
+    # because the catch is placed and the finish is drawn out.
+    #
+    # ENTRY and EXIT are fractions of the whole cycle.  They are the
+    # picture only: the oar model is planar, so the physics has no
+    # vertical for the blade at all and nothing downstream reads this.
+    phase = (float(t) % period_of(boat)) / period_of(boat)
+    drive_fraction = float(boat.timing.drive_fraction)
+    if drive:
+        # Coming in at the catch, and already in for the rest.
+        into = _smoothstep(phase / max(BLADE_ENTRY, 1e-6))
+    else:
+        # Leaving at the finish, and out for the rest of the recovery.
+        since = (phase - drive_fraction) / max(BLADE_EXIT, 1e-6)
+        into = 1.0 - _smoothstep(since)
+    target = (water_z + float(clear)
+              + into * (-float(bury) - float(clear)))
     poses = []
     for seat_index, seat in enumerate(boat.rig.seats):
         seat_t = float(t) - float(phases[seat_index]) * period
