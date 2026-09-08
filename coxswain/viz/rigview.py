@@ -20,6 +20,7 @@ and does nothing else.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
@@ -100,6 +101,63 @@ class Rower:
         return erg_watts(self.erg_5k) if self.erg_5k else None
 
 
+#: The fields a rower can be typed into, in the order the editor walks
+#: them, as ``(attribute, label)``.  Height is two fields because that
+#: is how people say it -- "five foot three" -- and asking for metres or
+#: total inches makes everyone stop and do arithmetic at the keyboard.
+FIELDS = (("name", "name"),
+          ("pounds", "weight, lb"),
+          ("feet", "height, ft"),
+          ("inches", "height, in"),
+          ("erg_5k", "5k erg, m:ss"))
+
+#: What the erg field will accept: ``m:ss`` or ``mm:ss`` with an
+#: optional tenth, or nothing at all.
+_ERG = re.compile(r"^(\d{1,2}):([0-5]\d)(\.\d)?$")
+
+
+def field_text(rower: "Rower", index: int) -> str:
+    """The current value of a field, as the text one would edit."""
+    attr = FIELDS[index][0]
+    value = getattr(rower, attr)
+    if attr == "pounds":
+        return "" if not value else "%g" % float(value)
+    if attr == "feet":
+        return "" if not value and not rower.inches else "%d" % int(value)
+    if attr == "inches":
+        return "" if not value and not rower.feet else "%g" % float(value)
+    return str(value or "")
+
+
+def parse_field(index: int, text: str):
+    """The typed text as the field's value, or ``None`` if it is not one.
+
+    Refusing is the whole job: a weight of "abc" must not become 0 lb,
+    which reads as a real number and quietly changes the boat.
+    """
+    attr = FIELDS[index][0]
+    text = text.strip()
+    if attr == "name":
+        return text
+    if attr == "erg_5k":
+        if text == "":
+            return ""
+        return text if _ERG.match(text) else None
+    if text == "":
+        return 0.0 if attr != "feet" else 0
+    try:
+        value = float(text)
+    except ValueError:
+        return None
+    if value < 0.0:
+        return None
+    if attr == "feet":
+        return int(value)
+    if attr == "inches" and value >= 12.0:
+        return None                     # that is another foot
+    return value
+
+
 def rig_sides(shell: str, rig: str) -> Tuple[int, ...]:
     """The sides a named rig gives, stroke first.
 
@@ -153,6 +211,25 @@ class Lineup:
         for index, rower in enumerate(self.rowers[:len(sides)]):
             rower.side = sides[index]
         return self
+
+    def commit_edit(self, seat: int, index: int, text: str) -> bool:
+        """Set one field of one rower from typed text.
+
+        Returns whether it took.  A height typed in is a measurement,
+        so it clears ``stature_estimated`` -- the flag means "nobody
+        measured this", and somebody just did.
+        """
+        if not (0 <= seat < len(self.rowers)):
+            return False
+        value = parse_field(index, text)
+        if value is None:
+            return False
+        rower = self.rowers[seat]
+        attr = FIELDS[index][0]
+        setattr(rower, attr, value)
+        if attr in ("feet", "inches"):
+            rower.stature_estimated = False
+        return True
 
     def switch_side(self, index: int) -> "Lineup":
         """Move one rower across the boat.
@@ -392,8 +469,21 @@ def rower_lines(rower: "Rower") -> list:
     return lines
 
 
+def edit_lines(rower: "Rower", index: int, buffer: str) -> list:
+    """The box while a field is being typed: every field on its own
+    row, the live one showing the buffer with a caret.  Showing all of
+    them is what tells the eye which one Tab will go to next."""
+    lines = [rower.name or "(empty)"]
+    for at, (attr, label) in enumerate(FIELDS):
+        if at == index:
+            lines.append("%s: %s_" % (label, buffer))
+        else:
+            lines.append("%s: %s" % (label, field_text(rower, at) or "-"))
+    return lines
+
+
 def draw_plan(surface, lineup: "Lineup", font, small, size,
-              selected: int = -1) -> dict:
+              selected: int = -1, editing=None) -> dict:
     """Draw the boat from above, with each rower's numbers beside them.
 
     Returns the box rectangles by seat index, so the caller can
@@ -429,7 +519,10 @@ def draw_plan(surface, lineup: "Lineup", font, small, size,
         pygame.draw.circle(surface, (18, 24, 29), (seat_x, seat_y), 6)
         pygame.draw.circle(surface, HULL, (seat_x, seat_y), 6, 1)
 
-        lines = rower_lines(mark["rower"])
+        if editing is not None and editing[0] == mark["index"]:
+            lines = edit_lines(mark["rower"], editing[1], editing[2])
+        else:
+            lines = rower_lines(mark["rower"])
         box_w = max(small.size(line)[0] for line in lines) + 18
         box_h = 8 + len(lines) * (small.get_height() + 2)
         gap = 16
@@ -451,8 +544,11 @@ def draw_plan(surface, lineup: "Lineup", font, small, size,
         chosen = mark["index"] == selected
         pygame.draw.rect(surface, PICK if chosen else colour, rect,
                          2 if chosen else 1)
+        live = (editing[1] + 1 if editing is not None
+                and editing[0] == mark["index"] else -1)
         for row, line in enumerate(lines):
-            surface.blit(small.render(line, True, INK if row == 0 else DIM),
+            shade = PICK if row == live else (INK if row == 0 else DIM)
+            surface.blit(small.render(line, True, shade),
                          (rect.x + 9,
                           rect.y + 4 + row * (small.get_height() + 2)))
 
@@ -497,13 +593,14 @@ PANE_ROWS = (("preset", "Load preset"),
              ("shell", "Shell"),
              ("rig", "Rig"),
              ("switch", "Switch a rower's side"),
+             ("edit", "Edit a rower"),
              ("done", "Done"))
 
 
 def pane_values(lineup: "Lineup") -> list:
     """What each pane row currently reads."""
     return [lineup.name, SHELLS[lineup.shell][0], lineup.rig,
-            "pick a seat", ""]
+            "pick a seat", "pick a seat, then type", ""]
 
 
 def draw_side_pane(surface, lineup: "Lineup", font, small, size,

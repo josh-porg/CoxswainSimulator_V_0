@@ -67,8 +67,8 @@ from coxswain.viz.menu import (build_boat, chart_surface,    # noqa: E402
                                rowers_menu, start_music,
                                stop_music, weather_menu)
 from coxswain.viz.rigview import (PRESETS as RIG_PRESETS,   # noqa: E402
-                                  PANE_ROWS, RIGS, SHELLS,
-                                  draw_plan, draw_side_pane)
+                                  FIELDS, PANE_ROWS, RIGS, SHELLS,
+                                  draw_plan, draw_side_pane, field_text)
 from coxswain.viz.planscene import oar_lines                # noqa: E402
 from coxswain.viz.strokeaudio import shell_of               # noqa: E402
 from coxswain.viz.water import (KELVIN_HALF_ANGLE,          # noqa: E402
@@ -1872,6 +1872,8 @@ def run_setup_menu(screen, args):
     lineup = None
     pane_cursor = 0
     seat_cursor = -1
+    # ``(seat, field, buffer)`` while a rower is being typed in.
+    editing = None
     while True:
         clock.tick(60)
         for event in pygame.event.get():
@@ -1881,6 +1883,32 @@ def run_setup_menu(screen, args):
             if event.type == pygame.KEYDOWN:
                 if showing_controls:
                     showing_controls = False       # any key goes back
+                    continue
+                if lineup is not None and editing is not None:
+                    # -- typing into one field of one rower.  Enter
+                    # commits and stops; Tab or the arrows commit and
+                    # move on to the next field, so a whole rower goes
+                    # in without leaving the keyboard; Escape drops
+                    # what was typed and keeps what was there.
+                    seat, at, buffer = editing
+                    if event.key == pygame.K_ESCAPE:
+                        editing = None
+                    elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+                        lineup.commit_edit(seat, at, buffer)
+                        editing = None
+                    elif event.key in (pygame.K_TAB, pygame.K_DOWN,
+                                       pygame.K_UP):
+                        lineup.commit_edit(seat, at, buffer)
+                        step = -1 if event.key == pygame.K_UP else 1
+                        at = (at + step) % len(FIELDS)
+                        editing = (seat, at,
+                                   field_text(lineup.rowers[seat], at))
+                    elif event.key == pygame.K_BACKSPACE:
+                        editing = (seat, at, buffer[:-1])
+                    else:
+                        char = getattr(event, "unicode", "") or ""
+                        if char.isprintable() and len(buffer) < 24:
+                            editing = (seat, at, buffer + char)
                     continue
                 if lineup is not None:
                     # -- the rig editor owns the keyboard while it is up
@@ -1924,6 +1952,18 @@ def run_setup_menu(screen, args):
                                              pygame.K_SPACE):
                                 if seat_cursor >= 0:
                                     lineup.switch_side(seat_cursor)
+                            else:
+                                seat_cursor = ((seat_cursor + step)
+                                               % lineup.seats)
+                        elif key == "edit":
+                            # Walk the seats; enter starts typing into
+                            # the one shown, at its first field.
+                            if event.key in (pygame.K_RETURN,
+                                             pygame.K_KP_ENTER,
+                                             pygame.K_SPACE):
+                                if seat_cursor >= 0:
+                                    editing = (seat_cursor, 0, field_text(
+                                        lineup.rowers[seat_cursor], 0))
                             else:
                                 seat_cursor = ((seat_cursor + step)
                                                % lineup.seats)
@@ -2002,7 +2042,7 @@ def run_setup_menu(screen, args):
             draw_controls(overlay, font, small, screen.get_size())
         elif lineup is not None:
             draw_plan(overlay, lineup, font, small, screen.get_size(),
-                      selected=seat_cursor)
+                      selected=seat_cursor, editing=editing)
             draw_side_pane(overlay, lineup, font, small, screen.get_size(),
                            cursor=pane_cursor)
         else:

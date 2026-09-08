@@ -297,3 +297,135 @@ def test_the_editor_is_reachable_from_the_menu_and_edits_the_boat(fonts):
     # ...and the keys actually changed the boat.
     assert seen[-1][0] == "custom", seen[-1]
     assert seen[-1][1] != seen[0][1]
+
+
+# ---------------------------------------------------------------------------
+# typing a rower in
+# ---------------------------------------------------------------------------
+def test_typed_fields_parse_and_bad_ones_are_refused():
+    """A weight of "abc" must not become 0 lb and quietly change the boat."""
+    from coxswain.viz.rigview import FIELDS, parse_field
+
+    index = {attr: i for i, (attr, _label) in enumerate(FIELDS)}
+    assert parse_field(index["name"], "  Zed ") == "Zed"
+    assert parse_field(index["pounds"], "135") == 135.0
+    assert parse_field(index["pounds"], "abc") is None
+    assert parse_field(index["pounds"], "-4") is None
+    assert parse_field(index["feet"], "5") == 5
+    assert parse_field(index["inches"], "3.5") == 3.5
+    assert parse_field(index["inches"], "12") is None, "that is another foot"
+    assert parse_field(index["erg_5k"], "22:10") == "22:10"
+    assert parse_field(index["erg_5k"], "22:10.4") == "22:10.4"
+    assert parse_field(index["erg_5k"], "22:70") is None
+    assert parse_field(index["erg_5k"], "fast") is None
+    assert parse_field(index["erg_5k"], "") == ""
+
+
+def test_commit_edit_changes_the_rower_and_a_typed_height_is_measured():
+    from coxswain.viz.rigview import FIELDS, field_text, rower_lines
+
+    index = {attr: i for i, (attr, _label) in enumerate(FIELDS)}
+    lineup = PRESETS["Squad W 60+ 4+"]()
+    rower = lineup.rowers[0]
+    assert rower.stature_estimated, "roster heights start as guesses"
+
+    assert lineup.commit_edit(0, index["name"], "Zed")
+    assert rower.name == "Zed"
+    assert not lineup.commit_edit(0, index["pounds"], "heavy")
+    assert lineup.commit_edit(0, index["pounds"], "140")
+    assert rower.pounds == 140.0
+    # Typing a height is a measurement, so the "~" must go.
+    assert lineup.commit_edit(0, index["feet"], "5")
+    assert lineup.commit_edit(0, index["inches"], "6")
+    assert not rower.stature_estimated
+    assert "~" not in rower_lines(rower)[1]
+    # And the field text round-trips what was typed.
+    assert field_text(rower, index["pounds"]) == "140"
+    assert field_text(rower, index["inches"]) == "6"
+    # Out-of-range seats are refused, not raised.
+    assert not lineup.commit_edit(99, index["name"], "nobody")
+
+
+def test_a_rower_can_be_typed_in_from_the_menu(fonts):
+    """Drive the real setup menu: pick a seat, type a name, commit.
+
+    One event per frame, as the other menu test explains -- posting them
+    all at once drains the queue in one iteration and the editor never
+    draws.  Typed characters arrive as KEYDOWN events carrying a
+    ``unicode``; the feed sets it the way SDL would.
+    """
+    import argparse
+    import os
+    import sys
+
+    pygame, font, small = fonts
+    sys.path.insert(0, os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "scripts"))
+    import fpv
+    from coxswain.viz.menu import setup_menu
+    from coxswain.viz.rigview import PANE_ROWS
+
+    rows = [row.key for row in setup_menu().rows]
+    pane = [key for key, _label in PANE_ROWS]
+    K = pygame
+    script = ([K.K_DOWN] * rows.index("crew") + [K.K_RETURN]
+              + [K.K_DOWN] * pane.index("edit")       # down to "Edit"
+              + [K.K_RIGHT]                            # pick seat 0
+              + [K.K_RETURN]                           # start typing
+              + [K.K_BACKSPACE] * 12                   # clear the name
+              + [("Z", K.K_z), ("e", K.K_e), ("d", K.K_d)]
+              + [K.K_TAB]                              # commit, to weight
+              + [K.K_BACKSPACE] * 6
+              + [("1", K.K_1), ("4", K.K_4), ("0", K.K_0)]
+              + [K.K_RETURN]                           # commit, stop
+              + [None, K.K_ESCAPE, K.K_ESCAPE])
+
+    step = {"i": 0}
+    original_get = pygame.event.get
+
+    def feed():
+        index = step["i"]
+        step["i"] += 1
+        if index >= len(script):
+            return [pygame.event.Event(pygame.QUIT)]
+        item = script[index]
+        if item is None:
+            return []
+        if isinstance(item, tuple):
+            char, key = item
+            return [pygame.event.Event(pygame.KEYDOWN, key=key,
+                                       unicode=char)]
+        return [pygame.event.Event(pygame.KEYDOWN, key=item, unicode="")]
+
+    seen = []
+    original_draw = fpv.draw_plan
+
+    def spy(surface, lineup, *args, **kwargs):
+        seen.append((lineup.rowers[0].name, lineup.rowers[0].pounds,
+                     kwargs.get("editing")))
+        return original_draw(surface, lineup, *args, **kwargs)
+
+    pygame.event.get = feed
+    fpv.draw_plan = spy
+    try:
+        fpv.run_setup_menu(pygame.display.get_surface(),
+                           argparse.Namespace(
+                               boat="4+", race="charles", rate=30.0,
+                               wind=5.0, audio="full", quality="standard",
+                               weather="hazy", skill=0.55, balance=0.55,
+                               no_sound=True))
+    finally:
+        pygame.event.get = original_get
+        fpv.draw_plan = original_draw
+
+    assert seen, "the editor never drew"
+    assert seen[0][0] == "Marilyn"
+    # The box was drawn WHILE typing, with the buffer in it...
+    typed = [e for _n, _p, e in seen if e is not None]
+    assert typed, "draw_plan never saw an editing state"
+    assert any(e[2] == "Zed" for e in typed), typed
+    # ...and the lineup ended up changed.
+    assert seen[-1][0] == "Zed", seen[-1]
+    assert seen[-1][1] == 140.0, seen[-1]
+    assert seen[-1][2] is None, "editing must end on Enter"
