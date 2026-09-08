@@ -66,6 +66,9 @@ from coxswain.viz.menu import (build_boat, chart_surface,    # noqa: E402
                                quality_settings, setup_menu,
                                rowers_menu, start_music,
                                stop_music, weather_menu)
+from coxswain.viz.rigview import (PRESETS as RIG_PRESETS,   # noqa: E402
+                                  PANE_ROWS, RIGS, SHELLS,
+                                  draw_plan, draw_side_pane)
 from coxswain.viz.planscene import oar_lines                # noqa: E402
 from coxswain.viz.strokeaudio import shell_of               # noqa: E402
 from coxswain.viz.water import (KELVIN_HALF_ANGLE,          # noqa: E402
@@ -1847,6 +1850,13 @@ def run_setup_menu(screen, args):
     chosen = menu.settings()
     overlay = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
     showing_controls = False
+    # The rig editor: a plan of the boat, or None when it is not up.
+    # Loaded from the preset rather than built blank, because the boat
+    # this is for is a real one and typing it in again every time is
+    # exactly the friction the preset exists to remove.
+    lineup = None
+    pane_cursor = 0
+    seat_cursor = -1
     while True:
         clock.tick(60)
         for event in pygame.event.get():
@@ -1857,12 +1867,66 @@ def run_setup_menu(screen, args):
                 if showing_controls:
                     showing_controls = False       # any key goes back
                     continue
+                if lineup is not None:
+                    # -- the rig editor owns the keyboard while it is up
+                    if event.key == pygame.K_ESCAPE:
+                        lineup = None
+                        seat_cursor = -1
+                        continue
+                    if event.key in (pygame.K_UP, pygame.K_w):
+                        pane_cursor = (pane_cursor - 1) % len(PANE_ROWS)
+                    elif event.key in (pygame.K_DOWN, pygame.K_s):
+                        pane_cursor = (pane_cursor + 1) % len(PANE_ROWS)
+                    elif event.key in (pygame.K_LEFT, pygame.K_RIGHT,
+                                       pygame.K_a, pygame.K_d,
+                                       pygame.K_RETURN, pygame.K_KP_ENTER,
+                                       pygame.K_SPACE):
+                        step = -1 if event.key in (pygame.K_LEFT,
+                                                   pygame.K_a) else 1
+                        key = PANE_ROWS[pane_cursor][0]
+                        if key == "preset":
+                            names = sorted(RIG_PRESETS)
+                            at = (names.index(lineup.name)
+                                  if lineup.name in names else 0)
+                            lineup = RIG_PRESETS[
+                                names[(at + step) % len(names)]]()
+                            seat_cursor = -1
+                        elif key == "shell":
+                            keys = list(SHELLS)
+                            at = keys.index(lineup.shell)
+                            lineup.set_shell(keys[(at + step) % len(keys)])
+                            seat_cursor = -1
+                        elif key == "rig":
+                            options = RIGS[lineup.seats]
+                            at = (options.index(lineup.rig)
+                                  if lineup.rig in options else 0)
+                            lineup.set_rig(options[(at + step)
+                                                   % len(options)])
+                        elif key == "switch":
+                            # Walk the seats; enter flips the one shown.
+                            if event.key in (pygame.K_RETURN,
+                                             pygame.K_KP_ENTER,
+                                             pygame.K_SPACE):
+                                if seat_cursor >= 0:
+                                    lineup.switch_side(seat_cursor)
+                            else:
+                                seat_cursor = ((seat_cursor + step)
+                                               % lineup.seats)
+                        elif key == "done":
+                            lineup = None
+                            seat_cursor = -1
+                    continue
                 if event.key == pygame.K_ESCAPE:
                     stop_music()
                     return None
                 action = handle_key(menu, event.key)
                 if action == "controls":
                     showing_controls = True
+                    continue
+                if action == "crew":
+                    if lineup is None:
+                        lineup = RIG_PRESETS[sorted(RIG_PRESETS)[0]]()
+                    pane_cursor = 0
                     continue
                 if action in ("options", "weather", "rowers"):
                     chosen = menu.settings()
@@ -1918,8 +1982,14 @@ def run_setup_menu(screen, args):
             screen.blit(chart, (0, 0))
         else:
             screen.fill((18, 24, 29))
+        overlay.fill((0, 0, 0, 0))
         if showing_controls:
             draw_controls(overlay, font, small, screen.get_size())
+        elif lineup is not None:
+            draw_plan(overlay, lineup, font, small, screen.get_size(),
+                      selected=seat_cursor)
+            draw_side_pane(overlay, lineup, font, small, screen.get_size(),
+                           cursor=pane_cursor)
         else:
             draw_menu(overlay, menu, font, small, screen.get_size())
         screen.blit(overlay, (0, 0))

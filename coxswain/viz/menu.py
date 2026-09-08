@@ -286,6 +286,7 @@ def setup_menu(boat: str = "4+", course: str = "charles",
                value=float(rate), unit="spm"),
         Choice("start", "Push off", (), action="start"),
         Choice("rowers", "Rowers", (), action="rowers"),
+        Choice("crew", "Rig and crew", (), action="crew"),
         Choice("weather", "Weather", (), action="weather"),
         Choice("options", "Graphics and sound", (), action="options"),
         Choice("controls", "Controls", (), action="controls"),
@@ -588,6 +589,8 @@ def blurb_for(menu: "Menu") -> str:
     if row.key == "audio":
         return ("Full is the measured envelope; Events is catches and "
                 "finishes only.")
+    if row.key == "crew":
+        return "Who sits where, on which side, and how the boat is rigged."
     if row.key == "quality":
         return "Trades water detail for frame rate.  Applies on the next start."
     if row.key == "weather":

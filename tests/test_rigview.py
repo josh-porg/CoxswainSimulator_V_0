@@ -230,3 +230,70 @@ def test_an_empty_seat_still_draws_a_box(fonts):
     empty = lineup.rowers[-1]
     assert empty.name == ""
     assert rower_lines(empty) == ["(empty)"]
+
+
+def test_the_editor_is_reachable_from_the_menu_and_edits_the_boat(fonts):
+    """Drive the real setup menu and watch what it hands the renderer.
+
+    Events are fed ONE PER FRAME.  Posting them all at once drains the
+    whole queue in a single iteration, so the editor opens and closes
+    before anything is drawn and the test passes while proving nothing --
+    which is exactly what the first version of this did.
+    """
+    import argparse
+    import os
+    import sys
+
+    pygame, font, small = fonts
+    sys.path.insert(0, os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "scripts"))
+    import fpv
+    from coxswain.viz.menu import setup_menu
+
+    rows = [row.key for row in setup_menu().rows]
+    assert "crew" in rows, "the menu must offer the rig editor"
+    script = ([pygame.K_DOWN] * rows.index("crew") + [pygame.K_RETURN]
+              + [pygame.K_DOWN, pygame.K_DOWN, pygame.K_RIGHT]
+              + [pygame.K_DOWN, pygame.K_RIGHT, pygame.K_RETURN]
+              + [None, pygame.K_ESCAPE, pygame.K_ESCAPE])
+
+    step = {"i": 0}
+    original_get = pygame.event.get
+
+    def feed():
+        index = step["i"]
+        step["i"] += 1
+        if index >= len(script):
+            return [pygame.event.Event(pygame.QUIT)]
+        key = script[index]
+        return ([] if key is None
+                else [pygame.event.Event(pygame.KEYDOWN, key=key)])
+
+    seen = []
+    original_draw = fpv.draw_plan
+
+    def spy(surface, lineup, *args, **kwargs):
+        seen.append((lineup.rig, tuple(r.side for r in lineup.rowers)))
+        return original_draw(surface, lineup, *args, **kwargs)
+
+    pygame.event.get = feed
+    fpv.draw_plan = spy
+    try:
+        fpv.run_setup_menu(pygame.display.get_surface(),
+                           argparse.Namespace(
+                               boat="4+", race="charles", rate=30.0,
+                               wind=5.0, audio="full", quality="standard",
+                               weather="hazy", skill=0.55, balance=0.55,
+                               no_sound=True))
+    finally:
+        pygame.event.get = original_get
+        fpv.draw_plan = original_draw
+
+    assert seen, "the editor never drew, so nothing here was exercised"
+    # It opens on the preset...
+    assert seen[0][0] == "bucket, stbd stroke"
+    assert seen[0][1] == (-1, +1, +1, -1)
+    # ...and the keys actually changed the boat.
+    assert seen[-1][0] == "custom", seen[-1]
+    assert seen[-1][1] != seen[0][1]
