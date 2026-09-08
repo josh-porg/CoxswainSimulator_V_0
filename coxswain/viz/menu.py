@@ -26,7 +26,7 @@ __all__ = ["Choice", "Menu", "boat_choices", "course_choices",
            "start_music", "stop_music", "music_path",
            "chart_surface", "draw_controls", "CONTROLS",
            "options_menu", "quality_settings", "QUALITY", "AUDIO_MODES",
-           "WEATHERS", "weather_choices", "weather_menu"]
+           "WEATHERS", "weather_choices", "weather_menu", "rowers_menu"]
 
 
 #: Shells a coxswain might sit in, as ``(key, label, seats, coxed)``.
@@ -78,6 +78,11 @@ class Choice:
         """What the row reads as, right of its label."""
         if self.action is not None:
             return ""
+        namer = getattr(self, "shown_as", None)
+        if namer is not None:
+            # A slider whose number means nothing to the reader.  "0.75"
+            # is not a crew; "elite" is.
+            return "%s" % namer(self.value)
         if self.numeric is not None:
             step = self.numeric[2]
             digits = 0 if step >= 1.0 else 1
@@ -200,6 +205,28 @@ def weather_choices():
     return [(key, label) for key, label in WEATHERS]
 
 
+def rowers_menu(skill: float = 0.55, balance: float = 0.55) -> Menu:
+    """The crew itself: how good they are, not what they are sitting in.
+
+    Separate from the boat because it is a different question.  The boat
+    is what you were given; the crew is who turned up, and a coxswain
+    knows perfectly well that the same four can be a different boat on a
+    different morning.
+    """
+    from ..crew.variability import skill_label
+
+    rows = [
+        Choice("skill", "Crew skill", (), numeric=(0.0, 1.0, 0.05),
+               value=float(skill), unit=""),
+        Choice("balance", "Balance", (), numeric=(0.0, 1.0, 0.05),
+               value=float(balance), unit=""),
+        Choice("back", "Back", (), action="back"),
+    ]
+    rows[0].shown_as = skill_label
+    rows[1].shown_as = skill_label
+    return Menu("Rowers", rows)
+
+
 def weather_menu(weather: str = "hazy", wind: float = 5.0) -> Menu:
     """The air, on its own.
 
@@ -252,6 +279,7 @@ def setup_menu(boat: str = "4+", course: str = "charles",
         Choice("rate", "Stroke rate", (), numeric=(16.0, 44.0, 1.0),
                value=float(rate), unit="spm"),
         Choice("start", "Push off", (), action="start"),
+        Choice("rowers", "Rowers", (), action="rowers"),
         Choice("weather", "Weather", (), action="weather"),
         Choice("options", "Graphics and sound", (), action="options"),
         Choice("controls", "Controls", (), action="controls"),
@@ -274,6 +302,7 @@ def pause_menu(rate: float = 30.0, wind: float = 5.0) -> Menu:
                value=float(rate), unit="spm"),
         Choice("restart", "Restart this course", (), action="restart"),
         Choice("setup", "Change boat or course", (), action="setup"),
+        Choice("rowers", "Rowers", (), action="rowers"),
         Choice("weather", "Weather", (), action="weather"),
         Choice("options", "Graphics and sound", (), action="options"),
         Choice("controls", "Controls", (), action="controls"),
@@ -398,6 +427,9 @@ CONTROLS = (
     ("Crew", ""),
     ("W / E", "pressure split -- more work on one side"),
     ("", ""),
+    ("Crew", ""),
+    ("Up / Down", "call for more or less power"),
+    ("", "the crew give what you ask until the reserve is gone"),
     ("View", ""),
     ("V", "look over your shoulder"),
     ("F1", "free camera -- fly around to inspect the course"),
@@ -540,6 +572,13 @@ def blurb_for(menu: "Menu") -> str:
     if row.key == "wind":
         return ("Sets the chop through the JONSWAP relations, and the "
                 "ripple with it.  At nothing, glass.")
+    if row.key == "skill":
+        return ("How consistent the crew is, stroke to stroke.  Elite and "
+                "junior are measured; novice is extrapolated.")
+    if row.key == "balance":
+        return ("How well they sit the boat.  A novice crew checks it "
+                "down; an experienced one holds it level through the "
+                "recovery.")
     if row.key == "audio":
         return ("Full is the measured envelope; Events is catches and "
                 "finishes only.")

@@ -63,7 +63,8 @@ from coxswain.viz.menu import (build_boat, chart_surface,    # noqa: E402
                                draw_controls, draw_menu,
                                handle_key, options_menu, pause_menu,
                                quality_settings, setup_menu,
-                               start_music, stop_music, weather_menu)
+                               rowers_menu, start_music,
+                               stop_music, weather_menu)
 from coxswain.viz.planscene import oar_lines                # noqa: E402
 from coxswain.viz.strokeaudio import shell_of               # noqa: E402
 from coxswain.viz.water import (KELVIN_HALF_ANGLE,          # noqa: E402
@@ -1311,6 +1312,106 @@ def _optional(program, **values) -> None:
             program[name].value = value
 
 
+#: Splash at the catch: a handful of ballistic droplets, not a shower.
+#:
+#: "Not super dramatic but there" is the brief, so this is a CPU-side
+#: burst of maybe ten points per blade, not a GPU particle system --
+#: there is nothing here that needs one.  Each droplet is a real
+#: projectile: it leaves the entry point with a upward-and-outward
+#: kick, falls under gravity, and is culled the instant it would cross
+#: the water plane again, which is what keeps a lazy catch throwing
+#: nothing and a hard one throwing visibly more without any separate
+#: "how much spray" knob -- the entry speed already carries that.
+SPLASH_VERTEX = """#version 330
+in vec3 in_pos;
+in float in_age;      // 0 at birth, 1 at death
+uniform mat4 mvp;
+out float v_age;
+void main() {
+    v_age = in_age;
+    gl_Position = mvp * vec4(in_pos, 1.0);
+    // Shrinks as it ages, so a droplet reads as settling rather than
+    // just vanishing.
+    gl_PointSize = mix(5.0, 1.0, in_age) ;
+}
+"""
+
+SPLASH_FRAGMENT = """#version 330
+in float v_age;
+out vec4 f_colour;
+void main() {
+    vec2 c = gl_PointCoord - 0.5;
+    if (dot(c, c) > 0.25) discard;
+    float fade = 1.0 - v_age;
+    f_colour = vec4(vec3(0.95), fade * fade * 0.8);
+}
+"""
+
+
+class SplashSystem:
+    """A fixed pool of ballistic droplets, spawned at the catch.
+
+    A ring buffer over a numpy array, same shape as :class:`PuddleTrail`
+    for the same reason: this is rebuilt and re-uploaded every frame, so
+    the count has to be fixed and the update has to be one vectorised
+    pass rather than a Python loop over live particles.
+    """
+
+    #: Per catch, per blade.  A coxed four throws roughly this many
+    #: visible droplets at a firm catch; more reads as a bucket of water
+    #: rather than an oar.
+    PER_BLADE = 9
+    LIFETIME = 0.55
+    GRAVITY = 9.80665
+    CAPACITY = 256
+
+    def __init__(self):
+        self.position = np.zeros((self.CAPACITY, 3), dtype="f4")
+        self.velocity = np.zeros((self.CAPACITY, 3), dtype="f4")
+        self.birth = np.full(self.CAPACITY, -1e9, dtype="f4")
+        self._next = 0
+        self._rng = np.random.default_rng(4)
+
+    def spawn(self, tip: np.ndarray, speed: float, t: float) -> None:
+        """A burst at ``tip`` (world xyz, z at the water), scaled by the
+        blade's speed through the surface -- a gentle catch barely
+        splashes, a rushed one throws further and higher."""
+        kick = float(np.clip(speed, 0.0, 2.5))
+        if kick <= 0.02:
+            return
+        n = self.PER_BLADE
+        angle = self._rng.uniform(0.0, 2.0 * np.pi, n)
+        outward = (0.35 + 0.9 * kick) * self._rng.uniform(0.5, 1.0, n)
+        up = (0.7 + 1.6 * kick) * self._rng.uniform(0.6, 1.0, n)
+        for i in range(n):
+            slot = self._next % self.CAPACITY
+            self._next += 1
+            self.position[slot] = tip
+            self.velocity[slot] = (outward[i] * np.cos(angle[i]),
+                                   outward[i] * np.sin(angle[i]), up[i])
+            self.birth[slot] = t
+
+    def as_uniform(self, t: float):
+        """``(N, 4)`` of ``(x, y, z, age)`` for every droplet still
+        alive, ballistic motion evaluated directly from its birth time
+        rather than integrated -- so it cannot drift with the frame
+        rate the way an accumulated position would."""
+        age = (t - self.birth) / self.LIFETIME
+        alive = (age >= 0.0) & (age < 1.0)
+        if not np.any(alive):
+            return np.zeros((0, 4), dtype="f4")
+        dt = (t - self.birth[alive])[:, None]
+        pos = (self.position[alive]
+              + self.velocity[alive] * dt
+              - np.array([0.0, 0.0, 0.5 * self.GRAVITY]) * dt * dt)
+        # A droplet that has fallen back through the water is done,
+        # even if its clock has not run out -- it rejoins the surface
+        # rather than hanging visibly below it.
+        above = pos[:, 2] >= self.position[alive][:, 2] - 0.05
+        out = np.concatenate([pos[above], age[alive][above, None]], axis=1)
+        return out.astype("f4")
+
+
 def water_grid(reach: float = WATER_REACH,
                divisions: int = WATER_DIVISIONS):
     """A graded grid of triangles, in boat-relative coordinates.
@@ -1733,20 +1834,26 @@ def run_setup_menu(screen, args):
                 if action == "controls":
                     showing_controls = True
                     continue
-                if action in ("options", "weather"):
+                if action in ("options", "weather", "rowers"):
                     chosen = menu.settings()
-                    menu = (weather_menu(weather=args.weather,
-                                         wind=args.wind)
-                            if action == "weather"
-                            else options_menu(audio=args.audio,
-                                              quality=args.quality))
+                    if action == "weather":
+                        menu = weather_menu(weather=args.weather,
+                                            wind=args.wind)
+                    elif action == "rowers":
+                        menu = rowers_menu(skill=args.skill,
+                                           balance=args.balance)
+                    else:
+                        menu = options_menu(audio=args.audio,
+                                            quality=args.quality)
                     continue
                 if action == "back":
                     picked = menu.settings()
                     for key, name in (("audio", "audio"),
                                       ("quality", "quality"),
                                       ("weather", "weather"),
-                                      ("wind", "wind")):
+                                      ("wind", "wind"),
+                                      ("skill", "skill"),
+                                      ("balance", "balance")):
                         if key in picked:
                             setattr(args, name, picked[key])
                     # ``chosen`` is the setup menu's own settings, and wind
@@ -1918,6 +2025,10 @@ def main(argv=None):
                         dest="exact_within",
                         help="radius, m, within which the surface is "
                              "differentiated per pixel")
+    parser.add_argument("--skill", type=float, default=0.55,
+                        help="crew consistency, 0 novice to 1 ideal")
+    parser.add_argument("--balance", type=float, default=0.55,
+                        help="how well the crew sits the boat, 0 to 1")
     parser.add_argument("--weather", default="hazy",
                         choices=tuple(WEATHER),
                         help="what the air is doing")
@@ -2038,6 +2149,19 @@ def main(argv=None):
     args.boat = made
     live = LiveControl()
     cox = Coxswain(rudder_override=live.rudder, pressure_split=live.split)
+    # The crew's own inconsistency.  Applied once per stroke at the
+    # catch, which is where a rower commits: within a stroke they are
+    # deterministic, because they execute the stroke they started.
+    from coxswain.crew.variability import for_skill
+
+    variability = for_skill(args.skill)
+
+    #: What the coxswain is asking for, as a multiple of race pace.
+    #: Defined here rather than with the rest of the loop state because
+    #: draw() closes over it and headless runs draw() before the
+    #: interactive loop ever starts.
+    call = 1.0
+
     simulator = RowingSimulator(boat, coxswain=cox, fast=True)
     hull = hull_solid(boat)
     crew = crew_poses(boat)
@@ -2055,6 +2179,33 @@ def main(argv=None):
     station = np.concatenate([[0.0], np.cumsum(
         np.hypot(*np.diff(course, axis=0).T))])
     begin = int(np.argmin(np.abs(station - args.start)))
+
+    # -- what the crew can actually hold -------------------------------
+    #
+    # The catalog's boats row at a force scale, not at a power, and that
+    # scale turns out to be about 470 W per rower -- above world class,
+    # and half again what anyone holds for six minutes.  Nothing noticed
+    # because nothing tracked the reserve.
+    #
+    # So the crew starts at the pace the two-parameter model says is
+    # ideal for this piece: P = CP + W'/T, which spends the reserve
+    # exactly at the line.  The coxswain can call for more, and the
+    # crew will give it, and then it is gone.
+    from coxswain.crew.exertion import (WPrimeBalance, mean_handle_power,
+                                        optimal_pace)
+
+    reserve = WPrimeBalance()
+    reference_power = mean_handle_power(boat)
+    # Along the course, not the number of points in it.
+    _pts = np.asarray(course, dtype=float)
+    course_metres = float(np.hypot(*np.diff(_pts[:, :2], axis=0).T).sum())
+    race_seconds = max(course_metres / 4.5, 60.0)
+    nominal_power = optimal_pace(race_seconds)
+    base_scale = nominal_power / max(reference_power, 1.0)
+    print("   crew: %.0f W/rower at scale 1.0; racing at %.0f W "
+          "(CP %.0f, reserve %.0f kJ over %.0f s)"
+          % (reference_power, nominal_power, reserve.critical_power,
+             reserve.capacity / 1000.0, race_seconds))
 
     def fresh_state():
         state = simulator.initial_state(surge_speed=3.6)
@@ -2561,6 +2712,18 @@ def main(argv=None):
         program, [(oar_buffer, "3f 3f 3f", "in_pos", "in_normal",
                    "in_colour")])
 
+    splashes = SplashSystem()
+    splash_prog = ctx.program(vertex_shader=SPLASH_VERTEX,
+                              fragment_shader=SPLASH_FRAGMENT)
+    # gl_PointSize is a compile-time no-op in core profile unless this is
+    # on -- without it every droplet draws at 1 pixel regardless of what
+    # the vertex shader sets.
+    ctx.enable(moderngl.PROGRAM_POINT_SIZE)
+    splash_buffer = ctx.buffer(
+        reserve=SplashSystem.CAPACITY * 4 * 4, dynamic=True)
+    splash_vao = ctx.vertex_array(
+        splash_prog, [(splash_buffer, "3f 1f", "in_pos", "in_age")])
+
     projection = perspective(args.fov, args.width / args.height, 0.25, FAR)
     # Set on the function so the closure can carry state without a global.
     _ = None
@@ -2628,6 +2791,13 @@ def main(argv=None):
                   shadow_boat=(float(state[0]), float(state[1]),
                                float(state[5])))
         draw.last_speed = speed
+        # The reserve runs on real elapsed time, not on the stroke, so a
+        # paused boat does not quietly recover.
+        _elapsed = max(float(t) - draw.last_reserve_t, 0.0)
+        if _elapsed > 0.0:
+            draw.w_prime = reserve.step(draw.w_prime,
+                                        nominal_power * call, _elapsed)
+            draw.last_reserve_t = float(t)
         water_prog["time"].value = float(t)
         for _prog in (program, sky_prog, water_prog):
             _optional(_prog, sky_time=float(t))
@@ -2642,11 +2812,44 @@ def main(argv=None):
                 # frame and a drive flag; the blade tip has to be rotated
                 # and translated like the oars themselves are.
                 lines, _drive = oar_lines(boat, t)
+                # The oar model is a plan view -- there is no vertical
+                # entry speed anywhere in it to measure, the blade tip
+                # only ever has x and y.  What IS real and available is
+                # how fast the blade is travelling horizontally at the
+                # instant it catches, finite-differenced against a
+                # moment before: a slammed catch has the blade already
+                # moving fast when it grips; a placed one is nearly
+                # stopped.  Used as the splash's kick, not as a claim
+                # about the actual water entry, which this model does
+                # not resolve.
+                EPS = 0.01
+                before, _ = oar_lines(boat, t - EPS)
                 rot = hull_to_abs(np.asarray(state[3:6], dtype=float))
                 here = np.asarray(state[0:3], dtype=float)
-                for oar in lines:
+                # What the crew can give, and then what they actually
+                # give.  Asked for at the catch because that is when a
+                # rower commits to a stroke: a call lands on the next
+                # one, not on the one already being pulled.
+                asked = nominal_power * call
+                if draw.w_prime <= 0.0:
+                    # Empty.  This is not the crew choosing to ease off;
+                    # it is the rate falling whatever the coxswain says.
+                    asked = min(asked, reserve.critical_power)
+                    draw.faded = True
+                elif asked <= reserve.critical_power:
+                    draw.faded = False
+                scale = asked / max(reference_power, 1.0)
+                if variability is not None and variability.power_sigma > 0.0:
+                    variability.apply(boat, base=np.full(boat.n_seats, scale))
+                else:
+                    boat.power_scales = np.full(boat.n_seats, scale)
+                for oar, was in zip(lines, before):
                     tip = np.append(np.asarray(oar)[-1], 0.0) @ rot.T + here
+                    prior = np.asarray(was)[-1]
+                    kick = float(np.hypot(*(np.asarray(oar)[-1] - prior))
+                                / EPS)
                     trail.drop(float(tip[0]), float(tip[1]), t)
+                    splashes.spawn(tip, kick * 0.5, t)
             draw.last_phase = phase
         water_prog["puddles"].write(trail.as_uniform(t).tobytes())
         near_tex.use(NEAR_UNIT)          # never trust the binding
@@ -2662,6 +2865,22 @@ def main(argv=None):
             if blob.nbytes <= oar_buffer.size:
                 oar_buffer.write(blob.tobytes())
                 oar_vao.render(vertices=len(vertices))
+
+        droplets = splashes.as_uniform(t)
+        if len(droplets):
+            splash_prog["mvp"].write((projection @ view).T.tobytes(
+                order="C"))
+            splash_buffer.write(droplets.tobytes())
+            # Additive and no depth write: a droplet in front of the
+            # water brightens it rather than punching a flat-shaded
+            # hole, and it never occludes anything behind it -- right
+            # for something this small and this brief.
+            ctx.blend_func = moderngl.ONE, moderngl.ONE
+            ctx.enable(moderngl.BLEND)
+            ctx.depth_mask = False
+            splash_vao.render(moderngl.POINTS, vertices=len(droplets))
+            ctx.depth_mask = True
+            ctx.disable(moderngl.BLEND)
         if scene_fbo is not None:
             # And out to the screen, so the HUD has something to sit on.
             ctx.copy_framebuffer(target, scene_fbo)
@@ -2669,13 +2888,25 @@ def main(argv=None):
 
     draw.last_phase = 0.0
     draw.last_speed = 0.0
+    draw.w_prime = reserve.capacity
+    draw.last_reserve_t = 0.0
+    draw.faded = False
     draw.last_t = 0.0
     draw.surge = 0.0
 
     if headless:
+        # draw() every step, not just at the end.  Catches -- and every
+        # effect keyed off one, puddles and splashes both -- are found
+        # by watching the stroke phase WRAP from one draw() call to the
+        # next, so calling draw() once after N steps can never see a
+        # wrap: draw.last_phase starts at 0.0 and the single phase it is
+        # compared against is never negative.  A `--shot` of a boat mid-
+        # stroke was silently unable to show either effect.
         for _ in range(int(args.frames or 0)):
             loop.advance(1.0 / 60.0)
-        draw(loop.pose(), loop.t)
+            draw(loop.pose(), loop.t)
+        if not args.frames:
+            draw(loop.pose(), loop.t)
         from PIL import Image
 
         image = Image.frombytes("RGB", (args.width, args.height),
@@ -2701,6 +2932,10 @@ def main(argv=None):
     hud_texture.filter = ((moderngl.LINEAR, moderngl.LINEAR) if _hud_smooth
                           else (moderngl.NEAREST, moderngl.NEAREST))
     rudder, split, paused, running, frames = 0.0, 0.0, False, True, 0
+    #: What the coxswain is asking for, as a multiple of race pace, and
+    #: what the crew has left to give.  The call is what you SAY; the
+    #: reserve decides whether you get it.
+    call = 1.0
     menu, restart_session = None, False
     if args.control == "mouse":
         pygame.mouse.set_visible(False)
@@ -2741,12 +2976,16 @@ def main(argv=None):
                         loop.start(fresh_state())
                         rudder = split = 0.0
                         menu, paused = None, False
-                    elif action in ("options", "weather"):
-                        menu = (weather_menu(weather=args.weather,
-                                             wind=args.wind)
-                                if action == "weather"
-                                else options_menu(audio=args.audio,
-                                                  quality=args.quality))
+                    elif action in ("options", "weather", "rowers"):
+                        if action == "weather":
+                            menu = weather_menu(weather=args.weather,
+                                                wind=args.wind)
+                        elif action == "rowers":
+                            menu = rowers_menu(skill=args.skill,
+                                               balance=args.balance)
+                        else:
+                            menu = options_menu(audio=args.audio,
+                                                quality=args.quality)
                     elif action == "back":
                         picked = menu.settings()
                         if "audio" in picked and picked["audio"] != args.audio:
@@ -2759,6 +2998,10 @@ def main(argv=None):
                                 from coxswain.viz.strokeaudio import StrokeAudio
                                 audio = StrokeAudio(boat, mode=args.audio)
                         args.quality = picked.get("quality", args.quality)
+                        if "skill" in picked and picked["skill"] != args.skill:
+                            args.skill = picked["skill"]
+                            variability = for_skill(args.skill)
+                        args.balance = picked.get("balance", args.balance)
                         if abs(picked.get("wind", args.wind)
                                - args.wind) > 1e-9:
                             args.wind = picked["wind"]
@@ -2821,6 +3064,10 @@ def main(argv=None):
                             int(args.width * 0.5 + rudder / RUDDER_LIMIT
                                 * args.width * MOUSE_SPAN * 0.5),
                             args.height // 2))
+                elif event.key in (pygame.K_UP, pygame.K_PAGEUP):
+                    call = float(min(call + 0.03, 1.35))
+                elif event.key in (pygame.K_DOWN, pygame.K_PAGEDOWN):
+                    call = float(max(call - 0.03, 0.60))
                 elif event.key == pygame.K_r:
                     loop.start(fresh_state())
                     rudder = split = 0.0
@@ -2882,8 +3129,15 @@ def main(argv=None):
 
         speed = float(np.hypot(pose[6], pose[7]))
         seconds = 500.0 / speed if speed > 0.2 else 0.0
+        _left = draw.w_prime / max(reserve.capacity, 1.0)
         lines = ["%d:%04.1f   %.2f m/s   rate %.0f"
                  % (int(seconds // 60), seconds % 60, speed, boat.timing.rate),
+                 # The call, and what is left to pay for it.  "FADING"
+                 # is the crew unable to hold what was asked, which is
+                 # the one thing a coxswain must be able to see.
+                 ("call %+.0f%%   crew %3.0f%%%s"
+                  % (100.0 * (call - 1.0), 100.0 * _left,
+                     "   FADING" if draw.faded else "")),
                  ("stick %+.0f%% (%+.1f deg)   yaw %+.2f deg/s"
                   % (100 * rudder / RUDDER_LIMIT, math.degrees(rudder),
                      math.degrees(pose[11]))
@@ -2895,7 +3149,7 @@ def main(argv=None):
                     clock.get_fps()),
                  # Nobody guesses this, and without it the pause menu
                  # and everything in it may as well not exist.
-                 ("F1 free camera    Esc menu    V look astern"
+                 ("Up/Down call    F1 free camera    Esc menu    V astern"
                   if freecam is None else
                   "FREE CAMERA  WASD move  QE down/up  shift fast  "
                   "F1 back to the boat")]

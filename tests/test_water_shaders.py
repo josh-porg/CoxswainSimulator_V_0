@@ -13,6 +13,7 @@ from __future__ import annotations
 import os
 import sys
 
+import numpy as np
 import pytest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -96,3 +97,35 @@ def test_quality_presets_pick_a_shader_tier():
     # And the grid genuinely gets bigger as you go up.
     sizes = [quality_settings(key)[0] for key in keys]
     assert sizes == sorted(sizes), sizes
+
+
+def test_splash_droplets_are_ballistic_and_scale_with_catch_speed():
+    """A slammed catch throws more and further than a placed one, and
+    every droplet dies -- no leak that would eventually fill the pool
+    with permanent points."""
+    import fpv
+
+    calm = fpv.SplashSystem()
+    calm.spawn(np.array([0.0, 0.0, 0.0]), speed=0.1, t=0.0)
+    hard = fpv.SplashSystem()
+    hard.spawn(np.array([0.0, 0.0, 0.0]), speed=2.0, t=0.0)
+
+    soon_calm = calm.as_uniform(0.05)
+    soon_hard = hard.as_uniform(0.05)
+    assert len(soon_calm) and len(soon_hard)
+    # Distance travelled from the origin, in the horizontal plane.
+    reach_calm = np.hypot(soon_calm[:, 0], soon_calm[:, 1]).max()
+    reach_hard = np.hypot(soon_hard[:, 0], soon_hard[:, 1]).max()
+    assert reach_hard > reach_calm
+
+    assert len(calm.as_uniform(10.0)) == 0, "nothing survives its lifetime"
+
+
+def test_a_lazy_catch_barely_splashes():
+    """The near-zero-speed floor exists so a boat sitting still, or a
+    blade barely moving at the catch, does not throw water."""
+    import fpv
+
+    still = fpv.SplashSystem()
+    still.spawn(np.array([1.0, 1.0, 0.0]), speed=0.0, t=0.0)
+    assert len(still.as_uniform(0.02)) == 0

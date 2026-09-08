@@ -55,7 +55,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-__all__ = ["CrewVariability", "ELITE", "CLUB", "JUNIOR"]
+__all__ = ["CrewVariability", "ELITE", "CLUB", "JUNIOR",
+           "for_skill", "skill_label", "SKILL_ANCHORS"]
 
 
 @dataclass
@@ -145,6 +146,63 @@ class CrewVariability:
 
 
 #: [K-VAR]: 2.3% force variation for an elite sculler.
+#: Skill anchors: ``(skill, power_sigma, timing_sigma, label)``.
+#:
+#: Built from the presets below rather than from a fresh curve, so a
+#: slider set to "elite" gets exactly the elite numbers and not whatever
+#: an interpolation happened to produce there.
+#:
+#: Note that timing scatter grows FASTER than power scatter across the
+#: three presets -- the ratio runs 0.35, 0.51, 0.59 from elite to junior
+#: -- so both are interpolated independently.  Tying timing to power by
+#: a single ratio would have flattened a real pattern: a less
+#: experienced crew is disproportionately worse at going together than
+#: at pulling evenly, which is what a coxswain actually hears.
+#:
+#: Two of the five anchors are measured [K-VAR], one is between them,
+#: and two are not measured at all.  "Ideal" is zero by definition: it
+#: is the uniformity assumed by every result in this project computed
+#: before variability existed.  "Novice" is extrapolation along the
+#: elite-to-junior slope and is the one number here nobody has measured.
+SKILL_ANCHORS = (
+    (0.00, 0.110, 0.075, "novice"),      # extrapolated
+    (0.35, 0.051, 0.030, "junior"),      # [K-VAR], measured
+    (0.55, 0.035, 0.018, "club"),        # between the measured points
+    (0.75, 0.023, 0.008, "elite"),       # [K-VAR], measured
+    (1.00, 0.000, 0.000, "ideal"),       # zero by definition
+)
+
+#: Persistent per-rower bias as a fraction of the stroke-to-stroke
+#: scatter.  A novice crew is not merely inconsistent, it is unmatched:
+#: one rower is simply stronger, or habitually early.  That is a
+#: different defect -- bias can be rigged or seated around, scatter
+#: cannot -- and it is kept well under the scatter because any crew that
+#: has rowed together at all has had the worst of its bias seated out.
+BIAS_PER_SCATTER = 0.45
+
+
+def for_skill(skill: float, seed: int = 0) -> "CrewVariability":
+    """A crew of a given skill, ``0.0`` novice to ``1.0`` ideal."""
+    skill = float(np.clip(skill, 0.0, 1.0))
+    points = np.array([a[0] for a in SKILL_ANCHORS])
+    power = float(np.interp(skill, points,
+                            [a[1] for a in SKILL_ANCHORS]))
+    timing = float(np.interp(skill, points,
+                             [a[2] for a in SKILL_ANCHORS]))
+    return CrewVariability(
+        power_sigma=power, timing_sigma=timing,
+        power_bias_sigma=power * BIAS_PER_SCATTER,
+        timing_bias_sigma=timing * BIAS_PER_SCATTER,
+        seed=seed,
+    )
+
+
+def skill_label(skill: float) -> str:
+    """The nearest named anchor, for a menu to show."""
+    skill = float(np.clip(skill, 0.0, 1.0))
+    return min(SKILL_ANCHORS, key=lambda a: abs(a[0] - skill))[3]
+
+
 ELITE = CrewVariability(power_sigma=0.023, timing_sigma=0.008)
 
 #: Between the two measured points.

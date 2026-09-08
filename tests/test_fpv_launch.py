@@ -182,3 +182,26 @@ def test_weather_and_back_do_not_crash_the_setup_menu(dummy_video):
     assert picked["boat"] == "4+" and picked["race"] == "charles"
     # And the wind the weather menu set survived the trip.
     assert args.wind == 6.0
+
+
+def test_headless_draws_every_frame_so_catches_can_fire():
+    """``--shot`` with ``--frames`` must draw each step, not just once.
+
+    Catches -- and both effects keyed off one, the puddle trail and the
+    splash -- are detected by watching the stroke phase WRAP between one
+    draw() call and the next.  Advancing N steps and drawing once can
+    never see a wrap: ``draw.last_phase`` starts at 0.0 and the single
+    phase it is compared against is never negative, so the condition is
+    dead.  For a long time a ``--shot`` of a boat mid-stroke was quietly
+    incapable of showing either effect, and it looked like the effects
+    were broken rather than the harness.
+    """
+    with open(os.path.join(ROOT, "scripts", "fpv.py"),
+              encoding="utf-8") as handle:
+        source = handle.read()
+    block = source[source.rindex("if headless:"):]
+    block = block[:block.index("from PIL import Image")]
+    loop = block[block.index("for _ in range(int(args.frames"):]
+    assert "draw(" in loop, (
+        "the headless frame loop must call draw() each step, or no "
+        "catch can ever be detected in a --shot")

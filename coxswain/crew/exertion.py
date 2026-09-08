@@ -101,7 +101,7 @@ import numpy as np
 
 __all__ = ["ROWER_CRITICAL_POWER", "ROWER_ANAEROBIC_WORK",
            "RECOVERY_TIME_CONSTANT", "WPrimeBalance", "split_cost",
-           "optimal_pace", "pace_for_course", "crew_totals"]
+           "optimal_pace", "mean_handle_power", "pace_for_course", "crew_totals"]
 
 #: Critical power of one rower, W.  Collegiate mean [VF20]_.
 ROWER_CRITICAL_POWER = 302.7
@@ -155,6 +155,43 @@ class WPrimeBalance:
             balance[i] = remaining
         return balance
 
+    def step(self, remaining: float, power: float, dt: float) -> float:
+        """One step of the reserve, for a loop that owns its own clock.
+
+        The seam between the batch world and the real-time one, and the
+        same one :meth:`RowingSimulator.step` draws: :meth:`integrate`
+        takes a whole power history and hands back a whole balance,
+        which is what every study wants and is useless to a game loop.
+        A trainer advances the boat by one tick, reads the coxswain's
+        call, and comes back.
+
+        Stateless, for the same reason the simulator's step is: the
+        caller owns the reserve, which is what lets it be shown on a
+        HUD, reset at the start of a piece, or carried across a pause.
+        """
+        power = float(power)
+        dt = float(dt)
+        if power > self.critical_power:
+            remaining -= (power - self.critical_power) * dt
+        else:
+            # Recovery is exponential toward full, not linear: a crew
+            # paddling light gets most of what it will get back quickly
+            # and then very little more, which is why a minute of light
+            # paddle does not undo a minute of racing.
+            gap = self.capacity - remaining
+            remaining += gap * (1.0 - np.exp(-dt / self.tau))
+        return float(min(max(remaining, 0.0), self.capacity))
+
+    def sustainable(self, remaining: float) -> float:
+        """The most a crew with ``remaining`` in hand can actually hold.
+
+        Empty means CP and nothing above it -- which in a boat is not the
+        crew choosing to ease off, it is the rate falling whatever the
+        coxswain says.
+        """
+        return (self.critical_power if remaining <= 0.0
+                else float("inf"))
+
     def endurance(self, power: float) -> float:
         """Seconds a rower can hold ``power`` from a full reserve."""
         excess = float(power) - self.critical_power
@@ -194,6 +231,48 @@ def split_cost(split: float, power_per_rower: float, n_per_side: int = 4,
     if strategy == "balanced":
         return base * (1.0 + split), base * (1.0 - split)
     raise ValueError("unknown split strategy %r" % (strategy,))
+
+
+def mean_handle_power(boat, samples: int = 360) -> float:
+    """Mean power per rower at the handle, W, at the boat's current scale.
+
+    Force times handle velocity, integrated over one cycle -- the actual
+    definition of what a rower delivers, rather than what reaches the
+    water, which is smaller by the blade's efficiency.  It is the handle
+    figure that CP and W' are measured against, so it is the one the
+    reserve has to be fed.
+
+    This exists because "power" in the simulator is a force SCALE, not
+    watts, and the two have to be related before a crew can be told to
+    row at a sustainable pace.  The relation is very nearly linear in
+    the scale at a fixed rate, so one measurement fixes it.
+
+    The number it returns for the catalog's own boats is worth knowing:
+    about 470 W per rower at scale 1.0, which is above world-class and
+    roughly fifty percent above what a crew can hold for six minutes.
+    Every boat in this project was rowing a power nobody can sustain,
+    which is invisible until something tracks the reserve.
+    """
+    import numpy as np
+
+    from .oarlock import handle_position, oar_force
+
+    period = float(boat.timing.period)
+    times = np.linspace(0.0, period, int(samples), endpoint=False)
+    dt = period / int(samples)
+    total = 0.0
+    for seat in boat.rig.seats:
+        for lock in seat.oarlocks:
+            for t in times:
+                force = oar_force(t, boat.timing, lock.side,
+                                  boat.force_profile, boat.oar_sweep)
+                here = handle_position(t, boat.timing, lock, boat.oar_sweep)
+                ahead = handle_position(t + 1e-4, boat.timing, lock,
+                                        boat.oar_sweep)
+                velocity = (ahead - here) / 1e-4
+                total += abs(float(np.dot(np.asarray(force)[:3],
+                                          velocity))) * dt
+    return total / period / boat.n_seats
 
 
 def optimal_pace(duration: float,
