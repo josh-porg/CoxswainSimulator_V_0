@@ -57,6 +57,41 @@ figures do not include the resync dynamics.
 
 ---
 
+### The two speed models disagree by a factor of 2.3 in efficiency
+**Impact: high — it decides every published target.**
+
+`CoursePacing` (which produces the targets in `scripts/targets.py`)
+solves `R(v)v = 0.80 x gate power x rowers`: a flat blade efficiency of
+0.80. The 6-DOF simulator, driven through `power_scales`, implies an
+efficiency that RISES with power and is far lower:
+
+| gate W/rower | simulator speed | implied efficiency |
+|---|---|---|
+| 131 | 2.71 m/s | 0.34 |
+| 188 | 3.29 m/s | 0.40 |
+| 250 | 3.89 m/s | 0.49 |
+| 486 | 5.60 m/s | 0.70 |
+
+Some rise is real — a slower boat slips its blades more — but 0.34 is
+implausibly low, and the two halves cannot both be right. On the same
+crew they predict 23:49 and 29:43 for the same course.
+
+The field says `CoursePacing` is closer: the slowest crew in six years
+of results is 25:33, and the simulator would need 188 W a rower just to
+row that, which is a strong 60+ erg. But this is inference, not
+measurement.
+
+**What would settle it:** real crews with known erg scores and known
+Charles times. The squad spreadsheet has erg data; the results files
+have times; nobody has joined them.
+
+### `mean_handle_power` ignores `power_scales`
+Its docstring says it reports power "at the boat's current scale". It
+does not — it integrates `oar_force` without the scale, so it always
+returns the scale-1.0 figure (486 W for the catalogue four). Callers
+that use it to *calibrate* a scale are fine, since power is linear in
+scale; callers that use it to *check* one silently get the wrong answer.
+
 ## Open — numbers nobody has measured
 
 These are placeholders. Each is labelled in the code as such; this is
