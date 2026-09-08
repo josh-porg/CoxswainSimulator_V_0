@@ -2049,6 +2049,10 @@ def main(argv=None):
                         help="absolute freecam position, 'east,north,up' "
                              "in world metres; overrides the seat-relative "
                              "placement")
+    parser.add_argument("--no-particles", action="store_true",
+                        dest="no_particles",
+                        help="force the catch splash off, whatever the "
+                             "graphics setting says; for A/B comparison")
     parser.add_argument("--ripple", type=float, default=None,
                         help="micro-ripple slope amplitude; 0 turns it off")
     parser.add_argument("--exact-within", type=float, default=None,
@@ -2812,7 +2816,8 @@ def main(argv=None):
     # Only built at High.  Nothing spawns into it otherwise, so the
     # per-frame upload and draw disappear rather than running on an
     # empty pool.
-    splashes = SplashSystem() if want_particles else None
+    splashes = (SplashSystem()
+                if want_particles and not args.no_particles else None)
     splash_prog = ctx.program(vertex_shader=SPLASH_VERTEX,
                               fragment_shader=SPLASH_FRAGMENT)
     # gl_PointSize is a compile-time no-op in core profile unless this is
