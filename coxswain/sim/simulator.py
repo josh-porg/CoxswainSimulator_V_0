@@ -342,6 +342,27 @@ class RowingSimulator:
         # symmetrically so it is a pure yaw couple and adds no net thrust.
         split = self.coxswain.split(t, state)
 
+        # What an unset boat costs before anybody catches a crab.
+        #
+        # A blade already under water when the catch arrives went in
+        # early, and the oar swept angle in that time which the drive
+        # never gets back -- so the stroke starts short.  In the
+        # coxswain's own words: once the blade is in the water they have
+        # to go with it and drive, so an unset boat gives earlier drives
+        # and not full extension.
+        #
+        # This is the half of the blade-contact model that had no
+        # consumer at all.  The skim DRAG was already wired below; the
+        # lost length was computed by nothing.  It is the more important
+        # of the two, because feathering makes the drag nearly free and
+        # makes no difference at all to this: the length is set by the
+        # heel, and it is why an unset boat is slow on a clean stroke.
+        length_fraction = 1.0
+        if self.blade_contact is not None:
+            oar_rate = float(boat.oar_sweep.rate(t, boat.timing))
+            length_fraction = float(self.blade_contact.length_fraction(
+                float(state.roll), oar_rate, boat.oar_sweep.total_sweep))
+
         phases = boat.phase_offsets
         period = boat.timing.period
         for seat_index, seat in enumerate(boat.rig.seats):
@@ -361,6 +382,8 @@ class RowingSimulator:
                 # coxswain asked for.  Individual differences and
                 # stroke-to-stroke scatter both live here.
                 applied = applied * float(boat.power_scales[seat_index])
+                # A short drive delivers a smaller impulse.
+                applied = applied * length_fraction
                 gearing = (lock.oar.gearing * gearing_scale
                            if blade is not None
                            else lock.oar.effective_gearing)

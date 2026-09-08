@@ -2174,7 +2174,15 @@ def main(argv=None):
     # something that sits itself.
     cox.balance = balance_for_experience(boat, args.balance)
 
-    simulator = RowingSimulator(boat, coxswain=cox, fast=True)
+    # Blades touching the water when the boat is not sat.  Both halves:
+    # the skim drag and roll moment, and the length the drive loses when
+    # a blade goes in early.  Nothing had ever constructed one of these,
+    # so both were switched off everywhere -- including in the report
+    # version, which is where they were assumed to be running.
+    from coxswain.crew.blade_contact import BladeContact
+
+    simulator = RowingSimulator(boat, coxswain=cox, fast=True,
+                                blade_contact=BladeContact.from_boat(boat))
     hull = hull_solid(boat)
     crew = crew_poses(boat)
     # Set here rather than beside the rest of the loop state: ``draw``

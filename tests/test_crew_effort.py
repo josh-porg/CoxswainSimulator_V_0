@@ -154,3 +154,134 @@ def test_particles_are_high_only():
     assert quality_settings("high")[3] is True
     assert quality_settings("standard")[3] is False
     assert quality_settings("minimal")[3] is False
+
+
+def _eight():
+    from coxswain.boats import catalog
+
+    return catalog.eight(rate=30, rower_mass=75, rower_stature=1.83,
+                         coxswain_mass=55)
+
+
+def test_an_unset_boat_loses_length_and_a_set_one_does_not():
+    """Roll error has to cost seconds, and only when it is real.
+
+    The blade tip is 3.41 m out, so a degree and a third of heel puts it
+    in the water.  A blade already under when the catch arrives went in
+    early, and the oar swept angle the drive never gets back -- the
+    stroke starts short.  Feathering does not help: it makes the skim
+    drag nearly free and makes no difference at all to the lost length,
+    which is set by the heel alone.
+    """
+    import numpy as np
+
+    from coxswain.crew.blade_contact import BladeContact
+
+    boat = _eight()
+    contact = BladeContact.from_boat(boat)
+    rate = abs(float(boat.oar_sweep.rate(0.2 * boat.timing.period,
+                                         boat.timing)))
+    sweep = boat.oar_sweep.total_sweep
+
+    # Sat: the crew get the whole stroke.
+    assert contact.length_fraction(0.0, rate, sweep) == pytest.approx(1.0)
+    assert contact.length_fraction(np.radians(1.0), rate,
+                                   sweep) == pytest.approx(1.0)
+    # Unset: they do not, and it gets worse quickly.
+    two = contact.length_fraction(np.radians(2.0), rate, sweep)
+    three = contact.length_fraction(np.radians(3.0), rate, sweep)
+    assert three < two < 1.0
+    assert two < 0.95
+
+
+def test_blade_contact_reaches_the_drive_not_only_the_drag():
+    """The lost length must actually scale the oar force.
+
+    Both halves of this model existed and were tested, and neither ran:
+    nothing in the project ever constructed a BladeContact, and the lost
+    length had no consumer at all -- it was computed by nobody.  The
+    skim drag was at least plumbed in behind a None check.  This asserts
+    the drive itself now feels it.
+    """
+    import numpy as np
+
+    from coxswain.crew.blade_contact import BladeContact
+    from coxswain.sim.control import Coxswain
+    from coxswain.sim.simulator import RowingSimulator
+
+    boat = _eight()
+    cox = Coxswain(rudder_override=lambda t, s: 0.0, pressure_split=0.0)
+    heeled = RowingSimulator(boat, coxswain=cox).initial_state(surge_speed=4.2)
+    heeled[3] = np.radians(3.0)
+
+    plain = RowingSimulator(_eight(), coxswain=cox)
+    touching = RowingSimulator(_eight(), coxswain=cox,
+                               blade_contact=BladeContact.from_boat(boat))
+    # Surge acceleration at the same heeled state, on the drive.
+    when = 0.2 * boat.timing.period
+    a_plain = plain.derivative(when, heeled)[6]
+    a_touch = touching.derivative(when, heeled)[6]
+    assert a_touch < a_plain, (a_plain, a_touch)
+
+
+def test_a_feathered_skim_drags_and_unsettles_but_does_not_catch():
+    """The distinction that matters on the recovery.
+
+    A blade in the water FEATHERED skims: it presents its edge, costs
+    drag, and pushes the boat back level -- but it does not grip, so it
+    takes nothing off the drive.  Only a squared blade must catch.
+
+    Three things have to hold for that to be true, and all three are
+    separate places in the code:
+
+    * the skim loads are applied on the RECOVERY only;
+    * they use the feathered (edge-on, saturating) drag, which is more
+      than an order of magnitude below face-on;
+    * the oar delivers no force at all on the recovery, so a skim
+      cannot shorten a drive that has not started.
+    """
+    import numpy as np
+
+    from coxswain.crew.blade_contact import BladeContact
+    from coxswain.crew.oarlock import oar_force
+
+    boat = _eight()
+    contact = BladeContact.from_boat(boat)
+    assert contact.feathered is True
+
+    # Nothing to shorten: the recovery carries no oar force.
+    period = boat.timing.period
+    lock = boat.rig.seats[0].oarlocks[0]
+    for fraction in (0.55, 0.75, 0.95):
+        assert not boat.timing.is_drive(fraction * period)
+        force = oar_force(fraction * period, boat.timing, lock.side,
+                          boat.force_profile, boat.oar_sweep)
+        assert np.linalg.norm(np.asarray(force)[:3]) == 0.0
+
+    # And feathering is what makes the skim survivable: edge-on drag is
+    # far below face-on at the same heel.
+    heel = np.radians(3.0)
+    feathered_drag, _ = contact.loads(heel, 4.6)
+    squared = BladeContact.from_boat(boat, feathered=False)
+    squared_drag, _ = squared.loads(heel, 4.6)
+    assert abs(squared_drag) > 10.0 * abs(feathered_drag)
+
+
+def test_the_skim_pushes_the_boat_back_towards_level():
+    """The other half of the trade: contact is a powerful stabiliser.
+
+    A dragging blade is expensive, but it is also the strongest righting
+    moment available to a crew that has lost the boat -- far more than
+    they can produce with hands and lean.  That is why an unset boat
+    oscillates rather than simply falling over.
+    """
+    import numpy as np
+
+    from coxswain.crew.blade_contact import BladeContact
+
+    contact = BladeContact.from_boat(_eight())
+    _, moment = contact.loads(np.radians(3.0), 4.6)
+    # Heeled one way, pushed the other.
+    assert moment < 0.0
+    _, other = contact.loads(np.radians(-3.0), 4.6)
+    assert other > 0.0
