@@ -81,9 +81,21 @@ of results is 25:33, and the simulator would need 188 W a rower just to
 row that, which is a strong 60+ erg. But this is inference, not
 measurement.
 
-**What would settle it:** real crews with known erg scores and known
-Charles times. The squad spreadsheet has erg data; the results files
-have times; nobody has joined them.
+**Partly settled, and it goes against the simulator.** Sammamish rowed
+this category in 2024 and finished 12th of 20 in 22:07.9. Asked what
+that took:
+
+* `CoursePacing` says **164 W a rower** -- a 5 km erg of 21:27.9, which
+  is an ordinary masters women's score and lands mid-field exactly where
+  the crew finished;
+* the 6-DOF path needs 188 W just to row 24:30, so 22:08 puts it over
+  200 W -- a sub-20:00 5 km, for a crew that came 12th. That is not
+  believable.
+
+So the flat 0.80 is closer to reality than the simulator's power chain,
+and the published targets stand. What is still open is WHY the 6-DOF
+path is so lossy -- whether the fault is in `power_scales`, in the
+blade model, or in the unsteady losses.
 
 ### `mean_handle_power` ignores `power_scales`
 Its docstring says it reports power "at the boat's current scale". It
