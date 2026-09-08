@@ -153,3 +153,80 @@ def test_a_blank_erg_is_not_a_zero():
     assert erg_watts("nonsense") is None
     lineup = Lineup(shell="4+", rowers=[rower])
     assert lineup.mean_watts() is None
+
+
+# ---------------------------------------------------------------------------
+# the drawing, headless
+# ---------------------------------------------------------------------------
+@pytest.fixture()
+def fonts():
+    import os
+    os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+    pygame = pytest.importorskip("pygame")
+    pygame.init()
+    pygame.font.init()
+    pygame.display.set_mode((900, 560))
+    yield (pygame,
+           pygame.font.SysFont("dejavusans,arial", 20),
+           pygame.font.SysFont("dejavusans,arial", 14))
+    pygame.quit()
+
+
+def test_the_boxes_do_not_collide_and_sit_on_the_right_side(fonts):
+    """Four boxes hung off a narrow hull is where a plan gets crowded."""
+    pygame, font, small = fonts
+    from coxswain.viz.rigview import draw_plan
+
+    lineup = PRESETS["HOCR 4+"]()
+    surface = pygame.Surface((900, 560), pygame.SRCALPHA)
+    boxes = draw_plan(surface, lineup, font, small, (900, 560))
+
+    assert set(boxes) == set(range(lineup.seats))
+    pairs = [(a, b) for a in boxes for b in boxes if a < b]
+    for a, b in pairs:
+        assert not boxes[a].colliderect(boxes[b]), (a, b)
+
+    centre = plan_geometry(lineup, 900 * 0.62, 560)["hull"][0]
+    for index, rower in enumerate(lineup.rowers):
+        if rower.side > 0:                      # port draws left
+            assert boxes[index].centerx < centre, index
+        else:
+            assert boxes[index].centerx > centre, index
+
+
+def test_the_plan_redraws_for_a_different_shell(fonts):
+    """Switching hull must not leave four boxes on an eight."""
+    pygame, font, small = fonts
+    from coxswain.viz.rigview import draw_plan
+
+    lineup = PRESETS["HOCR 4+"]()
+    lineup.set_shell("8+")
+    surface = pygame.Surface((900, 560), pygame.SRCALPHA)
+    boxes = draw_plan(surface, lineup, font, small, (900, 560))
+    assert len(boxes) == 8
+
+
+def test_the_hull_is_tapered_and_closed():
+    """A rectangle reads as a barge, and gives no cue which end is which."""
+    from coxswain.viz.rigview import hull_half_beam, hull_outline
+
+    assert hull_half_beam(0.5) == pytest.approx(1.0)
+    assert hull_half_beam(0.0) == pytest.approx(0.0)
+    assert hull_half_beam(1.0) == pytest.approx(0.0)
+    points = hull_outline(100.0, 10.0, 12.0, 400.0)
+    assert len(points) > 20
+    xs = [p[0] for p in points]
+    assert min(xs) >= 100.0 - 12.0 - 1e-9
+    assert max(xs) <= 100.0 + 12.0 + 1e-9
+
+
+def test_an_empty_seat_still_draws_a_box(fonts):
+    """Adding seats must not crash on rowers who are not there yet."""
+    pygame, font, small = fonts
+    from coxswain.viz.rigview import rower_lines
+
+    lineup = PRESETS["HOCR 4+"]()
+    lineup.set_shell("8+")
+    empty = lineup.rowers[-1]
+    assert empty.name == ""
+    assert rower_lines(empty) == ["(empty)"]
