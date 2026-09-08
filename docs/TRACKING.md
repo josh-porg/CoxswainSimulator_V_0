@@ -141,6 +141,15 @@ the index of them.
 | balance falloff with inexperience | 60→150 N, 0.7→2.0° | `sim/control.py` | judgement; only the *ideal* end is calibrated |
 | bias as a fraction of scatter | 0.45 | `crew/variability.py` | judgement |
 | blade clearance on the recovery | 0.08 m | `crew/blade_contact.py` | typical, not measured |
+| roster rower stature | 1.63 m W, 1.75 m M | `crew/roster.py` | NHANES population mean; the squad sheet logs weight and erg scores but never a height |
+
+The roster stature is the one placeholder that is flagged in the
+product as well as here: every rower built from `data/squad_roster.csv`
+carries `stature_estimated=True` and the rig editor prints the height
+with a leading `~`. Their *power* is measured; their *body geometry* is
+a guess, and stature drives every link length in the kinematics, so it
+moves the crew's centre-of-mass travel and with it the hull's speed
+fluctuation. The two should never be quoted with the same confidence.
 
 Also: `CP = 302.7 W` and `W' = 11.4 kJ` are literature means, not this
 crew. They set the *shape* of every pacing answer and should be

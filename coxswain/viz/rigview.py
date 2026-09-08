@@ -81,6 +81,11 @@ class Rower:
     inches: float = 0.0
     erg_5k: str = ""
     side: int = +1
+    #: True when the height is a population mean standing in for a
+    #: number nobody measured -- roster rowers, whose sheet logs weight
+    #: and erg scores but never a stature.  Shown with a "~" so the
+    #: picture does not claim to know something it does not.
+    stature_estimated: bool = False
 
     @property
     def mass(self) -> float:
@@ -270,9 +275,60 @@ def _hocr_four() -> Lineup:
     return lineup.apply_rig()
 
 
+def _squad_boat(shell: str, rig: str, label: str, squad: str = "women",
+                min_age: int = None, max_age: int = None, offset: int = 0):
+    """A boat crewed off the anonymous roster; see :mod:`..crew.roster`.
+
+    Returns a callable, because :data:`PRESETS` holds builders rather
+    than boats -- and because the roster file may not be present, in
+    which case this hands back an empty shell rather than raising in
+    the middle of a menu.
+    """
+    def build() -> Lineup:
+        from ..crew.roster import crew_of, feet_inches
+
+        seats = SHELLS[shell][1]
+        picked = crew_of(seats, squad, min_age, max_age, offset)
+        crew = []
+        for index in range(seats):
+            if index >= len(picked):
+                crew.append(Rower())
+                continue
+            entry = picked[index]
+            feet, inches = feet_inches(entry.stature)
+            crew.append(Rower(entry.id, entry.pounds or 0.0, feet, inches,
+                              entry.erg_5k, stature_estimated=True))
+        # Stroke is the seat that sets the rhythm, so the roster's
+        # fastest goes there and the order runs down from it.  That is
+        # not how every crew is seated -- plenty of coaches put their
+        # strongest at 3 -- but it is the arrangement that needs no
+        # further justification, and any seat can be swapped by hand.
+        lineup = Lineup(shell=shell, rig=rig, rowers=crew,
+                        cox_name="cox", cox_pounds=125.0, cox_feet=5,
+                        cox_inches=4.0, name=label)
+        return lineup.apply_rig()
+
+    return build
+
+
 #: Saved boats, by name.  Callables, so each load is a fresh copy and
 #: editing one does not quietly edit the preset.
-PRESETS = {"HOCR 4+": _hocr_four}
+#:
+#: The squad boats are built from ``data/squad_roster.csv`` -- real erg
+#: scores from a real masters squad, with the identities removed.  They
+#: exist so a practice race has opposition that pulls what people that
+#: age actually pull, rather than four copies of an invented average.
+PRESETS = {
+    "HOCR 4+": _hocr_four,
+    "Squad W 60+ 4+": _squad_boat("4+", "bucket, stbd stroke",
+                                  "Squad W 60+ 4+", "women", min_age=60),
+    "Squad W 50s 4+": _squad_boat("4+", "standard", "Squad W 50s 4+",
+                                  "women", min_age=50, max_age=59),
+    "Squad W open 8+": _squad_boat("8+", "standard", "Squad W open 8+",
+                                   "women"),
+    "Squad M open 8+": _squad_boat("8+", "standard", "Squad M open 8+",
+                                   "men"),
+}
 
 
 # ---------------------------------------------------------------------------
@@ -326,8 +382,9 @@ def rower_lines(rower: "Rower") -> list:
     """What a rower's box says, top line first."""
     lines = [rower.name or "(empty)"]
     if rower.pounds:
-        lines.append("%.0f lb   %d ft %.1f in"
-                     % (rower.pounds, rower.feet, rower.inches))
+        lines.append("%.0f lb   %s%d ft %.1f in"
+                     % (rower.pounds, "~" if rower.stature_estimated else "",
+                        rower.feet, rower.inches))
     if rower.erg_5k:
         watts = rower.watts
         lines.append("5k %s%s" % (rower.erg_5k,

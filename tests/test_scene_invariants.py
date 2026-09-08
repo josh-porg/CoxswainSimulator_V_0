@@ -99,3 +99,59 @@ def test_the_splash_pool_exists_and_empties(name):
     pool.spawn(np.array([0.0, 0.0, 0.0]), speed=1.5, t=0.0)
     assert len(pool.as_uniform(0.05)) > 0
     assert len(pool.as_uniform(30.0)) == 0
+
+
+# ---------------------------------------------------------------------------
+# the drawn crew against the crew the physics carries
+# ---------------------------------------------------------------------------
+def test_a_heavier_rower_is_drawn_heavier():
+    """Girth follows mass, because the dynamics carry mass.
+
+    Limb *lengths* already came from each rower's own de Leva segments,
+    so the crew were the right heights -- but every one of them was
+    drawn the same width, which put a 70 kg bow on screen as slight as
+    a 54 kg stroke.
+    """
+    from coxswain.crew.anthropometry import RowerAnthropometry
+    from coxswain.viz.worldmesh import BONE_REFERENCE, _build_factor
+
+    light = RowerAnthropometry(mass=54.4, stature=1.664, sex="female")
+    heavy = RowerAnthropometry(mass=70.3, stature=1.600, sex="female")
+    assert _build_factor(heavy) > _build_factor(light) * 1.10
+
+    # The reference build is the one the girths were drawn for, so it
+    # must come back unscaled or every existing crew silently changes.
+    reference = RowerAnthropometry(mass=88.0, stature=1.90, sex="male")
+    assert _build_factor(reference) == pytest.approx(1.0, abs=1e-9)
+
+    # Square-root scaling, not linear: doubling the mass at fixed
+    # stature widens a body by 41%, not by 100%.
+    doubled = RowerAnthropometry(mass=108.8, stature=1.664, sex="female")
+    assert (_build_factor(doubled) / _build_factor(light)
+            == pytest.approx(2.0 ** 0.5, rel=1e-9))
+    assert BONE_REFERENCE == pytest.approx(88.0 / 1.90)
+
+
+def test_the_drawn_crew_are_not_all_the_same_size():
+    """End to end, on the boat this was noticed in."""
+    import numpy as np
+
+    from coxswain.boats import catalog
+    from coxswain.crew.anthropometry import RowerAnthropometry
+    from coxswain.viz.worldmesh import _build_factor
+
+    people = [RowerAnthropometry(mass=m, stature=s, sex="female")
+              for m, s in ((54.4, 1.664), (54.4, 1.575),
+                           (56.7, 1.613), (70.3, 1.600))]
+    boat = catalog.coxed_four(
+        rate=30.0, rower_mass=float(np.mean([p.mass for p in people])),
+        rower_stature=float(np.mean([p.stature for p in people])),
+        coxswain_mass=72.6, bow_loaded=True, anthropometry=people,
+        rig_pattern="bucket, stbd stroke")
+
+    widths = [_build_factor(m.rower.anthropometry) for m in boat.crew]
+    assert len(set("%.4f" % w for w in widths)) == len(widths), widths
+    # and the bodies themselves still build
+    from coxswain.viz.worldmesh import crew_solids
+    mesh = crew_solids(boat, 0.0)
+    assert mesh is not None and len(mesh.vertices) > 0

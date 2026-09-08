@@ -984,6 +984,38 @@ BONE_STYLE = (
 )
 
 
+#: The build the girths above were drawn for: the catalogue's default
+#: rower, 88 kg at 1.90 m.  See :func:`_build_factor`.
+BONE_REFERENCE = 88.0 / 1.90
+
+
+def _build_factor(anthropometry) -> float:
+    """How thick to draw this particular rower, against the default.
+
+    The girths in :data:`BONE_STYLE` are one set of numbers, so every
+    rower came out the same width whatever they weighed -- which put
+    the picture at odds with the physics, since mass is what the
+    dynamics actually carry.  In this project's own four that is a
+    70.3 kg bow drawn as slight as a 54.4 kg stroke.
+
+    Mass goes as density times length times cross-section, so at fixed
+    density the cross-section goes as mass over stature and a radius as
+    the square root of it.  That is the whole of it: no fit, and it
+    holds a tall light rower narrow rather than merely scaling
+    everything with weight.
+
+    Length is *not* touched here.  Limb lengths already come from each
+    rower's own de Leva segments through
+    :class:`~coxswain.crew.kinematics.JointDrivenRower`, so scaling the
+    drawn bones would stretch them twice.
+    """
+    mass = float(getattr(anthropometry, "mass", 0.0))
+    stature = float(getattr(anthropometry, "stature", 0.0))
+    if mass <= 0.0 or stature <= 0.0:
+        return 1.0
+    return float(np.sqrt((mass / stature) / BONE_REFERENCE))
+
+
 def _bone_style(start: str, end: str):
     """Radius and colour for one bone, by the joints it runs between."""
     a = start.split("_")[0]
@@ -1317,6 +1349,9 @@ def crew_solids(boat, t, scale: float = 1.0):
     parts = []
     for member in boat.crew:
         rower = member.rower
+        # Each rower's own girth, so the drawn body carries the mass the
+        # dynamics do.  See :func:`_build_factor`.
+        build = _build_factor(rower.anthropometry) * float(scale)
         # The rower's own time too.  Posing the body at the crew's mean
         # time while its oar is at the seat's own would pull the hands
         # off the handle -- the one constraint the whole crew model
@@ -1354,14 +1389,18 @@ def crew_solids(boat, t, scale: float = 1.0):
             if start not in joints or end not in joints:
                 continue
             if end == "head":
-                # A head is a sphere, not a length of pipe.
-                parts.append(_tube(joints[start], joints[end], 0.045, SKIN))
+                # A head is a sphere, not a length of pipe.  A head is
+                # also much the same size on everybody, so it takes the
+                # square root of the build factor rather than all of it.
+                head = float(np.sqrt(build))
+                parts.append(_tube(joints[start], joints[end],
+                                   0.045 * head, SKIN))
                 parts.append(_sphere(joints[end] + np.array([0.0, 0.0, 0.05]),
-                                     0.105, SKIN))
+                                     0.105 * head, SKIN))
                 continue
             radius, colour = _bone_style(start, end)
             parts.append(_tube(joints[start], joints[end],
-                               radius * float(scale), colour))
+                               radius * build, colour))
 
     parts = [part for part in parts if part is not None]
     if not parts:
