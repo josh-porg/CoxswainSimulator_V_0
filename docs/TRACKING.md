@@ -190,6 +190,27 @@ release.
 
 ---
 
+## Done — scene and audio
+
+Not bugs; asked-for work, recorded here because the fix log had no
+trace of it and so it kept being asked for again. Each line says where
+it lives and what stops it silently going away.
+
+| what | where | pinned by |
+|---|---|---|
+| **Shadows cast by everything, onto everything.** `static` and `shadow_casters` are built in the same loop over every mesh part, so buildings and trees shadow each other and themselves — not just the ground. 4096² map over 3965 m, 1.0 m a texel, baked once because the sun does not cross the sky during a 5 km race. | `scripts/fpv.py:2599` | `test_everything_in_the_world_casts_a_shadow` |
+| **Shadows received on the surface's own normal.** The world shader passes the fragment normal, because the lookup is pushed a texel along it to clear its own cell. A fixed up-vector instead would offset every wall as though it were flat ground, and the shadow would creep up its own face. | `scripts/fpv.py:376` | `test_the_world_receives_shadows_on_its_own_normals` |
+| **Bow disturbance and the hull breaking the water.** `waterline_foam` paints white where the hull meets the surface, tied to the hull frame and to speed, so a stopped boat has none. | `scripts/fpv.py:954`, applied `1045` | `test_the_bow_foam_is_tied_to_the_hull_and_the_speed` |
+| **Catch splash at blade entry.** A small pooled particle system, deliberately not dramatic. Off at standard graphics, on at high; `--no-particles` forces it off for A/B. | `scripts/fpv.py:1384` | `test_the_splash_pool_exists_and_empties` |
+| **Ambient world audio** — wind gusting on a slow envelope and brightening with wind speed, water working at the bank, the odd gull. Held at about a fifth of the stroke's level so it never competes with the boat, and following the wind setting live. | `coxswain/viz/ambient.py` | — |
+| **Low-frequency variation in the grey sky.** Two octaves of simplex over the exponential gradient, amplitude 0.045 and gated on overcast, so a clear day takes almost none and the gradient still dominates. | `scripts/fpv.py:287` | `test_the_sky_noise_stays_under_the_gradient` (amplitude ≤ 0.08) |
+
+The sky-noise bound is the load-bearing one: the whole request was that
+the noise not dwarf the exponential map, and an amplitude nudged from
+0.045 to 0.45 is a one-character change that no other test would catch.
+
+---
+
 ## Fixed
 
 | what it was | how it was found |
