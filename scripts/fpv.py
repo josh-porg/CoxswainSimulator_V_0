@@ -574,7 +574,7 @@ vec2 sea_slope(vec2 p, float span, out float lost) {
 }
 
 vec3 water_normal(vec3 world, vec2 baked_slope, float range,
-                  inout float foam, out float roughness) {
+                  inout float foam, out float roughness, float blend) {
     vec2 g;
     float span = footprint(world);
     roughness = 0.0;
@@ -596,7 +596,7 @@ vec3 water_normal(vec3 world, vec2 baked_slope, float range,
         float h  = surface(world.xy, here);
         float hx = surface(world.xy + vec2(e, 0.0), junk);
         float hy = surface(world.xy + vec2(0.0, e), junk);
-        g = vec2((hx - h) / e, (hy - h) / e);
+        g = vec2((hx - h) / e, (hy - h) / e) * blend;
         // The waterline foam is a 30 cm band; interpolated from 20 cm
         // vertices it is a smear.  Here it is known exactly.
         foam = max(foam, here);
@@ -615,9 +615,14 @@ vec3 water_normal(vec3 world, vec2 baked_slope, float range,
         float breaking = smoothstep(0.34, 0.58, steep) * near_boat;
         foam = max(foam, 0.85 * breaking);
     } else {
-        g = sea_slope(world.xy, span, roughness) + baked_slope;
+        // Faded with the geometry, or the surface goes flat at
+        // the patch edge while the SHADING still shows chop --
+        // which leaves the seam visible even once the height
+        // matches.
+        g = sea_slope(world.xy, span, roughness) * blend
+          + baked_slope;
     }
-    g += ripple(world.xy, range, stirred, span);
+    g += ripple(world.xy, range, stirred, span) * blend;
     return normalize(vec3(-g.x, -g.y, 1.0));
 }
 """
@@ -1041,15 +1046,36 @@ float surface(vec2 p, out float foam) {
 
 WATER_VERTEX = """#version 330
 in vec2 in_grid;
+uniform float patch_reach;   // half-width of the moving water patch, m
 out vec3 v_world;
 out vec3 v_normal;
 out vec2 v_slope;
+out float v_blend;
 out float v_foam;
 """ + SIMPLEX_GLSL + WATER_UNIFORMS_GLSL + WATER_SURFACE_GLSL + """
 void main() {
     vec2 p = in_grid + centre;
     float foam;
     float h = surface(p, foam);
+
+    // Fade the whole surface out at the edge of the patch.
+    //
+    // The detailed water is a square patch that follows the boat, and
+    // beyond it there is a flat plane at the still-water level.  The two
+    // met at a hard edge: waves one side, glass the other.  Because the
+    // patch is world-axis-aligned and moves with the boat, that edge
+    // reads from any oblique angle as a straight DIAGONAL line lying on
+    // the water and travelling along with you -- which is exactly the
+    // artefact that kept being reported and that never showed up from
+    // the seat, where the edge is over the horizon.
+    //
+    // Chebyshev distance, because the patch is a square: this follows
+    // the actual boundary instead of inscribing a circle in it and
+    // throwing away the corners.
+    float edge = max(abs(in_grid.x), abs(in_grid.y)) / max(patch_reach, 1.0);
+    float blend = 1.0 - smoothstep(0.80, 1.0, edge);
+    h *= blend;
+    foam *= blend;
     v_foam = foam;
     // The slope of everything EXCEPT the sea, by finite difference.
     // The sea's own slope is done exactly, per pixel, in the fragment
@@ -1061,7 +1087,8 @@ void main() {
     float base = h - sea(p, time);
     float bx = surface(p + vec2(e, 0.0), junk) - sea(p + vec2(e, 0.0), time);
     float by = surface(p + vec2(0.0, e), junk) - sea(p + vec2(0.0, e), time);
-    v_slope = vec2((bx - base) / e, (by - base) / e);
+    v_slope = vec2((bx - base) / e, (by - base) / e) * blend;
+    v_blend = blend;
     // Kept for anything still reading it; the fragment shaders build
     // their own from v_slope and the analytic sea.
     v_normal = normalize(vec3(-v_slope.x, -v_slope.y, 1.0));
@@ -1074,6 +1101,7 @@ WATER_FRAGMENT = """#version 330
 in vec3 v_world;
 in vec3 v_normal;
 in vec2 v_slope;
+in float v_blend;
 in float v_foam;
 __WATER_SHARED__
 out vec4 f_colour;
@@ -1089,7 +1117,7 @@ void main() {
     float range = length(v_world - eye);
     float rough;
     float foam = v_foam;
-    vec3 n = water_normal(v_world, v_slope, range, foam, rough);
+    vec3 n = water_normal(v_world, v_slope, range, foam, rough, v_blend);
     vec3 to_eye = normalize(eye - v_world);
     // Water is mostly a mirror at grazing angles and mostly dark looking
     // straight down, which is the whole reason chop reads as chop: the
@@ -1133,6 +1161,7 @@ WATER_FRAGMENT_RICH = """#version 330
 in vec3 v_world;
 in vec3 v_normal;
 in vec2 v_slope;
+in float v_blend;
 in float v_foam;
 __WATER_SHARED__
 out vec4 f_colour;
@@ -1166,7 +1195,7 @@ void main() {
     float range_to_eye = length(v_world - eye);
     float rough;
     float foam = v_foam;
-    vec3 n = water_normal(v_world, v_slope, range_to_eye, foam, rough);
+    vec3 n = water_normal(v_world, v_slope, range_to_eye, foam, rough, v_blend);
     vec3 to_eye = normalize(eye - v_world);
     vec2 uv = gl_FragCoord.xy / viewport;
 
@@ -2621,6 +2650,12 @@ def main(argv=None):
     _optional(water_prog, sky=SKY, far=FAR)
     water_prog["deep"].value = (0.055, 0.115, 0.155)
     water_prog["hull_length"].value = float(boat.length)
+    # WATER_REACH, not args.reach: the first is the moving water
+    # patch (110 m), the second is how far the WORLD is built
+    # either side of the course (900 m).  Fading at 900 never
+    # fires inside a 110 m patch, so the seam stayed exactly
+    # where it was.
+    _optional(water_prog, patch_reach=float(WATER_REACH))
     from coxswain.viz.planscene import boat_outline
     _ring = np.asarray(boat_outline(boat), dtype=float)
     _optional(water_prog,

@@ -129,3 +129,59 @@ def test_a_lazy_catch_barely_splashes():
     still = fpv.SplashSystem()
     still.spawn(np.array([1.0, 1.0, 0.0]), speed=0.0, t=0.0)
     assert len(still.as_uniform(0.02)) == 0
+
+
+def test_the_water_patch_fades_at_its_own_edge():
+    """The seam that reads as a diagonal line on the water.
+
+    The detailed water is a square patch that follows the boat, with a
+    flat plane beyond it.  They met at a hard edge -- waves one side,
+    glass the other -- and because the patch is world-axis-aligned and
+    travels with the boat, that edge reads from any oblique angle as a
+    straight DIAGONAL lying on the water and moving along with you.
+
+    It never showed from the seat, where the edge is past the horizon,
+    which is why it survived several attempts to reproduce it.
+
+    Three things have to fade together or the seam survives in one of
+    them: the height, the interpolated slope, and the per-pixel sea
+    slope.  Fading the height alone leaves the surface flat while the
+    SHADING still shows chop.
+    """
+    import fpv
+
+    vertex = fpv.WATER_VERTEX
+    assert "patch_reach" in vertex, "the fade needs the patch half-width"
+    assert "smoothstep(0.80, 1.0, edge)" in vertex
+    # Height and the interpolated slope both scaled by it.
+    assert "h *= blend;" in vertex
+    assert "* blend;" in vertex
+
+    # And the per-pixel slope, in whichever shader carries water_normal.
+    body = fpv.WATER_FRAGMENT_RICH
+    assert "float blend" in body, "water_normal must take the fade"
+    assert "sea_slope(world.xy, span, roughness) * blend" in body
+
+
+def test_the_fade_uses_the_water_patch_not_the_world_reach():
+    """Two very different numbers, and using the wrong one is silent.
+
+    The water patch is 110 m; the world is built 900 m either side of
+    the course.  Fading at 900 never fires inside a 110 m patch, so the
+    seam stays exactly where it was and the fix looks like it did
+    nothing.
+    """
+    import fpv
+
+    assert "patch_reach=float(WATER_REACH)" in _source(), (
+        "the uniform must be the water patch's reach, not args.reach")
+    assert fpv.WATER_REACH < 200.0
+
+
+def _source():
+    import os
+
+    here = os.path.dirname(os.path.abspath(__file__))
+    with open(os.path.join(here, "..", "scripts", "fpv.py"),
+              encoding="utf-8") as handle:
+        return handle.read()
