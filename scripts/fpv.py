@@ -1381,6 +1381,13 @@ void main() {
 """
 
 
+#: A blade dragging on the recovery throws this many drops, this often,
+#: per oar.  Three every 80 ms is a visible thread of water off the
+#: blade without turning the low side into a wake of its own.
+DRAG_SPLASH_DROPLETS = 3
+DRAG_SPLASH_INTERVAL = 0.08
+
+
 class SplashSystem:
     """A fixed pool of ballistic droplets, spawned at the catch.
 
@@ -1405,14 +1412,22 @@ class SplashSystem:
         self._next = 0
         self._rng = np.random.default_rng(4)
 
-    def spawn(self, tip: np.ndarray, speed: float, t: float) -> None:
+    def spawn(self, tip: np.ndarray, speed: float, t: float,
+              count: int = None) -> None:
         """A burst at ``tip`` (world xyz, z at the water), scaled by the
         blade's speed through the surface -- a gentle catch barely
-        splashes, a rushed one throws further and higher."""
+        splashes, a rushed one throws further and higher.
+
+        ``count`` overrides :data:`PER_BLADE`: a catch is a burst, a
+        blade skimming the recovery is a trickle of a few drops at a
+        time, and the difference between the two is what tells the eye
+        which it is looking at."""
         kick = float(np.clip(speed, 0.0, 2.5))
         if kick <= 0.02:
             return
-        n = self.PER_BLADE
+        n = self.PER_BLADE if count is None else max(int(count), 0)
+        if n == 0:
+            return
         angle = self._rng.uniform(0.0, 2.0 * np.pi, n)
         outward = (0.35 + 0.9 * kick) * self._rng.uniform(0.5, 1.0, n)
         up = (0.7 + 1.6 * kick) * self._rng.uniform(0.6, 1.0, n)
@@ -3026,6 +3041,49 @@ def main(argv=None):
                     trail.drop(float(tip[0]), float(tip[1]), t)
                     if splashes is not None:
                         splashes.spawn(tip, kick * 0.5, t)
+            # A blade dragging on the recovery.  Not the catch: an unset
+            # boat carries its low side's blades on the water between
+            # strokes, and the physics already charges for that -- the
+            # skim drag and the righting moment in BladeContact.loads --
+            # so the picture should show what the hull is feeling.
+            # Gated on the SAME immersion the loads use, at the same
+            # roll, so a blade that splashes is a blade that is slowing
+            # the boat, and one that is clear throws nothing.
+            contact = getattr(simulator, "blade_contact", None)
+            if splashes is not None and contact is not None:
+                roll = float(state[3])
+                if (contact.immersion(roll, +1) > 0.0
+                        or contact.immersion(roll, -1) > 0.0):
+                    lines, _ = oar_lines(boat, t)
+                    rot = hull_to_abs(np.asarray(state[3:6], dtype=float))
+                    here = np.asarray(state[0:3], dtype=float)
+                    offsets = np.asarray(getattr(boat, "phase_offsets",
+                                                 np.zeros(boat.n_seats)),
+                                         dtype=float)
+                    key = 0
+                    for seat_index, seat in enumerate(boat.rig.seats):
+                        for lock in seat.oarlocks:
+                            oar = lines[key]
+                            key += 1
+                            # On this seat's own clock, as it is drawn.
+                            seat_t = t - float(offsets[seat_index]) * period
+                            if boat.timing.is_drive(seat_t):
+                                continue          # in the water on purpose
+                            depth = contact.immersion(roll, int(lock.side))
+                            if depth <= 0.0:
+                                continue
+                            if (t - draw.last_drag.get(key, -1e9)
+                                    < DRAG_SPLASH_INTERVAL):
+                                continue
+                            draw.last_drag[key] = float(t)
+                            tip = (np.append(np.asarray(oar)[-1], 0.0) @ rot.T
+                                   + here)
+                            # A trickle, kicked by the boat's speed over
+                            # the blade and by how deep it is riding.
+                            kick = (float(np.clip(speed, 0.0, 5.0))
+                                    * (0.12 + 0.8 * min(float(depth), 0.1)))
+                            splashes.spawn(tip, kick, t,
+                                           count=DRAG_SPLASH_DROPLETS)
             draw.last_phase = phase
         water_prog["puddles"].write(trail.as_uniform(t).tobytes())
         near_tex.use(NEAR_UNIT)          # never trust the binding
@@ -3064,6 +3122,7 @@ def main(argv=None):
             target.use()
 
     draw.last_phase = 0.0
+    draw.last_drag = {}
     draw.last_speed = 0.0
     draw.w_prime = reserve.capacity
     draw.last_reserve_t = 0.0

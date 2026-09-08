@@ -185,3 +185,54 @@ def test_the_drawn_crew_are_not_all_the_same_size():
     from coxswain.viz.worldmesh import crew_solids
     mesh = crew_solids(boat, 0.0)
     assert mesh is not None and len(mesh.vertices) > 0
+
+
+# ---------------------------------------------------------------------------
+# a blade dragging on the recovery
+# ---------------------------------------------------------------------------
+def test_a_dragging_blade_trickles_and_a_catch_bursts():
+    """The two are told apart by count, and the drag is a few drops."""
+    import numpy as np
+
+    import fpv
+
+    pool = fpv.SplashSystem()
+    pool.spawn(np.zeros(3), 1.0, 0.0)
+    catch = int((pool.birth > -1e8).sum())
+    assert catch == fpv.SplashSystem.PER_BLADE
+
+    pool = fpv.SplashSystem()
+    pool.spawn(np.zeros(3), 1.0, 0.0, count=fpv.DRAG_SPLASH_DROPLETS)
+    drag = int((pool.birth > -1e8).sum())
+    assert drag == fpv.DRAG_SPLASH_DROPLETS
+    assert 0 < drag < catch
+
+    # count=0 is a no-op rather than an error, so the trickle can be
+    # turned off by setting the constant to zero.
+    pool = fpv.SplashSystem()
+    pool.spawn(np.zeros(3), 1.0, 0.0, count=0)
+    assert int((pool.birth > -1e8).sum()) == 0
+
+
+def test_the_drag_splash_is_gated_on_the_physics_not_on_the_picture():
+    """It must ask BladeContact.immersion at the hull's roll, and skip
+    the drive.  A splash keyed off the drawn blade height instead would
+    fire on a level boat whenever the picture dipped an oar, and would
+    disagree with the drag the boat is actually paying."""
+    text = source()
+    block = text[text.index("A blade dragging on the recovery"):
+                 text.index("draw.last_phase = phase")]
+    assert "contact.immersion(roll" in block
+    assert "is_drive(seat_t)" in block, "must skip the drive"
+    assert "DRAG_SPLASH_INTERVAL" in block, "must be rate-limited"
+    assert "phase_offsets" in block, "must use each seat's own clock"
+    # And a level boat throws nothing: immersion is zero both sides
+    # below the roll at which the low blade first touches.
+    from coxswain.crew.blade_contact import BladeContact
+    contact = BladeContact()
+    touch = contact.roll_to_touch()
+    assert contact.immersion(0.0, +1) == 0.0
+    assert contact.immersion(0.0, -1) == 0.0
+    assert contact.immersion(touch * 0.5, +1) == 0.0
+    assert contact.immersion(touch * 1.5, +1) > 0.0
+    assert contact.immersion(-touch * 1.5, -1) > 0.0
