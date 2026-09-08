@@ -82,6 +82,59 @@ def set_recovery(experience, heel_degrees=4.0, contact=True, duration=40.0):
     return float("inf"), limit, baseline
 
 
+def coupled_recovery(skill=0.55, heel=8.0, strokes=16, rate=30.0):
+    """Strokes to gather the crew back up, in the boat rather than beside it.
+
+    The whole loop, closed: the hull rolls, the roll reaches every rower
+    at once through the shell and knocks their catches apart, the
+    misaligned power rolls the boat again, and the crew have to find each
+    other from there.  Measured as the spread of the catches, in strokes
+    to come back within a fifth of the knock.
+    """
+    from coxswain.crew.synchronisation import (CoupledCrew,
+                                               stroke_chain_topology)
+    from coxswain.sim.realtime import FixedStepLoop
+
+    boat = catalog.eight(rate=rate, rower_mass=75, rower_stature=1.83,
+                         coxswain_mass=55)
+    period = float(boat.timing.period)
+    cox = Coxswain(rudder_override=lambda t, s: 0.0, pressure_split=0.0,
+                   balance=balance_for_experience(boat, skill))
+    sim = RowingSimulator(boat, coxswain=cox,
+                          blade_contact=BladeContact.from_boat(boat))
+    crew = CoupledCrew(n_seats=8, topology=stroke_chain_topology(8),
+                       sensory_gain=0.6 + 1.4 * skill,
+                       noise=0.05 * (1.0 - skill), seed=11)
+    omega = 2.0 * np.pi / period
+    trace = []
+
+    def on_step(t, state, dt):
+        crew.step(t, dt, omega, hull_roll_rate=float(state[9]))
+        boat.phase_offsets = crew.phase_offsets()
+        trace.append((t, crew.spread_seconds))
+
+    loop = FixedStepLoop(sim, rate=100.0, on_step=on_step)
+    loop.start(sim.initial_state(surge_speed=4.4))
+    for _ in range(int(period / 0.02)):
+        loop.advance(0.02)
+    loop.state[3] = np.radians(heel)
+    knocked_at = loop.t
+    for _ in range(int(strokes * period / 0.02)):
+        loop.advance(0.02)
+
+    after = [(t, spread) for t, spread in trace if t > knocked_at]
+    if not after:
+        return float("nan"), 0.0, 0.0
+    window = [spread for t, spread in after if t < knocked_at + 2.0 * period]
+    peak = max(window) if window else 0.0
+    calm = float(np.median([spread for _t, spread in after[-200:]]))
+    target = calm + 0.2 * max(peak - calm, 1e-9)
+    for t, spread in after:
+        if t > knocked_at + 0.5 * period and spread <= target:
+            return (t - knocked_at) / period, peak * 1000.0, calm * 1000.0
+    return float("inf"), peak * 1000.0, calm * 1000.0
+
+
 def timing_recovery(hit=2.5, rate=30.0, strokes=14, seed=3):
     """Strokes until the crew's catches are back together.
 
@@ -141,7 +194,16 @@ def main(argv=None):
     print("  (peak roll is the crew's OWN steady roll, once settled;")
     print("   blades touch below %.2f degrees of heel)" % limit)
 
-    print("\nTIMING -- strokes until the catches are back together")
+    print("")
+    print("TIMING, coupled -- the hull knocks the crew apart and they")
+    print("        have to find each other again")
+    print("  %-10s %10s %12s %12s" % ("crew", "strokes", "knocked to", "settles at"))
+    for _skill, _label in ((0.15, "novice"), (0.55, "club"), (0.95, "elite")):
+        _back, _peak, _calm = coupled_recovery(skill=_skill, heel=args.heel)
+        print("  %-10s %10s %9.0f ms %9.0f ms"
+              % (_label, "never" if _back == float("inf") else "%.1f" % _back, _peak, _calm))
+    print("")
+    print("TIMING, uncoupled -- the oscillator alone")
     strokes, spread = timing_recovery()
     print("  knocked apart by %.0f ms; back within a fifth of that after "
           "%s strokes"

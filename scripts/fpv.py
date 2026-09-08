@@ -2247,7 +2247,39 @@ def main(argv=None):
         state[7] = 3.6 * math.sin(heading)
         return state
 
-    loop = FixedStepLoop(simulator, rate=args.physics)
+    # -- the crew's own timing, and how a bad stroke breaks it ---------
+    #
+    # This is the loop that was missing.  A roll reaches every rower at
+    # once through the hull -- involuntary, instant, no choice about
+    # listening -- and knocks their catches apart.  Once the catches are
+    # apart the power is no longer aligned, which rolls the boat again.
+    # Gathering that back up takes strokes, and it is what a crew is
+    # actually doing after a bad one.
+    #
+    # It advances once per physics step rather than inside derivative():
+    # RK4 evaluates the derivative four times per step at three
+    # different times, so anything with memory in there is not being
+    # integrated, it is being scrambled.
+    from coxswain.crew.synchronisation import (CoupledCrew,
+                                               stroke_chain_topology)
+
+    crew_timing = CoupledCrew(
+        n_seats=boat.n_seats,
+        topology=stroke_chain_topology(boat.n_seats),
+        # A less experienced crew watches less well and wanders more.
+        sensory_gain=0.6 + 1.4 * float(args.skill),
+        noise=0.05 * (1.0 - float(args.skill)),
+        seed=11,
+    )
+    _omega = 2.0 * np.pi / float(boat.timing.period)
+
+    def advance_crew(step_t, step_state, step_dt):
+        crew_timing.step(step_t, step_dt, _omega,
+                         hull_roll_rate=float(step_state[9]))
+        boat.phase_offsets = crew_timing.phase_offsets()
+
+    loop = FixedStepLoop(simulator, rate=args.physics,
+                         on_step=advance_crew)
     loop.start(fresh_state())
     if args.freecam:
         # Started here rather than with the rest of the loop state:

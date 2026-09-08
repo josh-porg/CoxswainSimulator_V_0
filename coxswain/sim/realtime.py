@@ -127,6 +127,10 @@ class FixedStepLoop:
     """
 
     simulator: object
+    #: Called once per fixed step as ``on_step(t, state, dt)``, for
+    #: state that advances with the physics but cannot live inside the
+    #: derivative.  See the note in :meth:`advance`.
+    on_step: object = None
     #: Physics rate, hertz.  100 Hz costs about a third of one core with
     #: the compiled kernel on; drop it to 60 on a weaker machine before
     #: dropping fidelity anywhere else.
@@ -176,6 +180,17 @@ class FixedStepLoop:
             self._accumulator -= dt
             self.steps += 1
             taken += 1
+            if self.on_step is not None:
+                # Anything stateful that has to advance with the physics
+                # and cannot live inside derivative().
+                #
+                # The derivative is called four times per step at three
+                # different times by RK4, and must be a pure function of
+                # (t, state) or the integration is not what it claims to
+                # be.  Crew synchronisation is the case in point: the
+                # phases are their own dynamical system, driven by the
+                # hull, and they advance ONCE per step -- here.
+                self.on_step(self.t, self.state, dt)
         return taken
 
     @property
