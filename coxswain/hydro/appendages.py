@@ -81,6 +81,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from typing import Optional
+
 import numpy as np
 from ..core.vector import clip
 from ..core.frames import cross3

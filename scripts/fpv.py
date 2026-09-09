@@ -1949,6 +1949,7 @@ def run_setup_menu(screen, args):
     # exactly the friction the preset exists to remove.
     lineup = None
     lineup_last = None          # the last lineup the editor showed
+    from coxswain.viz import settings as _settings
     from coxswain.viz.bonus import SecretTyper
     secret = SecretTyper()
     if getattr(args, "bonus_unlocked", False):
@@ -3939,7 +3940,7 @@ def main(argv=None):
             hud_texture.write(_surface_bytes(pygame, overlay))
             draw.hud_last = None          # the menu overwrote the HUD
             hud_texture.use(0)
-            _blit(ctx, hud_texture)
+            _hud_blit(ctx)
             pygame.display.flip()
             frames += 1
             continue
@@ -3967,8 +3968,8 @@ def main(argv=None):
         if bonus is not None:
             lines.append(bonus.hud_line())
         _map_on = getattr(args, "minimap", "on") == "on"
-        _map_key = ((int(state[0] / 2.0), int(state[1] / 2.0),
-                     int(math.degrees(state[5]) / 5.0)) if _map_on else None)
+        _map_key = ((int(pose[0] / 2.0), int(pose[1] / 2.0),
+                     int(math.degrees(pose[5]) / 5.0)) if _map_on else None)
         _hud_key = (tuple(lines), knob, _map_key)
         _hud_changed = _hud_key != draw.hud_last
         draw.hud_last = _hud_key
@@ -3994,7 +3995,7 @@ def main(argv=None):
             # draw into an OpenGL window directly.  One texture, rewritten
             # -- and now only when the picture on it changed.
             if _map_on:
-                draw_minimap(pygame, overlay, course, scene.buoys, state,
+                draw_minimap(pygame, overlay, course, scene.buoys, pose,
                              (args.width, args.height))
             hud_texture.write(_surface_bytes(pygame, overlay))
         ctx.disable(moderngl.DEPTH_TEST)

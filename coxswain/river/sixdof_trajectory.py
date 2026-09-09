@@ -57,7 +57,10 @@ from .collocation import HermiteSimpson, phase_locked_mesh
 from .scaling import ProblemScaling
 from ..hydro.appendages import MAX_RUDDER_DEFLECTION
 
-__all__ = ["SixDofPlan", "SixDofTrajectory", "solve_sixdof_trajectory"]
+# ``solve_sixdof_trajectory`` was listed here and never existed: the
+# solve is SixDofTrajectory's own method.  A star-import raised
+# AttributeError on it.
+__all__ = ["SixDofPlan", "SixDofTrajectory", "build_progress_field"]
 
 
 @dataclass
