@@ -2902,15 +2902,24 @@ def main(argv=None):
         _optional(_prog, fog_simple=1 if args.tier.fog == "simple" else 0)
     _optional(program, shadow_taps=1 if args.tier.shadow == "single" else 16)
 
-    static, shadow_casters = [], []
+    static, shadow_casters, static_tiles = [], [], []
     for part in mesh.parts:
-        # 20 bytes a vertex, not 36: see MeshPart.packed.  "4i1 4u1" hands
-        # the shader the raw integers; colour_scale and the normalise in
-        # the vertex shader put them back.
-        buffer = ctx.buffer(part.packed())
+        # Sorted into square tiles by triangle centroid BEFORE upload, so
+        # each tile is one contiguous range of the buffer and the frame
+        # can draw only the tiles in view with one call each.  The whole
+        # world was submitted every frame; from the seat about half of
+        # it is behind the camera, and the world pass measured
+        # vertex-bound (unchanged at a quarter of the pixels), so what
+        # is not submitted is not paid for.  Tile size is a balance:
+        # smaller culls tighter, larger means fewer draw calls, and on
+        # an integrated part a Python-issued draw is ~15 us -- 40 tiles
+        # a frame is cheap, 400 is not.
+        tiles = tile_part(part, TILE_SIZE)
+        buffer = ctx.buffer(tiles.packed)
         static.append(ctx.vertex_array(
             program, [(buffer, "3f 4i1 4u1", "in_pos", "in_normal",
                        "in_colour")]))
+        static_tiles.append(tiles)
         # The same buffer, read as positions only, for the depth pass.
         shadow_casters.append(ctx.vertex_array(
             shadow_prog, [(buffer, "3f 8x1", "in_pos")]))
@@ -2920,6 +2929,9 @@ def main(argv=None):
         # is 140 MB sitting in RAM for nothing.  On a laptop with 8 GB
         # and an iGPU sharing it, that is not nothing.
         part.vertices = part.colours = part.normals = None
+
+    print("   world in %d tiles of %.0f m across %d parts"
+          % (sum(len(t.first) for t in static_tiles), TILE_SIZE, len(static)))
 
     # -- the shadow map, baked once -------------------------------------
     #
@@ -3278,9 +3290,15 @@ def main(argv=None):
         if shadow_map is not None:
             shadow_map.use(SHADOW_UNIT)
         program["colour_scale"].value = 1.0 / 255.0     # packed world
+        planes = frustum_planes(projection @ view)
         with passes.span("world"):
-            for vao in static:
-                vao.render()
+            drawn = 0
+            for vao, tiles in zip(static, static_tiles):
+                for k in visible_tiles(tiles, planes):
+                    vao.render(first=int(tiles.first[k]),
+                               vertices=int(tiles.count[k]))
+                    drawn += 1
+            draw.tiles_drawn = drawn
         if scene_fbo is not None:
             # Carry the world forward into the buffer the water draws
             # into, so the water reads an untouched copy of what is
@@ -3477,6 +3495,7 @@ def main(argv=None):
     draw.last_phase = 0.0
     draw.last_drag = {}
     draw.hud_last = None
+    draw.tiles_drawn = 0
     draw.last_speed = 0.0
     draw.w_prime = reserve.capacity
     draw.last_reserve_t = 0.0
@@ -3909,6 +3928,89 @@ def _surface_bytes(pygame, surface):
 
 
 _BLIT = {}
+
+
+#: Side of a world tile, metres.  See the upload loop.
+TILE_SIZE = 350.0
+
+
+class TiledPart:
+    """A part's triangles sorted by tile, with each tile's range and sphere."""
+
+    __slots__ = ("packed", "first", "count", "centre", "radius", "total")
+
+    def __init__(self, packed, first, count, centre, radius, total):
+        self.packed = packed
+        self.first = first          # (T,) first vertex of each tile
+        self.count = count          # (T,) vertices in each tile
+        self.centre = centre        # (T, 3) bounding-sphere centres
+        self.radius = radius        # (T,)
+        self.total = int(total)
+
+
+def tile_part(part, size: float) -> TiledPart:
+    """Sort a part's triangles into ``size``-metre tiles.
+
+    Everything is done on the triangle level, so a triangle is never
+    split and never drawn twice: it lives in the tile its centroid is
+    in, and the tile's sphere is grown to hold every vertex of every
+    triangle in it -- a building on a tile edge simply makes that
+    tile's sphere a little larger.
+    """
+    vertices = np.asarray(part.vertices, dtype="f4")
+    n = len(vertices)
+    if n == 0:
+        empty = np.zeros(0, dtype=int)
+        return TiledPart(part.packed(), empty, empty, np.zeros((0, 3)),
+                         np.zeros(0), 0)
+    tri = vertices.reshape(-1, 3, 3)
+    centroid = tri[:, :, :2].mean(axis=1)
+    cell = np.floor(centroid / float(size)).astype(np.int64)
+    key = cell[:, 0] * 1_000_003 + cell[:, 1]
+    order = np.argsort(key, kind="stable")
+    key = key[order]
+    tri = tri[order]
+    # tile boundaries in the sorted order
+    edges = np.flatnonzero(np.diff(key)) + 1
+    starts = np.concatenate([[0], edges])
+    stops = np.concatenate([edges, [len(key)]])
+    first = starts * 3
+    count = (stops - starts) * 3
+    centre = np.zeros((len(starts), 3), dtype="f4")
+    radius = np.zeros(len(starts), dtype="f4")
+    for k, (a, b) in enumerate(zip(starts, stops)):
+        pts = tri[a:b].reshape(-1, 3)
+        lo, hi = pts.min(axis=0), pts.max(axis=0)
+        centre[k] = 0.5 * (lo + hi)
+        radius[k] = float(np.linalg.norm(hi - centre[k]))
+    # rebuild the part in the sorted order so packed() matches the ranges
+    from coxswain.viz.worldmesh import MeshPart
+    vert_order = (order[:, None] * 3 + np.arange(3)[None, :]).ravel()
+    sorted_part = MeshPart(part.name, vertices[vert_order],
+                           np.asarray(part.colours, dtype="f4")[vert_order],
+                           None if part.normals is None
+                           else np.asarray(part.normals, dtype="f4")[vert_order])
+    return TiledPart(sorted_part.packed(), first, count, centre, radius, n)
+
+
+def frustum_planes(vp: np.ndarray) -> np.ndarray:
+    """Six planes ``(a, b, c, d)`` from a view-projection matrix, with the
+    normals pointing INTO the frustum, so a point is inside when every
+    ``a x + b y + c z + d`` is positive."""
+    m = np.asarray(vp, dtype="f8")
+    rows = [m[3] + m[0], m[3] - m[0], m[3] + m[1], m[3] - m[1],
+            m[3] + m[2], m[3] - m[2]]
+    planes = np.array(rows)
+    norm = np.linalg.norm(planes[:, :3], axis=1)
+    return planes / np.maximum(norm, 1e-12)[:, None]
+
+
+def visible_tiles(tiles: TiledPart, planes: np.ndarray) -> np.ndarray:
+    """Indices of the tiles whose spheres touch the frustum."""
+    if tiles.total == 0:
+        return np.zeros(0, dtype=int)
+    d = tiles.centre @ planes[:, :3].T + planes[:, 3][None, :]   # (T, 6)
+    return np.flatnonzero(np.all(d > -tiles.radius[:, None], axis=1))
 
 
 class PassTimer:

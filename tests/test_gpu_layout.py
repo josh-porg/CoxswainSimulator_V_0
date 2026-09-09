@@ -59,7 +59,9 @@ def test_a_part_without_normals_packs_an_up_normal():
 
 def test_the_static_world_is_uploaded_packed_and_the_shader_unpacks_it():
     text = source("scripts", "fpv.py")
-    assert 'ctx.buffer(part.packed())' in text
+    # packed, via the tiling that sorts each part before upload
+    assert 'tiles = tile_part(part, TILE_SIZE)' in text
+    assert 'ctx.buffer(tiles.packed)' in text
     assert '"3f 4i1 4u1", "in_pos", "in_normal"' in text
     assert '"3f 8x1", "in_pos"' in text, "the shadow pass reads the same buffer"
     assert "uniform float colour_scale;" in text
