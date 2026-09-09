@@ -136,6 +136,19 @@ class FixedStepLoop:
     #: dropping fidelity anywhere else.
     rate: float = 100.0
     max_frame: float = 0.25
+    #: How many physics steps one frame may take before the rest of the
+    #: accumulated time is DROPPED.  Clamping ``max_frame`` alone is not
+    #: a guard: at 60 Hz a quarter of a second is fifteen steps, each
+    #: as slow as the step that put the machine behind in the first
+    #: place, so a laptop that fell one frame behind would spend the
+    #: next frame catching up and fall further behind doing it -- the
+    #: spiral, merely bounded.  Four steps is 67 ms of simulated time
+    #: at 60 Hz; beyond that the boat runs briefly slow rather than the
+    #: program stopping, and :attr:`dropped` counts what was let go so
+    #: the telemetry can say so.
+    max_steps: int = 4
+    #: Simulated seconds discarded by the cap, in total.
+    dropped: float = 0.0
     #: Wall-clock source; swapped in tests for a deterministic one.
     clock: Callable[[], float] = time.perf_counter
 
@@ -174,6 +187,11 @@ class FixedStepLoop:
         dt = self.dt
         taken = 0
         while self._accumulator >= dt:
+            if taken >= int(self.max_steps):
+                # Let the rest of the frame's time go.  See max_steps.
+                self.dropped += self._accumulator
+                self._accumulator = 0.0
+                break
             self.previous = self.state
             self.state = self.simulator.step(self.state, self.t, dt)
             self.t += dt

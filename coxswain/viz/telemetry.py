@@ -101,6 +101,16 @@ class Telemetry:
         self._draw: List[float] = []
         self._present: List[float] = []
         self._stalls = 0
+        # Session-wide, never cleared: what a performance report is
+        # built from.  The ten-second windows above are cleared as they
+        # are written; these are the whole run.
+        self._all_frames: List[float] = []
+        self._all_physics = 0.0
+        self._all_draw = 0.0
+        self._all_stalls = 0
+        self.exceptions = 0
+        self.build_seconds = 0.0
+        self.dropped_seconds = 0.0
         self._started = self.clock()
         self._last_summary = self._started
         self.total_frames = 0
@@ -164,7 +174,27 @@ class Telemetry:
         if self.enabled:
             self._write("[%s] %s" % (self._stamp(), text))
 
+    def snapshot(self) -> dict:
+        """The whole session's frame statistics, for a report."""
+        frames = sorted(self._all_frames)
+        n = len(frames)
+        if not n:
+            return {"frames": 0}
+        pick = lambda q: frames[min(n - 1, int(q * n))]
+        return {
+            "frames": n,
+            "p50_ms": round(pick(0.5), 2),
+            "p95_ms": round(pick(0.95), 2),
+            "worst_ms": round(frames[-1], 1),
+            "physics_ms": round(self._all_physics / n, 2),
+            "draw_ms": round(self._all_draw / n, 2),
+            "stalls": self._all_stalls,
+            "dropped_s": round(self.dropped_seconds, 3),
+            "seconds": round(self.clock() - self._started, 1),
+        }
+
     def exception(self, error: BaseException) -> None:
+        self.exceptions += 1
         """A traceback, whatever else is going on."""
         if not self.enabled:
             return
@@ -186,8 +216,12 @@ class Telemetry:
         self._physics.append(float(physics_ms))
         self._draw.append(float(draw_ms))
         self._present.append(float(present_ms))
+        self._all_frames.append(float(total_ms))
+        self._all_physics += float(physics_ms)
+        self._all_draw += float(draw_ms)
         if total_ms > STALL_MS:
             self._stalls += 1
+            self._all_stalls += 1
             what = ""
             if context is not None:
                 try:

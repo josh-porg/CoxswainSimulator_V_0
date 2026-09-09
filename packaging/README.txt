@@ -120,3 +120,8 @@ start-up (on Windows: %LOCALAPPDATA%\Coxswain\logs).  It has the
 machine, the graphics card, the tier, load times, frame times, and any
 error.  If something is wrong, send that file.  It stays on your
 machine unless you send it.
+
+If it runs badly, please turn on Graphics and sound -> Send performance
+reports in the menu: at the end of a session it sends the frame times,
+your GPU's name and the tier -- numbers and product names only, never a
+name, a path or an e-mail.  That is how it gets faster on your machine.

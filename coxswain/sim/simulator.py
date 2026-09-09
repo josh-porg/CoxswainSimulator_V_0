@@ -209,6 +209,10 @@ class RowingSimulator:
         self._shallow_cache = (None, None)
         self._crew_cache = (None, None)
         self._hand_cache = (None, None)
+        #: ``"rk4"`` (default, and the studies' method) or ``"heun"``,
+        #: which the trainer's low tiers use; see
+        #: :func:`coxswain.core.integrators.heun_step`.
+        self.scheme = "rk4"
 
     def _blade_efficiency(self, t: float, state: State, blade) -> float:
         """Instantaneous blade efficiency, from slip and water depth.
@@ -786,6 +790,10 @@ class RowingSimulator:
         which is what lets a game loop keep two of them (the one it is
         integrating and the one it is drawing) and interpolate between.
         """
+        if self.scheme == "heun":
+            return integrators.heun_step(self.derivative, float(t),
+                                         np.asarray(state, dtype=float),
+                                         float(dt))
         return integrators.rk4_step(self.derivative, float(t),
                                     np.asarray(state, dtype=float),
                                     float(dt))

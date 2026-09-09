@@ -100,7 +100,9 @@ def test_the_sky_noise_stays_under_the_gradient():
     assert match, "the sky noise term has moved or gone"
     assert float(match.group(1)) <= 0.08, match.group(1)
     # And it is gated on overcast, so a clear day barely takes any.
-    assert "if (sky_overcast > 0.0)" in text
+    # gated on overcast AND on the tier's sky detail, since the low
+    # tiers pay for these octaves in every water pixel too
+    assert "if (sky_overcast > 0.0 && sky_detail > 0)" in text
 
 
 def test_the_bow_foam_is_tied_to_the_hull_and_the_speed():

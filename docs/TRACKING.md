@@ -266,10 +266,31 @@ already runs the hull sweep.  There is no tensor workload here for a TPU.
 
 ## Done — running on the machine you have
 
+### Measured, this round (Intel UHD, 1180x680, hazy, eight; `--bench 150`, no timers)
+
+| tier | physics | draw+GPU | frame p50 | fps | v0.9 frame |
+|---|---|---|---|---|---|
+| Ultra minimal | 1.7 ms (Heun, 50 Hz) | 7.9 | **9.7** | 104 | 16.6 |
+| Minimal | 2.9 (Heun, 60) | 14.3 | **17.2** | 58 | 18.7 |
+| Standard | 3.8 (Heun, 60) | 18.0 | **21.9** | 46 | 25.9 |
+| High | 6.8 (RK4, 100) | 22.4 | **29.3** | 34 | 42.8 |
+
+Per pass (`--bench-passes`): water 3.9 / 7.3 / 7.6 / 11.3 ms, world 3.0 /
+4.3 / 5.8 / 5.6, sky 0.2–0.3, boat 0.1. The water is still the largest
+pass at every tier; the next lever is its fragment cost at Minimal and
+above, not triangles. The `.exe` is within 0.3 ms of the script.
+
 | what | where | pinned by |
 |---|---|---|
 | **Four graphics tiers, each cheaper than the last.** `ultra` is the floor: flat water, no SSR/refraction, one shadow tap from a 2048² map, plain distance fog, no skyline, every tree an impostor, 400 m reach at 12 m step, no MSAA, 50 Hz physics. Render scale is a flag, not a tier default — measured, it hurt on an iGPU. Every knob is a `Tier` field; a typed flag always beats the tier. | `coxswain/viz/menu.py` `QUALITY_TIERS`; `scripts/fpv.py` tier block; shader uniforms `shadow_taps`, `fog_simple`, `reflect_steps` | `test_the_tiers_do_not_go_below_fifty_hertz`; per-tier `--bench` |
 | **The tier is chosen for you.** `--quality auto` (the default) reads the adapter list before the build and the live GL renderer after the context exists; a dedicated GPU that is not the one drawing is reported with the fix, and `--prefer-dedicated-gpu` writes the per-user Windows preference — only when asked. | `coxswain/viz/hardware.py` | `tests/test_hardware_telemetry.py` |
+| **The `.exe` is not slower than the script.** v0.9 frozen build against v0.9 source on the same iGPU, same tier: Minimal 19.3 vs 19.1 ms, Standard 23.4 vs 23.6, physics 2.9 ms in both — numba is live in the frozen build. Re-check after any build-tooling change with `Coxswain.exe --bench 150`. | `tools/build_exe.py`; `--bench` in the exe | measured 2026-09-09 |
+| **Timer queries cost 2.3 ms a frame themselves** on an integrated part (11.8 → 9.5 ms at ultra). `--bench` takes its headline WITHOUT them; `--bench-passes` adds the per-pass breakdown, which is the tool that found the water pass and the sky noise. | `PassTimer` in `scripts/fpv.py` | `--bench` vs `--bench --bench-passes` |
+| **The loop cannot spiral.** `max_frame` alone allowed fifteen steps in one late frame at 60 Hz; the loop now takes `max_steps` (4) and drops the rest, counting it (`dropped`) into the diagnostics and the report. The boat runs briefly slow; the program does not stop. | `coxswain/sim/realtime.py` | `tests/test_any_machine.py`, `tests/test_stepwise.py` |
+| **The HUD is composed and uploaded only when it changes** — its text and the rudder knob's pixel. A full-window RGBA upload plus font rendering every frame was ~3 ms on an iGPU. | `scripts/fpv.py` HUD block | `test_the_hud_is_uploaded_only_when_it_changes` |
+| **Low tiers stop paying for sky noise in the water** (`sky_detail`) and use the vertex-baked slope as the water normal (`water_detail`). Sky pass 1.1 → 0.3 ms, water 4.9 → 4.1 at ultra. | shader uniforms `sky_detail`, `water_detail`; `Tier.sky_detail` | `tests/test_any_machine.py` |
+| **Heun below High.** Two derivative evaluations a step instead of four; at 60 Hz it is RK4 at 100 Hz to 3 cm over 367 m (0.0002 m/s, same roll). High keeps RK4; the studies and the golden never see Heun. | `coxswain/core/integrators.py`, `Tier.physics_scheme`, `--physics-scheme` | `tests/unit/test_heun.py` |
+| **Performance reports come home.** Off until switched on in the menu (remembered); at close, a JSON of numbers and product names — never a name or path, the sender refuses — goes to a URL the program is told (`--report-url`, `COXSWAIN_REPORT_URL`, `report_url.txt` beside the exe), intended for a Google Apps Script that appends to a sheet; with no URL it is written beside the logs to paste. | `coxswain/viz/phonehome.py`, `settings.py`, `packaging/phonehome/` | `tests/test_phonehome.py` |
 | **A diagnostics file.** Build, hardware, settings, world timings, ten-second frame summaries with the physics/draw/present split, stalls over 100 ms with context, tracebacks. Local only, in the OS log folder, printed at start-up; `--no-diagnostics` turns it off. | `coxswain/viz/telemetry.py` | `tests/test_hardware_telemetry.py` |
 | **`--bench N`** runs N headless frames with `ctx.finish()` and prints the split, so a regression is a number. | `scripts/fpv.py` | — |
 | **Startup**: the wall builder emits each building in one numpy block instead of two Python lists per edge; CPU mesh copies are dropped after the GPU upload (140 MB); the cyclic GC is off during the build and the world is frozen after. | `coxswain/viz/worldmesh.py` `building_walls`; `scripts/fpv.py` upload loop | — |

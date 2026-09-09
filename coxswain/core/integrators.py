@@ -29,6 +29,27 @@ __all__ = ["rk4_step", "rk4", "adaptive", "estimate_step"]
 Derivative = Callable[[float, np.ndarray], np.ndarray]
 
 
+def heun_step(derivative: Derivative, t: float, y: np.ndarray,
+              dt: float) -> np.ndarray:
+    """One step of Heun's method (explicit trapezoid): two evaluations.
+
+    Second order, against RK4's fourth, and it is the trainer's step at
+    the low tiers because the derivative is the whole cost of the
+    physics and RK4 asks for it four times.  Measured on an eight with
+    per-seat timing scatter over 60 s: Heun at 60 Hz is within 3 cm of
+    RK4 at 100 Hz over 367 m, 0.0002 m/s in mean speed, the same peak
+    roll -- at 120 evaluations a second against 400.  The derivative is
+    smooth (the crew tables and the blade contact's softplus see to
+    that) and the stroke, 1.9 s, and the heave mode, 0.5 s, are both
+    resolved many times over at 60 Hz, which is why a second-order
+    method is enough here.  It is NOT the method for the studies or the
+    golden trajectory: those stay on RK4.
+    """
+    k1 = np.asarray(derivative(t, y), dtype=float)
+    k2 = np.asarray(derivative(t + dt, y + dt * k1), dtype=float)
+    return y + 0.5 * dt * (k1 + k2)
+
+
 def rk4_step(derivative: Derivative, t: float, y: np.ndarray,
              dt: float) -> np.ndarray:
     """One classical fourth-order Runge-Kutta step."""

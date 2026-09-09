@@ -27,41 +27,37 @@ Debian 12+, current Fedora, Arch and Mint.
 
 ## New in this one
 
-This one is about running on the machine you have.
+Faster, on every machine, and it can now tell me how it ran on yours.
 
-- **Four graphics tiers, and it picks one for you.** *Ultra minimal*
-  is new and is built for an integrated GPU: flat water, no reflections,
-  a single hard shadow, plain fog, no distant skyline, every tree a
-  sprite, a shorter view. On the integrated Intel graphics this was
-  built on, *Ultra* and *Minimal* hold about 60 frames a second and
-  *Standard* about 40, where *Minimal* managed 24 before. *Minimal* is a
-  step up; *Standard* and *High* are what they were, with the reflection
-  search shortened at Standard. On first start the game reads your
-  graphics card and starts on the tier it should; change it under
-  Graphics and sound.
-- **The physics costs half what it did**, at every tier, and it is the
-  same boat: the crew's motion and the oar force are solved once per
-  stroke and read back, held to the full solve to a fifth of a
-  millimetre.
-- **If your laptop has two graphics chips**, the game tells you when it
-  has been given the slow one, and how to fix it. `--prefer-dedicated-gpu`
-  asks Windows for you.
-- **A diagnostics file.** Every run writes a small text log --
-  machine, graphics card, tier, load times, frame times, anything that
-  stalled and why, any error -- and prints where it put it at start-up.
-  If it runs badly, send me that file. It stays on your machine
-  unless you send it.
-- The **Charles arch bridges** have their piers under their arches, on
-  all four of them; the shells have **riggers**; a blade dragging on the
-  recovery throws **spray**; the rig editor lets you **type a rower in**,
-  and there are **anonymous squad boats** built from real erg scores to
-  race against.
+- **Half the physics again.** Below High the boat is stepped with
+  Heun's method -- two evaluations a step instead of four -- which is
+  the same boat to 3 cm over a 367 m piece.  The physics is now 3 ms a
+  frame on a laptop CPU at Minimal.
+- **The low tiers stop paying for what they do not draw.** No sky noise
+  in the water's reflection, the water normal straight from the mesh,
+  and the HUD is only redrawn when it changes.  On an Intel UHD:
+  Ultra minimal 9.7 ms a frame (104 fps), Minimal 17.2 (58), Standard
+  21.9 (46), High 29.3 (34) -- from 16.6 / 18.7 / 25.9 / 42.8 in
+  v0.9, headless, physics included.
+- **It cannot lock up on a slow machine.** A frame that falls far
+  behind takes four physics steps and lets the rest go: the boat runs
+  briefly slow instead of the program stopping.
+- **The `.exe` is exactly as fast as the source** -- measured, same
+  machine, same tier, within 0.3 ms.
+- **"Ultra minimal" is the lowest tier**, below Minimal, and its label
+  now says so.
 
-Fixed on the way: every port rower had been given starboard arms, which
-was quietly steering every boat; a coxed four now covers the same water
-0.16% faster and drifts half as far. And with that gone the model says
-an eight at race pace sits itself -- which is a claim about the model,
-noted as open, not a claim about your boat.
+### Performance reports (please turn this on)
+
+Under **Graphics and sound -> Send performance reports**.  At the end
+of a session it sends me frame times, your GPU's name, the tier and the
+settings -- numbers and product names only, never your name, a file
+path or an e-mail; the program refuses to send if it finds one.  It is
+off until you switch it on, remembered once you do, and the diagnostics
+log beside the program records exactly what was sent.
+
+If you would rather not, the same summary is written next to the log
+as `report-<date>.json`; paste it to me and it does the same job.
 
 ## What is in it
 

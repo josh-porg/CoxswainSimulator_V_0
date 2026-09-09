@@ -217,3 +217,11 @@ def test_the_payload_is_verified_without_needing_a_gpu():
     check = check[:check.index("- name:", 10)]
     assert "--shot" not in check, (
         "the payload check must not depend on rendering")
+
+
+def test_the_release_notes_carry_no_unfilled_placeholders():
+    """The workflow publishes RELEASE_NOTES.md as the release body at tag
+    time.  A placeholder left in it ships to every tester."""
+    text = read("packaging", "RELEASE_NOTES.md")
+    assert "__" not in text.replace("__init__", ""), (
+        "placeholder left in the release notes")

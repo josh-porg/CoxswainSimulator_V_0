@@ -226,14 +226,24 @@ class Tier:
     exact_within: float          # exact water normals inside this, m
     physics_hz: float = 60.0     # integrator rate; 60 == 100 to 0.2 mm
 
+    #: Simplex on the overcast dome, and therefore in every water
+    #: pixel's reflection.  Off at the low tiers: it was a
+    #: measurable share of a 5-7 ms water pass on an integrated
+    #: part, for a texture those tiers are not there to show.
+    sky_detail: bool = True
+    #: The integrator: "heun" at two derivative evaluations a step,
+    #: "rk4" at four.  Heun at 60 Hz is the same boat to 3 cm over
+    #: 367 m; High keeps RK4 because it is the reference and can
+    #: afford it.
+    physics_scheme: str = "rk4"
 
 QUALITY_TIERS = (
-    Tier("ultra", "Ultra minimal", 160, "impostor", False, False, "single",
-         2048, 0, "simple", False, 400.0, 12.0, 0, 1.0, 5.0, 50.0),
+    Tier("ultra", "Ultra minimal (lowest)", 160, "impostor", False, False, "single",
+         2048, 0, "simple", False, 400.0, 12.0, 0, 1.0, 5.0, 50.0, sky_detail=False, physics_scheme="heun"),
     Tier("minimal", "Minimal", 240, "impostor", False, False, "single",
-         2048, 0, "simple", False, 600.0, 10.0, 0, 1.0, 7.0, 60.0),
+         2048, 0, "simple", False, 600.0, 10.0, 0, 1.0, 7.0, 60.0, sky_detail=False, physics_scheme="heun"),
     Tier("standard", "Standard", 340, "full", True, False, "pcf",
-         0, 10, "full", True, 900.0, 8.0, 2, 1.0, 16.0, 60.0),
+         0, 10, "full", True, 900.0, 8.0, 2, 1.0, 16.0, 60.0, physics_scheme="heun"),
     Tier("high", "High", 420, "full", True, True, "pcf",
          0, 16, "full", True, 900.0, 8.0, 4, 1.0, 26.0, 100.0),
 )
@@ -319,8 +329,12 @@ def weather_menu(weather: str = "hazy", wind: float = 5.0) -> Menu:
     return Menu("Weather", rows)
 
 
+REPORT_CHOICES = (("off", "Off"), ("on", "On"))
+
+
 def options_menu(audio: str = "full", quality: str = "standard",
-                 weather: str = "hazy", wind: float = 5.0) -> Menu:
+                 weather: str = "hazy", wind: float = 5.0,
+                 report: str = "off") -> Menu:
     """Graphics and sound, reached from either menu."""
     modes = audio_choices()
     grades = quality_choices()
@@ -331,6 +345,8 @@ def options_menu(audio: str = "full", quality: str = "standard",
         Choice("quality", "Graphics", grades,
                index=max([i for i, q in enumerate(grades) if q[0] == quality]
                          + [0])),
+        Choice("report", "Send performance reports", list(REPORT_CHOICES),
+               index=1 if report == "on" else 0),
         Choice("back", "Back", (), action="back"),
     ]
     return Menu("Graphics and sound", rows)
@@ -660,6 +676,10 @@ def blurb_for(menu: "Menu") -> str:
     if row.key == "quality":
         return ("Ultra minimal runs on integrated graphics; High wants a "
                 "gaming card.  Applies on the next start.")
+    if row.key == "report":
+        return ("At the end of a session, send frame times, GPU and tier "
+                "home -- numbers and product names only, never a name or "
+                "a path.  Remembered.")
     if row.key == "weather":
         return ("Sky, visibility and how the light scatters.  Fog takes "
                 "the far bank out.")

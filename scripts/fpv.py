@@ -267,6 +267,12 @@ uniform float fog_height;
 uniform float fog_scatter;
 uniform int fog_simple;           // 1: plain exp(-density * distance)
 uniform float sky_overcast;
+// 0: no noise on the dome.  The two octaves are evaluated for every sky
+// pixel AND for every water pixel, because the water's reflection
+// samples sky_colour -- on an integrated part that was a measurable
+// share of the water pass, for a texture the low tiers are not there
+// to show.
+uniform int sky_detail;
 uniform float sky_time;
 
 __SIMPLEX__
@@ -291,7 +297,7 @@ vec3 sky_colour(vec3 dir, vec3 sun_dir) {
     // blue barely takes any -- and held to a few percent, so it sits
     // UNDER the zenith-to-horizon gradient rather than competing with
     // it.  That gradient is the sky's shape; this is its texture.
-    if (sky_overcast > 0.0) {
+    if (sky_overcast > 0.0 && sky_detail > 0) {
         vec2 q = d.xy / (max(d.z, 0.0) + 0.35);
         float cloud = simplex(q * 0.9 + vec2(sky_time * 0.012, 0.0))
                     + 0.5 * simplex(q * 2.1 - vec2(0.0, sky_time * 0.017));
@@ -476,6 +482,7 @@ const float SLOPE_G = 9.80665;
 //: interpolated slope is indistinguishable, so only the chop is done
 //: exactly and the cost falls away with distance.
 uniform float exact_within;
+uniform int water_detail;         // 0: vertex-baked normal only
 uniform int water_flat;           // 1: normals from the vertex slope only
 
 // --- micro-ripple, the second normal ---------------------------------
@@ -1139,7 +1146,16 @@ void main() {
     float range = length(v_world - eye);
     float rough;
     float foam = v_foam;
-    vec3 n = water_normal(v_world, v_slope, range, foam, rough, v_blend);
+    vec3 n;
+    if (water_detail == 0) {
+        // The slope the vertex shader baked is the whole story at the
+        // low tiers: no ripple octaves, no exact band, no roughness
+        // term.  This is what "flat water" means per pixel.
+        n = normalize(vec3(-v_slope.x, -v_slope.y, 1.0));
+        rough = 0.0;
+    } else {
+        n = water_normal(v_world, v_slope, range, foam, rough, v_blend);
+    }
     vec3 to_eye = normalize(eye - v_world);
     // Water is mostly a mirror at grazing angles and mostly dark looking
     // straight down, which is the whole reason chop reads as chop: the
@@ -2046,11 +2062,14 @@ def run_setup_menu(screen, args):
                         menu = rowers_menu(skill=args.skill,
                                            balance=args.balance)
                     else:
-                        menu = options_menu(audio=args.audio,
+                        menu = options_menu(report=getattr(args, "report", "off"), audio=args.audio,
                                             quality=args.quality)
                     continue
                 if action == "back":
                     picked = menu.settings()
+                    if picked.get("report") not in (None, getattr(args, "report", "off")):
+                        args.report = picked["report"]
+                        _settings.update(report=args.report)
                     for key, name in (("audio", "audio"),
                                       ("quality", "quality"),
                                       ("weather", "weather"),
@@ -2257,6 +2276,9 @@ def main(argv=None):
                              "sitting in the boat")
     parser.add_argument("--no-menu", action="store_true",
                         help="skip the setup menu and use the flags")
+    parser.add_argument("--physics-scheme", choices=("rk4", "heun"),
+                        default=None,
+                        help="integrator; overrides the tier's choice")
     parser.add_argument("--physics", type=float, default=100.0)
     parser.add_argument("--no-diagnostics", action="store_true",
                         help="do not write the diagnostics log")
@@ -2267,6 +2289,17 @@ def main(argv=None):
     parser.add_argument("--render-scale", type=float, default=None,
                         help="draw the scene at this fraction of the "
                              "window; overrides the tier")
+    parser.add_argument("--report-url", default=None,
+                        help="where performance reports go; see "
+                             "packaging/phonehome/README.md")
+    parser.add_argument("--report", choices=("on", "off"), default=None,
+                        help="send a performance report at close; the "
+                             "remembered setting otherwise")
+    parser.add_argument("--bench-passes", action="store_true",
+                        help="with --bench: per-pass GPU timer queries too; "
+                             "they are sync points that cost about 2 ms a "
+                             "frame themselves, so the headline is taken "
+                             "without them")
     parser.add_argument("--bench", type=int, default=0, metavar="FRAMES",
                         help="run this many headless frames and print the "
                              "physics / draw split, then exit")
@@ -2305,6 +2338,11 @@ def main(argv=None):
     parser.add_argument("--start", type=float, default=0.0,
                         help="metres along the course to begin at")
     args = parser.parse_args(argv)
+    # The remembered report choice, before any menu can show it.
+    from coxswain.viz import settings as _settings
+    if args.report is None:
+        args.report = ("on" if _settings.load().get("report") == "on"
+                       else "off")
 
     import moderngl
 
@@ -2436,6 +2474,7 @@ def main(argv=None):
         gc.enable()
     gc.collect()
     gc.freeze()
+    telemetry.build_seconds = time.perf_counter() - clock0
     telemetry.section("world", [
         "triangles: %d in %d parts" % (mesh.triangles, len(mesh.parts)),
         "build: %.1f s" % (time.perf_counter() - clock0),
@@ -2495,6 +2534,11 @@ def main(argv=None):
     simulator = RowingSimulator(boat, coxswain=cox, fast=True,
                                 blade_contact=BladeContact.from_boat(boat),
                                 aero=_aero, wind=_wind_field)
+    # The integrator, by tier: two evaluations a step at the low tiers,
+    # four at High.  A typed flag wins, as every tier knob does.
+    simulator.scheme = (args.physics_scheme
+                        or getattr(args.tier, "physics_scheme", "rk4"))
+    print("   physics: %s at %.0f Hz" % (simulator.scheme, args.physics))
     hull = hull_solid(boat)
     crew = crew_poses(boat)
     # Set here rather than beside the rest of the loop state: ``draw``
@@ -2814,7 +2858,8 @@ def main(argv=None):
         zenith, horizon, glow, density, height, scatter, overcast = row
         _optional(prog, sky_zenith=zenith, sky_horizon=horizon,
                   sun_glow=glow, fog_density=density, fog_height=height,
-                  fog_scatter=scatter, sky_overcast=overcast)
+                  fog_scatter=scatter, sky_overcast=overcast,
+                  sky_detail=1 if getattr(args.tier, "sky_detail", True) else 0)
     program["sun"].value = tuple(np.array([0.42, 0.30, 0.85])
                                  / np.linalg.norm([0.42, 0.30, 0.85]))
     # Set only if the shader still wants them.  Both were the flat sky
@@ -3034,6 +3079,8 @@ def main(argv=None):
         _optional(water_prog, fog_simple=1 if args.tier.fog == "simple" else 0)
         _optional(water_prog, shadow_taps=(
             1 if args.tier.shadow == "single" else 16))
+    _optional(water_prog, water_detail=0 if not args.tier.rich_water else 1,
+              sky_detail=1 if getattr(args.tier, "sky_detail", True) else 0)
     water_prog["wind_to"].value = float(np.radians(args.wind_from) + np.pi)
     wave = load_wavefield(shell_of(boat))
     if wave is not None:
@@ -3131,7 +3178,10 @@ def main(argv=None):
     # Only built at High.  Nothing spawns into it otherwise, so the
     # per-frame upload and draw disappear rather than running on an
     # empty pool.
-    passes = PassTimer(ctx, enabled=bool(args.bench))
+    # Timer queries are sync points: measured, they cost 2.3 ms of an
+    # 11.8 ms frame on an integrated part.  The headline number is
+    # taken WITHOUT them; the per-pass breakdown is asked for.
+    passes = PassTimer(ctx, enabled=bool(args.bench) and args.bench_passes)
     splashes = (SplashSystem()
                 if want_particles and not args.no_particles else None)
     splash_prog = ctx.program(vertex_shader=SPLASH_VERTEX,
@@ -3371,6 +3421,7 @@ def main(argv=None):
 
     draw.last_phase = 0.0
     draw.last_drag = {}
+    draw.hud_last = None
     draw.last_speed = 0.0
     draw.w_prime = reserve.capacity
     draw.last_reserve_t = 0.0
@@ -3498,10 +3549,13 @@ def main(argv=None):
                             menu = rowers_menu(skill=args.skill,
                                                balance=args.balance)
                         else:
-                            menu = options_menu(audio=args.audio,
+                            menu = options_menu(report=getattr(args, "report", "off"), audio=args.audio,
                                                 quality=args.quality)
                     elif action == "back":
                         picked = menu.settings()
+                        if picked.get("report") not in (None, getattr(args, "report", "off")):
+                            args.report = picked["report"]
+                            _settings.update(report=args.report)
                         if "audio" in picked and picked["audio"] != args.audio:
                             args.audio = picked["audio"]
                             # Rebuilt rather than retuned: the mode
@@ -3685,16 +3739,21 @@ def main(argv=None):
                 draw_menu(overlay, menu, font, font,
                           (args.width, args.height))
             hud_texture.write(_surface_bytes(pygame, overlay))
+            draw.hud_last = None          # the menu overwrote the HUD
             hud_texture.use(0)
             _blit(ctx, hud_texture)
             pygame.display.flip()
             frames += 1
             continue
 
-        overlay.fill((0, 0, 0, 0))
-        for row, text in enumerate(lines):
-            overlay.blit(font.render(text, True, (233, 240, 245)),
-                         (14, 12 + row * 20))
+        # Only recompose and upload a HUD that changed.  Rendering the
+        # text through pygame and pushing a full-window RGBA texture
+        # every frame cost about 3 ms on an integrated part -- more
+        # than the boat, the sky and the copy together -- for a picture
+        # that changes a few times a second.  Its state is the text and
+        # where the rudder knob sits, to the pixel; when those match
+        # the last frame's, the texture already holds this picture.
+        #
         # The stick.  On the mouse there is nothing else to tell you where
         # the rudder is -- the pointer is hidden and the boat answers a
         # second later -- and on a boat with a standing yaw bias, seeing
@@ -3702,25 +3761,33 @@ def main(argv=None):
         bar_w = int(args.width * MOUSE_SPAN)
         bar_x = (args.width - bar_w) // 2
         bar_y = args.height - 40
-        pygame.draw.rect(overlay, (12, 17, 21, 170),
-                         (bar_x - 62, bar_y - 20, bar_w + 124, 46))
-        pygame.draw.line(overlay, (70, 82, 92), (bar_x, bar_y),
-                         (bar_x + bar_w, bar_y), 3)
-        pygame.draw.line(overlay, (110, 124, 136), (args.width // 2,
-                                                    bar_y - 9),
-                         (args.width // 2, bar_y + 9), 2)
         knob = bar_x + int(bar_w * (0.5 + 0.5 * rudder / RUDDER_LIMIT))
-        pygame.draw.circle(overlay, (255, 146, 72), (knob, bar_y), 9)
-        pygame.draw.circle(overlay, (18, 24, 29), (knob, bar_y), 5)
-        for label, at in (("port", bar_x - 52), ("stbd", bar_x + bar_w + 14)):
-            overlay.blit(font.render(label, True, (128, 142, 152)),
-                         (at, bar_y - 9))
-        # The HUD is a texture blitted over the scene: pygame cannot draw
-        # into an OpenGL window directly.
-        # One texture, rewritten -- allocating a 1180x680 RGBA texture
-        # every frame is 3 MB of churn for a few lines of text.
+        _hud_key = (tuple(lines), knob)
+        _hud_changed = _hud_key != draw.hud_last
+        draw.hud_last = _hud_key
+        if _hud_changed:
+            overlay.fill((0, 0, 0, 0))
+            for row, text in enumerate(lines):
+                overlay.blit(font.render(text, True, (233, 240, 245)),
+                             (14, 12 + row * 20))
+            pygame.draw.rect(overlay, (12, 17, 21, 170),
+                             (bar_x - 62, bar_y - 20, bar_w + 124, 46))
+            pygame.draw.line(overlay, (70, 82, 92), (bar_x, bar_y),
+                             (bar_x + bar_w, bar_y), 3)
+            pygame.draw.line(overlay, (110, 124, 136), (args.width // 2,
+                                                        bar_y - 9),
+                             (args.width // 2, bar_y + 9), 2)
+            pygame.draw.circle(overlay, (255, 146, 72), (knob, bar_y), 9)
+            pygame.draw.circle(overlay, (18, 24, 29), (knob, bar_y), 5)
+            for label, at in (("port", bar_x - 52),
+                              ("stbd", bar_x + bar_w + 14)):
+                overlay.blit(font.render(label, True, (128, 142, 152)),
+                             (at, bar_y - 9))
+            # The HUD is a texture blitted over the scene: pygame cannot
+            # draw into an OpenGL window directly.  One texture, rewritten
+            # -- and now only when the picture on it changed.
+            hud_texture.write(_surface_bytes(pygame, overlay))
         ctx.disable(moderngl.DEPTH_TEST)
-        hud_texture.write(_surface_bytes(pygame, overlay))
         hud_texture.use(0)
         _hud_blit(ctx)
         ctx.enable(moderngl.DEPTH_TEST)
@@ -3745,6 +3812,26 @@ def main(argv=None):
 
     pygame.quit()
     print("%d frames, %d physics steps" % (frames, loop.steps))
+    # The performance report, last, from what the telemetry already
+    # knows.  Off unless switched on; see coxswain/viz/phonehome.py.
+    try:
+        from coxswain.viz import phonehome
+        telemetry.dropped_seconds = float(getattr(loop, "dropped", 0.0))
+        report = phonehome.build_report(
+            telemetry, probe=hardware,
+            settings={"race": args.race, "boat": args.boat,
+                      "quality": args.quality, "physics": float(args.physics),
+                      "window": "%dx%d" % (args.width, args.height),
+                      "weather": args.weather, "wind": float(args.wind)},
+            tier=getattr(args.tier, "key", args.quality),
+            extra={"build_s": round(float(telemetry.build_seconds), 1),
+                   "exceptions": int(telemetry.exceptions)})
+        outcome = phonehome.send(report, phonehome.report_url(args.report_url),
+                                 enabled=(args.report == "on"),
+                                 log=telemetry.note)
+        print("   report: " + outcome)
+    except Exception as error:                              # never fatal
+        print("   report: not sent (%s)" % type(error).__name__)
     telemetry.close()
     if restart_session:
         # "Change boat or course": the world has to be rebuilt, so the

@@ -120,19 +120,23 @@ def test_the_loop_takes_the_right_number_of_steps(simulator):
 
 
 def test_a_long_stall_does_not_spiral(simulator):
-    """One frame may never ask for more than ``max_frame`` of catch-up.
+    """One frame may never ask for more than a few steps of catch-up.
 
-    Thirty seconds of stall must not become three thousand steps, or the
-    catch-up takes longer than the stall and the loop never recovers.
-    The count is ``max_frame / dt`` give or take one -- 0.01 s is not
-    representable in binary, so 0.25 s of accumulator is 24 steps and a
-    remainder, not 25.
+    This used to allow ``max_frame / dt`` steps -- 25 at 100 Hz -- on
+    the theory that a quarter of a second of catch-up is bounded.  It
+    is bounded, and it is still a spiral: a machine that fell a frame
+    behind cannot afford 25 steps in the next one, so it falls further
+    behind doing them.  The loop now takes ``max_steps`` and lets the
+    rest of the stall go, counting what it dropped.  The boat runs
+    briefly slow; the program does not stop.
     """
     loop = FixedStepLoop(simulator, rate=100.0, max_frame=0.25)
     loop.start(simulator.initial_state(surge_speed=4.0))
     taken = loop.advance(30.0)
+    assert taken == loop.max_steps
     assert taken * loop.dt <= loop.max_frame + 1e-12
-    assert taken >= int(loop.max_frame / loop.dt) - 1
+    assert loop.dropped > 0.0                # the stall was let go, and
+    assert loop.dropped <= loop.max_frame     # only the clamped part of it
     assert loop.alpha < 1.0                  # nothing queued for next frame
 
 
