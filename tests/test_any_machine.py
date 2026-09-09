@@ -117,7 +117,11 @@ def test_the_hud_is_uploaded_only_when_it_changes():
     assert "draw.hud_last = None          # the menu overwrote the HUD" in text
     # exactly one unconditional per-frame HUD write must be gone: the
     # game path's write now sits under the change check
-    block = text[text.index("_hud_key = (tuple(lines), knob, _map_key)"):
-                 text.index("_hud_blit(ctx)")]
+    # Anchored FROM the key: the menu path has its own _hud_blit(ctx)
+    # earlier in the file, and searching from the top sliced backwards
+    # to an empty string that passed nothing.
+    start = text.index("_hud_key = (tuple(lines), knob, _map_key)")
+    block = text[start:text.index("_hud_blit(ctx)", start)]
+    assert block, "empty slice: the anchors crossed over"
     assert "hud_texture.write(" in block
     assert block.index("if _hud_changed:") < block.index("hud_texture.write(")

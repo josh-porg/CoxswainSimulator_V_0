@@ -60,14 +60,20 @@ def test_the_minimap_is_offered_remembered_and_switchable():
 def test_the_minimap_is_part_of_the_hud_key_only_when_on_and_quantised():
     text = source("scripts", "fpv.py")
     assert "_hud_key = (tuple(lines), knob, _map_key)" in text
-    assert "int(state[0] / 2.0), int(state[1] / 2.0)" in text
-    assert "int(math.degrees(state[5]) / 5.0)" in text
+    # `pose`, not `state`.  This test asserted `state` -- the name that
+    # does not exist in that scope -- and so pinned the v0.12 crash in
+    # place instead of catching it.  A source-text test is only worth
+    # having if the text it demands is the text that works.
+    assert "int(pose[0] / 2.0), int(pose[1] / 2.0)" in text
+    assert "int(math.degrees(pose[5]) / 5.0)" in text
+    assert "state[0]" not in text[text.index("_map_key ="):
+                                  text.index("_hud_key =")]
     assert "if _map_on else None" in text
     # drawn inside the change-gated compose, before the upload
     compose = text.index("if _hud_changed:")
     upload = text.index("hud_texture.write(_surface_bytes(pygame, overlay))",
                         compose)
-    draw = text.index("draw_minimap(pygame, overlay, course, scene.buoys",
+    draw = text.index("draw_minimap(pygame, overlay, course, scene.buoys, pose",
                       compose)
     assert compose < draw < upload
 
