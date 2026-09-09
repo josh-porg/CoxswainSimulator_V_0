@@ -54,6 +54,45 @@ class MeshPart:
     def triangles(self) -> int:
         return len(self.vertices) // 3
 
+    #: Bytes per vertex in :meth:`packed`: 12 of position, 4 of normal,
+    #: 4 of colour.  The float layout is 36.
+    PACKED_STRIDE = 20
+
+    def packed(self) -> bytes:
+        """The same vertices at 20 bytes each instead of 36.
+
+        Position stays float32 -- a metre-scale world needs it -- but a
+        unit normal is three numbers in [-1, 1] and a colour three in
+        [0, 1], and eight bits each is finer than either the lighting or
+        the display resolves.  int8 for the normal, uint8 for the colour,
+        each padded to four so the record stays aligned.
+
+        Why bother: an integrated GPU has no memory of its own.  It
+        reads vertices out of the same system RAM the CPU is using, over
+        the same bus, and the world is 1.3 million triangles streamed
+        every frame -- 140 MB of float geometry at 36 bytes a vertex,
+        78 MB at 20.  The world pass was measured at 3-6 ms on an Intel
+        UHD; the fragment work is small, so most of that is fetch.
+
+        The shader gets the raw integers (moderngl's normalised-attribute
+        path rejects this format), so the vertex shader normalises the
+        normal and scales the colour by ``colour_scale``: 1/255 here,
+        1.0 for the float buffers the boat still uses.
+        """
+        normals = self.normals
+        if normals is None:
+            normals = np.tile(np.array([0.0, 0.0, 1.0], dtype="f4"),
+                              (len(self.vertices), 1))
+        n = len(self.vertices)
+        record = np.zeros(n, dtype=[("p", "f4", 3), ("n", "i1", 4),
+                                    ("c", "u1", 4)])
+        record["p"] = np.asarray(self.vertices, dtype="f4")
+        record["n"][:, :3] = np.clip(np.rint(
+            np.asarray(normals, dtype="f4") * 127.0), -127, 127).astype("i1")
+        record["c"][:, :3] = np.clip(np.rint(
+            np.asarray(self.colours, dtype="f4") * 255.0), 0, 255).astype("u1")
+        return record.tobytes()
+
     def interleaved(self) -> np.ndarray:
         """``(n, 9)`` of position, normal, colour, ready for one buffer."""
         normals = self.normals

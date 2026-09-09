@@ -184,9 +184,15 @@ out vec3 v_colour;
 out vec3 v_normal;
 out vec3 v_world;
 uniform mat4 mvp;
+uniform float colour_scale;
 void main() {
-    v_colour = in_colour;
-    v_normal = in_normal;
+    // colour_scale is 1/255 for the packed world buffers (uint8 colour,
+    // int8 normal, arriving as raw integers) and 1.0 for the float
+    // buffers the boat and oars still use.  Normalising here makes the
+    // int8 normal's magnitude irrelevant, and costs nothing the
+    // fragment stage was not already paying.
+    v_colour = in_colour * colour_scale;
+    v_normal = normalize(in_normal);
     // The world position, so the fragment can measure its OWN distance.
     // Interpolating a per-vertex distance across a big triangle is wrong
     // by construction: the water is one quad whose four corners are all
@@ -2873,13 +2879,16 @@ def main(argv=None):
 
     static, shadow_casters = [], []
     for part in mesh.parts:
-        buffer = ctx.buffer(part.interleaved().tobytes())
+        # 20 bytes a vertex, not 36: see MeshPart.packed.  "4i1 4u1" hands
+        # the shader the raw integers; colour_scale and the normalise in
+        # the vertex shader put them back.
+        buffer = ctx.buffer(part.packed())
         static.append(ctx.vertex_array(
-            program, [(buffer, "3f 3f 3f", "in_pos", "in_normal",
+            program, [(buffer, "3f 4i1 4u1", "in_pos", "in_normal",
                        "in_colour")]))
         # The same buffer, read as positions only, for the depth pass.
         shadow_casters.append(ctx.vertex_array(
-            shadow_prog, [(buffer, "3f 6x4", "in_pos")]))
+            shadow_prog, [(buffer, "3f 8x1", "in_pos")]))
         # The GPU has it now.  Nothing reads the CPU copy again -- the
         # shadow pass and every frame draw from the buffer just made --
         # and 1.3 M triangles of float32 vertices, colours and normals
@@ -3225,12 +3234,23 @@ def main(argv=None):
                                      .tobytes(order="C"))
         sky_prog["sun"].value = tuple(np.array([0.42, 0.30, 0.85])
                                       / np.linalg.norm([0.42, 0.30, 0.85]))
-        ctx.disable(moderngl.DEPTH_TEST)
-        with passes.span("sky"):
-            sky_vao.render()
-        ctx.enable(moderngl.DEPTH_TEST)
+        # The sky is a full-screen quad.  Drawn FIRST it shades every
+        # pixel and the world then paints over most of them; drawn LAST
+        # at depth 1.0 with the test on, it shades only what nothing
+        # covered -- the actual sky, a fifth of the frame from the seat.
+        # Only on the plain-water tiers: the rich water refracts the
+        # scene texture the world was copied into, and a sky missing
+        # from that copy would show as a black band where the far water
+        # meets the horizon.
+        sky_last = scene_fbo is None
+        if not sky_last:
+            ctx.disable(moderngl.DEPTH_TEST)
+            with passes.span("sky"):
+                sky_vao.render()
+            ctx.enable(moderngl.DEPTH_TEST)
         if shadow_map is not None:
             shadow_map.use(SHADOW_UNIT)
+        program["colour_scale"].value = 1.0 / 255.0     # packed world
         with passes.span("world"):
             for vao in static:
                 vao.render()
@@ -3382,9 +3402,17 @@ def main(argv=None):
             blob = np.hstack([vertices, normals, colours]).astype("f4")
             if blob.nbytes <= oar_buffer.size:
                 with passes.span("boat"):
+                    program["colour_scale"].value = 1.0   # float buffer
                     oar_buffer.write(blob.tobytes())
                     oar_vao.render(vertices=len(vertices))
 
+        if sky_last:
+            # Depth 1.0 against a buffer cleared to 1.0: LESS would
+            # reject every sky pixel, so LEQUAL for this one draw.
+            ctx.depth_func = "<="
+            with passes.span("sky"):
+                sky_vao.render()
+            ctx.depth_func = "<"
         droplets = (splashes.as_uniform(t) if splashes is not None
                     else ())
         if len(droplets):
