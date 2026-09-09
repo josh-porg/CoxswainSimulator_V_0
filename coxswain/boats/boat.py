@@ -640,6 +640,25 @@ class Boat:
                 i, j, f = inner._weights(t)
                 return (1.0 - f) * inner.rate[i] + f * inner.rate[j]
 
+            def force_at_many(inner, times, sides):
+                """``(n, 3)`` forces for ``n`` oars at their own times.
+
+                The same interpolation as :meth:`force_at`, done once for
+                the whole crew with numpy indexing instead of eight
+                times with Python arithmetic -- the loop this replaces
+                was most of what remained of the derivative after the
+                kinematics were tabulated.
+                """
+                times = np.asarray(times, dtype=float)
+                u = (times / inner.period) % 1.0 * inner.samples
+                i = np.floor(u).astype(int) % inner.samples
+                f = (u - np.floor(u))[:, None]
+                j = (i + 1) % inner.samples
+                out = (1.0 - f) * inner.force[i] + f * inner.force[j]
+                flip = np.where(np.asarray(sides) < 0, -1.0, 1.0)
+                out[:, 1] *= flip
+                return out
+
         samples = int(self.table_samples)
         period = float(self.timing.period)
         force = np.zeros((samples, 3))
@@ -652,6 +671,17 @@ class Boat:
         built = _OarTable(force, rate, period, samples)
         self.__dict__["_oar_cache"] = (key, built)
         return built
+
+    def oar_forces_at(self, times, sides, exact: bool = False):
+        """Every oar's force at its own stroke time, ``(n, 3)``.
+
+        Tabulated when :attr:`tabulate_crew` is on; otherwise the exact
+        per-oar evaluation, so the two paths return the same shape.
+        """
+        if self.tabulate_crew and not exact:
+            return self._oar_table().force_at_many(times, sides)
+        return np.array([self.oar_force_at(float(t), int(side), exact=True)
+                         for t, side in zip(times, sides)], dtype=float)
 
     def oar_force_at(self, t: float, side: int, exact: bool = False):
         """``oar_force`` for one oarlock, from the table unless ``exact``."""

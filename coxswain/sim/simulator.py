@@ -282,6 +282,27 @@ class RowingSimulator:
         self._shallow_cache = (key, model)
         return model
 
+    def _rig_arrays(self, boat):
+        """The rig as arrays, built once per boat and kept."""
+        cached = self.__dict__.get("_rig_cache")
+        if cached is not None and cached[0] is boat.rig:
+            return cached[1]
+        seat, side, position, gearing, effective = [], [], [], [], []
+        for seat_index, s_ in enumerate(boat.rig.seats):
+            for lock in s_.oarlocks:
+                seat.append(seat_index)
+                side.append(int(lock.side))
+                position.append(np.asarray(lock.position, dtype=float))
+                gearing.append(float(lock.oar.gearing))
+                effective.append(float(lock.oar.effective_gearing))
+        arrays = {"seat": np.asarray(seat, dtype=int),
+                  "side": np.asarray(side, dtype=int),
+                  "position": np.asarray(position, dtype=float).reshape(-1, 3),
+                  "gearing": np.asarray(gearing, dtype=float),
+                  "effective_gearing": np.asarray(effective, dtype=float)}
+        self.__dict__["_rig_cache"] = (boat.rig, arrays)
+        return arrays
+
     def crew_field(self, t: float, exact: bool = False):
         """Cached crew evaluation.
 
@@ -376,33 +397,27 @@ class RowingSimulator:
                 float(state.roll), oar_rate, boat.oar_sweep.total_sweep,
                 timing=boat.timing))
 
+        # Every oar at once.  The rig's geometry -- which seat each lock
+        # belongs to, its side, position and gearing -- does not change
+        # during a run, so it is gathered into arrays the first time and
+        # kept on the simulator; per evaluation what remains is one
+        # table gather, a few array products and one batched cross.
+        rig = self._rig_arrays(boat)
         phases = boat.phase_offsets
         period = boat.timing.period
-        for seat_index, seat in enumerate(boat.rig.seats):
-            hand_hull = hands[seat_index]
-            # A rower who is late is late in their oar as well as their
-            # body.  Evaluating the oar at the boat's time while the body
-            # runs on its own would decouple the hands from the handle,
-            # which is the constraint the whole crew model rests on.
-            seat_time = t - float(phases[seat_index]) * period
-            for lock in seat.oarlocks:
-                applied = boat.oar_force_at(seat_time, lock.side)
-                if split != 0.0:
-                    applied = applied * self.coxswain.side_gain(split,
-                                                                lock.side)
-                # What the crew actually produce, as distinct from what the
-                # coxswain asked for.  Individual differences and
-                # stroke-to-stroke scatter both live here.
-                applied = applied * float(boat.power_scales[seat_index])
-                # A short drive delivers a smaller impulse.
-                applied = applied * length_fraction
-                gearing = (lock.oar.gearing * gearing_scale
-                           if blade is not None
-                           else lock.oar.effective_gearing)
-                force, moment = hull_load(applied, lock.position, hand_hull,
-                                          gearing)
-                oar_force_hull += force
-                oar_moment_hull += moment
+        times = t - np.asarray(phases, dtype=float)[rig["seat"]] * period
+        applied = boat.oar_forces_at(times, rig["side"])           # (n, 3)
+        gain = np.asarray(boat.power_scales, dtype=float)[rig["seat"]]
+        if split != 0.0:
+            gain = gain * np.array([self.coxswain.side_gain(split, int(sd))
+                                    for sd in rig["side"]])
+        applied = applied * (gain * length_fraction)[:, None]
+        gearing = (rig["gearing"] * gearing_scale if blade is not None
+                   else rig["effective_gearing"])
+        hand = hands[rig["seat"]]                                   # (n, 3)
+        lever = rig["position"] - hand + gearing[:, None] * hand
+        oar_force_hull = oar_force_hull + (gearing[:, None] * applied).sum(axis=0)
+        oar_moment_hull = oar_moment_hull + np.cross(lever, applied).sum(axis=0)
 
         # -- hydrostatics -------------------------------------------------
         submerged = boat.mesh.submerged(
