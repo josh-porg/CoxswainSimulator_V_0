@@ -429,3 +429,19 @@ def test_a_rower_can_be_typed_in_from_the_menu(fonts):
     assert seen[-1][0] == "Zed", seen[-1]
     assert seen[-1][1] == 140.0, seen[-1]
     assert seen[-1][2] is None, "editing must end on Enter"
+
+
+def test_genevieves_pink_ribbon_is_the_boat_in_the_picture():
+    """P S P S from a port stroke, four six-footers, the ergs as typed."""
+    lineup = PRESETS["Genevieve's Pink Ribbon"]()
+    assert lineup.shell == "4+" and lineup.rig == "standard"
+    assert [r.name for r in lineup.rowers] == ["Kevin", "Mark", "Scott", "Evan"]
+    assert tuple(r.side for r in lineup.rowers) == (+1, -1, +1, -1)
+    assert tuple(r.side for r in lineup.rowers) == rig_sides("4+", "standard")
+    assert [r.erg_5k for r in lineup.rowers] == ["19:39", "18:55", "18:26", "19:30"]
+    assert all(r.feet == 6 and r.inches == 0.0 for r in lineup.rowers)
+    assert [r.pounds for r in lineup.rowers] == [182.0, 182.0, 220.0, 180.0]
+    watts = [r.watts for r in lineup.rowers]
+    assert abs(sum(watts) / 4 - 233.0) < 1.5
+    assert abs(lineup.cox_pounds * 0.45359237 - 73.0) < 0.5
+    assert lineup.balanced()

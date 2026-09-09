@@ -427,6 +427,25 @@ def _squad_boat(shell: str, rig: str, label: str, squad: str = "women",
     return build
 
 
+def _pink_ribbon() -> Lineup:
+    """Genevieve's Pink Ribbon: a men's coxed four on a standard rig.
+
+    Port stroke, alternating -- P S P S read from the stroke seat --
+    in a bow-loader.  Four six-footers and a 73 kg coxswain lying down
+    in the bow; the crew mean is 233 W, a 19:06 5k.
+    """
+    crew = [
+        Rower("Kevin", 182.0, 6, 0.0, "19:39"),
+        Rower("Mark", 182.0, 6, 0.0, "18:55"),
+        Rower("Scott", 220.0, 6, 0.0, "18:26"),
+        Rower("Evan", 180.0, 6, 0.0, "19:30"),
+    ]
+    lineup = Lineup(shell="4+", rig="standard", rowers=crew,
+                    cox_name="you", cox_pounds=161.0, cox_feet=5,
+                    cox_inches=8.0, name="Genevieve's Pink Ribbon")
+    return lineup.apply_rig()
+
+
 #: Saved boats, by name.  Callables, so each load is a fresh copy and
 #: editing one does not quietly edit the preset.
 #:
@@ -434,8 +453,13 @@ def _squad_boat(shell: str, rig: str, label: str, squad: str = "women",
 #: scores from a real masters squad, with the identities removed.  They
 #: exist so a practice race has opposition that pulls what people that
 #: age actually pull, rather than four copies of an invented average.
+#: The boat the editor opens on.  Definition order in PRESETS is the
+#: order Load preset cycles through; this is first in both.
+DEFAULT_PRESET = "HOCR 4+"
+
 PRESETS = {
     "HOCR 4+": _hocr_four,
+    "Genevieve's Pink Ribbon": _pink_ribbon,
     "Squad W 60+ 4+": _squad_boat("4+", "bucket, stbd stroke",
                                   "Squad W 60+ 4+", "women", min_age=60),
     "Squad W 50s 4+": _squad_boat("4+", "standard", "Squad W 50s 4+",

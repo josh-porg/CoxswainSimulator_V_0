@@ -68,7 +68,8 @@ from coxswain.viz.menu import (build_boat, chart_surface,    # noqa: E402
                                quality_settings, setup_menu,
                                rowers_menu, start_music,
                                stop_music, weather_menu)
-from coxswain.viz.rigview import (PRESETS as RIG_PRESETS,   # noqa: E402
+from coxswain.viz.rigview import (DEFAULT_PRESET,           # noqa: E402
+                                  PRESETS as RIG_PRESETS,
                                   FIELDS, PANE_ROWS, RIGS, SHELLS,
                                   draw_plan, draw_side_pane, field_text)
 from coxswain.viz.planscene import oar_lines                # noqa: E402
@@ -2019,7 +2020,9 @@ def run_setup_menu(screen, args):
                         if key == "preset":
                             from coxswain.viz import presets as _presets
                             from coxswain.viz.rigview import Lineup as _Lineup
-                            names = sorted(RIG_PRESETS) + sorted(
+                            # built-ins in their own order (the HOCR
+                            # four first), then what people saved, A-Z
+                            names = list(RIG_PRESETS) + sorted(
                                 n for n in _presets.names()
                                 if n not in RIG_PRESETS)
                             at = (names.index(lineup.name)
@@ -2092,7 +2095,7 @@ def run_setup_menu(screen, args):
                     continue
                 if action == "crew":
                     if lineup is None:
-                        lineup = lineup_last or RIG_PRESETS[sorted(RIG_PRESETS)[0]]()
+                        lineup = lineup_last or RIG_PRESETS[DEFAULT_PRESET]()
                     pane_cursor = 0
                     continue
                 if action in ("options", "weather", "rowers"):
