@@ -2132,9 +2132,11 @@ def run_setup_menu(screen, args):
                             setattr(args, name, picked[key])
                     if "bonus" in picked:
                         args.bonus = picked["bonus"]
-                    args.lineup = picked.get("lineup")
-                    if args.lineup is not None:
-                        args.boat = args.lineup.shell
+                    # NOT args.lineup here: ``picked`` is this SUB-menu's
+                    # settings and has no lineup in it, so assigning from
+                    # it set the editor's boat back to None every time
+                    # somebody opened Graphics and sound.  The lineup
+                    # leaves through run_setup_menu's return value.
                     # ``chosen`` is the setup menu's own settings, and wind
                     # is no longer one of them -- it lives on the weather
                     # menu -- so it comes from args, which the weather
@@ -2473,6 +2475,15 @@ def main(argv=None):
             return 0
         args.boat, args.race = picked["boat"], picked["race"]
         args.rate = picked["rate"]
+        # The rig editor's boat.  This is what makes a bucket rig row as
+        # a bucket rig: without it the plan was drawn, discarded, and the
+        # catalogue's default crew raced instead -- which is why picking
+        # a bucket four rendered a standard one.
+        args.lineup = picked.get("lineup")
+        if args.lineup is not None:
+            # The plan's shell wins over the menu row: the crew were
+            # seated in THAT boat.
+            args.boat = args.lineup.shell
 
     print("building %s ..." % args.race)
     clock0 = time.perf_counter()
