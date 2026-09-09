@@ -238,11 +238,11 @@ class Tier:
     physics_scheme: str = "rk4"
 
 QUALITY_TIERS = (
-    Tier("ultra", "Ultra minimal (lowest)", 160, "impostor", False, False, "single",
+    Tier("ultra", "Ultra minimal (lowest)", 80, "impostor", False, False, "single",
          2048, 0, "simple", False, 400.0, 12.0, 0, 1.0, 5.0, 50.0, sky_detail=False, physics_scheme="heun"),
-    Tier("minimal", "Minimal", 240, "impostor", False, False, "single",
+    Tier("minimal", "Minimal", 120, "impostor", False, False, "single",
          2048, 0, "simple", False, 600.0, 10.0, 0, 1.0, 7.0, 60.0, sky_detail=False, physics_scheme="heun"),
-    Tier("standard", "Standard", 340, "full", True, False, "pcf",
+    Tier("standard", "Standard", 240, "full", True, False, "pcf",
          0, 10, "full", True, 900.0, 8.0, 2, 1.0, 16.0, 60.0, physics_scheme="heun"),
     Tier("high", "High", 420, "full", True, True, "pcf",
          0, 16, "full", True, 900.0, 8.0, 4, 1.0, 26.0, 100.0),
