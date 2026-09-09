@@ -335,7 +335,7 @@ REPORT_CHOICES = (("off", "Off"), ("on", "On"))
 def options_menu(audio: str = "full", quality: str = "standard",
                  weather: str = "hazy", wind: float = 5.0,
                  report: str = "off", updates: str = "on",
-                 minimap: str = "on") -> Menu:
+                 minimap: str = "on", fullscreen: str = "off") -> Menu:
     """Graphics and sound, reached from either menu."""
     modes = audio_choices()
     grades = quality_choices()
@@ -352,6 +352,8 @@ def options_menu(audio: str = "full", quality: str = "standard",
                index=1 if updates == "on" else 0),
         Choice("minimap", "Minimap", list(REPORT_CHOICES),
                index=1 if minimap == "on" else 0),
+        Choice("fullscreen", "Full screen", list(REPORT_CHOICES),
+               index=1 if fullscreen == "on" else 0),
         Choice("back", "Back", (), action="back"),
     ]
     return Menu("Graphics and sound", rows)
@@ -467,6 +469,26 @@ def boat_from_lineup(lineup, rate: float, catalog=None):
         boat.seat_ratios = ratios / ratios.mean()
     else:
         boat.seat_ratios = np.ones(boat.n_seats)
+
+    # Per-seat skill and experience, where somebody typed one; negative
+    # stays negative and the caller reads it as "use the crew slider".
+    boat.seat_skill = np.array([float(r.skill) for r in rowers])
+    boat.seat_experience = np.array([float(r.experience) for r in rowers])
+    boat.seat_ages = [int(r.age) or None for r in rowers]
+
+    # The reserve, from these ergs and these ages rather than from the
+    # literature means -- which are young male athletes and about twice
+    # what a masters crew pulls.  See coxswain.crew.ageing.
+    from ..crew.ageing import crew_physiology
+
+    seconds = []
+    for r in rowers:
+        try:
+            minutes, secs = str(r.erg_5k).split(":")
+            seconds.append(float(minutes) * 60.0 + float(secs))
+        except (ValueError, AttributeError):
+            seconds.append(None)
+    boat.crew_physiology = crew_physiology(watts, seconds, boat.seat_ages)
     return boat, lineup.shell
 
 
@@ -755,6 +777,9 @@ def blurb_for(menu: "Menu") -> str:
     if row.key == "quality":
         return ("Ultra minimal runs on integrated graphics; High wants a "
                 "gaming card.  Applies on the next start.")
+    if row.key == "fullscreen":
+        return ("Fill the screen at its own resolution.  F11 toggles it "
+                "at any time; applies on the next start from here.")
     if row.key == "minimap":
         return ("The course from above in the corner: the line, the buoys "
                 "and you.  Off if you would rather read the river.")

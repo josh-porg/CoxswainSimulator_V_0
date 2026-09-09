@@ -82,6 +82,15 @@ class Rower:
     inches: float = 0.0
     erg_5k: str = ""
     side: int = +1
+    #: Years.  0 means "not given", and then nothing about this rower
+    #: is aged -- see :mod:`coxswain.crew.ageing`.
+    age: int = 0
+    #: This rower's own skill and experience, 0 novice to 1 ideal.
+    #: Negative means "use the crew slider", which is what an untouched
+    #: rower has: the Rowers menu still moves the whole crew, and these
+    #: only override the seats somebody has typed a number into.
+    skill: float = -1.0
+    experience: float = -1.0
     #: True when the height is a population mean standing in for a
     #: number nobody measured -- roster rowers, whose sheet logs weight
     #: and erg scores but never a stature.  Shown with a "~" so the
@@ -109,7 +118,10 @@ FIELDS = (("name", "name"),
           ("pounds", "weight, lb"),
           ("feet", "height, ft"),
           ("inches", "height, in"),
-          ("erg_5k", "5k erg, m:ss"))
+          ("erg_5k", "5k erg, m:ss"),
+          ("age", "age, years"),
+          ("skill", "skill 0-1"),
+          ("experience", "experience 0-1"))
 
 #: What the erg field will accept: ``m:ss`` or ``mm:ss`` with an
 #: optional tenth, or nothing at all.
@@ -126,6 +138,12 @@ def field_text(rower: "Rower", index: int) -> str:
         return "" if not value and not rower.inches else "%d" % int(value)
     if attr == "inches":
         return "" if not value and not rower.feet else "%g" % float(value)
+    if attr == "age":
+        return "" if not value else "%d" % int(value)
+    if attr in ("skill", "experience"):
+        # Negative is "use the crew slider", and shows as blank rather
+        # than as a number nobody typed.
+        return "" if value is None or float(value) < 0.0 else "%g" % float(value)
     return str(value or "")
 
 
@@ -144,7 +162,9 @@ def parse_field(index: int, text: str):
             return ""
         return text if _ERG.match(text) else None
     if text == "":
-        return 0.0 if attr != "feet" else 0
+        if attr in ("skill", "experience"):
+            return -1.0             # back to the crew slider
+        return 0.0 if attr not in ("feet", "age") else 0
     try:
         value = float(text)
     except ValueError:
@@ -153,6 +173,10 @@ def parse_field(index: int, text: str):
         return None
     if attr == "feet":
         return int(value)
+    if attr == "age":
+        return int(value) if 10 <= value <= 110 else None
+    if attr in ("skill", "experience"):
+        return float(value) if value <= 1.0 else None
     if attr == "inches" and value >= 12.0:
         return None                     # that is another foot
     return value
@@ -213,7 +237,8 @@ class Lineup:
                     "feet": self.cox_feet, "inches": self.cox_inches},
             "rowers": [{"name": r.name, "pounds": r.pounds, "feet": r.feet,
                         "inches": r.inches, "erg_5k": r.erg_5k,
-                        "side": r.side,
+                        "side": r.side, "age": r.age, "skill": r.skill,
+                        "experience": r.experience,
                         "stature_estimated": bool(r.stature_estimated)}
                        for r in self.rowers],
         }
@@ -230,6 +255,9 @@ class Lineup:
                         inches=float(r.get("inches", 0.0)),
                         erg_5k=str(r.get("erg_5k", "")),
                         side=int(r.get("side", +1)),
+                        age=int(r.get("age", 0) or 0),
+                        skill=float(r.get("skill", -1.0)),
+                        experience=float(r.get("experience", -1.0)),
                         stature_estimated=bool(r.get("stature_estimated",
                                                      False)))
                   for r in data.get("rowers", [])]
@@ -379,11 +407,14 @@ def _hocr_four() -> Lineup:
     Bucket rigged with a starboard stroke -- S-P-P-S read from stroke --
     in a bow-loader, so the coxswain lies down in the bow.
     """
+    # Ages are the age band the crew race in -- Veteran 60+ -- rather
+    # than four measured birthdays, so the physiology is banded, not
+    # personal.  Type real ones in and they are used instead.
     crew = [
-        Rower("Marilyn", 120.0, 5, 5.5, "23:25"),
-        Rower("Alex", 120.0, 5, 2.0, "23:41"),
-        Rower("Lea", 125.0, 5, 3.5, "23:07"),
-        Rower("Sheila", 155.0, 5, 3.0, "22:20"),
+        Rower("Marilyn", 120.0, 5, 5.5, "23:25", age=62),
+        Rower("Alex", 120.0, 5, 2.0, "23:41", age=62),
+        Rower("Lea", 125.0, 5, 3.5, "23:07", age=62),
+        Rower("Sheila", 155.0, 5, 3.0, "22:20", age=62),
     ]
     lineup = Lineup(shell="4+", rig="bucket, stbd stroke", rowers=crew,
                     cox_name="you", cox_pounds=160.0, cox_feet=5,
@@ -529,6 +560,15 @@ def rower_lines(rower: "Rower") -> list:
         watts = rower.watts
         lines.append("5k %s%s" % (rower.erg_5k,
                                   "   %.0f W" % watts if watts else ""))
+    extra = []
+    if rower.age:
+        extra.append("age %d" % int(rower.age))
+    if rower.skill is not None and float(rower.skill) >= 0.0:
+        extra.append("skill %.2f" % float(rower.skill))
+    if rower.experience is not None and float(rower.experience) >= 0.0:
+        extra.append("exp %.2f" % float(rower.experience))
+    if extra:
+        lines.append("   ".join(extra))
     return lines
 
 

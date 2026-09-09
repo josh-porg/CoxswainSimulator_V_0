@@ -2108,11 +2108,14 @@ def run_setup_menu(screen, args):
                         menu = rowers_menu(skill=args.skill,
                                            balance=args.balance)
                     else:
-                        menu = options_menu(report=getattr(args, "report", "off"), updates=getattr(args, "updates", "on"), minimap=getattr(args, "minimap", "on"), audio=args.audio,
+                        menu = options_menu(report=getattr(args, "report", "off"), updates=getattr(args, "updates", "on"), minimap=getattr(args, "minimap", "on"), fullscreen=getattr(args, "fullscreen", "off"), audio=args.audio,
                                             quality=args.quality)
                     continue
                 if action == "back":
                     picked = menu.settings()
+                    if picked.get("fullscreen") not in (None, getattr(args, "fullscreen", "off")):
+                        args.fullscreen = picked["fullscreen"]
+                        _settings.update(fullscreen=args.fullscreen)
                     if picked.get("minimap") not in (None, getattr(args, "minimap", "on")):
                         args.minimap = picked["minimap"]
                         _settings.update(minimap=args.minimap)
@@ -2368,6 +2371,9 @@ def main(argv=None):
     parser.add_argument("--report-url", default=None,
                         help="where performance reports go; see "
                              "packaging/phonehome/README.md")
+    parser.add_argument("--fullscreen", choices=("on", "off"), default=None,
+                        help="fill the screen; the remembered setting "
+                             "otherwise.  F11 toggles it in the boat")
     parser.add_argument("--bonus", choices=("on", "off"), default=None,
                         help="the bonus run (coins and boosts along the "
                              "course); normally reached from the setup "
@@ -2432,6 +2438,9 @@ def main(argv=None):
     # Updates: on unless remembered off or told off for this run.  Started
     # here, before the world build, so the answer is usually in by the
     # time the setup menu is drawn -- and never waited for.
+    if args.fullscreen is None:
+        args.fullscreen = ("on" if _settings.load().get("fullscreen") == "on"
+                           else "off")
     args.bonus_unlocked = _settings.load().get("bonus_unlocked") == "on"
     if args.bonus is None:
         args.bonus = "off"
@@ -2468,7 +2477,10 @@ def main(argv=None):
 
         pygame.init()
         pygame.display.set_caption("Coxswain")
-        screen = pygame.display.set_mode((args.width, args.height))
+        screen = pygame.display.set_mode(
+            (args.width, args.height),
+            pygame.FULLSCREEN | pygame.SCALED
+            if getattr(args, "fullscreen", "off") == "on" else 0)
         picked = run_setup_menu(screen, args)
         if picked is None:
             pygame.quit()
@@ -2607,7 +2619,7 @@ def main(argv=None):
     # The crew's own inconsistency.  Applied once per stroke at the
     # catch, which is where a rower commits: within a stroke they are
     # deterministic, because they execute the stroke they started.
-    from coxswain.crew.variability import for_skill
+    from coxswain.crew.variability import for_skill, seat_scale_for_skill
 
     variability = for_skill(args.skill)
 
@@ -2625,7 +2637,14 @@ def main(argv=None):
     # N m, most of it from leaning the trunk rather than from the hands.
     # Wiring that in is what makes the boat something to sit rather than
     # something that sits itself.
-    cox.balance = balance_for_experience(boat, args.balance)
+    _seat_exp = np.asarray(getattr(boat, "seat_experience",
+                                   np.full(boat.n_seats, -1.0)), dtype=float)
+    _given = _seat_exp[_seat_exp >= 0.0]
+    # One balance controller holds one boat, so per-seat experience
+    # averages: the crew is as steady as the crew is, and a single
+    # steady rower cannot sit a boat four people are rolling.
+    _crew_exp = float(_given.mean()) if len(_given) else float(args.balance)
+    cox.balance = balance_for_experience(boat, _crew_exp)
 
     # Blades touching the water when the boat is not sat.  Both halves:
     # the skim drag and roll moment, and the length the drive loses when
@@ -2682,7 +2701,11 @@ def main(argv=None):
     from coxswain.crew.exertion import (WPrimeBalance, mean_handle_power,
                                         optimal_pace)
 
-    reserve = WPrimeBalance()
+    # The crew's own CP and W' when the lineup carried ergs and ages;
+    # the literature pair otherwise.  See coxswain.crew.ageing.
+    _cp, _wprime = getattr(boat, "crew_physiology", (None, None))
+    reserve = (WPrimeBalance(critical_power=_cp, capacity=_wprime)
+               if _cp else WPrimeBalance())
     reference_power = mean_handle_power(boat)
     # Along the course, not the number of points in it.
     _pts = np.asarray(course, dtype=float)
@@ -2829,15 +2852,13 @@ def main(argv=None):
                 pygame.GL_MULTISAMPLESAMPLES, int(args.samples))
         pygame.display.set_caption("%s -- the seat" % scene.name)
         try:
-            screen = pygame.display.set_mode((args.width, args.height),
-                                             pygame.OPENGL | pygame.DOUBLEBUF)
+            screen = set_display_mode(pygame, args)
         except pygame.error:
             # No multisample visual: drop it and take the jaggies rather
             # than not starting.
             pygame.display.gl_set_attribute(pygame.GL_MULTISAMPLEBUFFERS, 0)
             pygame.display.gl_set_attribute(pygame.GL_MULTISAMPLESAMPLES, 0)
-            screen = pygame.display.set_mode((args.width, args.height),
-                                             pygame.OPENGL | pygame.DOUBLEBUF)
+            screen = set_display_mode(pygame, args)
         ctx = moderngl.create_context()
         got = pygame.display.gl_get_attribute(pygame.GL_MULTISAMPLESAMPLES)
         if got:
@@ -3477,9 +3498,12 @@ def main(argv=None):
                     draw.faded = False
                 scale = asked / max(reference_power, 1.0)
                 if variability is not None and variability.power_sigma > 0.0:
+                    _seat_scale = seat_scale_for_skill(
+                        getattr(boat, "seat_skill",
+                                np.full(boat.n_seats, -1.0)), args.skill)
                     variability.apply(boat, base=scale * np.asarray(
                         getattr(boat, "seat_ratios", np.ones(boat.n_seats)),
-                        dtype=float))
+                        dtype=float), seat_scale=_seat_scale)
                 else:
                     boat.power_scales = (scale * np.asarray(
                         getattr(boat, "seat_ratios", np.ones(boat.n_seats)),
@@ -3739,10 +3763,13 @@ def main(argv=None):
                             menu = rowers_menu(skill=args.skill,
                                                balance=args.balance)
                         else:
-                            menu = options_menu(report=getattr(args, "report", "off"), updates=getattr(args, "updates", "on"), minimap=getattr(args, "minimap", "on"), audio=args.audio,
+                            menu = options_menu(report=getattr(args, "report", "off"), updates=getattr(args, "updates", "on"), minimap=getattr(args, "minimap", "on"), fullscreen=getattr(args, "fullscreen", "off"), audio=args.audio,
                                                 quality=args.quality)
                     elif action == "back":
                         picked = menu.settings()
+                        if picked.get("fullscreen") not in (None, getattr(args, "fullscreen", "off")):
+                            args.fullscreen = picked["fullscreen"]
+                            _settings.update(fullscreen=args.fullscreen)
                         if picked.get("minimap") not in (None, getattr(args, "minimap", "on")):
                             args.minimap = picked["minimap"]
                             _settings.update(minimap=args.minimap)
@@ -3810,6 +3837,16 @@ def main(argv=None):
                     # Ask.  See confirm_quit_menu.
                     menu = confirm_quit_menu()
                     paused = True
+                elif event.key == pygame.K_F11:
+                    # Toggle, and remember.  The GL context survives a
+                    # mode change on every platform this ships to; the
+                    # drawable size may not, so the buffers that follow
+                    # it are told.
+                    args.fullscreen = ("off" if args.fullscreen == "on"
+                                       else "on")
+                    _settings.update(fullscreen=args.fullscreen)
+                    set_display_mode(pygame, args)
+                    draw.hud_last = None          # recompose at the new size
                 elif event.key == pygame.K_SPACE:
                     paused = not paused
                 elif event.key == pygame.K_c:
@@ -3937,7 +3974,8 @@ def main(argv=None):
                     clock.get_fps()),
                  # Nobody guesses this, and without it the pause menu
                  # and everything in it may as well not exist.
-                 ("Up/Down call    F1 free camera    Esc menu    V astern"
+                 ("Up/Down call    F1 free camera    F11 full screen    "
+                  "Esc menu    V astern"
                   if freecam is None else
                   "FREE CAMERA  WASD move  QE down/up  shift fast  "
                   "F1 back to the boat")]
@@ -4270,6 +4308,39 @@ def add_bonus_row(menu, value: str = "off") -> None:
     row = Choice("bonus", "Bonus run", list(REPORT_CHOICES),
                  index=1 if value == "on" else 0)
     menu.rows.insert(max(len(menu.rows) - 1, 0), row)
+
+
+def display_flags(pygame, fullscreen: str) -> int:
+    """The window flags, with or without the screen.
+
+    ``SCALED`` comes with ``FULLSCREEN`` so the drawable is the screen's
+    own resolution rather than the window's stretched: on an integrated
+    part the fill cost is real, and a 1180x680 image blown up to 2560
+    wide looks worse than the same pixels drawn at the size they are.
+    """
+    flags = pygame.OPENGL | pygame.DOUBLEBUF
+    if str(fullscreen) == "on":
+        flags |= pygame.FULLSCREEN | pygame.SCALED
+    return flags
+
+
+def set_display_mode(pygame, args):
+    """Open (or reopen) the window at the current fullscreen setting.
+
+    Returns the surface.  Falls back to a window if the screen refuses
+    the mode -- a machine that cannot go fullscreen must still play.
+    """
+    flags = display_flags(pygame, getattr(args, "fullscreen", "off"))
+    try:
+        return pygame.display.set_mode((args.width, args.height), flags)
+    except pygame.error:
+        if flags & pygame.FULLSCREEN:
+            print("   (no fullscreen mode here; staying windowed)")
+            args.fullscreen = "off"
+            return pygame.display.set_mode(
+                (args.width, args.height),
+                pygame.OPENGL | pygame.DOUBLEBUF)
+        raise
 
 
 #: Minimap box: size in pixels, and the margin from the corner.

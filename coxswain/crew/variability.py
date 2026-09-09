@@ -116,7 +116,7 @@ class CrewVariability:
         # would eventually produce one.
         return np.maximum(power, 0.0), timing
 
-    def apply(self, boat, base=None) -> None:
+    def apply(self, boat, base=None, seat_scale=None) -> None:
         """Draw one stroke's worth of variation and set it on ``boat``.
 
         ``base`` is a per-seat multiplier the draw is applied *on top of*
@@ -134,6 +134,15 @@ class CrewVariability:
         draw would compound the scatter without limit.
         """
         power, timing = self.draw(boat.n_seats)
+        if seat_scale is not None:
+            # Per-seat skill: the draw is a deviation from 1.0 in power
+            # and from 0.0 in timing, so scaling the DEVIATION is what
+            # makes one seat steadier than the crew around it.  A seat
+            # left at the crew's own skill scales by 1.0 and is
+            # untouched, bit for bit.
+            scale = np.asarray(seat_scale, dtype=float)
+            power = 1.0 + (power - 1.0) * scale
+            timing = timing * scale
         if base is not None:
             power = power * np.asarray(base, dtype=float)
         boat.power_scales = power
@@ -195,6 +204,30 @@ def for_skill(skill: float, seed: int = 0) -> "CrewVariability":
         timing_bias_sigma=timing * BIAS_PER_SCATTER,
         seed=seed,
     )
+
+
+def seat_scale_for_skill(seat_skill, crew_skill: float):
+    """Per-seat multiplier on the crew's scatter, from each seat's skill.
+
+    A rower's own skill is expressed against the crew's, so a seat set
+    to "elite" in a club crew scatters by the elite numbers and a seat
+    left alone scatters by the crew's.  Negative means "not set", and
+    gives exactly 1.0.
+
+    Returns ``None`` when nobody set anything, so the caller can take
+    the untouched path rather than multiplying by a row of ones.
+    """
+    seat_skill = np.asarray(seat_skill, dtype=float)
+    if not np.any(seat_skill >= 0.0):
+        return None
+    crew = for_skill(float(crew_skill))
+    reference = max(crew.power_sigma, 1e-9)
+    scale = np.ones(len(seat_skill))
+    for index, value in enumerate(seat_skill):
+        if value < 0.0:
+            continue
+        scale[index] = for_skill(float(value)).power_sigma / reference
+    return scale
 
 
 def skill_label(skill: float) -> str:
