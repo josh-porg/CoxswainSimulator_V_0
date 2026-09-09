@@ -25,6 +25,17 @@ cannot run on an Intel Mac.
 `cd Coxswain && ./Coxswain`. Needs glibc 2.35 or newer: Ubuntu 22.04+,
 Debian 12+, current Fedora, Arch and Mint.
 
+## Fixed in v0.12.1
+
+**v0.12 crashed on startup — this replaces it.** If you downloaded
+v0.12, take this one instead. The minimap looked up the boat's position
+under a name the main loop does not use, so the trainer stopped before
+its first frame. Three more of exactly that kind went with it: changing
+the minimap, update-check or report setting on the setup menu crashed;
+so did opening the pause menu.
+
+Everything below is v0.12's, and all of it is in here.
+
 ## New in this one
 
 Things people asked for, and one thing nobody was told about.
