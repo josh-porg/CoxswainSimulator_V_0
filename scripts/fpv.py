@@ -1948,6 +1948,10 @@ def run_setup_menu(screen, args):
     # exactly the friction the preset exists to remove.
     lineup = None
     lineup_last = None          # the last lineup the editor showed
+    from coxswain.viz.bonus import SecretTyper
+    secret = SecretTyper()
+    if getattr(args, "bonus_unlocked", False):
+        add_bonus_row(menu, getattr(args, "bonus", "off"))
     pane_cursor = 0
     seat_cursor = -1
     # ``(seat, field, buffer)`` while a rower is being typed in.
@@ -2074,6 +2078,14 @@ def run_setup_menu(screen, args):
                 if event.key == pygame.K_ESCAPE:
                     stop_music()
                     return None
+                # The secret.  Printable characters typed on the menu
+                # feed a five-letter window; the word unlocks the bonus
+                # run, adds its row to this menu, and is remembered.
+                if secret.feed(getattr(event, "unicode", "") or ""):
+                    args.bonus_unlocked = True
+                    args.bonus_note = True
+                    _settings.update(bonus_unlocked="on")
+                    add_bonus_row(menu, getattr(args, "bonus", "off"))
                 action = handle_key(menu, event.key)
                 if action == "controls":
                     showing_controls = True
@@ -2114,6 +2126,8 @@ def run_setup_menu(screen, args):
                                       ("balance", "balance")):
                         if key in picked:
                             setattr(args, name, picked[key])
+                    if "bonus" in picked:
+                        args.bonus = picked["bonus"]
                     args.lineup = picked.get("lineup")
                     if args.lineup is not None:
                         args.boat = args.lineup.shell
@@ -2167,6 +2181,10 @@ def run_setup_menu(screen, args):
             if _update is not None:
                 draw_menu(overlay, menu, font, small, screen.get_size(),
                           footer="NEWER RELEASE: " + _update.line())
+            elif getattr(args, "bonus_note", False):
+                draw_menu(overlay, menu, font, small, screen.get_size(),
+                          footer="BONUS RUN UNLOCKED  .  coins and boosts "
+                                 "along the course  .  switch it on above")
             else:
                 draw_menu(overlay, menu, font, small, screen.get_size())
         screen.blit(overlay, (0, 0))
@@ -2344,6 +2362,10 @@ def main(argv=None):
     parser.add_argument("--report-url", default=None,
                         help="where performance reports go; see "
                              "packaging/phonehome/README.md")
+    parser.add_argument("--bonus", choices=("on", "off"), default=None,
+                        help="the bonus run (coins and boosts along the "
+                             "course); normally reached from the setup "
+                             "menu once unlocked")
     parser.add_argument("--no-minimap", action="store_true",
                         help="no course map in the corner; the remembered "
                              "setting otherwise")
@@ -2404,6 +2426,9 @@ def main(argv=None):
     # Updates: on unless remembered off or told off for this run.  Started
     # here, before the world build, so the answer is usually in by the
     # time the setup menu is drawn -- and never waited for.
+    args.bonus_unlocked = _settings.load().get("bonus_unlocked") == "on"
+    if args.bonus is None:
+        args.bonus = "off"
     args.minimap = ("off" if (getattr(args, "no_minimap", False)
                               or _settings.load().get("minimap") == "off")
                     else "on")
@@ -3264,6 +3289,20 @@ def main(argv=None):
         program, [(oar_buffer, "3f 3f 3f", "in_pos", "in_normal",
                    "in_colour")])
 
+    # The bonus run: pickups laid along the course, drawn through the
+    # same float-layout path as the boat, collected in the loop below.
+    from coxswain.viz.bonus import BonusRun, pickup_solids
+    bonus = (BonusRun.along(course) if getattr(args, "bonus", "off") == "on"
+             else None)
+    pickup_buffer = ctx.buffer(reserve=256 * 1024, dynamic=True)
+    pickup_vao = ctx.vertex_array(
+        program, [(pickup_buffer, "3f 3f 3f", "in_pos", "in_normal",
+                   "in_colour")])
+    if bonus is not None:
+        print("   bonus run: %d coins, %d boosts along the course"
+              % (bonus.total_coins, sum(1 for p in bonus.pickups
+                                         if p.kind == "boost")))
+
     # Only built at High.  Nothing spawns into it otherwise, so the
     # per-frame upload and draw disappear rather than running on an
     # empty pool.
@@ -3372,10 +3411,14 @@ def main(argv=None):
         draw.last_speed = speed
         # The reserve runs on real elapsed time, not on the stroke, so a
         # paused boat does not quietly recover.
+        # What the crew are asked for: the coxswain's call, plus a live
+        # boost.  A boost is the crew briefly rowing above themselves,
+        # paid for out of the same reserve as any other call.
+        call_live = call + (bonus.call_bonus() if bonus is not None else 0.0)
         _elapsed = max(float(t) - draw.last_reserve_t, 0.0)
         if _elapsed > 0.0:
             draw.w_prime = reserve.step(draw.w_prime,
-                                        nominal_power * call, _elapsed)
+                                        nominal_power * call_live, _elapsed)
             draw.last_reserve_t = float(t)
         water_prog["time"].value = float(t)
         for _prog in (program, sky_prog, water_prog):
@@ -3409,7 +3452,7 @@ def main(argv=None):
                 # give.  Asked for at the catch because that is when a
                 # rower commits to a stroke: a call lands on the next
                 # one, not on the one already being pulled.
-                asked = nominal_power * call
+                asked = nominal_power * call_live
                 if draw.w_prime <= 0.0:
                     # Empty.  This is not the crew choosing to ease off;
                     # it is the rate falling whatever the coxswain says.
@@ -3495,6 +3538,17 @@ def main(argv=None):
                     program["colour_scale"].value = 1.0   # float buffer
                     oar_buffer.write(blob.tobytes())
                     oar_vao.render(vertices=len(vertices))
+        if bonus is not None:
+            solids = pickup_solids(
+                bonus.visible(float(state[0]), float(state[1])), float(t))
+            if solids is not None:
+                p_vertices, p_colours = solids
+                p_blob = np.hstack([p_vertices, _face_normals(p_vertices),
+                                    p_colours]).astype("f4")
+                if p_blob.nbytes <= pickup_buffer.size:
+                    program["colour_scale"].value = 1.0
+                    pickup_buffer.write(p_blob.tobytes())
+                    pickup_vao.render(vertices=len(p_vertices))
 
         if sky_last:
             # Depth 1.0 against a buffer cleared to 1.0: LESS would
@@ -3834,6 +3888,16 @@ def main(argv=None):
                     u = (phase - drive) / max(1.0 - drive, 1e-6)
                     audio.set_slide_level(math.sin(math.pi * u))
         pose = loop.pose()
+        if bonus is not None:
+            _rot = hull_to_abs(np.asarray(pose[3:6], dtype=float))
+            _bow = (np.asarray(pose[0:3], dtype=float)
+                    + _rot @ np.array([0.5 * float(boat.length), 0.0, 0.0]))
+            for _taken in bonus.collect(float(_bow[0]), float(_bow[1])):
+                if audio is not None and hasattr(audio, "catch"):
+                    try:
+                        audio.catch()          # the nearest sound there is
+                    except Exception:
+                        pass
         draw(pose, loop.t)
 
         speed = float(np.hypot(pose[6], pose[7]))
@@ -3897,6 +3961,8 @@ def main(argv=None):
         # to an upload every frame.  Its part of the key is the boat's
         # position to 2 m and heading to 5 degrees: a few uploads a
         # second at race pace, none when stopped.
+        if bonus is not None:
+            lines.append(bonus.hud_line())
         _map_on = getattr(args, "minimap", "on") == "on"
         _map_key = ((int(state[0] / 2.0), int(state[1] / 2.0),
                      int(math.degrees(state[5]) / 5.0)) if _map_on else None)
@@ -3973,6 +4039,17 @@ def main(argv=None):
         print("   report: " + outcome)
     except Exception as error:                              # never fatal
         print("   report: not sent (%s)" % type(error).__name__)
+    if bonus is not None:
+        from coxswain.viz import settings as _settings_mod
+        best = int(_settings_mod.load().get("bonus_best") or 0)
+        score = bonus.score()
+        telemetry.note("bonus run: %d coins of %d, %d boosts, score %d"
+                       % (bonus.coins, bonus.total_coins, bonus.boosts, score))
+        if score > best:
+            _settings_mod.update(bonus_best=score)
+            print("   bonus run: %d -- a new best" % score)
+        else:
+            print("   bonus run: %d (best %d)" % (score, best))
     telemetry.close()
     if restart_session:
         # "Change boat or course": the world has to be rebuilt, so the
@@ -4167,6 +4244,17 @@ def _opaque_blit(ctx, unit: int) -> None:
     _BLIT["opaque_program"]["image"].value = int(unit)
     _BLIT["opaque"].render()
     ctx.enable(moderngl.DEPTH_TEST)
+
+
+def add_bonus_row(menu, value: str = "off") -> None:
+    """Put the Bonus run row on a setup menu, once, above the last row."""
+    from coxswain.viz.menu import REPORT_CHOICES, Choice
+
+    if any(row.key == "bonus" for row in menu.rows):
+        return
+    row = Choice("bonus", "Bonus run", list(REPORT_CHOICES),
+                 index=1 if value == "on" else 0)
+    menu.rows.insert(max(len(menu.rows) - 1, 0), row)
 
 
 #: Minimap box: size in pixels, and the margin from the corner.
