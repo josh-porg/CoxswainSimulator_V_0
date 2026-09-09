@@ -105,3 +105,18 @@ Menu music is "Romantic 03" by Mixkit, used under the Mixkit Free
 License. Everything else -- the courses, the scenery, the physics and
 the stroke sound -- is built from public survey data and from
 recordings of real outings.
+
+IF IT RUNS BADLY
+----------------
+Open Graphics and sound from the menu and pick a lower tier; "Ultra
+minimal" is built for laptops with integrated graphics.  The game
+picks a tier on its own the first time, from your graphics card.
+
+If your laptop has two graphics chips, the start-up text will say when
+the game has been given the slow one, and how to change that.
+
+Every run writes a small diagnostics file and prints where it went at
+start-up (on Windows: %LOCALAPPDATA%\Coxswain\logs).  It has the
+machine, the graphics card, the tier, load times, frame times, and any
+error.  If something is wrong, send that file.  It stays on your
+machine unless you send it.

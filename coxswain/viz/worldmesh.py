@@ -500,12 +500,23 @@ def building_walls(polygons, heights, bases=None, box=None,
             ring = ring[keep_pt]
         nxt = np.roll(ring, -1, axis=0)
         tint = photo_colour(imagery, ring, base_colour)
-        for start, end in zip(ring, nxt):
-            walls.append([[start[0], start[1], low], [end[0], end[1], low],
-                          [end[0], end[1], top]])
-            walls.append([[start[0], start[1], low], [end[0], end[1], top],
-                          [start[0], start[1], top]])
-            tints.extend([tint] * 6)
+        # Every wall of this building at once.  The per-edge loop this
+        # replaces appended two Python lists of three Python lists per
+        # edge -- 150,000 tiny numpy calls on the Charles, 12.8 s of a
+        # 33 s start.  The ring is counter-clockwise from above (the
+        # signed area above made it so), which is what makes the
+        # winding below face outward without a cross product per face.
+        n = len(ring)
+        lo = np.column_stack([ring, np.full(n, low)])
+        hi = np.column_stack([ring, np.full(n, top)])
+        lo_n = np.roll(lo, -1, axis=0)
+        hi_n = np.roll(hi, -1, axis=0)
+        block = np.concatenate([
+            np.stack([lo, lo_n, hi_n], axis=1),
+            np.stack([lo, hi_n, hi], axis=1)], axis=0).reshape(-1, 3)
+        walls.append(block)
+        tints.append(np.tile(np.asarray(tint, dtype=float).reshape(1, -1),
+                             (len(block), 1)))
 
         # A roof, because a building without one is an open box.
         #
@@ -524,25 +535,24 @@ def building_walls(polygons, heights, bases=None, box=None,
         roof_tint = tuple(min(1.0, c * 1.06) for c in np.atleast_1d(tint))
         if pitch > 0.05:
             ridge_a, ridge_b, along, centre = _ridge(ring, top, pitch)
-            for start, end in zip(ring, nxt):
-                middle = 0.5 * (start + end)
-                # Each eave meets the ridge at its own nearest point, so
-                # the long sides give two slopes and the ends hip in.
-                t = float(np.dot(middle - centre, along))
-                reach = float(np.dot(ridge_b[:2] - centre, along))
-                t = max(-abs(reach), min(abs(reach), t))
-                onto = [centre[0] + along[0] * t, centre[1] + along[1] * t,
-                        top + pitch]
-                _tri(walls, tints, [start[0], start[1], top],
-                     [end[0], end[1], top], onto,
-                     np.array([0.0, 0.0, 1.0]), roof_tint)
+            middle = 0.5 * (ring + nxt)
+            t = (middle - centre) @ along
+            reach = abs(float(np.dot(ridge_b[:2] - centre, along)))
+            t = np.clip(t, -reach, reach)
+            onto = np.column_stack([centre[0] + along[0] * t,
+                                    centre[1] + along[1] * t,
+                                    np.full(n, top + pitch)])
+            fan = np.stack([hi, hi_n, onto], axis=1).reshape(-1, 3)
+            walls.append(fan)
+            tints.append(np.tile(np.asarray(roof_tint, dtype=float)
+                                 .reshape(1, -1), (len(fan), 1)))
         else:
             centre = ring.mean(axis=0)
-            apex = [centre[0], centre[1], top]
-            for start, end in zip(ring, nxt):
-                _tri(walls, tints, [start[0], start[1], top],
-                     [end[0], end[1], top], apex,
-                     np.array([0.0, 0.0, 1.0]), roof_tint)
+            apex = np.tile([centre[0], centre[1], top], (n, 1))
+            fan = np.stack([hi, hi_n, apex], axis=1).reshape(-1, 3)
+            walls.append(fan)
+            tints.append(np.tile(np.asarray(roof_tint, dtype=float)
+                                 .reshape(1, -1), (len(fan), 1)))
 
         # A floor under anything that floats.
         #
@@ -554,19 +564,19 @@ def building_walls(polygons, heights, bases=None, box=None,
         # same hole the coxswain's cockpit had, three hundred feet up.
         if low > floor + 0.5:
             centre = ring.mean(axis=0)
-            hub = [centre[0], centre[1], low]
-            for start, end in zip(ring, nxt):
-                _tri(walls, tints, [start[0], start[1], low],
-                     [end[0], end[1], low], hub,
-                     np.array([0.0, 0.0, -1.0]), tuple(
-                         0.7 * c for c in np.atleast_1d(tint)))
+            hub = np.tile([centre[0], centre[1], low], (n, 1))
+            # facing DOWN: reversed winding
+            fan = np.stack([lo_n, lo, hub], axis=1).reshape(-1, 3)
+            walls.append(fan)
+            under = np.asarray(tint, dtype=float).reshape(1, -1) * 0.7
+            tints.append(np.tile(under, (len(fan), 1)))
         kept += 1
     if not walls:
         return None
-    vertices = np.asarray(walls, dtype="f4").reshape(-1, 3)
+    vertices = np.concatenate(walls).astype("f4").reshape(-1, 3)
     # Faint per-face variation so a long facade is not one flat slab.
     shade = 0.88 + 0.24 * ((np.arange(len(vertices)) // 6) % 7) / 7.0
-    colours = (np.asarray(tints, dtype=float) * shade[:, None]).astype("f4")
+    colours = (np.concatenate(tints) * shade[:, None]).astype("f4")
     return MeshPart("buildings", vertices, colours, _face_normals(vertices))
 
 
@@ -1507,7 +1517,8 @@ TRUNK = (0.26, 0.20, 0.15)
 
 def tree_solids(stand, box, limit: int = 80000, near=None,
                 min_height: float = 3.0, ground_at=None,
-                shore: float = 0.25) -> Optional[MeshPart]:
+                shore: float = 0.25,
+                solid_within: float = None) -> Optional[MeshPart]:
     """Trees as a trunk and a low-poly crown.
 
     The bank of a river is trees, and leaving them out is why the first
@@ -1591,7 +1602,11 @@ def tree_solids(stand, box, limit: int = 80000, near=None,
     if gap is None:
         solid = np.ones(len(index), dtype=bool)
     else:
-        solid = gap <= SOLID_WITHIN
+        # ``solid_within`` is the tier's say: 0 makes every tree an
+        # impostor -- two triangles each instead of forty -- which is
+        # what "Ultra minimal" means by a tree.
+        within = SOLID_WITHIN if solid_within is None else float(solid_within)
+        solid = gap <= within
         if solid.sum() > SOLID_BUDGET:
             # Keep the nearest, drop the rest to impostors.
             cut = np.sort(gap[solid])[SOLID_BUDGET - 1]
@@ -2495,6 +2510,7 @@ def skyline_walls(structures, course, box, imagery=None, bases=None,
 
 def build_world(race: str = "charles", reach: float = 900.0,
                 step: float = 8.0, with_buildings: bool = True,
+                skyline: bool = True, tree_mode: str = "full",
                 guide: bool = True, trees: bool = True,
                 water_level: float = 0.0):
     """``(WorldMesh, PlanScene)`` for a course.
@@ -2569,12 +2585,13 @@ def build_world(race: str = "charles", reach: float = 900.0,
         # 900 m working box, so the seat view had an empty horizon where
         # a crew sees towers.  A second pass takes only buildings tall
         # enough to subtend a real angle at that range.
-        mesh.add(skyline_walls(
-            structures, course, box, photo,
-            bases=getattr(structures, "base", None),
-            ground_at=ground_at,
-            roofs=(getattr(structures, "roof_shape", None),
-                   getattr(structures, "roof_height", None))))
+        if skyline:
+            mesh.add(skyline_walls(
+                structures, course, box, photo,
+                bases=getattr(structures, "base", None),
+                ground_at=ground_at,
+                roofs=(getattr(structures, "roof_shape", None),
+                       getattr(structures, "roof_height", None))))
     docks = scene.layer("docks")
     if docks is not None:
         mesh.add(dock_solids(docks.polylines))
@@ -2585,7 +2602,9 @@ def build_world(race: str = "charles", reach: float = 900.0,
             else:
                 from ..river.structures import seattle_trees as tree_stand
             mesh.add(tree_solids(tree_stand(), box, near=course,
-                                 ground_at=ground_at))
+                                 ground_at=ground_at,
+                                 solid_within=(0.0 if tree_mode == "impostor"
+                                               else None)))
         except Exception as error:            # pragma: no cover
             print("   (no trees: %s)" % str(error)[:60])
     if race != "charles":

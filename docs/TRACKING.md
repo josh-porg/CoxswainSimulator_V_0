@@ -217,10 +217,39 @@ the ratios are what matter.
 
 | what | before | after | how |
 |---|---|---|---|
-| physics per frame | 31–34 ms, every tier | 18.5 ms at 100 Hz; **~11 ms at 60 Hz** | crew kinematics and oar force tabulated once per stroke (`Boat.tabulate_crew`, trainer only); 60 Hz is the same boat to 0.2 mm |
+| physics per frame | 31–34 ms, every tier | **2.9–3.6 ms** at 50–60 Hz (p50); 4.7 ms at High's 100 Hz | crew kinematics and oar force tabulated once per stroke (`Boat.tabulate_crew`, trainer only); 60 Hz is the same boat to 0.2 mm |
 | `seattle._inside` at start | 14.2 s | 0.96 s | matplotlib's C crossing test with a bounding-box pre-filter; identical answers |
+| world build at start | 33–37 s | 10–16 s | walls emitted per building in numpy; GC off for the build |
 | crew tables at start | — | 0.3–1.1 s | one chain solve per sample; shared by kinematics signature; warmed after the timing scatter |
-| peak working set | 700–1,040 MB | (pending re-measure) | CPU mesh copies dropped after upload; GC off for the build, frozen after |
+
+Per tier, 150 headless frames of an eight on Head of the Lake, medians
+after ten warm-up frames, **on this machine's Intel UHD Graphics** — an
+integrated part, which is the case the rower reported. `--bench` prints
+these; the per-pass GPU timers are what found the water.
+
+| tier | before | after | water pass | world pass |
+|---|---|---|---|---|
+| Ultra minimal | — (new) | **17.1 ms, 59 fps** | 5.3 ms | 3.8 ms |
+| Minimal | 41.1 ms, 24 fps | **16.5 ms, 61 fps** | 3.4 ms (was 7.9) | 3.8 ms |
+| Standard | 62.3 ms, 16 fps | **24.2 ms, 41 fps** | 8.5 ms | 5.8 ms |
+| High | 56.0 ms, 18 fps | ~27 ms | 8.8 ms | 6.5 ms |
+
+Two things the numbers overturned:
+
+* **Render scale hurt.** Drawing at 0.75 into an off-screen buffer and
+  stretching cost 44.7 ms against 27.8 at full size on this GPU: the
+  extra pass and copy outweigh the pixels saved on a part whose
+  bottleneck is not fill. Every tier is at 1.0; `--render-scale` stays
+  as a lever for a GPU where the balance differs.
+* **"Flat" water was flat geometry with full per-pixel work.** Inside
+  `exact_within` every fragment summed eight waves, sixteen puddles, two
+  textures and the wake three times over for a gradient, nearest the
+  eye where pixels are densest. The low tiers now take their normal
+  from the vertex-baked slope (`water_flat`) and no exact band at all.
+
+Peak working set, 120 headless frames, the interpreter itself:
+**648 MB Ultra, 671 Minimal, 868 Standard, 887 High**, against
+700–1,040 MB before the CPU mesh copies were dropped after upload.
 
 Found on the way, and fixed: the kinematics signature omitted the side
 of the boat, so a matched crew shared the stroke seat's chain and every
@@ -232,6 +261,19 @@ it — the second re-record, with the reason and the numbers in
 What the physics is NOT moved to: the GPU.  It is a small stiff 6-DOF
 system on tiny arrays; a GPU's launch latency loses to the CPU JIT that
 already runs the hull sweep.  There is no tensor workload here for a TPU.
+
+---
+
+## Done — running on the machine you have
+
+| what | where | pinned by |
+|---|---|---|
+| **Four graphics tiers, each cheaper than the last.** `ultra` is the floor: flat water, no SSR/refraction, one shadow tap from a 2048² map, plain distance fog, no skyline, every tree an impostor, 400 m reach at 12 m step, no MSAA, 50 Hz physics. Render scale is a flag, not a tier default — measured, it hurt on an iGPU. Every knob is a `Tier` field; a typed flag always beats the tier. | `coxswain/viz/menu.py` `QUALITY_TIERS`; `scripts/fpv.py` tier block; shader uniforms `shadow_taps`, `fog_simple`, `reflect_steps` | `test_the_tiers_do_not_go_below_fifty_hertz`; per-tier `--bench` |
+| **The tier is chosen for you.** `--quality auto` (the default) reads the adapter list before the build and the live GL renderer after the context exists; a dedicated GPU that is not the one drawing is reported with the fix, and `--prefer-dedicated-gpu` writes the per-user Windows preference — only when asked. | `coxswain/viz/hardware.py` | `tests/test_hardware_telemetry.py` |
+| **A diagnostics file.** Build, hardware, settings, world timings, ten-second frame summaries with the physics/draw/present split, stalls over 100 ms with context, tracebacks. Local only, in the OS log folder, printed at start-up; `--no-diagnostics` turns it off. | `coxswain/viz/telemetry.py` | `tests/test_hardware_telemetry.py` |
+| **`--bench N`** runs N headless frames with `ctx.finish()` and prints the split, so a regression is a number. | `scripts/fpv.py` | — |
+| **Startup**: the wall builder emits each building in one numpy block instead of two Python lists per edge; CPU mesh copies are dropped after the GPU upload (140 MB); the cyclic GC is off during the build and the world is frozen after. | `coxswain/viz/worldmesh.py` `building_walls`; `scripts/fpv.py` upload loop | — |
+| **The release tag is in the build**, so the diagnostics file names it. | `tools/build_exe.py` → `packaging/VERSION`; `release.yml` | — |
 
 ---
 

@@ -84,10 +84,17 @@ def test_the_drawable_size_is_used_for_framebuffers_not_the_window_size():
     assert "draw_width, draw_height" in source
     # The screen-space water lookup divides gl_FragCoord by this, so in
     # points it would be wrong by the scale factor across the surface.
-    viewport = re.search(r'water_prog\["viewport"\]\.value = \(([^)]*)\)',
-                         source, re.S)
+    # The uniform is written through _optional now (the plain water
+    # shader behind a render-scale buffer declares no viewport), and it
+    # is the SCENE BUFFER's own size: that buffer is sized from the
+    # drawable in pixels, and with a render scale below one it is the
+    # buffer, not the drawable, that gl_FragCoord is measured against.
+    # Either spelling is in pixels; the window size in points is not.
+    viewport = re.search(r'viewport=\(([^)]*)\)', source, re.S)
     assert viewport is not None
-    assert "draw_width" in viewport.group(1), viewport.group(1)
+    inner = viewport.group(1)
+    assert ("draw_width" in inner) or ("scene_fbo.size" in inner), inner
+    assert "args.width" not in inner and "args.height" not in inner, inner
 
 
 def test_the_mac_instructions_cover_gatekeeper():

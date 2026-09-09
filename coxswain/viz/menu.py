@@ -25,7 +25,8 @@ __all__ = ["Choice", "Menu", "boat_choices", "course_choices",
            "setup_menu", "pause_menu", "build_boat",
            "start_music", "stop_music", "music_path",
            "chart_surface", "draw_controls", "CONTROLS",
-           "options_menu", "quality_settings", "QUALITY", "AUDIO_MODES",
+           "options_menu", "quality_settings", "QUALITY", "QUALITY_TIERS",
+           "Tier", "tier_settings", "AUDIO_MODES",
            "WEATHERS", "weather_choices", "weather_menu", "rowers_menu"]
 
 
@@ -178,11 +179,76 @@ AUDIO_MODES = (("full", "Full"), ("events", "Events only"), ("off", "Off"))
 #: -- while Standard and High run the second pass: screen-space
 #: refraction with depth absorption, and a reflection distorted by the
 #: waves.  Minimal also drops the distant trees.
-QUALITY = (
-    ("minimal", "Minimal", 240, False, False, False),
-    ("standard", "Standard", 340, True, True, False),
-    ("high", "High", 420, True, True, True),
+from dataclasses import dataclass as _dataclass
+
+
+@_dataclass(frozen=True)
+class Tier:
+    """Everything a graphics setting decides, in one place.
+
+    Each field is a cost the renderer pays every frame or at start-up,
+    and every one of them scales down a tier at a time -- so an old
+    laptop with integrated graphics has a setting that is actually
+    cheaper, not merely a smaller water patch with the same 1.3 M
+    triangles behind it.
+
+    ``ultra`` is the floor: flat water, no screen-space reflection or
+    refraction, one shadow tap from a smaller baked map, a plain
+    distance fog, no distant skyline, every tree an impostor, a 400 m
+    reach at a coarser terrain step, no multisampling, and the scene
+    drawn at full size -- a smaller buffer cost more than it saved
+    on the integrated part it was measured on.  It is meant to run on an
+    integrated GPU from 2015.
+    """
+
+    key: str
+    label: str
+    water_divisions: int         # the moving water patch, per side
+    trees: str                   # "full" | "impostor" | "off"
+    rich_water: bool             # screen-space reflection + refraction
+    particles: bool              # catch and drag splash
+    shadow: str                  # "pcf" | "single" | "off"
+    shadow_size: int             # baked map, one side; 0 = auto
+    reflect_steps: int           # SSR march length; 0 = sky only
+    fog: str                     # "full" | "simple"
+    skyline: bool                # the distant-city ring
+    reach: float                 # metres either side of the course
+    step: float                  # terrain step, m
+    samples: int                 # MSAA on the scene buffer
+    #: Scene drawn at this fraction of the window, then stretched.  1.0
+    #: on every tier: measured on an Intel UHD, drawing at 0.75 into an
+    #: off-screen buffer cost MORE than the pixels saved (44.7 ms against
+    #: 27.8) -- the extra pass and copy outweigh fill on a part whose
+    #: bottleneck is not fill.  Kept as a lever (``--render-scale``) for
+    #: a GPU where the balance differs; nothing defaults to it until one
+    #: is measured.
+    render_scale: float
+    exact_within: float          # exact water normals inside this, m
+    physics_hz: float = 60.0     # integrator rate; 60 == 100 to 0.2 mm
+
+
+QUALITY_TIERS = (
+    Tier("ultra", "Ultra minimal", 160, "impostor", False, False, "single",
+         2048, 0, "simple", False, 400.0, 12.0, 0, 1.0, 5.0, 50.0),
+    Tier("minimal", "Minimal", 240, "impostor", False, False, "single",
+         2048, 0, "simple", False, 600.0, 10.0, 0, 1.0, 7.0, 60.0),
+    Tier("standard", "Standard", 340, "full", True, False, "pcf",
+         0, 10, "full", True, 900.0, 8.0, 2, 1.0, 16.0, 60.0),
+    Tier("high", "High", 420, "full", True, True, "pcf",
+         0, 16, "full", True, 900.0, 8.0, 4, 1.0, 26.0, 100.0),
 )
+
+#: The old four-tuple view, kept for the callers that read it.
+QUALITY = tuple((t.key, t.label, t.water_divisions, t.trees != "off",
+                 t.rich_water, t.particles) for t in QUALITY_TIERS)
+
+
+def tier_settings(key: str) -> Tier:
+    """The full :class:`Tier` for a preset key; ``standard`` if unknown."""
+    for tier in QUALITY_TIERS:
+        if tier.key == key:
+            return tier
+    return QUALITY_TIERS[2]
 
 
 def audio_choices():
@@ -592,7 +658,8 @@ def blurb_for(menu: "Menu") -> str:
     if row.key == "crew":
         return "Who sits where, on which side, and how the boat is rigged."
     if row.key == "quality":
-        return "Trades water detail for frame rate.  Applies on the next start."
+        return ("Ultra minimal runs on integrated graphics; High wants a "
+                "gaming card.  Applies on the next start.")
     if row.key == "weather":
         return ("Sky, visibility and how the light scatters.  Fog takes "
                 "the far bank out.")

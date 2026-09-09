@@ -106,6 +106,8 @@ jobs:
           python -m pip install -r requirements-build.txt
 
       - name: Build
+        env:
+          COXSWAIN_VERSION: ${{ github.event.inputs.tag || github.ref_name }}
         run: python tools/build_exe.py --onedir
 
       - name: Check the payload actually got in

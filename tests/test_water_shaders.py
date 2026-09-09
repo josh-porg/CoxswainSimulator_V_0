@@ -81,19 +81,29 @@ def test_the_rich_shader_takes_the_scene_it_reads(ctx):
 
 
 def test_quality_presets_pick_a_shader_tier():
-    """Minimal keeps the old shader; the others ask for the new one."""
-    from coxswain.viz.menu import QUALITY, quality_settings
+    """The two low tiers keep the plain shader; the two high ones ask
+    for the rich one.
+
+    Trees are no longer DROPPED at the low tiers -- they are drawn as
+    two-triangle impostors, which is what was asked for ("turn every
+    tree into a sprite") and costs almost nothing; the old table
+    removed them outright.  ``quality_settings`` still reports them as
+    present, because they are.
+    """
+    from coxswain.viz.menu import QUALITY, quality_settings, tier_settings
 
     keys = [row[0] for row in QUALITY]
-    assert "minimal" in keys
-    divisions, trees, rich, particles = quality_settings("minimal")
-    assert rich is False
-    assert trees is False
-    for key in keys:
-        if key == "minimal":
-            continue
-        _divisions, _trees, rich, _particles = quality_settings(key)
+    assert keys[:2] == ["ultra", "minimal"], keys
+    for key in ("ultra", "minimal"):
+        _divisions, trees, rich, particles = quality_settings(key)
+        assert rich is False, key
+        assert trees is True, "sprites, not nothing"
+        assert particles is False, key
+        assert tier_settings(key).trees == "impostor", key
+    for key in keys[2:]:
+        _divisions, trees, rich, _particles = quality_settings(key)
         assert rich is True, key
+        assert trees is True, key
     # And the grid genuinely gets bigger as you go up.
     sizes = [quality_settings(key)[0] for key in keys]
     assert sizes == sorted(sizes), sizes

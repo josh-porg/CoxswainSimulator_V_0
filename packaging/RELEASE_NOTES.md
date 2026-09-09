@@ -27,37 +27,41 @@ Debian 12+, current Fedora, Arch and Mint.
 
 ## New in this one
 
-Mostly the boat itself, and the people in it.
+This one is about running on the machine you have.
 
-- **Your boat, rower by rower.** Under **Rig and crew** there is a
-  top-down plan of the shell with each seat's weight, height and 5k
-  erg beside it, the riggers drawn on the side each rower rows, and a
-  preset for the HOCR four -- bucket rigged, starboard stroke. Switch
-  a seat's side, change shell or rig, or **type a new rower in**:
-  Enter on a seat, Tab through the fields. Bad input is refused, not
-  turned into zero.
-- **Riggers on the shells.** The frame from the gunwale to the pin is
-  drawn on every boat, on the oarlock's own side. On a bucket four the
-  middle pair really do rig together now.
-- **The crew are the size they are.** Each rower is built from their
-  own height and weight, so a 70 kg bow is no longer drawn as slight as
-  a 54 kg stroke, and the stroke is the height of the stroke.
-- **Squad boats to race against**, built from a real masters squad's
-  erg scores with the names removed: Women 60+ four, Women 50s four,
-  open women's and men's eights. They pull what people that age and
-  weight actually pull -- including the spread.
-- **The Charles bridges are right.** Every arch bridge's piers now
-  stand under its arches, at the measured stations, and Weeks -- which
-  was drawn as three even arches across dry land -- sits on the water
-  where it belongs. On the bridge you line an arch up on from four
-  hundred metres out, that was up to 17 m of error.
-- **A blade that drags throws water.** On an unset boat the low side's
-  blades skim the recovery, and now you see it: a thread of spray off
-  the blade whenever the physics says it is touching, and nothing when
-  it is clear.
+- **Four graphics tiers, and it picks one for you.** *Ultra minimal*
+  is new and is built for an integrated GPU: flat water, no reflections,
+  a single hard shadow, plain fog, no distant skyline, every tree a
+  sprite, a shorter view. On the integrated Intel graphics this was
+  built on, *Ultra* and *Minimal* hold about 60 frames a second and
+  *Standard* about 40, where *Minimal* managed 24 before. *Minimal* is a
+  step up; *Standard* and *High* are what they were, with the reflection
+  search shortened at Standard. On first start the game reads your
+  graphics card and starts on the tier it should; change it under
+  Graphics and sound.
+- **The physics costs half what it did**, at every tier, and it is the
+  same boat: the crew's motion and the oar force are solved once per
+  stroke and read back, held to the full solve to a fifth of a
+  millimetre.
+- **If your laptop has two graphics chips**, the game tells you when it
+  has been given the slow one, and how to fix it. `--prefer-dedicated-gpu`
+  asks Windows for you.
+- **A diagnostics file.** Every run writes a small text log --
+  machine, graphics card, tier, load times, frame times, anything that
+  stalled and why, any error -- and prints where it put it at start-up.
+  If it runs badly, send me that file. It stays on your machine
+  unless you send it.
+- The **Charles arch bridges** have their piers under their arches, on
+  all four of them; the shells have **riggers**; a blade dragging on the
+  recovery throws **spray**; the rig editor lets you **type a rower in**,
+  and there are **anonymous squad boats** built from real erg scores to
+  race against.
 
-Fixed: rowers all drawn the same width; the Charles arch bridges; the
-fix log itself, which now records what is done.
+Fixed on the way: every port rower had been given starboard arms, which
+was quietly steering every boat; a coxed four now covers the same water
+0.16% faster and drifts half as far. And with that gone the model says
+an eight at race pace sits itself -- which is a claim about the model,
+noted as open, not a claim about your boat.
 
 ## What is in it
 
@@ -69,6 +73,8 @@ fix log itself, which now records what is done.
   ripple — at nothing, the water is glass
 - Baked sun shadows, a wake from the Green's function, and the hull
   breaking waves at the bow
+- Four graphics tiers from integrated laptop to gaming desktop, chosen
+  for you at first start; a diagnostics log for when it runs badly
 
 Setup menu on launch. **Escape** opens the menu; **F1** flies a free
 camera. The README beside the program has the full controls.

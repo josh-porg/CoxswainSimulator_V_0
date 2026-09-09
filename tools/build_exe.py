@@ -174,6 +174,24 @@ def main(argv=None):
               "make the two baked ones.")
         return 1
 
+    # The version the diagnostics file will report.  CI sets
+    # COXSWAIN_VERSION from the tag; a local build gets the checkout's
+    # own description, or "local" if git is not there to ask.
+    version = (os.environ.get("COXSWAIN_VERSION")
+               or os.environ.get("GITHUB_REF_NAME") or "").strip()
+    if not version:
+        try:
+            version = subprocess.run(
+                ["git", "describe", "--tags", "--always", "--dirty"],
+                capture_output=True, text=True, cwd=ROOT,
+                timeout=10).stdout.strip() or "local"
+        except Exception:
+            version = "local"
+    with open(os.path.join(ROOT, "packaging", "VERSION"), "w",
+              encoding="utf-8") as handle:
+        handle.write(version + "\n")
+    print("version: %s" % version)
+
     separator = ";" if os.name == "nt" else ":"
     command = [sys.executable, "-m", "PyInstaller",
                "--noconfirm", "--clean", "--windowed",
@@ -184,6 +202,8 @@ def main(argv=None):
         target = os.path.dirname(name).replace("\\", "/")
         command += ["--add-data",
                     "%s%s%s" % (os.path.join(ROOT, name), separator, target)]
+    command += ["--add-data", "%s%s%s" % (
+        os.path.join(ROOT, "packaging", "VERSION"), separator, "packaging")]
     for module in HIDDEN:
         command += ["--hidden-import", module]
     for module in EXCLUDED:

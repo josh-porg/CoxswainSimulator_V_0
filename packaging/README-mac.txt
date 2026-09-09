@@ -104,3 +104,18 @@ KNOWN, AND NOT WORTH REPORTING
   - The crew rows a metronomic stroke and never catches a crab.
   - Buildings are extruded footprints, so they are the right shape in
     plan and flat-topped where a real roof is not.
+
+IF IT RUNS BADLY
+----------------
+Open Graphics and sound from the menu and pick a lower tier; "Ultra
+minimal" is built for laptops with integrated graphics.  The game
+picks a tier on its own the first time, from your graphics card.
+
+If your laptop has two graphics chips, the start-up text will say when
+the game has been given the slow one, and how to change that.
+
+Every run writes a small diagnostics file and prints where it went at
+start-up (on Windows: %LOCALAPPDATA%\Coxswain\logs).  It has the
+machine, the graphics card, the tier, load times, frame times, and any
+error.  If something is wrong, send that file.  It stays on your
+machine unless you send it.

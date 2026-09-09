@@ -47,6 +47,7 @@ import argparse
 import math
 import os
 import sys
+import tempfile
 import time
 
 import numpy as np
@@ -264,6 +265,7 @@ uniform vec3 sun_glow;
 uniform float fog_density;
 uniform float fog_height;
 uniform float fog_scatter;
+uniform int fog_simple;           // 1: plain exp(-density * distance)
 uniform float sky_overcast;
 uniform float sky_time;
 
@@ -309,6 +311,10 @@ float fog_depth(vec3 from, vec3 to) {
     vec3 ray = to - from;
     float distance = length(ray);
     if (distance < 1e-4) return 0.0;
+    // The lower tiers take a uniform atmosphere: no height integral,
+    // no exp per fragment for the density at the eye.  The horizon
+    // still thickens, because distance still grows.
+    if (fog_simple == 1) return fog_density * distance;
     float rise = ray.z;
     float at_eye = exp(-max(from.z, 0.0) / fog_height);
     float integral;
@@ -470,6 +476,7 @@ const float SLOPE_G = 9.80665;
 //: interpolated slope is indistinguishable, so only the chop is done
 //: exactly and the cost falls away with distance.
 uniform float exact_within;
+uniform int water_flat;           // 1: normals from the vertex slope only
 
 // --- micro-ripple, the second normal ---------------------------------
 //
@@ -592,6 +599,18 @@ vec3 water_normal(vec3 world, vec2 baked_slope, float range,
     // circle around the boat, and that circle is the edge that showed
     // up in the water.  Both terms below are continuous everywhere.
     float stirred = foam + 3.0 * length(baked_slope);
+    // Flat water: the normal is the one the vertex stage baked from the
+    // mesh, and nothing is re-evaluated per fragment.  On an Intel UHD
+    // the water pass was 7 ms at the lowest tier with the mesh already
+    // at 51k triangles, because every fragment inside exact_within was
+    // summing eight waves, sixteen puddles, two textures and the wake
+    // three times over for a gradient, and every fragment outside it
+    // was summing the eight waves once for a slope.  A tier that asked
+    // for flat water was getting flat GEOMETRY and full per-pixel work.
+    if (water_flat == 1) {
+        return normalize(vec3(-baked_slope.x * blend,
+                              -baked_slope.y * blend, 1.0));
+    }
     if (distance(world.xy, boat.xy) < exact_within) {
         // Differenced at a step finer than the cells, so the answer is
         // the surface's slope and not the mesh's.
@@ -1543,6 +1562,7 @@ uniform mat4 sun_vp;
 uniform vec2 shadow_texel;
 uniform float shadow_bias;
 uniform float shadow_strength;
+uniform int shadow_taps;          // 16 for the 4x4 filter, 1 for a single tap
 uniform int shadow_debug;
 uniform float shadow_world_texel;
 
@@ -1607,6 +1627,18 @@ float sun_visibility(vec3 world, vec3 normal, float slope) {
     if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0
      || uv.z > 1.0) return 1.0;
     float bias = shadow_bias * (1.0 + 2.0 * slope);
+    if (shadow_taps <= 1) {
+        // One tap: the pre-baked shadow as it is, hard-edged.  What
+        // the lower tiers pay for a shadow at all -- a sixteenth of
+        // the filter below, and on an integrated GPU the filter was
+        // the single most expensive thing in the world shader.
+        float depth = texture(shadow_map, uv.xy).r;
+        float lit = (uv.z - bias <= depth) ? 1.0 : 0.0;
+        vec2 edge = smoothstep(vec2(0.0), vec2(0.06), uv.xy)
+                  * smoothstep(vec2(0.0), vec2(0.06), 1.0 - uv.xy);
+        lit = mix(1.0, lit, edge.x * edge.y);
+        return mix(1.0, lit, shadow_strength);
+    }
     // A 3x3 box in CONTINUOUS texel space: the four corner taps carry
     // bilinear weights from where the lookup falls inside its texel, so
     // the filter slides smoothly across the map instead of snapping to
@@ -1789,6 +1821,9 @@ def crew_poses(boat, samples: int = 48):
     return np.asarray(poses, dtype="f4"), colours
 
 
+_BOAT_NORMALS = {}
+
+
 def boat_geometry(boat, hull, t, state, crew=None):
     """The shell and its oars, in world space, for this frame.
 
@@ -1796,10 +1831,22 @@ def boat_geometry(boat, hull, t, state, crew=None):
     through the same rotation the camera uses.  That is what makes the
     bow sit still in the frame while the world swings behind it -- which
     is the whole cue a coxswain steers on.
+
+    Returns ``(vertices, normals, colours)``.  The normals are baked
+    once per pose in the hull frame and ROTATED here, not recomputed:
+    a flat normal is a rigid property of its triangle, so rotating the
+    baked one is exactly the cross product on the rotated vertices,
+    without doing 5,000 cross products a frame in Python.
     """
     rotation = hull_to_abs(np.asarray(state[3:6], dtype=float))
     position = np.asarray(state[0:3], dtype=float)
-    pieces = [(hull.vertices @ rotation.T + position, hull.colours)]
+    key = id(hull)
+    baked = _BOAT_NORMALS.get(key)
+    if baked is None or baked[0] is not hull:
+        baked = (hull, _face_normals(hull.vertices), None)
+        _BOAT_NORMALS[key] = baked
+    pieces = [(hull.vertices @ rotation.T + position, baked[1] @ rotation.T,
+               hull.colours)]
     if crew is not None:
         poses, crew_colours = crew
         period = float(boat.timing.period)
@@ -1807,10 +1854,17 @@ def boat_geometry(boat, hull, t, state, crew=None):
         # of stroke per pose, which is below what the eye resolves on a
         # body moving this slowly.
         index = int((t % period) / period * len(poses)) % len(poses)
-        pieces.append((poses[index] @ rotation.T + position, crew_colours))
+        pose_key = (id(crew), index)
+        pose_normals = _BOAT_NORMALS.get(pose_key)
+        if pose_normals is None:
+            pose_normals = _face_normals(poses[index])
+            _BOAT_NORMALS[pose_key] = pose_normals
+        pieces.append((poses[index] @ rotation.T + position,
+                       pose_normals @ rotation.T, crew_colours))
     vertices = np.concatenate([p[0] for p in pieces]).astype("f4")
-    shades = np.concatenate([p[1] for p in pieces]).astype("f4")
-    return vertices, shades
+    normals = np.concatenate([p[1] for p in pieces]).astype("f4")
+    shades = np.concatenate([p[2] for p in pieces]).astype("f4")
+    return vertices, normals, shades
 
 
 def oar_geometry(boat, t, state):
@@ -2191,9 +2245,11 @@ def main(argv=None):
     parser.add_argument("--weather", default="hazy",
                         choices=tuple(WEATHER),
                         help="what the air is doing")
-    parser.add_argument("--quality", default="standard",
-                        choices=("minimal", "standard", "high"),
-                        help="water detail against frame rate")
+    parser.add_argument("--quality", default="auto",
+                        choices=("auto", "ultra", "minimal", "standard",
+                                 "high"),
+                        help="graphics tier; auto reads the machine and "
+                             "picks one (see coxswain.viz.hardware)")
     parser.add_argument("--samples", type=int, default=4,
                         help="multisample anti-aliasing; 0 turns it off")
     parser.add_argument("--freecam", action="store_true",
@@ -2202,6 +2258,18 @@ def main(argv=None):
     parser.add_argument("--no-menu", action="store_true",
                         help="skip the setup menu and use the flags")
     parser.add_argument("--physics", type=float, default=100.0)
+    parser.add_argument("--no-diagnostics", action="store_true",
+                        help="do not write the diagnostics log")
+    parser.add_argument("--prefer-dedicated-gpu", action="store_true",
+                        help="ask Windows to draw this program on the "
+                             "high-performance GPU (writes a per-program "
+                             "preference for the current user, once)")
+    parser.add_argument("--render-scale", type=float, default=None,
+                        help="draw the scene at this fraction of the "
+                             "window; overrides the tier")
+    parser.add_argument("--bench", type=int, default=0, metavar="FRAMES",
+                        help="run this many headless frames and print the "
+                             "physics / draw split, then exit")
     parser.add_argument("--width", type=int, default=1180)
     parser.add_argument("--height", type=int, default=680)
     parser.add_argument("--fov", type=float, default=70.0)
@@ -2278,25 +2346,101 @@ def main(argv=None):
         sea = sea_for(args.wind, args.fetch, np.radians(args.wind_from))
         trough = float(np.sum(sea.amplitude)) if len(sea.amplitude) else 0.0
         mesh, scene = build_world(args.race, reach=args.reach, step=args.step,
+                                  skyline=args.tier.skyline,
+                                  tree_mode=args.tier.trees,
                                   water_level=-1.25 * trough - 0.02,
                                   with_buildings=not args.no_buildings,
                                   guide=not args.no_guide,
                                   trees=not args.no_trees)
         return sea, trough, mesh, scene, build_boat(args.boat, args.rate)
 
+    from coxswain.viz.menu import tier_settings
+    from coxswain.viz.telemetry import Telemetry, install_excepthook
+    from coxswain.viz.hardware import probe as probe_hardware
+    from coxswain.viz.hardware import request_dedicated_gpu
+
+    # The diagnostics file opens before anything can fail, so even a
+    # failed start is on record.
+    telemetry = Telemetry(enabled=not args.no_diagnostics)
+    if telemetry.enabled:
+        print("   diagnostics: %s" % telemetry.path)
+        install_excepthook(telemetry)
+    if args.prefer_dedicated_gpu:
+        print("   " + request_dedicated_gpu())
+    if args.bench:
+        # --bench is headless: give it somewhere to draw if the caller
+        # did not, and always give it its frame count.
+        if not args.shot:
+            args.shot = os.path.join(tempfile.gettempdir(),
+                                     "coxswain-bench.png")
+        args.frames = int(args.bench)
+        args.no_menu = True
+    # The tier gates the world build, and the build comes before there
+    # is a GL context to ask -- so "auto" is decided from what the OS
+    # says the machine has.  The live renderer is checked once the
+    # context exists, and the idle-dedicated-GPU notice comes from that.
+    hardware = probe_hardware(None)
+    if args.quality == "auto":
+        args.quality = hardware.recommended_tier()
+        print("   graphics: auto -> %s  (%s)"
+              % (args.quality, "; ".join(hardware.adapters) or "no adapter list"))
+    tier = tier_settings(args.quality)
     divisions, keep_trees, rich_water, want_particles = (
-        quality_settings(args.quality))
+        tier.water_divisions, tier.trees != "off", tier.rich_water,
+        tier.particles)
     if not keep_trees:
         args.no_trees = True
+    # The tier's knobs, applied only where the user did not type a
+    # flag: a flag is a decision, a tier is a default.
+    if args.reach == 900.0:
+        args.reach = float(tier.reach)
+    if args.step == 8.0:
+        args.step = float(tier.step)
+    if args.samples == 4:
+        args.samples = int(tier.samples)
+    if args.shadow_size == 0 and tier.shadow_size:
+        args.shadow_size = int(tier.shadow_size)
+    if tier.shadow == "off":
+        args.no_shadows = True
+    if float(args.physics) == 100.0:
+        # 100 was the old fixed rate.  60 is the same boat to 0.2 mm
+        # (tests/unit/test_physics_rate.py) at 40% fewer evaluations.
+        args.physics = float(tier.physics_hz)
+    args.tier = tier
+    print("   graphics tier: %s  (reach %.0f m, step %.0f m, trees %s, "
+          "shadow %s, water %s, fog %s, skyline %s, scale %.2f)"
+          % (tier.label, args.reach, args.step, tier.trees, tier.shadow,
+             "rich" if rich_water else "flat", tier.fog,
+             "on" if tier.skyline else "off", tier.render_scale))
+    print("   physics: %.0f Hz" % float(args.physics))
 
     label = "Building %s" % dict(
         charles="the Charles", totl="Tail of the Lake",
         hotl="Head of the Lake").get(args.race, args.race)
-    if screen is not None:
-        sea, trough, mesh, scene, (boat, made) = run_loading(
-            screen, label, build_everything)
-    else:
-        sea, trough, mesh, scene, (boat, made) = build_everything()
+    # The build allocates hundreds of thousands of small Python objects
+    # and frees them again.  CPython's cyclic collector triggers on
+    # allocation counts, so it runs over and over during the build --
+    # walking a heap that is mostly live numpy scaffolding -- and finds
+    # nothing to free.  Off for the build, one sweep after, and then
+    # the long-lived world is frozen out of every later collection so
+    # the frame loop's small garbage is all it ever has to look at.
+    import gc
+    gc.disable()
+    try:
+        if screen is not None:
+            sea, trough, mesh, scene, (boat, made) = run_loading(
+                screen, label, build_everything)
+        else:
+            sea, trough, mesh, scene, (boat, made) = build_everything()
+    finally:
+        gc.enable()
+    gc.collect()
+    gc.freeze()
+    telemetry.section("world", [
+        "triangles: %d in %d parts" % (mesh.triangles, len(mesh.parts)),
+        "build: %.1f s" % (time.perf_counter() - clock0),
+        "tier: %s" % getattr(args, "quality", "?"),
+    ])
     print("   %d triangles in %d parts, %.1f s"
           % (mesh.triangles, len(mesh.parts), time.perf_counter() - clock0))
     # The menu music has been playing over the loading screen; fade it
@@ -2564,6 +2708,19 @@ def main(argv=None):
     # So: pixels for anything that is a framebuffer or a viewport;
     # points for the mouse and the HUD layout, which SDL reports in
     # points and which therefore already agree with args.width.
+    # Now the context exists: which GPU is actually drawing.
+    hardware = probe_hardware(ctx)
+    for line in hardware.lines():
+        print("   " + line)
+    telemetry.section("hardware", hardware.lines()
+                      + ["adapters: %s" % "; ".join(hardware.adapters)])
+    telemetry.section("settings", [
+        "quality: %s" % args.quality, "race: %s" % args.race,
+        "boat: %s" % args.boat, "weather: %s" % args.weather,
+        "wind: %.1f" % float(args.wind), "samples: %s" % args.samples,
+        "physics: %.0f Hz" % float(args.physics),
+        "window: %dx%d" % (args.width, args.height),
+    ])
     draw_width, draw_height = args.width, args.height
     if not headless:
         try:
@@ -2597,11 +2754,20 @@ def main(argv=None):
     # threw away by rendering the whole scene to plain textures.
     scene_fbo = resolve_fbo = None
     scene_colour = scene_depth_tex = None
-    # Enabled headless too: --shot is how this gets looked at without a
-    # person watching, and a water shader that cannot be screenshotted
-    # cannot be checked.
-    if rich_water:
-        size = (draw_width, draw_height)
+    resolve_fbo = None
+    # An off-screen scene buffer is needed for rich water (it samples
+    # the scene for refraction and reflection) OR for drawing at a
+    # fraction of the window: the lowest tier renders three-quarter
+    # size and lets the blit scale it up, which on an integrated GPU is
+    # worth more than every other saving put together, because a
+    # fragment shader's cost is fragments.
+    _scale = float(getattr(args.tier, "render_scale", 1.0))
+    if args.render_scale is not None:
+        _scale = float(args.render_scale)
+    _offscreen = rich_water or _scale < 0.999
+    if _offscreen:
+        size = (max(int(draw_width * _scale), 64),
+                max(int(draw_height * _scale), 64))
         samples = max(int(args.samples), 0)
         if samples > 0:
             try:
@@ -2656,6 +2822,9 @@ def main(argv=None):
     # exponential fog in, GLSL drops whichever a shader no longer reads,
     # and assigning to a dropped uniform is a KeyError.
     _optional(program, sky=SKY, far=FAR)
+    for _prog in (program, sky_prog):
+        _optional(_prog, fog_simple=1 if args.tier.fog == "simple" else 0)
+    _optional(program, shadow_taps=1 if args.tier.shadow == "single" else 16)
 
     static, shadow_casters = [], []
     for part in mesh.parts:
@@ -2666,6 +2835,12 @@ def main(argv=None):
         # The same buffer, read as positions only, for the depth pass.
         shadow_casters.append(ctx.vertex_array(
             shadow_prog, [(buffer, "3f 6x4", "in_pos")]))
+        # The GPU has it now.  Nothing reads the CPU copy again -- the
+        # shadow pass and every frame draw from the buffer just made --
+        # and 1.3 M triangles of float32 vertices, colours and normals
+        # is 140 MB sitting in RAM for nothing.  On a laptop with 8 GB
+        # and an iGPU sharing it, that is not nothing.
+        part.vertices = part.colours = part.normals = None
 
     # -- the shadow map, baked once -------------------------------------
     #
@@ -2778,7 +2953,8 @@ def main(argv=None):
     # -- the water ------------------------------------------------------
     water_prog = ctx.program(
         vertex_shader=WATER_VERTEX,
-        fragment_shader=(WATER_FRAGMENT_RICH if scene_fbo is not None
+        fragment_shader=(WATER_FRAGMENT_RICH if (scene_fbo is not None
+                                                 and rich_water)
                          else WATER_FRAGMENT))
     water_prog["sun"].value = tuple(np.array([0.42, 0.30, 0.85])
                                     / np.linalg.norm([0.42, 0.30, 0.85]))
@@ -2803,11 +2979,8 @@ def main(argv=None):
     # right under the eye still has to be smooth, because the mesh
     # showing through it is the most obvious fault there is -- and no
     # ripple at all, which is six simplex evaluations a fragment saved.
-    _ripple, _exact = {
-        "minimal": (0.0, 7.0),
-        "standard": (RIPPLE_SLOPE, 16.0),
-        "high": (RIPPLE_SLOPE, 26.0),
-    }.get(args.quality, (RIPPLE_SLOPE, 16.0))
+    _ripple = RIPPLE_SLOPE if args.tier.rich_water else 0.0
+    _exact = float(args.tier.exact_within)
     # Scaled by the wind, so calm water is glass.
     _wind_factor = min(1.0, max(float(args.wind), 0.0) / RIPPLE_FULL_WIND)
     _ripple *= _wind_factor ** 0.5
@@ -2831,25 +3004,36 @@ def main(argv=None):
         0.0, 0.6)))
     _optional(water_prog, heave_gain=HEAVE_GAIN, surge_gain=SURGE_GAIN,
               pixel_angle=math.radians(args.fov) / float(args.height))
+    # A flat tier gets no exact band at all: that band is the three
+    # surface() sums per fragment, nearest the eye where pixels are
+    # densest, and flat water has nothing in it worth resolving.
+    _flat = 1 if not getattr(args.tier, "rich_water", True) else 0
+    if _flat:
+        _exact = 0.0
     _optional(water_prog, ripple_slope_amp=_ripple,
               ripple_scale=RIPPLE_SCALE, ripple_fade=RIPPLE_FADE,
-              exact_within=_exact, ripple_wake_gain=RIPPLE_WAKE_GAIN)
+              exact_within=_exact, ripple_wake_gain=RIPPLE_WAKE_GAIN,
+              water_flat=_flat)
     #: Texture units 0-2 are the HUD, the near field and the wave table.
     #: 5 is the baked shadow map.
     SCENE_UNIT, DEPTH_UNIT, SHADOW_UNIT = 3, 4, 5
     if scene_fbo is not None:
-        water_prog["scene"].value = SCENE_UNIT
-        water_prog["scene_depth"].value = DEPTH_UNIT
-        water_prog["viewport"].value = (float(draw_width),
-                                        float(draw_height))
-        water_prog["near_plane"].value = 0.25
-        water_prog["far_plane"].value = float(FAR)
+        _optional(water_prog, scene=SCENE_UNIT)
+        _optional(water_prog, scene_depth=DEPTH_UNIT)
+        # Rich-only uniforms; the plain shader behind a render-scale
+        # buffer declares none of them.
+        _optional(water_prog, viewport=(float(scene_fbo.size[0]),
+                                        float(scene_fbo.size[1])),
+                  near_plane=0.25, far_plane=float(FAR))
         # How hard the surface bends what is behind it, before the 1/range
         # falloff.  Set by eye against the near water: enough that a wave
         # visibly displaces the bank behind it, not so much that the
         # shoreline swims.
-        water_prog["refract_scale"].value = 5.5
-        water_prog["reflect_steps"].value = 16
+        _optional(water_prog, refract_scale=5.5)
+        _optional(water_prog, reflect_steps=int(args.tier.reflect_steps))
+        _optional(water_prog, fog_simple=1 if args.tier.fog == "simple" else 0)
+        _optional(water_prog, shadow_taps=(
+            1 if args.tier.shadow == "single" else 16))
     water_prog["wind_to"].value = float(np.radians(args.wind_from) + np.pi)
     wave = load_wavefield(shell_of(boat))
     if wave is not None:
@@ -2947,6 +3131,7 @@ def main(argv=None):
     # Only built at High.  Nothing spawns into it otherwise, so the
     # per-frame upload and draw disappear rather than running on an
     # empty pool.
+    passes = PassTimer(ctx, enabled=bool(args.bench))
     splashes = (SplashSystem()
                 if want_particles and not args.no_particles else None)
     splash_prog = ctx.program(vertex_shader=SPLASH_VERTEX,
@@ -2991,12 +3176,14 @@ def main(argv=None):
         sky_prog["sun"].value = tuple(np.array([0.42, 0.30, 0.85])
                                       / np.linalg.norm([0.42, 0.30, 0.85]))
         ctx.disable(moderngl.DEPTH_TEST)
-        sky_vao.render()
+        with passes.span("sky"):
+            sky_vao.render()
         ctx.enable(moderngl.DEPTH_TEST)
         if shadow_map is not None:
             shadow_map.use(SHADOW_UNIT)
-        for vao in static:
-            vao.render()
+        with passes.span("world"):
+            for vao in static:
+                vao.render()
         if scene_fbo is not None:
             # Carry the world forward into the buffer the water draws
             # into, so the water reads an untouched copy of what is
@@ -3137,14 +3324,16 @@ def main(argv=None):
         if scene_fbo is not None:
             scene_colour.use(SCENE_UNIT)
             scene_depth_tex.use(DEPTH_UNIT)
-        water_vao.render()
-        vertices, colours = boat_geometry(boat, hull, t, state, crew)
+        with passes.span("water"):
+            water_vao.render()
+        vertices, normals, colours = boat_geometry(boat, hull, t, state,
+                                                   crew)
         if vertices is not None and len(vertices):
-            normals = _face_normals(vertices)
             blob = np.hstack([vertices, normals, colours]).astype("f4")
             if blob.nbytes <= oar_buffer.size:
-                oar_buffer.write(blob.tobytes())
-                oar_vao.render(vertices=len(vertices))
+                with passes.span("boat"):
+                    oar_buffer.write(blob.tobytes())
+                    oar_vao.render(vertices=len(vertices))
 
         droplets = (splashes.as_uniform(t) if splashes is not None
                     else ())
@@ -3164,8 +3353,21 @@ def main(argv=None):
             ctx.disable(moderngl.BLEND)
         if scene_fbo is not None:
             # And out to the screen, so the HUD has something to sit on.
-            ctx.copy_framebuffer(target, scene_fbo)
-            target.use()
+            with passes.span("copy"):
+                if scene_fbo.size != tuple(target.size) and scene_colour is not None:
+                    # A smaller scene buffer has to be STRETCHED to the
+                    # window.  copy_framebuffer blits one-to-one, which
+                    # left the scaled scene in the bottom-left corner of
+                    # a black screen.
+                    if resolve_fbo is not None and resolve_fbo is not scene_fbo:
+                        ctx.copy_framebuffer(resolve_fbo, scene_fbo)
+                    target.use()
+                    scene_colour.use(SCENE_UNIT)
+                    _opaque_blit(ctx, SCENE_UNIT)
+                else:
+                    ctx.copy_framebuffer(target, scene_fbo)
+                    target.use()
+        passes.end_frame()
 
     draw.last_phase = 0.0
     draw.last_drag = {}
@@ -3184,9 +3386,39 @@ def main(argv=None):
         # wrap: draw.last_phase starts at 0.0 and the single phase it is
         # compared against is never negative.  A `--shot` of a boat mid-
         # stroke was silently unable to show either effect.
+        _phys, _drw = [], []
         for _ in range(int(args.frames or 0)):
+            _t0 = time.perf_counter()
             loop.advance(1.0 / 60.0)
+            _t1 = time.perf_counter()
             draw(loop.pose(), loop.t)
+            ctx.finish()                 # the GPU's time, not the queue's
+            _t2 = time.perf_counter()
+            _phys.append((_t1 - _t0) * 1000.0)
+            _drw.append((_t2 - _t1) * 1000.0)
+            telemetry.frame((_t2 - _t0) * 1000.0, _phys[-1], _drw[-1])
+        if args.frames:
+            # Steady state, not the start: the first frames carry the
+            # JIT and the shaders' first use, which are start-up costs
+            # the loading screen should own, not frame costs.
+            warm = min(10, max(len(_phys) - 1, 0))
+            ph = sorted(_phys[warm:]) or [0.0]
+            dr = sorted(_drw[warm:]) or [0.0]
+            tot = sorted(p + d for p, d in zip(_phys[warm:], _drw[warm:])) or [0.0]
+            pick = lambda a, q: a[min(len(a) - 1, int(q * len(a)))]
+            line = ("bench %s: %d frames after %d warm-up  physics p50 %.1f "
+                    "p95 %.1f ms  draw+gpu p50 %.1f p95 %.1f ms  total p50 "
+                    "%.1f ms (%.0f fps)  worst %.0f ms"
+                    % (args.quality, len(tot), warm, pick(ph, 0.5),
+                       pick(ph, 0.95), pick(dr, 0.5), pick(dr, 0.95),
+                       pick(tot, 0.5), 1000.0 / max(pick(tot, 0.5), 1e-9),
+                       tot[-1]))
+            print("   " + line)
+            telemetry.note(line)
+            detail = passes.report(warm)
+            if detail:
+                print("   passes (ms p50/p95): " + detail)
+                telemetry.note("passes " + detail)
         if not args.frames:
             draw(loop.pose(), loop.t)
         from PIL import Image
@@ -3305,7 +3537,7 @@ def main(argv=None):
                                 RIPPLE_SLOPE
                                 * (min(1.0, args.wind / RIPPLE_FULL_WIND)
                                    ** 0.5)
-                                if args.quality != "minimal" else 0.0))
+                                if args.tier.rich_water else 0.0))
                         if picked.get("weather", args.weather) != args.weather:
                             # Weather is only uniforms, so it can change
                             # mid-outing without rebuilding anything.
@@ -3399,8 +3631,10 @@ def main(argv=None):
             rudder = float(np.clip(-1.4 * error, -RUDDER_LIMIT, RUDDER_LIMIT))
             live.set(ControlInput(rudder=rudder))
 
+        _frame_t0 = time.perf_counter()
         if not paused and menu is None and not showing_controls:
             loop.advance(frame)
+            _phys_ms = (time.perf_counter() - _frame_t0) * 1000.0
             if audio is not None:
                 audio.update(loop.t)
                 # The slide rumble follows the recovery: silent through
@@ -3491,13 +3725,27 @@ def main(argv=None):
         _hud_blit(ctx)
         ctx.enable(moderngl.DEPTH_TEST)
 
+        _draw_ms = (time.perf_counter() - _frame_t0) * 1000.0 - locals().get(
+            "_phys_ms", 0.0)
+        _t_present = time.perf_counter()
         pygame.display.flip()
+        _present_ms = (time.perf_counter() - _t_present) * 1000.0
         frames += 1
+        telemetry.frame((time.perf_counter() - _frame_t0) * 1000.0,
+                        locals().get("_phys_ms", 0.0), _draw_ms,
+                        _present_ms,
+                        context=lambda: "t=%.1f speed=%.2f quality=%s "
+                                        "paused=%s menu=%s"
+                        % (loop.t, float(np.hypot(loop.state[6],
+                                                  loop.state[7])),
+                           args.quality, paused, menu is not None))
+        _phys_ms = 0.0
         if args.frames and frames >= args.frames:
             running = False
 
     pygame.quit()
     print("%d frames, %d physics steps" % (frames, loop.steps))
+    telemetry.close()
     if restart_session:
         # "Change boat or course": the world has to be rebuilt, so the
         # session starts again from the top rather than being patched.
@@ -3516,6 +3764,65 @@ def _surface_bytes(pygame, surface):
 
 
 _BLIT = {}
+
+
+class PassTimer:
+    """GPU time per named pass, from timer queries, for --bench.
+
+    A frame's cost on an integrated GPU turned out not to follow the
+    triangle count or the pixel count -- ultra at 300k triangles drew in
+    27.8 ms and minimal at 510k in 29 -- so the cost is somewhere
+    specific, and a total cannot say where.  Each pass gets its own
+    query; ``report`` gives medians over the bench's frames.  Off (a
+    no-op context) unless the bench asks, because a query is a sync
+    point and the game must not pay for it.
+    """
+
+    def __init__(self, ctx, enabled: bool = False):
+        self.ctx = ctx
+        self.enabled = bool(enabled)
+        self.samples = {}
+        self._frame = {}
+
+    class _Span:
+        def __init__(self, timer, name):
+            self.timer, self.name = timer, name
+
+        def __enter__(self):
+            if self.timer.enabled:
+                self.query = self.timer.ctx.query(time=True)
+                self.query.__enter__()
+            return self
+
+        def __exit__(self, *exc):
+            if self.timer.enabled:
+                self.query.__exit__(*exc)
+                self.timer._frame[self.name] = (
+                    self.timer._frame.get(self.name, 0.0)
+                    + self.query.elapsed / 1e6)         # ns -> ms
+            return False
+
+    def span(self, name):
+        return PassTimer._Span(self, name)
+
+    def end_frame(self):
+        if not self.enabled:
+            return
+        for name, ms in self._frame.items():
+            self.samples.setdefault(name, []).append(ms)
+        self._frame = {}
+
+    def report(self, warm: int = 10) -> str:
+        if not self.samples:
+            return ""
+        rows = []
+        for name, values in self.samples.items():
+            v = sorted(values[warm:] or values)
+            rows.append((v[len(v) // 2], name, v[min(len(v) - 1,
+                                                    int(0.95 * len(v)))]))
+        rows.sort(reverse=True)
+        return "  ".join("%s %.1f/%.1f" % (name, p50, p95)
+                         for p50, name, p95 in rows)
 
 
 def _opaque_blit(ctx, unit: int) -> None:
