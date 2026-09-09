@@ -334,7 +334,8 @@ REPORT_CHOICES = (("off", "Off"), ("on", "On"))
 
 def options_menu(audio: str = "full", quality: str = "standard",
                  weather: str = "hazy", wind: float = 5.0,
-                 report: str = "off", updates: str = "on") -> Menu:
+                 report: str = "off", updates: str = "on",
+                 minimap: str = "on") -> Menu:
     """Graphics and sound, reached from either menu."""
     modes = audio_choices()
     grades = quality_choices()
@@ -349,6 +350,8 @@ def options_menu(audio: str = "full", quality: str = "standard",
                index=1 if report == "on" else 0),
         Choice("updates", "Check for updates", list(REPORT_CHOICES),
                index=1 if updates == "on" else 0),
+        Choice("minimap", "Minimap", list(REPORT_CHOICES),
+               index=1 if minimap == "on" else 0),
         Choice("back", "Back", (), action="back"),
     ]
     return Menu("Graphics and sound", rows)
@@ -377,6 +380,17 @@ def setup_menu(boat: str = "4+", course: str = "charles",
         Choice("quit", "Quit", (), action="quit"),
     ]
     return Menu("Coxswain", rows)
+
+
+def confirm_quit_menu() -> Menu:
+    """Are you sure.  Q sits beside W and E on the keyboard a coxswain
+    is steering with, and a race lost to a slipped finger is the most
+    annoying way to lose one."""
+    rows = [
+        Choice("resume", "No -- keep rowing", (), action="resume"),
+        Choice("quit_yes", "Yes, quit", (), action="quit_yes"),
+    ]
+    return Menu("Quit?", rows)
 
 
 def pause_menu(rate: float = 30.0, wind: float = 5.0) -> Menu:
@@ -678,6 +692,9 @@ def blurb_for(menu: "Menu") -> str:
     if row.key == "quality":
         return ("Ultra minimal runs on integrated graphics; High wants a "
                 "gaming card.  Applies on the next start.")
+    if row.key == "minimap":
+        return ("The course from above in the corner: the line, the buoys "
+                "and you.  Off if you would rather read the river.")
     if row.key == "updates":
         return ("Ask GitHub once at start whether a newer release exists, "
                 "and say so here.  Nothing is downloaded; the link is "

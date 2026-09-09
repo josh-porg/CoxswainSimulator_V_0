@@ -62,6 +62,7 @@ from coxswain.sim.realtime import (ControlInput,            # noqa: E402
                                    FixedStepLoop, LiveControl)
 from coxswain.sim.simulator import RowingSimulator          # noqa: E402
 from coxswain.viz.menu import (build_boat, chart_surface,    # noqa: E402
+                               confirm_quit_menu,
                                draw_controls, draw_menu,
                                handle_key, options_menu, pause_menu,
                                quality_settings, setup_menu,
@@ -2068,11 +2069,14 @@ def run_setup_menu(screen, args):
                         menu = rowers_menu(skill=args.skill,
                                            balance=args.balance)
                     else:
-                        menu = options_menu(report=getattr(args, "report", "off"), updates=getattr(args, "updates", "on"), audio=args.audio,
+                        menu = options_menu(report=getattr(args, "report", "off"), updates=getattr(args, "updates", "on"), minimap=getattr(args, "minimap", "on"), audio=args.audio,
                                             quality=args.quality)
                     continue
                 if action == "back":
                     picked = menu.settings()
+                    if picked.get("minimap") not in (None, getattr(args, "minimap", "on")):
+                        args.minimap = picked["minimap"]
+                        _settings.update(minimap=args.minimap)
                     if picked.get("updates") not in (None, getattr(args, "updates", "on")):
                         args.updates = picked["updates"]
                         _settings.update(updates=args.updates)
@@ -2310,6 +2314,9 @@ def main(argv=None):
     parser.add_argument("--report-url", default=None,
                         help="where performance reports go; see "
                              "packaging/phonehome/README.md")
+    parser.add_argument("--no-minimap", action="store_true",
+                        help="no course map in the corner; the remembered "
+                             "setting otherwise")
     parser.add_argument("--no-update-check", action="store_true",
                         help="do not ask GitHub whether a newer release "
                              "exists; the remembered setting otherwise")
@@ -2367,6 +2374,9 @@ def main(argv=None):
     # Updates: on unless remembered off or told off for this run.  Started
     # here, before the world build, so the answer is usually in by the
     # time the setup menu is drawn -- and never waited for.
+    args.minimap = ("off" if (getattr(args, "no_minimap", False)
+                              or _settings.load().get("minimap") == "off")
+                    else "on")
     args.updates = ("off" if (args.no_update_check
                               or _settings.load().get("updates") == "off")
                     else "on")
@@ -3623,10 +3633,13 @@ def main(argv=None):
                             menu = rowers_menu(skill=args.skill,
                                                balance=args.balance)
                         else:
-                            menu = options_menu(report=getattr(args, "report", "off"), updates=getattr(args, "updates", "on"), audio=args.audio,
+                            menu = options_menu(report=getattr(args, "report", "off"), updates=getattr(args, "updates", "on"), minimap=getattr(args, "minimap", "on"), audio=args.audio,
                                                 quality=args.quality)
                     elif action == "back":
                         picked = menu.settings()
+                        if picked.get("minimap") not in (None, getattr(args, "minimap", "on")):
+                            args.minimap = picked["minimap"]
+                            _settings.update(minimap=args.minimap)
                         if picked.get("updates") not in (None, getattr(args, "updates", "on")):
                             args.updates = picked["updates"]
                             _settings.update(updates=args.updates)
@@ -3678,7 +3691,9 @@ def main(argv=None):
                         menu = pause_menu(rate=args.rate, wind=args.wind)
                     elif action == "controls":
                         showing_controls = True
-                    elif action in ("setup", "quit"):
+                    elif action == "quit":
+                        menu = confirm_quit_menu()
+                    elif action in ("setup", "quit_yes"):
                         restart_session = action == "setup"
                         running = False
                     continue
@@ -3686,7 +3701,9 @@ def main(argv=None):
                     menu = pause_menu(rate=args.rate, wind=args.wind)
                     paused = True
                 elif event.key == pygame.K_q and freecam is None:
-                    running = False
+                    # Ask.  See confirm_quit_menu.
+                    menu = confirm_quit_menu()
+                    paused = True
                 elif event.key == pygame.K_SPACE:
                     paused = not paused
                 elif event.key == pygame.K_c:
@@ -3839,7 +3856,14 @@ def main(argv=None):
         bar_x = (args.width - bar_w) // 2
         bar_y = args.height - 40
         knob = bar_x + int(bar_w * (0.5 + 0.5 * rudder / RUDDER_LIMIT))
-        _hud_key = (tuple(lines), knob)
+        # The minimap moves with the boat, which would put the HUD back
+        # to an upload every frame.  Its part of the key is the boat's
+        # position to 2 m and heading to 5 degrees: a few uploads a
+        # second at race pace, none when stopped.
+        _map_on = getattr(args, "minimap", "on") == "on"
+        _map_key = ((int(state[0] / 2.0), int(state[1] / 2.0),
+                     int(math.degrees(state[5]) / 5.0)) if _map_on else None)
+        _hud_key = (tuple(lines), knob, _map_key)
         _hud_changed = _hud_key != draw.hud_last
         draw.hud_last = _hud_key
         if _hud_changed:
@@ -3863,6 +3887,9 @@ def main(argv=None):
             # The HUD is a texture blitted over the scene: pygame cannot
             # draw into an OpenGL window directly.  One texture, rewritten
             # -- and now only when the picture on it changed.
+            if _map_on:
+                draw_minimap(pygame, overlay, course, scene.buoys, state,
+                             (args.width, args.height))
             hud_texture.write(_surface_bytes(pygame, overlay))
         ctx.disable(moderngl.DEPTH_TEST)
         hud_texture.use(0)
@@ -4103,6 +4130,58 @@ def _opaque_blit(ctx, unit: int) -> None:
     _BLIT["opaque_program"]["image"].value = int(unit)
     _BLIT["opaque"].render()
     ctx.enable(moderngl.DEPTH_TEST)
+
+
+#: Minimap box: size in pixels, and the margin from the corner.
+MINIMAP_SIZE = 170
+MINIMAP_MARGIN = 14
+
+
+def draw_minimap(pygame, overlay, course, buoys, state, size) -> None:
+    """The course from above, in the top-right corner.
+
+    The whole course fits the box -- a head race is long and thin, so
+    the box is what is long and thin about it -- with the buoys as
+    dots and the boat as an arrow pointing the way it is heading.  It
+    is a map, not a radar: north is up, it does not rotate with the
+    boat, because the thing a coxswain wants from it is "which way does
+    the river bend next", and that is a question about the map.
+    """
+    course = np.asarray(course, dtype=float)
+    if len(course) < 2:
+        return
+    width, height = size
+    box = MINIMAP_SIZE
+    x0 = width - box - MINIMAP_MARGIN
+    y0 = MINIMAP_MARGIN
+    lo = course[:, :2].min(axis=0)
+    hi = course[:, :2].max(axis=0)
+    span = np.maximum(hi - lo, 1.0)
+    scale = (box - 16) / float(span.max())
+
+    def to_px(east, north):
+        return (int(x0 + 8 + (east - lo[0]) * scale
+                    + 0.5 * ((box - 16) - span[0] * scale)),
+                int(y0 + 8 + (hi[1] - north) * scale
+                    + 0.5 * ((box - 16) - span[1] * scale)))
+
+    pygame.draw.rect(overlay, (12, 17, 21, 170), (x0, y0, box, box))
+    pygame.draw.rect(overlay, (70, 82, 92), (x0, y0, box, box), 1)
+    points = [to_px(e, n) for e, n in course[:, :2]]
+    if len(points) >= 2:
+        pygame.draw.lines(overlay, (150, 164, 176), False, points, 2)
+    if buoys is not None:
+        for e, n in np.asarray(buoys, dtype=float)[:, :2]:
+            pygame.draw.circle(overlay, (255, 146, 72), to_px(e, n), 2)
+    bx, by = to_px(float(state[0]), float(state[1]))
+    heading = float(state[5])
+    # an arrow: tip forward, two tail corners
+    tip = (bx + 7 * math.cos(heading), by - 7 * math.sin(heading))
+    left = (bx - 5 * math.cos(heading) + 4 * math.sin(heading),
+            by + 5 * math.sin(heading) + 4 * math.cos(heading))
+    right = (bx - 5 * math.cos(heading) - 4 * math.sin(heading),
+             by + 5 * math.sin(heading) - 4 * math.cos(heading))
+    pygame.draw.polygon(overlay, (233, 240, 245), [tip, left, right])
 
 
 def _hud_blit(ctx):

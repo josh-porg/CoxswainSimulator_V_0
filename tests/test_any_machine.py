@@ -111,13 +111,13 @@ def test_the_hud_is_uploaded_only_when_it_changes():
     about 3 ms on an integrated part, for text that changes a few times
     a second."""
     text = source("scripts", "fpv.py")
-    assert "_hud_key = (tuple(lines), knob)" in text
+    assert "_hud_key = (tuple(lines), knob, _map_key)" in text
     assert "if _hud_changed:" in text
     # the menu path draws a different picture and must reset the key
     assert "draw.hud_last = None          # the menu overwrote the HUD" in text
     # exactly one unconditional per-frame HUD write must be gone: the
     # game path's write now sits under the change check
-    block = text[text.index("_hud_key = (tuple(lines), knob)"):
+    block = text[text.index("_hud_key = (tuple(lines), knob, _map_key)"):
                  text.index("_hud_blit(ctx)")]
     assert "hud_texture.write(" in block
     assert block.index("if _hud_changed:") < block.index("hud_texture.write(")
