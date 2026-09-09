@@ -266,6 +266,18 @@ already runs the hull sweep.  There is no tensor workload here for a TPU.
 
 ## Done — running on the machine you have
 
+### v0.12 — asked for, and done
+
+| what | where | pinned by |
+|---|---|---|
+| Q and Quit ask first; only Yes ends the session | `confirm_quit_menu`, `fpv.py` | `tests/test_quit_minimap.py` |
+| minimap in the corner, north up, under the HUD's change key (position to 2 m, heading to 5°); off in settings or `--no-minimap` | `draw_minimap`, `fpv.py` | same; Minimal benched at 9.1 ms with it on |
+| the rig editor's lineup **races** — anthropometry, rig sides, cox mass, erg ratios on both power paths; unbalanced rigs fall back with a message | `boat_from_lineup`, `menu.py` | `tests/test_presets.py` |
+| saved presets in `presets.json`; Save as preset row; built-ins cycle first | `presets.py`, `rigview.py`, `fpv.py` | same |
+| Genevieve's Pink Ribbon built in; editor opens on a named default | `rigview.py` | `tests/test_rigview.py` |
+| bonus run behind the word "boost": 77 coins / 8 boosts on HOTL, +0.30 on the call for 8 s, score and best kept | `bonus.py`, `fpv.py` | `tests/test_bonus.py` |
+
+
 ### Measured, v0.11 round (Intel UHD, 1180x680, hazy, eight; `--bench 150 --bench-passes`)
 
 | change | evidence | effect |

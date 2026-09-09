@@ -27,23 +27,22 @@ Debian 12+, current Fedora, Arch and Mint.
 
 ## New in this one
 
-Faster again, on the machines that were slow, and a way to find out
-about the next one.
+Things people asked for, and one thing nobody was told about.
 
-- **Every tier draws less.** The world is packed to 20 bytes a vertex
-  and only the tiles in front of the camera are drawn; the sky is
-  painted last, where nothing else was; the low tiers use a water grid
-  a quarter the size, which the far water does not show and the
-  measurement did. On an integrated Intel GPU: Minimal 17.4 -> 11.7 ms
-  a frame (86 fps), Standard 22.2 -> 16.3 (61 fps).
-- **The physics is 0.77 ms per evaluation** -- the per-oar loop is one
-  array operation now -- so a slow CPU has that much more room.
-- **It tells you when there is a newer release.** One line on the setup
-  menu, with the link you were sent. Nothing is downloaded. Off in
-  *Graphics and sound -> Check for updates*, or `--no-update-check`.
-- **Windows signing is wired, waiting on an account.** When the SignPath
-  open-source project exists the exe ships signed and SmartScreen stops
-  warning; until then nothing changes. `docs/SIGNING.md` has the steps.
+- **Your boat races.** The rig editor's lineup -- these rowers at these
+  weights and heights, this rig, this coxswain, these ergs -- is now the
+  boat on the water. It never was before: the editor drew a plan and the
+  default crew rowed. Each erg sets that seat's share of the power; Up
+  and Down still move the crew as a whole.
+- **Save your own boats.** *Save as preset* in the rig editor, a name,
+  done. They come back under *Load preset* after the built-ins, and
+  they live in `presets.json` beside your settings.
+- **Genevieve's Pink Ribbon** is a built-in preset, beside the HOCR four.
+- **Q asks first.** Q and Quit both open a yes/no with the cursor on No.
+- **A minimap** in the top-right corner: the course, the buoys, you.
+  North up. Off under *Graphics and sound -> Minimap*.
+- There is also something to type on the setup menu. It is five letters
+  and it is what a coxswain calls for.
 
 ## What is in it
 
