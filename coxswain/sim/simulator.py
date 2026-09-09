@@ -278,8 +278,12 @@ class RowingSimulator:
         self._shallow_cache = (key, model)
         return model
 
-    def crew_field(self, t: float):
+    def crew_field(self, t: float, exact: bool = False):
         """Cached crew evaluation.
+
+        ``exact`` bypasses both the stroke table and this cache: the
+        research paths that fit spectral series to the crew field want
+        the analytic chain, not an interpolation of it.
 
         The derivative needs the crew field twice -- once to build the
         mass matrix and once for the reaction forces -- and evaluating 97
@@ -287,6 +291,8 @@ class RowingSimulator:
         hull integral.  Both calls are at the same ``t``, so a
         single-entry cache halves the cost.
         """
+        if exact:
+            return self.boat.crew_field(t, exact=True)
         key, value = self._crew_cache
         if key is not None and key == t:
             return value
@@ -294,8 +300,10 @@ class RowingSimulator:
         self._crew_cache = (t, value)
         return value
 
-    def hand_positions(self, t: float) -> np.ndarray:
+    def hand_positions(self, t: float, exact: bool = False) -> np.ndarray:
         """Cached per-seat hand positions, for the oar moment arms."""
+        if exact:
+            return self.boat.hand_positions(t, exact=True)
         key, value = self._hand_cache
         if key is not None and key == t:
             return value
@@ -359,7 +367,7 @@ class RowingSimulator:
         # heel, and it is why an unset boat is slow on a clean stroke.
         length_fraction = 1.0
         if self.blade_contact is not None:
-            oar_rate = float(boat.oar_sweep.rate(t, boat.timing))
+            oar_rate = float(boat.oar_rate_at(t))
             length_fraction = float(self.blade_contact.length_fraction(
                 float(state.roll), oar_rate, boat.oar_sweep.total_sweep,
                 timing=boat.timing))
@@ -374,8 +382,7 @@ class RowingSimulator:
             # which is the constraint the whole crew model rests on.
             seat_time = t - float(phases[seat_index]) * period
             for lock in seat.oarlocks:
-                applied = oar_force(seat_time, boat.timing, lock.side,
-                                    boat.force_profile, boat.oar_sweep)
+                applied = boat.oar_force_at(seat_time, lock.side)
                 if split != 0.0:
                     applied = applied * self.coxswain.side_gain(split,
                                                                 lock.side)

@@ -150,8 +150,17 @@ class StrokePeriodicFit:
     def fit_to_tolerance(cls, samples, period: float,
                          relative_tolerance: float = 0.01,
                          max_harmonics: int = 128,
-                         start: int = 8):
+                         start: int = 8,
+                         absolute_tolerance: float = 1e-9):
         """Refine the series until the truncation error meets a bound.
+
+        ``absolute_tolerance`` is a floor under the relative test.  A
+        quantity that is constant over the stroke -- a fixed lateral
+        offset -- carries one-ulp noise once it has been through any
+        interpolation, and a *relative* error on a signal whose whole
+        variation is 3e-14 can never be met by any number of harmonics.
+        An absolute error that small is not an approximation, it is the
+        answer.
 
         A truncated Fourier series is an approximation, and for anything
         with a jump -- the oar force at the catch, and so the split moment
@@ -171,7 +180,8 @@ class StrokePeriodicFit:
             if len(samples) < 2 * n_harmonics + 1:
                 break
             best = cls.fit(samples, period, n_harmonics)
-            if best.relative_error <= relative_tolerance:
+            if (best.relative_error <= relative_tolerance
+                    or best.max_error <= absolute_tolerance):
                 return best
             n_harmonics *= 2
         if best is None:
@@ -246,7 +256,7 @@ def _oar_load(boat, t: float, split: float = 0.0, simulator=None):
 
     if simulator is None:
         simulator = RowingSimulator(boat)
-    hands = simulator.hand_positions(t)
+    hands = simulator.hand_positions(t, exact=True)
 
     force = np.zeros(3)
     yaw = 0.0
@@ -337,7 +347,7 @@ class StrokeAggregates:
         roll_neutral = np.empty(n_samples)
 
         for index, t in enumerate(times):
-            mass, position, velocity, acceleration = boat.crew_field(t)
+            mass, position, velocity, acceleration = boat.crew_field(t, exact=True)
             moment[index] = float(np.sum(mass * position[:, 0]))
             rate[index] = float(np.sum(mass * velocity[:, 0]))
             accel[index] = float(np.sum(mass * acceleration[:, 0]))

@@ -80,8 +80,16 @@ def test_offsetting_a_rower_moves_them_in_time(eight):
 
 
 def test_a_desynchronised_crew_costs_more_to_evaluate(eight):
-    """Honest bookkeeping: individuals cannot share a kinematic chain."""
-    assert len(eight._crew_groups()) == 1
+    """Honest bookkeeping: individuals cannot share a kinematic chain.
+
+    A matched sweep eight is TWO groups, not one: a port rower's arms
+    reach a port handle and a starboard rower's a starboard one, and
+    the handle tracks mirror in y.  The first version of the signature
+    left the side out, grouped all eight on the stroke seat, and gave
+    every port seat the starboard leader's arms -- 0.15 m out on eight
+    arm masses.
+    """
+    assert len(eight._crew_groups()) == 2
     eight.phase_offsets = np.linspace(0.0, 0.05, eight.n_seats)
     assert len(eight._crew_groups()) == eight.n_seats
 
@@ -161,18 +169,30 @@ def test_a_small_split_can_cancel_the_sweep_rigs_own_yaw_bias(eight):
 
     A sweep eight yaws even with a perfectly synchronised crew -- the rig
     is not port-starboard symmetric.  A small timing offset between the
-    sides pushes the other way, and around 20 ms it very nearly cancels.
+    sides pushes the other way, and near 20 ms it takes about 45% of
+    the bias out.
 
     That makes crew timing a steering trim as well as a disturbance, which
     is a different statement from "timing error is bad".
+
+    It read "very nearly cancels" once.  That was measured with every
+    port seat wearing the starboard leader's arms (see the grouping test
+    above); with each side's arms on its own handle the residual is
+    real.  Pinned as a search for the minimum rather than a tuned lag,
+    so the claim is what is tested, not the number.
     """
     eight.phase_offsets = np.zeros(eight.n_seats)
     synchronised = np.sqrt(np.mean(_oar_loads_over_a_stroke(eight)[1] ** 2))
 
-    eight.phase_offsets = _split(eight, 0.020)
-    trimmed = np.sqrt(np.mean(_oar_loads_over_a_stroke(eight)[1] ** 2))
+    best_lag, best = None, synchronised
+    for lag in (0.010, 0.015, 0.020, 0.025, 0.030):
+        eight.phase_offsets = _split(eight, lag)
+        trimmed = np.sqrt(np.mean(_oar_loads_over_a_stroke(eight)[1] ** 2))
+        if trimmed < best:
+            best_lag, best = lag, trimmed
 
-    assert trimmed < 0.5 * synchronised, (synchronised, trimmed)
+    assert best_lag is not None and best_lag <= 0.030, best_lag
+    assert best < 0.65 * synchronised, (synchronised, best, best_lag)
 
 
 def test_the_yaw_disturbance_is_not_monotonic_in_the_split(eight):

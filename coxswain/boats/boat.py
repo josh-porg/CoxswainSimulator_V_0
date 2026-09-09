@@ -70,6 +70,86 @@ USE_MICHELL = True
 _TABLE_CACHE = {}
 
 
+class StrokeTable:
+    """One rower's segment kinematics over one stroke, tabulated.
+
+    Why this exists
+    ---------------
+    The derivative needs every segment's position, velocity and
+    acceleration, and the hand, at the current stroke time.  Solving the
+    joint chain for them costs about 2.3 ms per evaluation -- Taylor jets
+    through a Fourier-driven linkage, in Python -- and RK4 at 100 Hz asks
+    for it 6.6 times a frame.  That was 15 ms of every frame, on a fast
+    desktop, before a triangle was drawn, and it did not change with the
+    graphics setting because it is not graphics.
+
+    The chain depends on stroke time and on nothing else: not the hull's
+    state, not the water, not the wind.  It is periodic in the stroke.
+    So it is solved ONCE at ``samples`` phases and interpolated, which is
+    the same idea the renderer already uses for the drawn crew, applied
+    where it actually costs something.
+
+    What it does not change
+    -----------------------
+    The numbers.  At 480 samples a stroke is 4 ms apart at rate 30, and
+    linear interpolation between exact samples is out by about
+    ``h^2 |a| / 8`` in position -- a tenth of a millimetre -- and by a
+    similar fraction of the acceleration's own curvature.  Both are far
+    below anything the model claims.  ``tests/unit/test_stroke_table.py``
+    holds it to that against the direct solve.
+
+    The per-seat phase offsets are not baked in: they only shift the
+    lookup time, so a crew whose timing drifts stroke to stroke reads the
+    same table at different phases and the table stays valid.
+    """
+
+    def __init__(self, rower, period: float, samples: int = 480):
+        self.period = float(period)
+        self.samples = int(samples)
+        taus = np.arange(self.samples) * self.period / self.samples
+        position, velocity, acceleration, hand = [], [], [], []
+        for tau in taus:
+            # One chain solve per sample.  Asking for the hand through
+            # joint_positions solved the same chain a second time and
+            # doubled the build.
+            p, v, a, h = rower.segment_state(tau, with_hand=True)
+            position.append(p)
+            velocity.append(v)
+            acceleration.append(a)
+            hand.append(h)
+        # Positions are stored RELATIVE to this rower's own footboard,
+        # so the table can be shared between rowers who move identically
+        # but sit at different stations; the caller anchors it.  The
+        # first shared version stored absolute x and put a whole seat's
+        # spacing -- 8.5 m -- into the second group's positions.
+        # Velocity and acceleration carry no origin and need nothing.
+        anchor = float(rower.station.x_ankle)
+        self.position = np.asarray(position, dtype=float)      # (N, 12, 3)
+        self.position[:, :, 0] -= anchor
+        self.velocity = np.asarray(velocity, dtype=float)
+        self.acceleration = np.asarray(acceleration, dtype=float)
+        self.hand = np.asarray(hand, dtype=float)              # (N, 3)
+        self.hand[:, 0] -= anchor
+
+    def _weights(self, t: float):
+        u = (float(t) / self.period) % 1.0 * self.samples
+        i = int(u)
+        f = u - i
+        return i % self.samples, (i + 1) % self.samples, f
+
+    def at(self, t: float):
+        """``(position, velocity, acceleration)``, each ``(12, 3)``."""
+        i, j, f = self._weights(t)
+        w = 1.0 - f
+        return (w * self.position[i] + f * self.position[j],
+                w * self.velocity[i] + f * self.velocity[j],
+                w * self.acceleration[i] + f * self.acceleration[j])
+
+    def hand_at(self, t: float) -> np.ndarray:
+        i, j, f = self._weights(t)
+        return (1.0 - f) * self.hand[i] + f * self.hand[j]
+
+
 def _michell_table(offsets):
     """The hull's own wave resistance curve, built once per hull shape."""
     import numpy as np
@@ -129,6 +209,17 @@ class Boat:
     @wave_table.setter
     def wave_table(self, value):
         self._wave_table = value
+
+    #: Read the crew kinematics and the oar force from stroke tables
+    #: rather than solving them on every derivative evaluation.  OFF by
+    #: default: the studies and the golden trajectory are the exact
+    #: chain, bit for bit, and a tolerance-level change to them is a
+    #: model change in disguise.  The real-time trainer turns it on,
+    #: because there a frame is the budget and the tables are held to
+    #: the chain by ``tests/unit/test_stroke_table.py``.
+    tabulate_crew: bool = False
+    #: Samples per stroke in the table; see :class:`StrokeTable`.
+    table_samples: int = 480
 
     def __init__(self, name: str, offsets: HullOffsets, rig: Rig,
                  hull_mass: float, hull_inertia: np.ndarray,
@@ -502,7 +593,150 @@ class Boat:
         self._crew_group_cache = built
         return built
 
-    def crew_field(self, t: float):
+    def _oar_table(self):
+        """The oarlock force and the sweep rate over one stroke, tabulated.
+
+        Same reasoning as :class:`StrokeTable`.  ``oar_force`` is a
+        function of stroke time, the force profile and the sweep -- a
+        shape factor through a Fourier-driven angle -- and the profile
+        shows it evaluated eight times per derivative, 6.6 derivatives
+        a frame, through ``_ramp`` and ``magnitude`` in Python.  It is
+        periodic; it is solved once.
+
+        Only the port side is stored: the starboard force is the port
+        force with ``f_y`` reversed, which is exactly how ``oar_force``
+        builds it (``side * |F| sin(phi)``).  Power scales, the split
+        gain and the blade's length fraction are applied by the caller
+        afterwards, as before, so nothing that varies stroke to stroke
+        is baked in.
+        """
+        from ..crew.oarlock import oar_force
+
+        cached = self.__dict__.get("_oar_cache")
+        key = (id(self.force_profile), id(self.oar_sweep),
+               round(float(self.timing.period), 12),
+               round(float(self.timing.drive_fraction), 12))
+        if cached is not None and cached[0] == key:
+            return cached[1]
+
+        class _OarTable:
+            def __init__(inner, force, rate, period, samples):
+                inner.force, inner.rate = force, rate
+                inner.period, inner.samples = period, samples
+
+            def _weights(inner, t):
+                u = (float(t) / inner.period) % 1.0 * inner.samples
+                i = int(u)
+                return i % inner.samples, (i + 1) % inner.samples, u - i
+
+            def force_at(inner, t, side):
+                i, j, f = inner._weights(t)
+                out = (1.0 - f) * inner.force[i] + f * inner.force[j]
+                if side < 0:
+                    out = out * np.array([1.0, -1.0, 1.0])
+                return out
+
+            def rate_at(inner, t):
+                i, j, f = inner._weights(t)
+                return (1.0 - f) * inner.rate[i] + f * inner.rate[j]
+
+        samples = int(self.table_samples)
+        period = float(self.timing.period)
+        force = np.zeros((samples, 3))
+        rate = np.zeros(samples)
+        for k in range(samples):
+            tau = period * k / samples
+            force[k] = oar_force(tau, self.timing, +1, self.force_profile,
+                                 self.oar_sweep)
+            rate[k] = float(self.oar_sweep.rate(tau, self.timing))
+        built = _OarTable(force, rate, period, samples)
+        self.__dict__["_oar_cache"] = (key, built)
+        return built
+
+    def oar_force_at(self, t: float, side: int, exact: bool = False):
+        """``oar_force`` for one oarlock, from the table unless ``exact``."""
+        if self.tabulate_crew and not exact:
+            return self._oar_table().force_at(t, side)
+        from ..crew.oarlock import oar_force
+        return oar_force(t, self.timing, side, self.force_profile,
+                         self.oar_sweep)
+
+    def oar_rate_at(self, t: float, exact: bool = False) -> float:
+        """``oar_sweep.rate`` at ``t``, from the table unless ``exact``."""
+        if self.tabulate_crew and not exact:
+            return float(self._oar_table().rate_at(t))
+        return float(self.oar_sweep.rate(t, self.timing))
+
+    def warm_crew_tables(self) -> float:
+        """Build every table this crew will need, now.  Returns seconds.
+
+        Left to first use, the build lands on the opening frames of the
+        outing -- about half a second per distinct rower -- and reads as
+        the game stalling on the start line.  Under the loading screen
+        it is just loading.
+        """
+        import time
+
+        started = time.perf_counter()
+        # Every rower, not only the current group leaders.  A crew in
+        # perfect time is ONE group with one leader; the moment per-seat
+        # timing scatter is applied it is eight groups with eight
+        # different leaders, none of which has a table -- and the first
+        # version warmed the one and then rebuilt all eight on the
+        # opening frames, which is precisely the stall this exists to
+        # prevent.  Rowers that share a chain share a table through the
+        # cache key, so this costs nothing extra for a matched crew.
+        for member in self.crew:
+            self._stroke_table(member.rower)
+        self._lateral_table()
+        self._oar_table()
+        return time.perf_counter() - started
+
+    def _stroke_table(self, rower) -> "StrokeTable":
+        """This rower's table, built on first use and kept.
+
+        Keyed on the rower and on the timing, so a boat re-rated to a
+        different stroke rate rebuilds rather than reading a stale
+        period.  Rowers are not mutated after construction -- the rig
+        editor and the rate menu build a new boat -- so identity is a
+        safe key.
+        """
+        tables = self.__dict__.setdefault("_stroke_tables", {})
+        # Keyed on what the rower DOES and what the timing IS, not on
+        # which objects they are.  The catalogue builds one rower object
+        # per seat even for a matched crew, and _crew_groups already
+        # decides "moves identically" by kinematics_signature -- so the
+        # same signature shares one table, and a matched eight builds
+        # one, not eight.  A re-rate builds a new StrokeTiming, and an
+        # equal one must hit rather than rebuild.
+        key = (rower.kinematics_signature(),
+               round(float(self.timing.period), 12),
+               round(float(self.timing.drive_fraction), 12))
+        table = tables.get(key)
+        if table is None:
+            table = StrokeTable(rower, self.timing.period,
+                                self.table_samples)
+            tables[key] = table
+        return table
+
+    def _tabulated(self, leader, t: float, offsets):
+        """The batched segment state, read from the table.
+
+        The same broadcast as
+        :meth:`~coxswain.crew.kinematics.JointDrivenRower._segment_state_batched`:
+        one chain, shifted along ``x`` for each seat in the group.
+        """
+        position, velocity, acceleration = self._stroke_table(leader).at(t)
+        offsets = np.asarray(offsets, dtype=float)
+        n = len(offsets)
+        tiled = np.tile(position, (n, 1))
+        # Re-anchor at THIS leader's footboard, then shift per seat.
+        tiled[:, 0] += (float(leader.station.x_ankle)
+                        + np.repeat(offsets, position.shape[0]))
+        return (tiled, np.tile(velocity, (n, 1)),
+                np.tile(acceleration, (n, 1)))
+
+    def crew_field(self, t: float, exact: bool = False):
         """Stacked segment masses, positions, velocities, accelerations.
 
         Returns ``(mass, position, velocity, acceleration)`` with shapes
@@ -518,8 +752,12 @@ class Boat:
         masses, positions, velocities, accelerations = [], [], [], []
         period = self.timing.period
         for leader, indices, offsets, phase in self._crew_groups():
-            position, velocity, acceleration = leader.segment_state(
-                t - phase * period, x_offsets=offsets)
+            if self.tabulate_crew and not exact:
+                position, velocity, acceleration = self._tabulated(
+                    leader, t - phase * period, offsets)
+            else:
+                position, velocity, acceleration = leader.segment_state(
+                    t - phase * period, x_offsets=offsets)
             positions.append(position)
             velocities.append(velocity)
             accelerations.append(acceleration)
@@ -535,7 +773,7 @@ class Boat:
         return (np.concatenate(masses), np.vstack(positions),
                 np.vstack(velocities), np.vstack(accelerations))
 
-    def hand_positions(self, t: float) -> np.ndarray:
+    def hand_positions(self, t: float, exact: bool = False) -> np.ndarray:
         """Hand (oar handle) position for every seat, shape ``(n_seats, 3)``.
 
         Batched over kinematics groups for the same reason as
@@ -561,10 +799,19 @@ class Boat:
 
         positions = np.zeros((self.n_seats, 3))
         period = self.timing.period
+        use_table = self.tabulate_crew and not exact
         for leader, indices, offsets, phase in self._crew_groups():
-            hand = leader.joint_positions(t - phase * period)["hand"]
+            if use_table:
+                hand = self._stroke_table(leader).hand_at(t - phase * period)
+                hand = hand + np.array([float(leader.station.x_ankle),
+                                        0.0, 0.0])
+            else:
+                hand = leader.joint_positions(t - phase * period)["hand"]
             positions[indices] = hand
             positions[indices, 0] += offsets
+        if use_table:
+            positions[:, 1] = self._lateral_table().at(t)
+            return positions
         for index, seat in enumerate(self.rig.seats):
             if not seat.oarlocks:
                 continue
@@ -574,6 +821,48 @@ class Boat:
                 for lock in seat.oarlocks])
             positions[index, 1] = lateral
         return positions
+
+    def _lateral_table(self):
+        """The handles' lateral sweep per seat over one stroke, tabulated.
+
+        Same reasoning as :class:`StrokeTable`: ``handle_position`` is a
+        function of stroke time and the rig alone, and it was being
+        evaluated for every oarlock on every derivative call.
+        """
+        from ..crew.oarlock import handle_position
+
+        cached = self.__dict__.get("_lateral_cache")
+        key = (id(self.timing), id(self.oar_sweep), float(self.timing.period))
+        if cached is not None and cached[0] == key:
+            return cached[1]
+
+        class _Lateral:
+            def __init__(inner, table, period, samples):
+                inner.table, inner.period, inner.samples = table, period, samples
+
+            def at(inner, t):
+                u = (float(t) / inner.period) % 1.0 * inner.samples
+                i = int(u)
+                f = u - i
+                i %= inner.samples
+                return ((1.0 - f) * inner.table[i]
+                        + f * inner.table[(i + 1) % inner.samples])
+
+        samples = int(self.table_samples)
+        period = float(self.timing.period)
+        table = np.zeros((samples, self.n_seats))
+        for k in range(samples):
+            tau = period * k / samples
+            for index, seat in enumerate(self.rig.seats):
+                if not seat.oarlocks:
+                    continue
+                table[k, index] = np.mean([
+                    float(handle_position(tau, self.timing, lock,
+                                          self.oar_sweep)[1])
+                    for lock in seat.oarlocks])
+        built = _Lateral(table, period, samples)
+        self.__dict__["_lateral_cache"] = (key, built)
+        return built
 
     def crew_field_by_seat(self, t: float):
         """Per-seat segment states, as a list indexed by seat.

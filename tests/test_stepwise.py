@@ -20,6 +20,23 @@ too SLOW, and the new one halves that error on all four boat classes.
 Re-record it again only with that kind of reason and that kind of
 evidence.
 
+It has now been re-recorded a **second** time, for a correction rather
+than a model choice.  The kinematics signature that lets identical
+rowers share one chain evaluation omitted the *side* of the boat, so a
+matched crew was one group led by the stroke seat and every port rower
+was given the starboard leader's arms -- 0.15 m out, in x and y, on
+eight arm masses.  With each side's arms on its own handle the four
+covers 62.17 m in these twelve seconds instead of 62.07 (+0.16%) and
+ends 0.72 m to one side instead of 1.57: the misplaced arms were a yaw
+bias steering the boat.  Measured in ``tests/unit/test_synchronisation``
+-- the timing split that "very nearly cancelled" the rig's yaw bias now
+takes 45% of it, which is the honest figure.
+
+The stroke tables that speed the trainer (``Boat.tabulate_crew``) are
+OFF for this file and for every study, on purpose: they are held to
+the exact chain by their own tests, and a tolerance here would let a
+model change through disguised as rounding.
+
 **Stepping equals running.**  A game loop calls
 :meth:`~coxswain.sim.simulator.RowingSimulator.step` once per tick; the
 studies call :meth:`~coxswain.sim.simulator.RowingSimulator.run`.  If

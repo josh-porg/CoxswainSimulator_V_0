@@ -2438,6 +2438,12 @@ def main(argv=None):
 
     loop = FixedStepLoop(simulator, rate=args.physics,
                          on_step=advance_crew)
+    # The crew's stroke tables, now that the timing scatter is set and
+    # the crew is grouped the way the derivative will see it.  See
+    # Boat.warm_crew_tables: built lazily they land on the opening
+    # frames, which is the one place a stall is guaranteed to be seen.
+    boat.tabulate_crew = True            # the trainer's budget is a frame
+    print("   crew tables: %.1f s" % boat.warm_crew_tables())
     loop.start(fresh_state())
     if args.freecam:
         # Started here rather than with the rest of the loop state:

@@ -137,6 +137,35 @@ def load_water(path: str = None):
 
 
 def _inside(polygon: np.ndarray, points: np.ndarray) -> np.ndarray:
+    """Even-odd point-in-polygon, vectorised over ``points``.
+
+    Through :class:`matplotlib.path.Path`, which does the crossing test
+    in C.  The pure-numpy version below it was vectorised over the
+    points but looped over the polygon's EDGES in Python -- a shoreline
+    has thousands -- and the eight calls that build the Lake Union mask
+    took 14 s of a 33 s start.  Same rule, same answer, two hundred
+    times faster; the loop is kept as the fallback and as the check.
+    """
+    try:
+        from matplotlib.path import Path
+    except ImportError:                                  # pragma: no cover
+        return _inside_by_edges(polygon, points)
+    polygon = np.asarray(polygon, dtype=float)[:, :2]
+    points = np.asarray(points, dtype=float)[:, :2]
+    inside = np.zeros(len(points), dtype=bool)
+    if len(polygon) < 3 or len(points) == 0:
+        return inside
+    # Only the points inside the polygon's own box can be inside it, and
+    # for a mask built over the whole scene box most points are not:
+    # Lake Union is a small part of the grid that covers it.
+    low, high = polygon.min(axis=0), polygon.max(axis=0)
+    near = np.all((points >= low) & (points <= high), axis=1)
+    if near.any():
+        inside[near] = Path(polygon).contains_points(points[near])
+    return inside
+
+
+def _inside_by_edges(polygon: np.ndarray, points: np.ndarray) -> np.ndarray:
     """Ray-crossing point-in-polygon, vectorised over ``points``."""
     x, y = points[:, 0], points[:, 1]
     inside = np.zeros(len(points), dtype=bool)

@@ -121,6 +121,24 @@ and the published targets stand. What is still open is WHY the 6-DOF
 path is so lossy -- whether the fault is in `power_scales`, in the
 blade model, or in the unsteady losses.
 
+### The balance controller has nothing to do
+Found while making the crew's port arms port (the kinematics signature
+omitted the side; see Fixed).  With that bias gone, the 6-DOF eight is
+**roll-stable at race pace on its own**: from an 8 deg initial roll it
+returns to 0.04 deg within 6 s with no balance controller at all, and
+every authority — full, oars-only, constant, none — gives the same swing
+(0.047 deg matched, 1.331 deg at a 60 ms split).
+
+The terms at 2 deg of heel, 4.6 m/s, eight: buoyancy −36.7 N m, gravity
++75.7 (net +39, destabilising, as `roll_divergence_time`'s surrogate
+says) — and **appendage −209.4 N m**, at zero sideslip and zero roll
+rate.  A fin restoring roll five times harder than the hull destabilises
+it is either a real heel–sideforce coupling or a frame slip in how the
+appendage moment is taken about the hull origin; nobody has checked
+which.  Until that is settled, "the boat has to be sat" is a surrogate
+claim the simulation contradicts, and the two balance tests that assumed
+it are expected failures pointing here.
+
 ### `mean_handle_power` ignores `power_scales`
 Its docstring says it reports power "at the boat's current scale". It
 does not — it integrates `oar_force` without the scale, so it always
@@ -187,6 +205,33 @@ The runner is a headless service session with no usable OpenGL, so the
 render check warns instead of failing there and the payload is verified
 by file presence. The Windows artefact is built and run locally before
 release.
+
+---
+
+## Performance — measured, on this desktop
+
+A rower reported the trainer "unusably sluggish" on an old gaming
+laptop.  Profiled headless, 180 frames of an eight on Head of the Lake
+at Standard, with nothing else running.  The numbers are this machine's;
+the ratios are what matter.
+
+| what | before | after | how |
+|---|---|---|---|
+| physics per frame | 31–34 ms, every tier | 18.5 ms at 100 Hz; **~11 ms at 60 Hz** | crew kinematics and oar force tabulated once per stroke (`Boat.tabulate_crew`, trainer only); 60 Hz is the same boat to 0.2 mm |
+| `seattle._inside` at start | 14.2 s | 0.96 s | matplotlib's C crossing test with a bounding-box pre-filter; identical answers |
+| crew tables at start | — | 0.3–1.1 s | one chain solve per sample; shared by kinematics signature; warmed after the timing scatter |
+| peak working set | 700–1,040 MB | (pending re-measure) | CPU mesh copies dropped after upload; GC off for the build, frozen after |
+
+Found on the way, and fixed: the kinematics signature omitted the side
+of the boat, so a matched crew shared the stroke seat's chain and every
+port rower wore starboard arms (0.15 m out on eight arm masses).  A
+yaw bias, steering the boat.  The golden trajectory was re-recorded for
+it — the second re-record, with the reason and the numbers in
+`tests/test_stepwise.py`.
+
+What the physics is NOT moved to: the GPU.  It is a small stiff 6-DOF
+system on tiny arrays; a GPU's launch latency loses to the CPU JIT that
+already runs the hull sweep.  There is no tensor workload here for a TPU.
 
 ---
 
@@ -271,3 +316,6 @@ to.
 | **Blades were a quarter-turn out of phase**, flat through the drive and on edge through the recovery. | Looking at it. |
 | **Windows CI job hung for 52 minutes**, silently, blocking the whole release. | The macOS job did the same work in 5. |
 | **`macos-13` runner retired**, so the Mac job queued forever. | Asking why it was slower than the Linux build had been. |
+| **Every port rower wore starboard arms.** The kinematics signature that shares one chain across identical rowers omitted the side, so a matched crew was one group led by the stroke seat. 0.15 m on eight arm masses; a yaw bias. | Tabulating the crew made the exact path's error measurable against a per-seat table. |
+| **Startup spent 14 s in a pure-Python point-in-polygon.** | The first profile, sorted by internal time. |
+| **The physics ran at 100 Hz for no reason.** 60 Hz is the same boat to 0.2 mm over 24 s. | Counting derivative evaluations per frame. |

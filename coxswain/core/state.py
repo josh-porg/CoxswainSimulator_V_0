@@ -103,17 +103,29 @@ class State:
     # -- derived frames --------------------------------------------------
     @property
     def rot_hull_to_abs(self) -> np.ndarray:
-        return frames.hull_to_abs(self.attitude)
+        """The attitude as a rotation matrix, built once per State.
+
+        A derivative evaluation asks for it a dozen times -- every
+        ``velocity_hull`` and ``omega_hull`` rebuilt it from the three
+        angles -- and a State is immutable, so the answer cannot change.
+        Memoised on the instance; a frozen dataclass forbids ordinary
+        assignment, hence ``object.__setattr__``.
+        """
+        cached = self.__dict__.get("_rotation")
+        if cached is None:
+            cached = frames.hull_to_abs(self.attitude)
+            object.__setattr__(self, "_rotation", cached)
+        return cached
 
     @property
     def velocity_hull(self) -> np.ndarray:
         """Translational velocity resolved in the hull frame ``(u, v, w)``."""
-        return frames.abs_to_hull(self.attitude) @ self.velocity
+        return self.rot_hull_to_abs.T @ self.velocity
 
     @property
     def omega_hull(self) -> np.ndarray:
         """Angular velocity resolved in the hull frame ``(p, q, r)``."""
-        return frames.abs_to_hull(self.attitude) @ self.omega
+        return self.rot_hull_to_abs.T @ self.omega
 
     @property
     def speed(self) -> float:

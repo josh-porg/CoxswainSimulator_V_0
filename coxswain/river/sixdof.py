@@ -117,7 +117,7 @@ class CrewTensorFit:
         cross_accel = np.zeros((3, n_samples))
 
         for index, t in enumerate(times):
-            mass, position, velocity, acceleration = boat.crew_field(t)
+            mass, position, velocity, acceleration = boat.crew_field(t, exact=True)
             moment[:, index] = (mass[:, None] * position).sum(axis=0)
             rate[:, index] = (mass[:, None] * velocity).sum(axis=0)
             accel[:, index] = (mass[:, None] * acceleration).sum(axis=0)
@@ -220,7 +220,7 @@ class OarFit:
         split = np.zeros((6, n_samples))
 
         for index, t in enumerate(times):
-            hands = simulator.hand_positions(t)
+            hands = simulator.hand_positions(t, exact=True)
             for label, amount, target in (("n", 0.0, neutral),
                                           ("s", 1.0, split)):
                 force = np.zeros(3)

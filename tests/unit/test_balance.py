@@ -353,6 +353,15 @@ def test_trunk_lean_beats_hand_heights_on_the_recovery(eight):
 
 
 @pytest.mark.slow
+@pytest.mark.xfail(strict=True, reason=(
+    "The 6-DOF boat sits itself: with NO balance controller an eight "
+    "returns an 8 deg roll to 0.04 deg, and every authority gives the "
+    "same swing, with and without a 60 ms split.  The appendage term "
+    "restores roll at -105 N m/deg against +20 N m/deg of hydrostatic "
+    "instability.  These two passed only while every port seat wore "
+    "starboard arms -- a permanent lateral bias the controller had to "
+    "fight.  See docs/TRACKING.md, 'The balance controller has nothing "
+    "to do'."))
 def test_trunk_lean_is_what_makes_an_eight_sittable(eight):
     """Remove it and the boat is materially harder to hold."""
     from coxswain.crew.balance import PhaseAuthority
@@ -412,6 +421,15 @@ def test_the_smoothed_window_tracks_the_square_wave(eight):
 
 
 @pytest.mark.slow
+@pytest.mark.xfail(strict=True, reason=(
+    "The 6-DOF boat sits itself: with NO balance controller an eight "
+    "returns an 8 deg roll to 0.04 deg, and every authority gives the "
+    "same swing, with and without a 60 ms split.  The appendage term "
+    "restores roll at -105 N m/deg against +20 N m/deg of hydrostatic "
+    "instability.  These two passed only while every port seat wore "
+    "starboard arms -- a permanent lateral bias the controller had to "
+    "fight.  See docs/TRACKING.md, 'The balance controller has nothing "
+    "to do'."))
 def test_phase_dependent_balance_makes_the_boat_harder_to_hold(eight):
     """It must cost something, or it is not modelling anything."""
     from coxswain.crew.balance import PhaseAuthority

@@ -1018,9 +1018,43 @@ class JointDrivenRower:
         could change the motion must appear here; when in doubt, adding a
         field costs a little speed, omitting one costs correctness.
         """
+        cached = self.__dict__.get("_signature_cache")
+        if cached is not None:
+            return cached
         station = self.station
         anthro = self.anthropometry
-        return (
+        # The arms.  A sweep rower's arms are placed from the handle
+        # track of THEIR oar, and a port handle mirrors a starboard one
+        # in y -- so two rowers identical in every field above, one each
+        # side of the boat, do NOT move identically, and the first
+        # version of this key said they did.  Grouped together, every
+        # port seat was given the starboard leader's arms: 0.15 m out,
+        # in x and y, on eight arm masses.  The track is fingerprinted
+        # relative to the footboard, at a few phases, rounded -- values,
+        # not identity, for the same reason as everything else here.
+        arms = None
+        if self.hand_targets is not None:
+            period = float(self.timing.period)
+            samples = []
+            for side in sorted(self._hand_tracks):
+                track = self._hand_tracks[side]
+                for k in range(8):
+                    # The track hands back Taylor jets; the value is
+                    # what identifies the geometry.
+                    raw = np.atleast_1d(track(period * k / 8.0))
+                    point = np.array([float(getattr(c, "value", c))
+                                      for c in raw.ravel()], dtype=float)
+                    point[0] -= float(station.x_ankle)
+                    samples.append((int(side),) + tuple(np.round(point, 6)))
+            arms = tuple(samples)
+        sequencing = self.sequencing
+        try:
+            import dataclasses as _dc
+            if _dc.is_dataclass(sequencing):
+                sequencing = _dc.astuple(sequencing)
+        except Exception:                                # pragma: no cover
+            sequencing = repr(sequencing)
+        signature = (
             anthro.mass, anthro.stature, anthro.sex,
             self.dataset.name, self.timing.rate, self.thigh_mode,
             self.phase_offset, self.n_harmonics, self.recovery_arrival,
@@ -1028,10 +1062,18 @@ class JointDrivenRower:
                 tuple(np.round(np.asarray(self.phase_warp[1]), 9))),
             station.z_ankle, station.seat_height, station.foot_half_span,
             station.hip_half_span, station.shoulder_half_span,
+            arms, sequencing, self.flatness,
         )
+        self.__dict__["_signature_cache"] = signature
+        return signature
 
-    def segment_state(self, t, x_offsets=None):
+    def segment_state(self, t, x_offsets=None, with_hand: bool = False):
         """Position, velocity and acceleration of all 12 segment masses.
+
+        ``with_hand`` appends the hand's planar position -- the same
+        ``(x, 0, z)`` :meth:`joint_positions` gives -- from the SAME
+        chain solve.  The stroke table needs both at every sample, and
+        solving the chain twice for them doubled its build.
 
         Returns three ``(12, 3)`` arrays in the hull frame, ordered by
         :data:`SEGMENT_ORDER`.  Velocity and acceleration are relative to
@@ -1046,6 +1088,9 @@ class JointDrivenRower:
         if x_offsets is not None:
             return self._segment_state_batched(t, x_offsets)
         chain = self._chain(t)
+        if with_hand:
+            hand_xz = chain["hand"]
+            hand_point = np.array([hand_xz[0].value, 0.0, hand_xz[1].value])
         seg = self._segments
         anthro = self.anthropometry
 
@@ -1123,6 +1168,8 @@ class JointDrivenRower:
             self._place_arm_segments(position, velocity, acceleration,
                                      arm_places, seg)
 
+        if with_hand:
+            return position, velocity, acceleration, hand_point
         return position, velocity, acceleration
 
     def _place_arm_segments(self, position, velocity, acceleration,
