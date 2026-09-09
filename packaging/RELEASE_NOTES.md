@@ -27,37 +27,23 @@ Debian 12+, current Fedora, Arch and Mint.
 
 ## New in this one
 
-Faster, on every machine, and it can now tell me how it ran on yours.
+Faster again, on the machines that were slow, and a way to find out
+about the next one.
 
-- **Half the physics again.** Below High the boat is stepped with
-  Heun's method -- two evaluations a step instead of four -- which is
-  the same boat to 3 cm over a 367 m piece.  The physics is now 3 ms a
-  frame on a laptop CPU at Minimal.
-- **The low tiers stop paying for what they do not draw.** No sky noise
-  in the water's reflection, the water normal straight from the mesh,
-  and the HUD is only redrawn when it changes.  On an Intel UHD:
-  Ultra minimal 9.7 ms a frame (104 fps), Minimal 17.2 (58), Standard
-  21.9 (46), High 29.3 (34) -- from 16.6 / 18.7 / 25.9 / 42.8 in
-  v0.9, headless, physics included.
-- **It cannot lock up on a slow machine.** A frame that falls far
-  behind takes four physics steps and lets the rest go: the boat runs
-  briefly slow instead of the program stopping.
-- **The `.exe` is exactly as fast as the source** -- measured, same
-  machine, same tier, within 0.3 ms.
-- **"Ultra minimal" is the lowest tier**, below Minimal, and its label
-  now says so.
-
-### Performance reports (please turn this on)
-
-Under **Graphics and sound -> Send performance reports**.  At the end
-of a session it sends me frame times, your GPU's name, the tier and the
-settings -- numbers and product names only, never your name, a file
-path or an e-mail; the program refuses to send if it finds one.  It is
-off until you switch it on, remembered once you do, and the diagnostics
-log beside the program records exactly what was sent.
-
-If you would rather not, the same summary is written next to the log
-as `report-<date>.json`; paste it to me and it does the same job.
+- **Every tier draws less.** The world is packed to 20 bytes a vertex
+  and only the tiles in front of the camera are drawn; the sky is
+  painted last, where nothing else was; the low tiers use a water grid
+  a quarter the size, which the far water does not show and the
+  measurement did. On an integrated Intel GPU: Minimal 17.4 -> 11.7 ms
+  a frame (86 fps), Standard 22.2 -> 16.3 (61 fps).
+- **The physics is 0.77 ms per evaluation** -- the per-oar loop is one
+  array operation now -- so a slow CPU has that much more room.
+- **It tells you when there is a newer release.** One line on the setup
+  menu, with the link you were sent. Nothing is downloaded. Off in
+  *Graphics and sound -> Check for updates*, or `--no-update-check`.
+- **Windows signing is wired, waiting on an account.** When the SignPath
+  open-source project exists the exe ships signed and SmartScreen stops
+  warning; until then nothing changes. `docs/SIGNING.md` has the steps.
 
 ## What is in it
 

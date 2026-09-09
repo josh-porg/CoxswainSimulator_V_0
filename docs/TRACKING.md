@@ -266,6 +266,25 @@ already runs the hull sweep.  There is no tensor workload here for a TPU.
 
 ## Done — running on the machine you have
 
+### Measured, v0.11 round (Intel UHD, 1180x680, hazy, eight; `--bench 150 --bench-passes`)
+
+| change | evidence | effect |
+|---|---|---|
+| packed vertices, 20 B | pixel-identical to reference (max 2/255 at Standard) | world pass 4.7→4.2 ms Minimal, 6.3→4.5 Standard |
+| sky drawn last (plain-water tiers) | same | sky pass 0.2→0.1 |
+| water grid 80/120/240 below High | linear in vertex count: 5.7/3.5/2.2/1.5 ms at 240/160/120/80; 120 vs 240 indistinguishable by eye | water 7.3→2.2 Minimal; Standard 8.2→6.3 same session |
+| tile culling, 350 m | pixel-identical at equal water density (max 5/255); 365/560 tiles | world 4.2→3.0 Minimal, 4.5→2.8 Standard |
+| oar loop vectorised | oar-table, stepwise, six-DOF tests on both paths | derivative → 0.77 ms |
+| world build across cores — **reverted** | Standard: 14.7 s serial, 14.8 s on four workers, and a different world (1,277,564 tri in 13 parts vs 1,291,399 in 10) | none; Windows spawn + reload per worker ≈ the slice of work |
+
+Two findings that changed what was done: at a **quarter of the pixels
+neither the water nor the world pass moved**, so both are vertex-bound
+on this GPU and fill-rate levers (render scale) cannot help; and this
+iGPU's clock **drifts ~25% between sessions** (Minimal water read 5.7
+and 7.3 ms on identical code an hour apart), so every A/B here was
+taken within one session.
+
+
 ### Measured, this round (Intel UHD, 1180x680, hazy, eight; `--bench 150`, no timers)
 
 | tier | physics | draw+GPU | frame p50 | fps | v0.9 frame |
