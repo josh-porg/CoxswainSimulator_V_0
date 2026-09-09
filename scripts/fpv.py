@@ -1947,6 +1947,7 @@ def run_setup_menu(screen, args):
     # this is for is a real one and typing it in again every time is
     # exactly the friction the preset exists to remove.
     lineup = None
+    lineup_last = None          # the last lineup the editor showed
     pane_cursor = 0
     seat_cursor = -1
     # ``(seat, field, buffer)`` while a rower is being typed in.
@@ -1971,10 +1972,17 @@ def run_setup_menu(screen, args):
                     if event.key == pygame.K_ESCAPE:
                         editing = None
                     elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
-                        lineup.commit_edit(seat, at, buffer)
+                        if seat < 0:
+                            name = buffer.strip()
+                            if name and name not in RIG_PRESETS:
+                                from coxswain.viz import presets as _presets
+                                lineup.name = name
+                                _presets.save(lineup.to_dict())
+                        else:
+                            lineup.commit_edit(seat, at, buffer)
                         editing = None
                     elif event.key in (pygame.K_TAB, pygame.K_DOWN,
-                                       pygame.K_UP):
+                                       pygame.K_UP) and seat >= 0:
                         lineup.commit_edit(seat, at, buffer)
                         step = -1 if event.key == pygame.K_UP else 1
                         at = (at + step) % len(FIELDS)
@@ -1990,7 +1998,7 @@ def run_setup_menu(screen, args):
                 if lineup is not None:
                     # -- the rig editor owns the keyboard while it is up
                     if event.key == pygame.K_ESCAPE:
-                        lineup = None
+                        lineup_last, lineup = lineup, None
                         seat_cursor = -1
                         continue
                     if event.key in (pygame.K_UP, pygame.K_w):
@@ -2005,11 +2013,18 @@ def run_setup_menu(screen, args):
                                                    pygame.K_a) else 1
                         key = PANE_ROWS[pane_cursor][0]
                         if key == "preset":
-                            names = sorted(RIG_PRESETS)
+                            from coxswain.viz import presets as _presets
+                            from coxswain.viz.rigview import Lineup as _Lineup
+                            names = sorted(RIG_PRESETS) + sorted(
+                                n for n in _presets.names()
+                                if n not in RIG_PRESETS)
                             at = (names.index(lineup.name)
                                   if lineup.name in names else 0)
-                            lineup = RIG_PRESETS[
-                                names[(at + step) % len(names)]]()
+                            pick = names[(at + step) % len(names)]
+                            if pick in RIG_PRESETS:
+                                lineup = RIG_PRESETS[pick]()
+                            else:
+                                lineup = _Lineup.from_dict(_presets.get(pick))
                             seat_cursor = -1
                         elif key == "shell":
                             keys = list(SHELLS)
@@ -2044,8 +2059,16 @@ def run_setup_menu(screen, args):
                             else:
                                 seat_cursor = ((seat_cursor + step)
                                                % lineup.seats)
+                        elif key == "save":
+                            if event.key in (pygame.K_RETURN,
+                                             pygame.K_KP_ENTER,
+                                             pygame.K_SPACE):
+                                # Seat -1 is the lineup's own name; the
+                                # same text entry the rowers use.
+                                editing = (-1, 0, "" if lineup.name in
+                                           RIG_PRESETS else lineup.name)
                         elif key == "done":
-                            lineup = None
+                            lineup_last, lineup = lineup, None
                             seat_cursor = -1
                     continue
                 if event.key == pygame.K_ESCAPE:
@@ -2057,7 +2080,7 @@ def run_setup_menu(screen, args):
                     continue
                 if action == "crew":
                     if lineup is None:
-                        lineup = RIG_PRESETS[sorted(RIG_PRESETS)[0]]()
+                        lineup = lineup_last or RIG_PRESETS[sorted(RIG_PRESETS)[0]]()
                     pane_cursor = 0
                     continue
                 if action in ("options", "weather", "rowers"):
@@ -2091,6 +2114,9 @@ def run_setup_menu(screen, args):
                                       ("balance", "balance")):
                         if key in picked:
                             setattr(args, name, picked[key])
+                    args.lineup = picked.get("lineup")
+                    if args.lineup is not None:
+                        args.boat = args.lineup.shell
                     # ``chosen`` is the setup menu's own settings, and wind
                     # is no longer one of them -- it lives on the weather
                     # menu -- so it comes from args, which the weather
@@ -2108,7 +2134,11 @@ def run_setup_menu(screen, args):
                     # you press go is the loudest possible signal that
                     # something has died.  It plays over the loading
                     # screen and fades when the boat appears.
-                    return menu.settings()
+                    picked = menu.settings()
+                    # The rig editor's boat races.  Kept on args so a
+                    # restart from the pause menu rebuilds the same crew.
+                    picked["lineup"] = lineup_last
+                    return picked
                 if action == "quit":
                     stop_music()
                     return None
@@ -2431,7 +2461,8 @@ def main(argv=None):
                                   with_buildings=not args.no_buildings,
                                   guide=not args.no_guide,
                                   trees=not args.no_trees)
-        return sea, trough, mesh, scene, build_boat(args.boat, args.rate)
+        return sea, trough, mesh, scene, build_boat(
+            args.boat, args.rate, lineup=getattr(args, "lineup", None))
 
     from coxswain.viz.menu import tier_settings
     from coxswain.viz.telemetry import Telemetry, install_excepthook
@@ -3388,9 +3419,13 @@ def main(argv=None):
                     draw.faded = False
                 scale = asked / max(reference_power, 1.0)
                 if variability is not None and variability.power_sigma > 0.0:
-                    variability.apply(boat, base=np.full(boat.n_seats, scale))
+                    variability.apply(boat, base=scale * np.asarray(
+                        getattr(boat, "seat_ratios", np.ones(boat.n_seats)),
+                        dtype=float))
                 else:
-                    boat.power_scales = np.full(boat.n_seats, scale)
+                    boat.power_scales = (scale * np.asarray(
+                        getattr(boat, "seat_ratios", np.ones(boat.n_seats)),
+                        dtype=float))
                 for oar, was in zip(lines, before):
                     tip = np.append(np.asarray(oar)[-1], 0.0) @ rot.T + here
                     prior = np.asarray(was)[-1]
@@ -3612,7 +3647,9 @@ def main(argv=None):
                             # real transient and not worth hiding; the
                             # alternative is retiming mid-stroke, which
                             # puts a step in the force.
-                            boat, _made = build_boat(args.boat, args.rate)
+                            boat, _made = build_boat(
+                                args.boat, args.rate,
+                                lineup=getattr(args, "lineup", None))
                             hull = hull_solid(boat)
                             crew = crew_poses(boat)
                             simulator = RowingSimulator(boat, coxswain=cox,

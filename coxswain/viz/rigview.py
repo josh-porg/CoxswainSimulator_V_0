@@ -205,6 +205,45 @@ class Lineup:
         return str(self.seats - index)
 
     # -- editing ----------------------------------------------------------
+    def to_dict(self) -> dict:
+        """Plain data, for presets.json."""
+        return {
+            "name": self.name, "shell": self.shell, "rig": self.rig,
+            "cox": {"name": self.cox_name, "pounds": self.cox_pounds,
+                    "feet": self.cox_feet, "inches": self.cox_inches},
+            "rowers": [{"name": r.name, "pounds": r.pounds, "feet": r.feet,
+                        "inches": r.inches, "erg_5k": r.erg_5k,
+                        "side": r.side,
+                        "stature_estimated": bool(r.stature_estimated)}
+                       for r in self.rowers],
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Lineup":
+        """The inverse.  Sides are taken as saved -- a saved custom rig
+        is custom -- and anything missing gets the field's default, so
+        a file from an older build still loads."""
+        cox = data.get("cox") or {}
+        rowers = [Rower(name=str(r.get("name", "")),
+                        pounds=float(r.get("pounds", 0.0)),
+                        feet=int(r.get("feet", 0)),
+                        inches=float(r.get("inches", 0.0)),
+                        erg_5k=str(r.get("erg_5k", "")),
+                        side=int(r.get("side", +1)),
+                        stature_estimated=bool(r.get("stature_estimated",
+                                                     False)))
+                  for r in data.get("rowers", [])]
+        lineup = cls(shell=str(data.get("shell", "4+")),
+                     rig=str(data.get("rig", "standard")), rowers=rowers,
+                     cox_name=str(cox.get("name", "")),
+                     cox_pounds=float(cox.get("pounds", 0.0)),
+                     cox_feet=int(cox.get("feet", 0)),
+                     cox_inches=float(cox.get("inches", 0.0)),
+                     name=str(data.get("name", "Saved lineup")))
+        if lineup.rig != "custom":
+            lineup.apply_rig()
+        return lineup
+
     def apply_rig(self) -> "Lineup":
         """Set every rower's side from the named rig."""
         sides = rig_sides(self.shell, self.rig)
@@ -594,13 +633,15 @@ PANE_ROWS = (("preset", "Load preset"),
              ("rig", "Rig"),
              ("switch", "Switch a rower's side"),
              ("edit", "Edit a rower"),
+             ("save", "Save as preset"),
              ("done", "Done"))
 
 
 def pane_values(lineup: "Lineup") -> list:
     """What each pane row currently reads."""
     return [lineup.name, SHELLS[lineup.shell][0], lineup.rig,
-            "pick a seat", "pick a seat, then type", ""]
+            "pick a seat", "pick a seat, then type", "enter, then a name",
+            ""]
 
 
 def draw_side_pane(surface, lineup: "Lineup", font, small, size,

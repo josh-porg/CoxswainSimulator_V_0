@@ -416,8 +416,65 @@ def pause_menu(rate: float = 30.0, wind: float = 5.0) -> Menu:
     return Menu("Paused", rows)
 
 
-def build_boat(key: str, rate: float, catalog=None):
+def boat_from_lineup(lineup, rate: float, catalog=None):
+    """A boat with THESE rowers in THESE seats on THIS rig.
+
+    The rig editor drew a plan and let people type a crew in, and then
+    the race was rowed by the catalogue's default crew whatever the plan
+    said.  This is the missing step: each rower's own mass and stature
+    become their anthropometry, the rig pattern is the lineup's sides,
+    the coxswain's mass is the coxswain's, and each rower's erg score
+    becomes their share of the crew's power -- kept as a ratio to the
+    crew mean, so the coxswain's calls still scale the crew as a whole
+    (see ``seat_ratios`` on the boat).
+    """
+    import numpy as np
+
+    from ..crew.anthropometry import RowerAnthropometry
+
+    if catalog is None:
+        from ..boats import catalog as catalog_module
+        catalog = catalog_module
+    LB, INCH = 0.45359237, 0.0254
+    rowers = [r for r in lineup.rowers if r.name or r.pounds]
+    if len(rowers) != lineup.seats:
+        rowers = list(lineup.rowers)[:lineup.seats]
+    people = []
+    for r in rowers:
+        mass = float(r.pounds) * LB if r.pounds else 68.0
+        stature = ((int(r.feet) * 12 + float(r.inches)) * INCH
+                   if (r.feet or r.inches) else 1.70)
+        people.append(RowerAnthropometry(mass=mass, stature=stature))
+    kwargs = dict(rate=float(rate),
+                  rower_mass=float(np.mean([p.mass for p in people])),
+                  rower_stature=float(np.mean([p.stature for p in people])),
+                  anthropometry=people)
+    sides = tuple(int(r.side) for r in rowers)
+    if lineup.seats in (4, 8):
+        kwargs["rig_pattern"] = (lineup.rig if lineup.rig != "custom"
+                                 else sides)
+    if lineup.coxed:
+        kwargs["coxswain_mass"] = (float(lineup.cox_pounds) * LB
+                                   if lineup.cox_pounds else 68.0)
+    maker = {"4+": "coxed_four", "8+": "eight", "2x": "double_scull",
+             "1x": "single_scull"}.get(lineup.shell, "coxed_four")
+    if maker == "coxed_four":
+        kwargs["bow_loaded"] = True
+    boat = getattr(catalog, maker)(**kwargs)
+    watts = [r.watts for r in rowers]
+    if all(w for w in watts):
+        ratios = np.asarray(watts, dtype=float)
+        boat.seat_ratios = ratios / ratios.mean()
+    else:
+        boat.seat_ratios = np.ones(boat.n_seats)
+    return boat, lineup.shell
+
+
+def build_boat(key: str, rate: float, catalog=None, lineup=None):
     """A boat from a menu key, or the nearest thing the catalog has.
+
+    With a ``lineup`` from the rig editor, that crew on that rig; see
+    :func:`boat_from_lineup`.
 
     The catalog does not necessarily carry every shell in :data:`BOATS`,
     and a menu that offers a boat the code cannot build is worse than a
@@ -428,6 +485,12 @@ def build_boat(key: str, rate: float, catalog=None):
         from ..boats import catalog as catalog_module
 
         catalog = catalog_module
+    if lineup is not None:
+        try:
+            return boat_from_lineup(lineup, rate, catalog)
+        except Exception as error:
+            print("   (could not build the lineup, using the catalogue "
+                  "boat: %s)" % str(error)[:70])
     crew = dict(rower_mass=68.0, rower_stature=1.70)
     # Only what the catalog actually exports: a menu offering a boat the
     # code cannot build is worse than a short menu.
