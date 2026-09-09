@@ -334,7 +334,7 @@ REPORT_CHOICES = (("off", "Off"), ("on", "On"))
 
 def options_menu(audio: str = "full", quality: str = "standard",
                  weather: str = "hazy", wind: float = 5.0,
-                 report: str = "off") -> Menu:
+                 report: str = "off", updates: str = "on") -> Menu:
     """Graphics and sound, reached from either menu."""
     modes = audio_choices()
     grades = quality_choices()
@@ -347,6 +347,8 @@ def options_menu(audio: str = "full", quality: str = "standard",
                          + [0])),
         Choice("report", "Send performance reports", list(REPORT_CHOICES),
                index=1 if report == "on" else 0),
+        Choice("updates", "Check for updates", list(REPORT_CHOICES),
+               index=1 if updates == "on" else 0),
         Choice("back", "Back", (), action="back"),
     ]
     return Menu("Graphics and sound", rows)
@@ -676,6 +678,10 @@ def blurb_for(menu: "Menu") -> str:
     if row.key == "quality":
         return ("Ultra minimal runs on integrated graphics; High wants a "
                 "gaming card.  Applies on the next start.")
+    if row.key == "updates":
+        return ("Ask GitHub once at start whether a newer release exists, "
+                "and say so here.  Nothing is downloaded; the link is "
+                "the same one you were sent.")
     if row.key == "report":
         return ("At the end of a session, send frame times, GPU and tier "
                 "home -- numbers and product names only, never a name or "

@@ -2068,11 +2068,14 @@ def run_setup_menu(screen, args):
                         menu = rowers_menu(skill=args.skill,
                                            balance=args.balance)
                     else:
-                        menu = options_menu(report=getattr(args, "report", "off"), audio=args.audio,
+                        menu = options_menu(report=getattr(args, "report", "off"), updates=getattr(args, "updates", "on"), audio=args.audio,
                                             quality=args.quality)
                     continue
                 if action == "back":
                     picked = menu.settings()
+                    if picked.get("updates") not in (None, getattr(args, "updates", "on")):
+                        args.updates = picked["updates"]
+                        _settings.update(updates=args.updates)
                     if picked.get("report") not in (None, getattr(args, "report", "off")):
                         args.report = picked["report"]
                         _settings.update(report=args.report)
@@ -2125,7 +2128,13 @@ def run_setup_menu(screen, args):
             draw_side_pane(overlay, lineup, font, small, screen.get_size(),
                            cursor=pane_cursor)
         else:
-            draw_menu(overlay, menu, font, small, screen.get_size())
+            _update = getattr(getattr(args, "update_check", None), "result",
+                              None)
+            if _update is not None:
+                draw_menu(overlay, menu, font, small, screen.get_size(),
+                          footer="NEWER RELEASE: " + _update.line())
+            else:
+                draw_menu(overlay, menu, font, small, screen.get_size())
         screen.blit(overlay, (0, 0))
         pygame.display.flip()
 
@@ -2292,12 +2301,18 @@ def main(argv=None):
                         help="ask Windows to draw this program on the "
                              "high-performance GPU (writes a per-program "
                              "preference for the current user, once)")
+    parser.add_argument("--water-divisions", type=int, default=None,
+                        help="water grid divisions per side; overrides "
+                             "the tier, for measurement")
     parser.add_argument("--render-scale", type=float, default=None,
                         help="draw the scene at this fraction of the "
                              "window; overrides the tier")
     parser.add_argument("--report-url", default=None,
                         help="where performance reports go; see "
                              "packaging/phonehome/README.md")
+    parser.add_argument("--no-update-check", action="store_true",
+                        help="do not ask GitHub whether a newer release "
+                             "exists; the remembered setting otherwise")
     parser.add_argument("--report", choices=("on", "off"), default=None,
                         help="send a performance report at close; the "
                              "remembered setting otherwise")
@@ -2349,6 +2364,16 @@ def main(argv=None):
     if args.report is None:
         args.report = ("on" if _settings.load().get("report") == "on"
                        else "off")
+    # Updates: on unless remembered off or told off for this run.  Started
+    # here, before the world build, so the answer is usually in by the
+    # time the setup menu is drawn -- and never waited for.
+    args.updates = ("off" if (args.no_update_check
+                              or _settings.load().get("updates") == "off")
+                    else "on")
+    from coxswain.viz.telemetry import build_version as _build_version
+    from coxswain.viz.updates import UpdateCheck as _UpdateCheck
+    args.update_check = _UpdateCheck(_build_version(),
+                                     enabled=args.updates == "on").start()
 
     import moderngl
 
@@ -3162,6 +3187,8 @@ def main(argv=None):
         water_prog["near_hi"].value = (1.0, 1.0)
         water_prog["near_size"].value = (2.0, 2.0)
         print("   near field: not baked (run tools/bake_nearfield.py)")
+    if args.water_divisions:
+        divisions = int(args.water_divisions)
     grid = water_grid(divisions=divisions)
     water_buffer = ctx.buffer(grid.tobytes())
     water_vao = ctx.vertex_array(water_prog,
@@ -3577,10 +3604,13 @@ def main(argv=None):
                             menu = rowers_menu(skill=args.skill,
                                                balance=args.balance)
                         else:
-                            menu = options_menu(report=getattr(args, "report", "off"), audio=args.audio,
+                            menu = options_menu(report=getattr(args, "report", "off"), updates=getattr(args, "updates", "on"), audio=args.audio,
                                                 quality=args.quality)
                     elif action == "back":
                         picked = menu.settings()
+                        if picked.get("updates") not in (None, getattr(args, "updates", "on")):
+                            args.updates = picked["updates"]
+                            _settings.update(updates=args.updates)
                         if picked.get("report") not in (None, getattr(args, "report", "off")):
                             args.report = picked["report"]
                             _settings.update(report=args.report)

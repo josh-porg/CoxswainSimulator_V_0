@@ -233,6 +233,56 @@ jobs:
           spctl --assess --type execute --verbose=4 \
             dist/Coxswain-mac/Coxswain.app 2>&1 || true
 
+      # -- Windows code signing, through SignPath's free open-source plan.
+      #
+      # Only the executable is signed: SmartScreen judges the file that
+      # is launched, and signing every DLL in a 400-file PyInstaller
+      # tree is slow for no gain.  The whole block is skipped -- not
+      # failed -- when the secrets are absent, so a fork or a checkout
+      # without the SignPath project still builds and releases; it just
+      # ships the unsigned exe the same as before.  docs/SIGNING.md has
+      # what has to exist on the SignPath side for this to run.
+      - name: Hand the executable to SignPath
+        id: unsigned
+        if: matrix.name == 'windows' && env.SIGNPATH_API_TOKEN != ''
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Coxswain-windows-unsigned
+          path: dist/Coxswain/Coxswain.exe
+          if-no-files-found: error
+
+      - name: Sign it
+        if: matrix.name == 'windows' && env.SIGNPATH_API_TOKEN != ''
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ secrets.SIGNPATH_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed
+
+      - name: Put the signed executable back
+        if: matrix.name == 'windows' && env.SIGNPATH_API_TOKEN != ''
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+        shell: bash
+        run: |
+          test -f signed/Coxswain.exe
+          cp signed/Coxswain.exe dist/Coxswain/Coxswain.exe
+          # Prove it: a signed PE carries an Authenticode signature
+          # block.  A silent miss here would ship unsigned with a green
+          # tick, which is worse than shipping unsigned on purpose.
+          powershell -NoProfile -Command \
+            "\$s = Get-AuthenticodeSignature dist/Coxswain/Coxswain.exe; \
+             Write-Output ('signature: ' + \$s.Status + ' by ' + \$s.SignerCertificate.Subject); \
+             if (\$s.Status -ne 'Valid') { exit 1 }"
+
       - name: Zip it
         shell: bash
         run: |
