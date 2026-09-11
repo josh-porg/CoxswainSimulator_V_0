@@ -11,14 +11,6 @@ the file is also a record of what kind of thing goes wrong here.
 
 ## Open — correctness
 
-### The released build is far behind the code
-**Impact: high.** `v0.6` predates every physics change since: Michell
-wave drag, wind, crew skill, fatigue, balance authority, blade contact,
-crew timing, and the water-seam fix. Anyone who downloads the link is
-running none of it.
-
-*Next:* cut a release once the physics settles.
-
 ### No model of a blade squared and immersed before the catch
 **Impact: medium.** The model has two clean regimes — a feathered skim
 on the recovery, and a normal drive — and names the third explicitly as
@@ -266,13 +258,23 @@ already runs the hull sweep.  There is no tensor workload here for a TPU.
 
 ## Done — running on the machine you have
 
+### v0.13 — asked for, and done
+
+| what | where | pinned by |
+|---|---|---|
+| the rig you pick is the rig that rows: `main` reads the lineup off the setup menu, and the plan's shell wins | `main`, `fpv.py` | `tests/test_rig_reaches_the_water.py` — every four and eight rig built and compared, and the real menu walked key by key into the editor and back to Start |
+| age, skill and experience per rower in the editor; blank defers to the crew slider (skill and experience store -1, not 0, which would mean novice) | `Rower`, `FIELDS`, `rigview.py` | `tests/test_rower_fields.py` |
+| CP from each rower's own erg, `CP = P − W′/t`; W′ scaled by age, not power; the trainer's reserve is the crew's (HOCR four 125.6 W, W′ 7.75 kJ) instead of the literature 302.7 W | `coxswain/crew/ageing.py`, `boat_from_lineup` | `tests/test_ageing.py` |
+| per-seat skill scales that seat's deviation, not its value; per-seat experience averages into the crew's balance | `seat_scale_for_skill`, `variability.py`, `fpv.py` | `tests/test_rower_fields.py` |
+| full screen: flag, remembered setting, menu row, F11, falls back to a window if refused | `display_flags`, `set_display_mode`, `fpv.py` | `tests/test_rower_fields.py` |
+
 ### v0.12 — asked for, and done
 
 | what | where | pinned by |
 |---|---|---|
 | Q and Quit ask first; only Yes ends the session | `confirm_quit_menu`, `fpv.py` | `tests/test_quit_minimap.py` |
 | minimap in the corner, north up, under the HUD's change key (position to 2 m, heading to 5°); off in settings or `--no-minimap` | `draw_minimap`, `fpv.py` | same; Minimal benched at 9.1 ms with it on |
-| the rig editor's lineup **races** — anthropometry, rig sides, cox mass, erg ratios on both power paths; unbalanced rigs fall back with a message | `boat_from_lineup`, `menu.py` | `tests/test_presets.py` |
+| ~~the rig editor's lineup **races**~~ — **not true as shipped**: `boat_from_lineup` was right and never called with a lineup, because `main` never read it off the setup menu. Fixed in v0.13 (see Fixed) | `boat_from_lineup`, `menu.py` | `tests/test_presets.py`, and now `tests/test_rig_reaches_the_water.py` |
 | saved presets in `presets.json`; Save as preset row; built-ins cycle first | `presets.py`, `rigview.py`, `fpv.py` | same |
 | Genevieve's Pink Ribbon built in; editor opens on a named default | `rigview.py` | `tests/test_rigview.py` |
 | bonus run behind the word "boost": 77 coins / 8 boosts on HOTL, +0.30 on the call for 8 s, score and best kept | `bonus.py`, `fpv.py` | `tests/test_bonus.py` |
@@ -401,6 +403,11 @@ to.
 
 | what it was | how it was found |
 |---|---|
+| **v0.12 crashed before the first frame.** The minimap read the boat as `state` in the windowed loop, where it is `pose`. | A rower's crash log. Every bench and screenshot used `--shot`, which returns before that loop, so nothing here ever ran it. Guarded by `tests/test_no_undefined_names.py`, and by starting the downloaded build before each release. |
+| **The pause menu called a function that did not exist** (`_blit`, since `4103ad3`), and **the setup menu used a settings module imported in a different function.** Both crashed on use. | pyflakes, run over the package after the crash above. |
+| **A bucket rig rowed as a standard rig.** The setup menu returned the lineup and `main` read `boat`, `race` and `rate` from it and nothing else; a sub-menu also reset it to `None`. So no editor lineup ever raced. | Reported from the boat. |
+| **Two tests pinned bugs in place.** One asserted the crashing line was present; one sliced from a later anchor to an earlier one, got an empty string, and passed every assertion about it. | Fixing the crash made the first fail. Both now assert the text that works, and that the slice is not empty. |
+| **The released build was far behind the code** — v0.6 predated every physics change. | Releases are now cut per change set, checked on each platform's build, and started from the download. |
 | **Diagonal line on the water.** The 110 m detailed water patch met the flat far plane at a hard edge; world-axis-aligned and following the boat, so it read as a moving diagonal. | Appeared in an overhead shot taken for something else, after three failed attempts to reproduce it from the seat — where the edge is past the horizon. |
 | **The drawn crew ignored the timing.** Physics offset every seat by `phases[i] * period`; the renderer posed every rower and oar at the same `t`, so the crew was drawn in perfect time whatever the model did. | Reported as "it didn't really look like it". |
 | **Seven models written, tested, and never called.** `CrewVariability`, both halves of `BladeContact`, `PhaseAuthority`, `StrokeTrim`, `CoupledCrew`, the Michell table, the wind model — each reachable behind a default of `None` or an unset attribute. | Asked what was actually wired, rather than what existed. |

@@ -38,22 +38,27 @@ Everything below is v0.12's, and all of it is in here.
 
 ## New in this one
 
-Things people asked for, and one thing nobody was told about.
-
-- **Your boat races.** The rig editor's lineup -- these rowers at these
-  weights and heights, this rig, this coxswain, these ergs -- is now the
-  boat on the water. It never was before: the editor drew a plan and the
-  default crew rowed. Each erg sets that seat's share of the power; Up
-  and Down still move the crew as a whole.
-- **Save your own boats.** *Save as preset* in the rig editor, a name,
-  done. They come back under *Load preset* after the built-ins, and
-  they live in `presets.json` beside your settings.
-- **Genevieve's Pink Ribbon** is a built-in preset, beside the HOCR four.
-- **Q asks first.** Q and Quit both open a yes/no with the cursor on No.
-- **A minimap** in the top-right corner: the course, the buoys, you.
-  North up. Off under *Graphics and sound -> Minimap*.
-- There is also something to type on the setup menu. It is five letters
-  and it is what a coxswain calls for.
+- **Your boat really races now.** v0.12 said it did, and it did not:
+  pick a bucket-rigged four and a standard four rowed. The editor's
+  lineup never left the menu -- not the rig, not the weights, not the
+  ergs. It does now, and a test drives the real menu into the editor,
+  changes the rig, and checks the boat on the water is that rig.
+- **Age, skill and experience for each rower**, in the rig editor.
+  Leave them blank and that seat follows the crew sliders as before.
+  - **Age** scales the anaerobic reserve -- the sprint left in the
+    tank -- not the power: the erg score already is the power.
+  - **The reserve is your crew's now**, from their own ergs. It used to
+    be a literature athlete's: 303 W of critical power for every crew.
+    The HOCR four's is about 126 W, so they can finally run out.
+  - **Skill** per seat: a steadier rower scatters less than the crew.
+  - **Experience** per seat: the crew's balance comes from the seats
+    that have one.
+- **Full screen.** *Graphics and sound -> Full screen*, or **F11**
+  mid-race, or `--fullscreen`. If the screen refuses, you get a window
+  and a note instead of a crash.
+- **Fixed:** v0.12 crashed on start for everyone; v0.12.1 fixed that,
+  and the setup and pause menus, which could also crash. Every build is
+  now started from the actual download before it is released.
 
 ## What is in it
 
@@ -67,6 +72,8 @@ Things people asked for, and one thing nobody was told about.
   breaking waves at the bow
 - Four graphics tiers from integrated laptop to gaming desktop, chosen
   for you at first start; a diagnostics log for when it runs badly
+- A rig editor: your own crew, rig and coxswain, saved as presets
+- A minimap, and Q asks before it quits
 
 Setup menu on launch. **Escape** opens the menu; **F1** flies a free
 camera. The README beside the program has the full controls.
