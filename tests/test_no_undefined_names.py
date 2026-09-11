@@ -31,7 +31,12 @@ def test_no_undefined_names_anywhere():
     fires, the message names the file, the line and the name.
     """
     pyflakes = pytest.importorskip("pyflakes")
-    targets = [os.path.join(ROOT, "scripts", "fpv.py"),
+    # Every script, not just the trainer.  make_report.py had four
+    # undefined names -- a lifted-out function still reaching into its
+    # caller's scope -- and the report could not be built at all; the
+    # guard was only ever pointed at fpv.py, so nothing said so.
+    targets = [os.path.join(ROOT, "scripts"),
+               os.path.join(ROOT, "tools"),
                os.path.join(ROOT, "coxswain"),
                os.path.join(ROOT, "run.py")]
     result = subprocess.run(

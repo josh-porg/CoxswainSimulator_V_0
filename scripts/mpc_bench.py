@@ -49,6 +49,13 @@ from coxswain.sim.mpc import PathMPC                     # noqa: E402
 from coxswain.sim.simulator import RowingSimulator       # noqa: E402
 
 
+#: The masters operating point, as a power scale.  The same
+#: 0.658 the sibling studies use (mpc_tune, stroke_rate,
+#: unsteady); this file had it and lost it in a refactor, so
+#: every run of this bench died on the first boat it built.
+MASTERS_POWER = 0.658
+
+
 def build_path(start, finish, reference_speed, iterations=35):
     raster = charles.charles_channel()
     _, _, race_line, _ = charles.hocr_course(raster)

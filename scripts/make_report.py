@@ -262,7 +262,8 @@ def main(argv=None):
     overall.set_description("assembling"); overall.update(1)
     report = build_report(bridge_rows, arch_rows, line_rows, strategy_rows,
                           loss_rows, control_rows, written, loss_png,
-                          lines_png, figures_dir, args.quick)
+                          lines_png, figures_dir, args.quick,
+                          dt=args.dt, out=args.out, overall=overall)
     path = report.write(os.path.join(args.out, "hocr_report.html"))
     overall.close()
     print()
@@ -272,7 +273,16 @@ def main(argv=None):
 
 def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
                  control_rows, chart_paths, loss_png, lines_png, figures_dir,
-                 quick):
+                 quick, dt=0.02, out=".", overall=None):
+    """Assemble the page.
+
+    ``dt``, ``out`` and ``overall`` are passed in rather than read off a
+    module-level ``args``: this function was lifted out of ``main`` and
+    kept reaching back into its caller's scope, which is a NameError on
+    the first line that touches it -- in BOTH modes, since ``not
+    args.quick`` evaluates ``args`` either way.  So the report could not
+    be built at all, and the last one predates the move.
+    """
     report = Report(
         title="Head of the Charles — what the model says",
         subtitle="A 6-DOF rowing simulator on the surveyed Charles: where "
@@ -815,12 +825,13 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
     # The damping page runs its own counterfactual -- the same boat with
     # the damping put back the way it was -- so it costs a couple of
     # minutes of integration and is skipped under --quick.
-    if not args.quick:
-        overall.set_description("boat dynamics")
+    if not quick:
+        if overall is not None:
+            overall.set_description("boat dynamics")
         try:
             from damping_page import build as build_damping
             finding, tables, damping_figures = build_damping(figures_dir,
-                                                             dt=args.dt)
+                                                             dt=dt)
             report.findings.append(finding)
             report.tables.extend(tables)
             figures.extend(damping_figures)
@@ -831,7 +842,7 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
     # The explorer is built separately (scripts/export_map.py writes the
     # data, then the template is filled), so it is embedded only when it
     # is actually there -- a missing iframe is worse than a missing tab.
-    if os.path.exists(os.path.join(args.out, "map.html")):
+    if os.path.exists(os.path.join(out, "map.html")):
         report.embeds = [Embed(
             path="map.html",
             title="Course explorer",
