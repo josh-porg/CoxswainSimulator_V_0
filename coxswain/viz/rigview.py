@@ -395,6 +395,10 @@ def plan_geometry(lineup: Lineup, width: float, height: float) -> dict:
         "bow": (centre, top),
         "stern": (centre, top + hull_len),
         "marks": marks,
+        #: Pixels between adjacent seats.  A label box is centred on its
+        #: seat, so this is the height two boxes on the same side have
+        #: to share; see :func:`draw_plan`.
+        "pitch": spacing,
         "cox": cox,
         "cox_bow_loaded": SHELLS[lineup.shell][3] if lineup.coxed else False,
         "title": "%s -- %s" % (SHELLS[lineup.shell][0], lineup.rig),
@@ -622,12 +626,44 @@ def draw_plan(surface, lineup: "Lineup", font, small, size,
         pygame.draw.circle(surface, (18, 24, 29), (seat_x, seat_y), 6)
         pygame.draw.circle(surface, HULL, (seat_x, seat_y), 6, 1)
 
-        if editing is not None and editing[0] == mark["index"]:
+        typing = editing is not None and editing[0] == mark["index"]
+        if typing:
             lines = edit_lines(mark["rower"], editing[1], editing[2])
         else:
             lines = rower_lines(mark["rower"])
+        # Fit the box to the space between seats.  Each box is centred on
+        # its own seat, so two on the same side overlap the moment one is
+        # taller than the seat pitch.  A four reached that the moment
+        # rowers gained an age line -- 84 px of box in an 83 px pitch --
+        # and an eight, at 46 px a seat, was already past it with three
+        # lines and nothing noticed, because only the four was ever
+        # drawn in a test.
+        #
+        # Three moves, in order of what they cost the reader: merge the
+        # numbers from the bottom up, which trades width (free -- boxes
+        # on one side share an x) for height (not free); then tighten
+        # the leading; and only if a seat is narrower than two tight
+        # lines, keep the name alone.  The name never merges into the
+        # numbers -- it is what tells you whose box this is.  None of it
+        # while typing: a field has to stay on its own line to be
+        # edited, and the edited box may overhang.
+        pad, leading = 8, small.get_height() + 2
+        pitch = float(plan.get("pitch", 0.0))
+
+        def fits(count, pad, leading):
+            return pad + count * leading <= pitch - 3.0
+
+        if not typing and pitch > 0.0:
+            while len(lines) > 2 and not fits(len(lines), pad, leading):
+                lines = lines[:-2] + ["   ".join(lines[-2:])]
+            if not fits(len(lines), pad, leading):
+                pad, leading = 4, small.get_height()
+                while len(lines) > 2 and not fits(len(lines), pad, leading):
+                    lines = lines[:-2] + ["   ".join(lines[-2:])]
+            if len(lines) > 1 and not fits(len(lines), pad, leading):
+                lines = [lines[0]]
         box_w = max(small.size(line)[0] for line in lines) + 18
-        box_h = 8 + len(lines) * (small.get_height() + 2)
+        box_h = pad + len(lines) * leading
         gap = 16
         if mark["box_side"] < 0:
             box_x = mark["box_anchor"][0] - gap - box_w
@@ -653,7 +689,7 @@ def draw_plan(surface, lineup: "Lineup", font, small, size,
             shade = PICK if row == live else (INK if row == 0 else DIM)
             surface.blit(small.render(line, True, shade),
                          (rect.x + 9,
-                          rect.y + 4 + row * (small.get_height() + 2)))
+                          rect.y + pad * 0.5 + row * leading))
 
         # The seat name goes on the hull's EMPTY side -- opposite the
         # rigger -- and clear of the gunwale.  Offset by a fixed few
