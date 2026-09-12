@@ -70,6 +70,77 @@ MODEL = {
 MASTERS_POWER = 0.658
 
 
+def reference_eight(rate=28.0):
+    """The masters eight the tactical work is priced on.
+
+    ``power_scales`` is set, which it was not: the steering leg used to
+    build this boat and leave it at the catalogue's full power, so half
+    the report described a crew rowing 6.10 m/s while the other half
+    priced lines at a masters 4.85.
+    """
+    boat = catalog.eight(rate=rate)
+    boat.power_scales = np.full(boat.n_seats, MASTERS_POWER)
+    return boat
+
+
+def hocr_four(rate=30.0):
+    """This project's own Women's Veteran 60+ four, from the rig editor.
+
+    Their weights, heights, rig and coxswain, and each seat's share of
+    the power from its own erg -- the same lineup the trainer races.
+    The crew's power scale is calibrated against ``mean_handle_power``,
+    which reports the scale-1.0 figure, so the ratio is the scale that
+    puts the crew at their measured watts.
+    """
+    from coxswain.crew.exertion import mean_handle_power
+    from coxswain.viz.menu import build_boat
+    from coxswain.viz.rigview import PRESETS
+
+    lineup = PRESETS["HOCR 4+"]()
+    boat, _made = build_boat("4+", rate, lineup=lineup)
+    watts = [r.watts for r in lineup.rowers if r.watts]
+    target = float(np.mean(watts)) if watts else 0.0
+    unit = mean_handle_power(boat, samples=180)
+    ratios = np.asarray(getattr(boat, "seat_ratios",
+                                np.ones(boat.n_seats)), dtype=float)
+    boat.power_scales = (target / max(unit, 1.0)) * ratios
+    return boat, lineup, target
+
+
+def measured_four_pace(course, year=2024, club="Sammamish"):
+    """Their own Charles, as a speed: the pace to price their lines at.
+
+    Taken from the published result rather than from the simulator,
+    because the two speed models disagree by a factor of 2.3 on exactly
+    this boat (docs/TRACKING.md) and the field is the arbiter.
+    """
+    import csv
+
+    path = os.path.join(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))), "data", "hocr_wvet4_results.csv")
+    best = None
+    with open(path, encoding="utf-8", newline="") as handle:
+        for row in csv.DictReader(handle):
+            if int(row["year"]) == year and club.lower() in row["club"].lower():
+                seconds = float(row["seconds"])
+                if best is None or seconds < best[0]:
+                    best = (seconds, int(row["place"]))
+    if best is None:
+        return None
+    return best[0], course.length / best[0], best[1]
+
+
+def settled_speed(boat, start_speed, duration=70.0, dt=0.01):
+    """The speed this boat settles at, driven straight."""
+    sim = RowingSimulator(boat,
+                          coxswain=Coxswain(rudder_override=lambda t, s: 0.0),
+                          fast=True)
+    result = sim.run(duration=duration, dt=dt, surge_speed=start_speed)
+    time_s = np.asarray(result.time)
+    speed = np.hypot(*np.asarray(result.velocity)[:2])
+    return float(speed[time_s > duration - 4 * boat.timing.period].mean())
+
+
 def quasi_steady_gap(reference_speed, scale=MASTERS_POWER, rate=28.0,
                      duration=70.0, dt=0.01):
     """How optimistic the quasi-steady evaluator is, measured.
@@ -110,12 +181,13 @@ def build_course(month: int = 10):
     return raster, course, flow, gates
 
 
-def evaluator(course, flow, raster, gates, pins=None):
-    ev = RouteEvaluator(course, flow=flow, reference_speed=5.2,
+def evaluator(course, flow, raster, gates, pins=None, reference_speed=5.2,
+              exertion=None, rowers=8):
+    ev = RouteEvaluator(course, flow=flow, reference_speed=reference_speed,
                         upstream=True, margin=4.0, minimum_depth=1.2,
                         n_samples=1200)
     ev.with_steering(ReducedModel(), raster=raster, gates=gates)
-    ev.with_exertion()
+    ev.with_exertion(exertion, rowers=rowers)
     if pins:
         ev.required_arches = dict(pins)
     return ev
@@ -211,9 +283,30 @@ def main(argv=None):
     overall.set_description("optimising the racing line"); overall.update(1)
     ev = evaluator(course, flow, raster, gates)
     best = optimise_route(ev, n_control=13, iterations=70, seed=0)
-    route = Route(best.route.stations, best.route.offsets, name="optimised")
+    route = Route(best.route.stations, best.route.offsets,
+                  name="optimised (eight)")
+
+    # The four, its own operating point, and its OWN optimised line.
+    # Scoring the eight's line for the four is not enough: the line was
+    # optimised at the eight's speed, and at the four's pace a different
+    # candidate wins.  A report that hands this crew a line optimised
+    # for a boat 1.2 m/s quicker is giving them somebody else's race.
+    four, four_lineup, four_watts = hocr_four()
+    from coxswain.crew.exertion import WPrimeBalance
+    four_cp, four_wprime = four.crew_physiology
+    pace = measured_four_pace(course)
+    four_speed = pace[1] if pace else 3.6
+    ev4 = evaluator(course, flow, raster, gates,
+                    reference_speed=four_speed,
+                    exertion=WPrimeBalance(critical_power=four_cp,
+                                           capacity=four_wprime),
+                    rowers=4)
+    best4 = optimise_route(ev4, n_control=13, iterations=70, seed=0)
+    route4 = Route(best4.route.stations, best4.route.offsets,
+                   name="optimised (this four)")
+
     candidates = lines.candidate_lines(course, raster, gates, margin=4.0)
-    candidates.append(route)
+    candidates.extend([route, route4])
     scored = [(r, ev.evaluate(r)) for r in candidates]
     line_rows = []
     reference = None
@@ -228,6 +321,13 @@ def main(argv=None):
     for row, (_r, result) in zip(line_rows, scored):
         race = result.elapsed_clean + 60.0 * result.illegal_arches
         row.append("%+.1f" % (race - reference) if reference else "-")
+
+    # Every line priced for both boats, so the two columns can be read
+    # against each other -- which is how the ranking change shows.
+    for row, (r, _result) in zip(line_rows, scored):
+        result4 = ev4.evaluate(r)
+        row.insert(2, "%.1f" % (result4.elapsed_clean
+                                + 60.0 * result4.illegal_arches))
 
     overall.set_description("arch strategies and the loss breakdown"); overall.update(1)
     from scripts.racing_line import STRATEGIES  # noqa: E402
@@ -260,17 +360,24 @@ def main(argv=None):
 
     overall.set_description("steering the 6-DOF boat down it"); overall.update(1)
     station = np.linspace(0.0, course.length, 4000)
-    full_path = course.offset_position(station, route.offset_at(station))
     span = float(args.steer_leg)
     leg = (station >= 2278 - 0.35 * span) & (station <= 2278 + 0.65 * span)
-    boat = catalog.eight(rate=28.0)
+    paths = {"masters eight":
+             course.offset_position(station, route.offset_at(station)),
+             "this four":
+             course.offset_position(station, route4.offset_at(station))}
     control_rows = []
     controllers = [] if args.no_steering else ["reactive", "mpc"]
-    for controller in progress(controllers, desc="  controllers", unit="run"):
-        times, positions, errors, driver = steer(full_path[leg], controller,
-                                                 boat, dt=args.dt)
+    fleet = [("masters eight", reference_eight()), ("this four", four)]
+    runs = [(label, boat, c) for label, boat in fleet for c in controllers]
+    for label, boat, controller in progress(runs, desc="  controllers",
+                                            unit="run"):
+        times, positions, errors, driver = steer(paths[label][leg],
+                                                 controller, boat,
+                                                 dt=args.dt)
         settled = errors[len(errors) // 5:]
         control_rows.append([
+            label,
             "model predictive" if controller == "mpc" else "reactive (LOS)",
             "%.1f" % times[-1],
             "%.2f" % np.sqrt((settled ** 2).mean()),
@@ -279,8 +386,12 @@ def main(argv=None):
                          getattr(driver, "solves", 0))
             if controller == "mpc" else "-"])
 
-    # The evaluator's optimism, measured on this run rather than quoted.
-    settled_speed, optimism = quasi_steady_gap(5.2)
+    # The evaluator's optimism, measured on this run rather than quoted,
+    # for each boat at its own operating point.
+    eight_settled = settled_speed(reference_eight(), 5.2)
+    four_settled = settled_speed(four, four_speed)
+    optimism = [("masters eight", 5.2, eight_settled),
+                ("this four", four_speed, four_settled)]
 
     overall.set_description("figures"); overall.update(1)
     written = charts.write_all(figures_dir, month=args.month)
@@ -296,12 +407,72 @@ def main(argv=None):
                           loss_rows, control_rows, written, loss_png,
                           lines_png, figures_dir, args.quick,
                           dt=args.dt, out=args.out, overall=overall,
-                          optimism=(settled_speed, optimism))
+                          optimism=optimism, four=(four_lineup, four_watts,
+                                                  four_cp, four_wprime, pace))
     path = report.write(os.path.join(args.out, "hocr_report.html"))
     overall.close()
     print()
     print("wrote %s  (%.0f s)" % (path, time.time() - started))
     return 0
+
+
+def _line_ranking_finding(line_rows):
+    """Whether the two boats agree on which line is quickest.
+
+    The page says twice that rankings survive an operating-point change
+    while absolute times do not.  With two boats priced side by side
+    that is checkable, and on this run it is not true -- so it is said
+    here rather than left as a sentence nobody re-ran.
+    """
+    def rank(column):
+        order = sorted(line_rows, key=lambda r: float(r[column]))
+        return [row[0] for row in order]
+
+    eight, four = rank(1), rank(2)
+    if eight[0] == four[0]:
+        return Finding(
+            "Both boats want the same line",
+            "%s is quickest for the eight and for this four." % eight[0],
+            "The two boats are priced at different speeds and with "
+            "different reserves, and still agree on the order. That is "
+            "the claim the rest of the page leans on when it says "
+            "rankings survive an operating-point change.",
+            "measured", "", weight=60)
+    gap = abs(float(next(r for r in line_rows if r[0] == four[0])[2])
+              - float(next(r for r in line_rows if r[0] == eight[0])[2]))
+    return Finding(
+        "The two boats do not want the same line",
+        "This four's best line is %s, not the eight's %s -- worth %.1f s."
+        % (four[0], eight[0], gap),
+        "Each boat's line is optimised at its own pace, and they do not "
+        "agree. Taking the eight's line costs this four %.1f s. A slower "
+        "boat spends its time differently: distance matters less against "
+        "the clock and shallow water matters more. So \"rankings survive, "
+        "absolute times do not\" holds within a boat and not across "
+        "boats, and a crew should race a line priced at its own speed."
+        % gap + _optimiser_note(line_rows, 2, "optimised (this four)")
+        + _optimiser_note(line_rows, 1, "optimised (eight)"),
+        "measured", "", weight=75)
+
+
+def _optimiser_note(line_rows, column, name):
+    """Say so when the optimiser fails to beat a hand-drawn candidate.
+
+    Calling a line "optimised" when a named candidate beats it in the
+    same column is the kind of thing a reader trusts and should not.
+    """
+    rows = [r for r in line_rows if r[0] == name]
+    if not rows:
+        return ""
+    mine = float(rows[0][column])
+    best = min(line_rows, key=lambda r: float(r[column]))
+    if best[0] == name or float(best[column]) >= mine:
+        return ""
+    return (" The optimiser did not earn its name here: %s is %.1f s "
+            "quicker than the line the optimiser found for that boat, so "
+            "that search has not converged and its line should be read as "
+            "a candidate rather than a best."
+            % (best[0], mine - float(best[column])))
 
 
 def _fallback_caveat(control_rows) -> str:
@@ -311,9 +482,12 @@ def _fallback_caveat(control_rows) -> str:
     table beside it read 0 / 460.  A reader who compares the two stops
     believing either.
     """
+    # Scan every cell for the controller's name: it was the first column
+    # until the boat's name went in front of it, and keying on position
+    # made this silently report "not recorded".
     cell = ""
     for row in control_rows:
-        if str(row[0]).startswith("model predictive"):
+        if any("model predictive" in str(c) for c in row):
             cell = str(row[-1])
     if "/" not in cell:
         return ("The model predictive controller's solver health was not "
@@ -339,7 +513,8 @@ def _fallback_caveat(control_rows) -> str:
 
 def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
                  control_rows, chart_paths, loss_png, lines_png, figures_dir,
-                 quick, dt=0.02, out=".", overall=None, optimism=None):
+                 quick, dt=0.02, out=".", overall=None, optimism=None,
+                 four=None):
     """Assemble the page.
 
     ``dt``, ``out`` and ``overall`` are passed in rather than read off a
@@ -376,6 +551,7 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
                 "shallower water. Not the corner, the shoal.",
                 "derived", "Four arch strategies each optimised separately.",
                 weight=90),
+        _line_ranking_finding(line_rows),
         Finding("The conventional line is close to optimal",
                 "Given a free choice the optimiser picks the centre arches "
                 "by itself.",
@@ -726,7 +902,8 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
               "Legal arches follow the regatta's rules — the Boston "
               "arch is out of bounds everywhere, and the Cambridge arch is "
               "additionally barred at the trestle, Anderson and Eliot.", group="The river"),
-        Table("Candidate lines",  ["line", "race time (s)", "distance (m)",
+        Table("Candidate lines",  ["line", "eight (s)", "this four (s)",
+                                  "distance (m)",
                                   "peak yaw (deg/s)", "split wanted",
                                   "illegal", "vs centreline"], line_rows,
               "Race time includes a 60 s penalty per forbidden arch. Every "
@@ -744,11 +921,17 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
               "Each term is the cost of adding that effect to the one "
               "before, so they sum to the race time and nothing hides in a "
               "residual.", group="The line"),
-        Table("Steering the real boat",  ["controller", "elapsed (s)",
+        Table("Steering the real boat",  ["boat", "controller", "elapsed (s)",
                                          "cross-track rms (m)", "worst (m)",
                                          "solver fallbacks"], control_rows,
               "The full 6-DOF boat driven down the optimised line, measured "
-              "after the opening transient.", group="The line"),
+              "after the opening transient. Both boats, each at its own "
+              "operating point. The predictive controller is tuned on the "
+              "eight, and on this run it held the four WORSE than the "
+              "simple pursuit controller did -- the tuning does not "
+              "transfer to a shorter, slower boat, which is a result "
+              "about the controller rather than about the four.",
+              group="The line"),
     ]
 
     figures = [
@@ -925,18 +1108,31 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
         "Fin depth is scaled from a spanner in a photograph and one of the "
         "three features measured off that spanner was demonstrably wrong. "
         "The fin's shape is exact; its size is not.",
-        "Critical power and anaerobic capacity are collegiate means, not "
-        "this crew. Both scale the answer: CP sets the speed, W' sets how "
-        "much can be spent on steering.",
+        (("The four's critical power and reserve are its own: %.0f W and "
+          "%.1f kJ, from each rower's 5 km erg and the crew's age band, "
+          "not a collegiate mean. The eight is still a masters reference "
+          "crew rather than anybody in particular. Its lines are priced "
+          "at the four's measured Charles pace -- %s in %d, %.2f m/s -- "
+          "because the simulator's own power path disagrees with the "
+          "field by a factor of 2.3 on this boat (docs/TRACKING.md) and "
+          "the field is the arbiter."
+          % (four[2], four[3] / 1000.0,
+             "%d:%04.1f" % (four[4][0] // 60, four[4][0] % 60)
+             if four[4] else "no result on file",
+             2024, four[4][1] if four[4] else float("nan")))
+         if four and four[4] else
+         "Critical power and anaerobic capacity are collegiate means, not "
+         "this crew."),
         "DeWolfe Boathouse sits 124 m from its OpenStreetMap building "
         "footprint. The start line is placed off it, so correcting that "
         "would move every station in the model.",
-        (("The route evaluator is quasi-steady and prices every line at a "
-          "fixed %.2f m/s. The full 6-DOF eight, at the masters operating "
-          "point, settles at %.2f m/s -- so the evaluator is %.0f%% "
-          "optimistic. Rankings survive that; absolute finishing times do "
-          "not. Measured on this run."
-          % (5.2, optimism[0], 100.0 * optimism[1]))
+        (("The route evaluator is quasi-steady and prices each boat's "
+          "lines at a fixed speed. Against the full 6-DOF boat at the "
+          "same operating point, measured on this run: "
+          + "; ".join("%s, %.2f m/s priced against %.2f settled (%+.0f%%)"
+                      % (label, priced, got, 100.0 * (priced - got) / got)
+                      for label, priced, got in optimism)
+          + ". Rankings survive that; absolute finishing times do not.")
          if optimism else
          "The route evaluator is quasi-steady and optimistic against the "
          "full 6-DOF boat. Rankings survive that; absolute finishing times "
