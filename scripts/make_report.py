@@ -1217,7 +1217,13 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
           + "; ".join("%s, %.2f m/s priced against %.2f settled (%+.0f%%)"
                       % (label, priced, got, 100.0 * (priced - got) / got)
                       for label, priced, got in optimism)
-          + ". Rankings survive that; absolute finishing times do not.")
+          + ". Rankings survive that; absolute finishing times do not. "
+          "The reason is known: the blade's force is a function of stroke "
+          "phase with no velocity term, so the propulsive efficiency the "
+          "6-DOF path implies comes out proportional to boat speed -- "
+          "0.37 at 2.8 m/s rising to 0.77 at 5.8, on both hulls. It was "
+          "calibrated where an eight races, which is why the eight looks "
+          "right and this four does not.")
          if optimism else
          "The route evaluator is quasi-steady and optimistic against the "
          "full 6-DOF boat. Rankings survive that; absolute finishing times "
