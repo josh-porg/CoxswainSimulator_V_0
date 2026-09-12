@@ -494,6 +494,22 @@ wired into the simulator.
 | it is not a constant — 93 kg·m² early in the drive to 13 at the finish — so the balance carries `½(dI/dφ)φ̇²`, which is a first-order term here and not a refinement | `InertiaProfile`, `OarDynamics.acceleration` | same |
 | **an unfitted prediction that lands on the water**: across 183–808 W per rower the predicted drive fraction spans 0.319–0.406 against 0.296–0.395 measured by [HF09]; the ergometer-fitted formula exceeds the measurement at every rate by 18–28% | same | same |
 
+### The offline physics programme — phase 2, the gate
+
+| what | where | pinned by |
+|---|---|---|
+| the oar balance coupled to hull surge — the smallest model that can answer the gate | `coxswain/sim/oarloop.py` | `tests/test_oarloop.py` |
+| **gate passed**: the η-against-v line reaches zero at **8.9x mean speed** against the baseline's 0.020, and η is flat at 0.57–0.60 instead of rising 0.24 → 0.52 | same | same |
+| published race pace reached at **380 W per rower**: eight 5.33 m/s (band 5.0–5.6), four 4.76 (band 4.5–5.1) — where the prescribed model needed 720 W and 795 W and overshot anyway | same | same |
+| boat-class ordering falls out at equal power: eight > four > double > single, imposed nowhere | same | same |
+| the rower's pull takes the measured front-loaded curve, parameterised by oar **angle** because the drive duration is now an output | `torque_shape` | same |
+
+**Found by checking the level and not just the shape**, which is the point
+of carrying both: the rig's **gearing was being applied to the blade force**
+as well as the handle force, charging one lever twice — a factor of 3.2,
+putting η at 0.18, which no blade has. And a **sculler was charged for one
+oar and credited with two**, flattering the single by a factor of two.
+
 **What phase 0 found on the way:** four defects nothing was catching —
 handle power moved 53% at `a053540`; the suite had 26 failures reported as
 none; the optimiser and simulator disagreed about the rudder; and the drive

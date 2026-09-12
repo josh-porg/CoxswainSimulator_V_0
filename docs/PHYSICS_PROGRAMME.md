@@ -70,7 +70,7 @@ shipped its crash.
 |---|---|---|---|
 | 0 | Scaffolding: profiles, validation battery, freeze guards | scorecard reproduces every number the report already claims | **done** |
 | 1 | ~~Tier 1 blade as an efficiency factor~~ | **failed its gate — merged into phase 2** | **closed** |
-| 2 | Tier 1 blade: slip-quadratic **force**, oar angle a dynamic state | η against v — is the line through the origin gone, and does net propulsive impulse survive at race pace? | **in progress — unit done** |
+| 2 | Tier 1 blade: slip-quadratic **force**, oar angle a dynamic state | η against v — is the line through the origin gone, and does net propulsive impulse survive at race pace? | **gate passed on the reduced model; full wiring next** |
 | 3 | Tier 2 blade: lift and drag on angle of attack | reproduces the sign and timing of Grift's measured tangential force | planned |
 | 4 | Forward-dynamic rower (Rongère's formalism, torque-driven) | predicted CoM excursion lands in the measured band **without being fitted to it** | planned |
 | 5 | Tier 3 infrastructure: vectorised env, delay channels, BC dataset | throughput, measured, against the 10⁶–10⁷ steps training needs | planned |
@@ -147,7 +147,8 @@ blade resists, the angle follows.
 - [x] The comparison that justifies the change, measured rather than asserted
 - [x] Inertia **derived** from de Leva masses and the joint chain, not fitted — and it varies sevenfold across the drive, so the balance carries the `½(dI/dφ)φ̇²` term
 - [x] Drive fraction predicted, unfitted, and it lands on the on-water measurement
-- [ ] Wire it into the simulator: two states per seat
+- [x] Couple it to hull surge on a reduced model, and answer the gate (`coxswain/sim/oarloop.py`)
+- [ ] Wire it into the full simulator: two states per seat
 - [ ] `StrokeTable` bypassed on the `research` profile (it assumes the chain depends on stroke time and nothing else)
 - [ ] Hands follow the dynamic angle, so the crew kinematics solve online
 - [ ] `flatness` deleted as a free parameter — it becomes an output
@@ -211,6 +212,61 @@ worth doing and they are also how it gets validated:
   input and the drive duration becomes a **prediction** — testable directly
   against [HF09]'s on-water pairs, which is exactly the measurement the
   current ergometer-fitted formula misses by 18–28%.
+
+#### The gate: passed, on a reduced model
+
+`coxswain/sim/oarloop.py` couples the oar balance to hull surge — the
+smallest model that can answer the question. Two equations: the hull
+accelerating under blade thrust minus drag, and the oar under handle
+torque minus blade resistance.
+
+Scored the way the baseline was — *where the fitted η-against-v line
+reaches zero, as a multiple of mean speed*:
+
+| | zero crossing |
+|---|---|
+| baseline, prescribed force | **0.020** — through the origin |
+| the floor the target sets | 0.15 |
+| **reduced dynamic model** | **8.9** |
+
+η is now nearly flat, 0.571 → 0.604 across 3.00 → 5.24 m/s, **and at a
+level a blade efficiency could actually have**. The baseline had it
+rising 0.24 → 0.52 over the same range.
+
+| peak τ | speed | W per rower | η |
+|---|---|---|---|
+| 200 N·m | 3.00 | 79 | 0.571 |
+| 450 | 4.04 | 178 | 0.597 |
+| 900 | 5.24 | 356 | 0.604 |
+
+**And it reaches published race pace at a power a rower could produce.**
+Driven at one stated 380 W per rower, the eight at rate 32 settles at
+5.33 m/s (published band 5.0–5.6) and the four at 4.76 (band 4.5–5.1).
+The prescribed model needed 720 W and 795 W to get there and overshot
+every band anyway — which is why that regression test is a strict xfail.
+The boat-class ordering falls out too: at equal power per rower, eight >
+four > double > single, imposed nowhere.
+
+**What this does not show.** The crew's mass does not move in the reduced
+model, so there is no intracycle surge swing — and the swing is what
+destroyed the efficiency-only wiring. A pass here is necessary and not
+sufficient. It settles the shape of η(v); it cannot settle whether the
+coupled model stays stable once the crew is moving again. That is what the
+full wiring is for.
+
+**Two bugs the level check caught**, both of which the shape check would
+have passed straight through:
+
+- The rig's **gearing was applied to the blade force** as well as to the
+  handle force, by analogy with `hull_load`. For the hull-plus-crew system
+  the only external horizontal forces are the blade force and the drag —
+  the pull on the handle, its reaction, and the stretcher force are all
+  internal. The lever sets how hard the rower must pull for a given blade
+  force, not how much of it reaches the boat. Charging it twice cost a
+  factor of 3.2 and put η at 0.18, which no blade has.
+- A **sculler was charged for one oar and credited with two**, which
+  flattered the single by a factor of two in power and put it 28% above
+  its published race pace.
 
 #### An unfitted prediction that lands on the water
 
