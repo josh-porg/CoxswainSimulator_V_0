@@ -65,6 +65,35 @@ MODEL = {
 }
 
 
+#: The masters operating point as a power scale, the same 0.658 the
+#: sibling studies use (mpc_tune, stroke_rate, unsteady, mpc_bench).
+MASTERS_POWER = 0.658
+
+
+def quasi_steady_gap(reference_speed, scale=MASTERS_POWER, rate=28.0,
+                     duration=70.0, dt=0.01):
+    """How optimistic the quasi-steady evaluator is, measured.
+
+    The evaluator prices a line at a fixed ``reference_speed``; the full
+    6-DOF boat has to produce that speed from the crew's power.  Run the
+    same boat at the same operating point, let it settle, and compare.
+
+    This used to be a sentence in the caveats saying "about 3%", written
+    once and never re-run.  Every physics change since moved it -- by
+    the time anybody checked it was 7% -- which is exactly what the rest
+    of this page refuses to do: nothing here is transcribed.
+    """
+    boat = catalog.eight(rate=rate)
+    boat.power_scales = np.full(boat.n_seats, scale)
+    sim = RowingSimulator(boat, coxswain=Coxswain(rudder_override=lambda t, s: 0.0),
+                          fast=True)
+    result = sim.run(duration=duration, dt=dt, surge_speed=reference_speed)
+    time_s = np.asarray(result.time)
+    speed = np.hypot(*np.asarray(result.velocity)[:2])
+    settled = float(speed[time_s > duration - 4 * boat.timing.period].mean())
+    return settled, (reference_speed - settled) / max(settled, 1e-6)
+
+
 def separation(a, b) -> float:
     import math
     return math.hypot((a[0] - b[0]) * 111320.0,
@@ -250,6 +279,9 @@ def main(argv=None):
                          getattr(driver, "solves", 0))
             if controller == "mpc" else "-"])
 
+    # The evaluator's optimism, measured on this run rather than quoted.
+    settled_speed, optimism = quasi_steady_gap(5.2)
+
     overall.set_description("figures"); overall.update(1)
     written = charts.write_all(figures_dir, month=args.month)
     from scripts.racing_line import loss_chart, plot as line_plot
@@ -263,7 +295,8 @@ def main(argv=None):
     report = build_report(bridge_rows, arch_rows, line_rows, strategy_rows,
                           loss_rows, control_rows, written, loss_png,
                           lines_png, figures_dir, args.quick,
-                          dt=args.dt, out=args.out, overall=overall)
+                          dt=args.dt, out=args.out, overall=overall,
+                          optimism=(settled_speed, optimism))
     path = report.write(os.path.join(args.out, "hocr_report.html"))
     overall.close()
     print()
@@ -271,9 +304,42 @@ def main(argv=None):
     return 0
 
 
+def _fallback_caveat(control_rows) -> str:
+    """What the MPC's solver actually did, from its own counters.
+
+    The caveat here said "about a fifth of its solves" long after the
+    table beside it read 0 / 460.  A reader who compares the two stops
+    believing either.
+    """
+    cell = ""
+    for row in control_rows:
+        if str(row[0]).startswith("model predictive"):
+            cell = str(row[-1])
+    if "/" not in cell:
+        return ("The model predictive controller's solver health was not "
+                "recorded on this run.")
+    failed, solves = [part.strip() for part in cell.split("/", 1)]
+    try:
+        failed_n, solves_n = int(failed), int(solves)
+    except ValueError:
+        return ("The model predictive controller reported %s fallbacks."
+                % cell)
+    if failed_n == 0:
+        return ("The model predictive controller solved every step on this "
+                "run -- 0 of %d -- so its cross-track figures are what the "
+                "controller actually did. It has fallen back heavily in the "
+                "past, so this is worth reading off the table each time "
+                "rather than assumed." % solves_n)
+    return ("The model predictive controller fell back to its previous plan "
+            "on %d of %d solves (%.0f%%). It steers well when it converges "
+            "and the fallback covers the rest, but its cross-track figures "
+            "should be read as a lower bound."
+            % (failed_n, solves_n, 100.0 * failed_n / max(solves_n, 1)))
+
+
 def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
                  control_rows, chart_paths, loss_png, lines_png, figures_dir,
-                 quick, dt=0.02, out=".", overall=None):
+                 quick, dt=0.02, out=".", overall=None, optimism=None):
     """Assemble the page.
 
     ``dt``, ``out`` and ``overall`` are passed in rather than read off a
@@ -865,13 +931,17 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
         "DeWolfe Boathouse sits 124 m from its OpenStreetMap building "
         "footprint. The start line is placed off it, so correcting that "
         "would move every station in the model.",
-        "The route evaluator is quasi-steady and runs about 3% optimistic "
-        "against the full 6-DOF boat. Rankings survive that; absolute "
-        "finishing times do not.",
-        "The model predictive controller falls back to its previous plan "
-        "on about a fifth of its solves. It steers well when it converges "
-        "and the fallback covers the rest, but it is not healthy, and its "
-        "cross-track figures should be read as a lower bound.",
+        (("The route evaluator is quasi-steady and prices every line at a "
+          "fixed %.2f m/s. The full 6-DOF eight, at the masters operating "
+          "point, settles at %.2f m/s -- so the evaluator is %.0f%% "
+          "optimistic. Rankings survive that; absolute finishing times do "
+          "not. Measured on this run."
+          % (5.2, optimism[0], 100.0 * optimism[1]))
+         if optimism else
+         "The route evaluator is quasi-steady and optimistic against the "
+         "full 6-DOF boat. Rankings survive that; absolute finishing times "
+         "do not."),
+        _fallback_caveat(control_rows),
         "Seating advice is at the edge of the model's resolution: the fast "
         "surrogate carries a 0.04 deg/s bias against the full simulation, "
         "and the whole Charles asks for 0.06 deg/s. Rankings survive that; "
