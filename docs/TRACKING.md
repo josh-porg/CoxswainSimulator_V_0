@@ -490,6 +490,9 @@ wired into the simulator.
 | thrust now **falls** with boat speed — the restoring term the efficiency-only wiring lacked | same | same |
 | drive duration becomes an output: 0.970 / 0.720 / 0.634 s at 2.8 / 4.85 / 6.0 m/s for one pull | same | same |
 | the integrator checked against a closed form (no water, constant torque → `φ = φ₀ − ½(τ/I)t²`) and for step convergence | same | same |
+| the inertia **derived, not fitted**: `Σᵢ mᵢ\|∂xᵢ/∂φ\|²` from de Leva masses and the joint chain, both already in the model | `reflected_inertia` | same |
+| it is not a constant — 93 kg·m² early in the drive to 13 at the finish — so the balance carries `½(dI/dφ)φ̇²`, which is a first-order term here and not a refinement | `InertiaProfile`, `OarDynamics.acceleration` | same |
+| **an unfitted prediction that lands on the water**: across 183–808 W per rower the predicted drive fraction spans 0.319–0.406 against 0.296–0.395 measured by [HF09]; the ergometer-fitted formula exceeds the measurement at every rate by 18–28% | same | same |
 
 **What phase 0 found on the way:** four defects nothing was catching —
 handle power moved 53% at `a053540`; the suite had 26 failures reported as

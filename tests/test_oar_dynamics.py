@@ -10,13 +10,13 @@ Substituting [CR06]'s ``F = C2 slip^2`` under a **prescribed** oar angle
 does not drive the boat.  Measured on the catalogue eight at rate 28,
 integrating ``F_n cos(phi)`` over the drive:
 
-    ========  ==========================  ==========================
-    v (m/s)   prescribed angle (N s)      dynamic angle (N s)
-    ========  ==========================  ==========================
-    2.80      +459.3                      +256.1
-    4.85      **+0.2**                    +162.5
-    6.00      **-171.2**                  +126.7
-    ========  ==========================  ==========================
+    ========  ========================  ======================
+    v (m/s)   prescribed angle (N s)    dynamic angle (N s)
+    ========  ========================  ======================
+    2.80      +459.3                    +270.1
+    4.85      **+0.2**                  +184.9
+    6.00      **-171.2**                +152.7
+    ========  ========================  ======================
 
 At racing speed the prescribed model delivers **nothing**, and above it
 the blade brakes the boat, because ``v cos(phi)`` overwhelms
@@ -51,6 +51,13 @@ def eight():
 
 @pytest.fixture(scope="module")
 def oar(eight):
+    """The default: inertia DERIVED from the crew, not chosen."""
+    return OarDynamics.from_boat(eight)
+
+
+@pytest.fixture(scope="module")
+def flat_oar(eight):
+    """A constant inertia, for the checks that need a closed form."""
     lock = eight.rig.seats[0].oarlocks[0].oar
     inertia = REFLECTED_CREW * lock.inboard ** 2 + lock.inertia_about_lock
     return OarDynamics.from_boat(eight, inertia=inertia)
@@ -64,33 +71,40 @@ def _pull(_t):
 # ---------------------------------------------------------------------------
 # the balance itself
 # ---------------------------------------------------------------------------
-def test_inertia_is_required_and_must_be_positive(eight):
-    """No default, deliberately.
+def test_the_default_inertia_is_derived_and_not_a_number(eight):
+    """It could have been a fitted constant. It is not.
 
-    The oar's own inertia is twenty times too small and the rest is the
-    rower's body. A default here would become a fitted parameter nobody
-    remembered fitting, which is the class of thing this whole programme
-    exists to remove.
+    The first version of this made ``inertia`` required with no default,
+    on the grounds that any default would become a parameter nobody
+    remembered fitting. That was the right instinct and the wrong
+    remedy: the generalised inertia for this coordinate is computable
+    from de Leva masses and the joint chain, both already in the model.
+    So the default is the derived profile, and it is a function of the
+    oar angle rather than a number.
     """
     import inspect
 
     parameters = inspect.signature(OarDynamics).parameters
     assert parameters["inertia"].default is inspect.Parameter.empty
+
+    built = OarDynamics.from_boat(eight)
+    assert callable(built.inertia), "the default should be a profile"
+
     with pytest.raises(ValueError):
         OarDynamics.from_boat(eight, inertia=0.0)
     with pytest.raises(ValueError):
         OarDynamics.from_boat(eight, inertia=-5.0)
 
 
-def test_the_drive_runs_from_bow_ward_to_stern_ward(oar):
+def test_the_drive_runs_from_bow_ward_to_stern_ward(flat_oar):
     with pytest.raises(ValueError):
-        OarDynamics(blade=oar.blade, inboard=oar.inboard,
-                    outboard=oar.outboard, inertia=oar.inertia,
+        OarDynamics(blade=flat_oar.blade, inboard=flat_oar.inboard,
+                    outboard=flat_oar.outboard, inertia=flat_oar.inertia,
                     catch_angle=np.radians(-35.0),
                     finish_angle=np.radians(55.0))
 
 
-def test_with_no_water_it_is_a_constant_acceleration(oar):
+def test_with_no_water_it_is_a_constant_acceleration(flat_oar):
     """The integrator, checked against something with a closed form.
 
     With the blade force switched off the balance is ``I phi_ddot =
@@ -103,7 +117,7 @@ def test_with_no_water_it_is_a_constant_acceleration(oar):
         def normal_force(self, angle, rate, speed, depth=None, cover=None):
             return np.zeros_like(np.asarray(angle, dtype=float))
 
-    dry = dc.replace(oar, blade=_NoWater())
+    dry = dc.replace(flat_oar, blade=_NoWater())
     result = dry.drive(_pull, boat_speed=0.0, dt=0.001)
 
     alpha = DRIVE_TORQUE / dry.inertia
@@ -278,3 +292,117 @@ def test_at_the_catch_the_water_helps_the_rower(oar):
     # resist -- which is the case the companion test covers.
     assert float(oar.blade_torque(oar.catch_angle, 0.0, 0.0)) == \
         pytest.approx(0.0, abs=1e-9)
+
+
+# ---------------------------------------------------------------------------
+# the unfitted prediction
+# ---------------------------------------------------------------------------
+#: [HF09] Table 1: eight elite coxless pairs on the water, drive in ms.
+HF09_DRIVE_MS = {20.6: 862, 24.2: 810, 27.7: 779, 31.5: 752}
+
+
+def _water_drive_fractions():
+    return {rate: ms / (60000.0 / rate) for rate, ms in HF09_DRIVE_MS.items()}
+
+
+def test_the_predicted_drive_fraction_lands_on_the_water(eight, oar):
+    """The result that justifies the whole change, and it is not fitted.
+
+    Drive duration is currently a formula of stroke rate, refitted to
+    ergometer kinematics, and it misses on-water pairs by 18-28%. Here it
+    is not a formula at all: the rower pulls, the blade resists, and how
+    long the drive takes is what the torque balance produces.
+
+    Across a 4.4x range of handle power -- 183 to 808 W per rower, which
+    brackets anything a crew could actually do -- the predicted drive
+    fraction spans 0.319 to 0.406. Measured on the water across
+    20.6-31.5 spm it spans 0.296 to 0.395. The ranges essentially
+    coincide, and **the ergometer-fitted formula exceeds the measurement
+    at every single rate, by 18 to 28%**. (Its range, 0.378-0.465, is
+    shifted up rather than disjoint -- its lowest value is below the
+    measured highest -- so the comparison that means anything is rate by
+    rate, not range against range.)
+
+    Note what is and is not claimed. This is not a point prediction: the
+    handle power is an input and a different one moves the answer. What
+    it is, is a prediction whose whole plausible range sits where the
+    measurements are, from a model with nothing fitted to them -- de Leva
+    masses, the rig's own geometry, [CR06]'s blade coefficient, and a
+    torque balance.
+    """
+    from coxswain.crew.stroke import StrokeTiming
+
+    period = eight.timing.period
+    fractions = []
+    for torque in (250.0, 350.0, 450.0, 600.0, 750.0, 900.0, 1100.0):
+        result = oar.drive(lambda t, k=torque: -k, 4.85, dt=0.002)
+        fractions.append(result.duration / period)
+
+    predicted_low, predicted_high = min(fractions), max(fractions)
+    water = _water_drive_fractions()
+    water_low, water_high = min(water.values()), max(water.values())
+
+    # The predicted range overlaps the measured one substantially.
+    overlap = (min(predicted_high, water_high)
+               - max(predicted_low, water_low))
+    assert overlap > 0.5 * (water_high - water_low), (
+        (predicted_low, predicted_high), (water_low, water_high))
+
+    # And the formula it replaces exceeds the measurement at EVERY rate.
+    # Rate by rate, not range against range: the two ranges overlap at
+    # the top, so the looser comparison would be false.
+    for rate, measured in water.items():
+        predicted = StrokeTiming(rate).drive_fraction
+        assert predicted > measured, (rate, predicted, measured)
+        assert predicted / measured - 1.0 > 0.15, (rate, predicted, measured)
+
+
+def test_the_inertia_is_derived_from_the_crew_not_chosen(eight):
+    """``sum_i m_i |d x_i / d phi|^2``, from masses already in the model."""
+    from coxswain.crew.oardynamics import InertiaProfile, reflected_inertia
+
+    angle, inertia = reflected_inertia(eight)
+    assert angle.size > 10
+    assert np.all(inertia > 0.0)
+    # Heavy early, light late: legs move a lot of mass per radian of oar,
+    # arms very little. Ordered catch-to-finish, so decreasing.
+    assert inertia[0] > 3.0 * inertia[-1], (inertia[0], inertia[-1])
+
+    profile = InertiaProfile.of(eight)
+    assert float(profile(profile.angle.max())) > 50.0
+    assert float(profile(profile.angle.min())) < 40.0
+    # Clamped outside the range where the reduction is valid.
+    assert float(profile(np.radians(80.0))) == pytest.approx(
+        float(profile(profile.angle.max())))
+
+
+def test_a_varying_inertia_carries_its_own_term(eight, oar):
+    """``I phi_ddot + (1/2)(dI/dphi) phi_dot^2 = tau``, not ``I phi_ddot = tau``.
+
+    Dropping the second term is a first-order error here, because the
+    inertia changes by a factor of several across the drive. Checked by
+    asking the model for the acceleration at a point where the oar is
+    moving, and comparing against the balance computed by hand.
+    """
+    angle, rate = np.radians(10.0), -2.0
+    torque = -600.0
+    moment, slope = oar.inertia_at(angle)
+    assert slope != 0.0, "the profile should not be flat here"
+
+    blade = float(oar.blade_torque(angle, rate, 4.85))
+    expected = (torque + blade - 0.5 * slope * rate ** 2) / moment
+    got = float(oar.acceleration(angle, rate, torque, 4.85))
+    assert got == pytest.approx(expected, rel=1e-12)
+
+    # And it differs materially from the naive form.
+    naive = (torque + blade) / moment
+    assert abs(got - naive) > 0.01 * abs(naive)
+
+
+def test_a_constant_inertia_has_no_such_term(flat_oar):
+    import dataclasses as dc
+
+    flat = dc.replace(flat_oar, inertia=80.0)
+    moment, slope = flat.inertia_at(np.radians(10.0))
+    assert moment == pytest.approx(80.0)
+    assert slope == 0.0

@@ -70,7 +70,7 @@ shipped its crash.
 |---|---|---|---|
 | 0 | Scaffolding: profiles, validation battery, freeze guards | scorecard reproduces every number the report already claims | **done** |
 | 1 | ~~Tier 1 blade as an efficiency factor~~ | **failed its gate — merged into phase 2** | **closed** |
-| 2 | Tier 1 blade: slip-quadratic **force**, oar angle a dynamic state | η against v — is the line through the origin gone, and does net propulsive impulse survive at race pace? | **next** |
+| 2 | Tier 1 blade: slip-quadratic **force**, oar angle a dynamic state | η against v — is the line through the origin gone, and does net propulsive impulse survive at race pace? | **in progress — unit done** |
 | 3 | Tier 2 blade: lift and drag on angle of attack | reproduces the sign and timing of Grift's measured tangential force | planned |
 | 4 | Forward-dynamic rower (Rongère's formalism, torque-driven) | predicted CoM excursion lands in the measured band **without being fitted to it** | planned |
 | 5 | Tier 3 infrastructure: vectorised env, delay channels, BC dataset | throughput, measured, against the 10⁶–10⁷ steps training needs | planned |
@@ -137,7 +137,7 @@ restoring term, because the restoring term is in the force model.
 model on costs "5.10 to 4.28 m/s". That was measured at 70 s, and 70 s is
 not convergence — from 3.4 m/s it reads 1.88 at 70 s and 0.63 at 250 s.
 
-### Phase 2 — next
+### Phase 2 — in progress
 
 Tier 1 properly: the slip-quadratic **force** from [CR06] Model 1, with the
 oar angle as a dynamic state per seat. The rower drives the handle, the
@@ -145,6 +145,8 @@ blade resists, the angle follows.
 
 - [x] Torque balance about the pin, as a standalone unit (`coxswain/crew/oardynamics.py`), tested in isolation before anything is wired in
 - [x] The comparison that justifies the change, measured rather than asserted
+- [x] Inertia **derived** from de Leva masses and the joint chain, not fitted — and it varies sevenfold across the drive, so the balance carries the `½(dI/dφ)φ̇²` term
+- [x] Drive fraction predicted, unfitted, and it lands on the on-water measurement
 - [ ] Wire it into the simulator: two states per seat
 - [ ] `StrokeTable` bypassed on the `research` profile (it assumes the chain depends on stroke time and nothing else)
 - [ ] Hands follow the dynamic angle, so the crew kinematics solve online
@@ -210,7 +212,62 @@ worth doing and they are also how it gets validated:
   against [HF09]'s on-water pairs, which is exactly the measurement the
   current ergometer-fitted formula misses by 18–28%.
 
-#### The open design question: what inertia?
+#### An unfitted prediction that lands on the water
+
+The best result so far, and it is the reason the change is worth making.
+
+Drive duration is currently a formula of stroke rate, refitted to ergometer
+kinematics, and it misses on-water pairs by 18–28%. With the angle dynamic
+it is not a formula at all — the rower pulls, the blade resists, and how
+long the drive takes is what the balance produces. Eight at rate 28, boat
+at 4.85 m/s, sweeping the handle power across everything a crew could do:
+
+| | drive fraction |
+|---|---|
+| predicted, 183–808 W per rower | **0.319 – 0.406** |
+| measured on the water, [HF09], 20.6–31.5 spm | **0.296 – 0.395** |
+| the current ergometer-fitted formula | 0.378 – 0.465 |
+
+The predicted range essentially coincides with the measured one, and the
+formula it replaces **exceeds the measurement at every single rate, by 18
+to 28%**. (Its range is shifted up rather than disjoint — the comparison
+that means anything is rate by rate.)
+
+At a representative 440 W per rower the prediction is 0.3575 against
+0.3596 measured at 27.7 spm. That agreement is luckier than the method
+deserves — the handle power is an input and a different one moves the
+answer — but the *range* is the point: every plausible power lands where
+the measurements are, from a model with nothing fitted to them.
+
+#### The inertia question, answered — derived, not fitted
+
+The open decision was whether to lump an effective inertia (cheap, but a
+new fitted parameter) or wait for the forward-dynamic rower. **Neither was
+necessary.** The generalised inertia for the coordinate φ is
+`Σᵢ mᵢ |∂xᵢ/∂φ|²`, and every term is already in the model: de Leva segment
+masses, and segment velocities from the joint chain. `reflected_inertia()`
+computes it.
+
+It is **not a constant**: about 93 kg·m² early in the drive falling to 13
+at the finish, because the legs move a great deal of mass per radian of oar
+and the arms very little. A handle speeding up through the second half of
+the drive is that, not a change of effort.
+
+So the balance carries the term a varying inertia requires —
+`I(φ)·φ̈ + ½(dI/dφ)·φ̇² = τ` — and dropping it would be a first-order error,
+not a refinement.
+
+**Two honest limits.** The profile *diverges at both ends*: the prescribed
+crew motion does not stop when the prescribed oar sweep does, so `vᵢ/φ̇`
+blows up. That is an inconsistency in the current kinematics, not a
+property of rowing, and it means the reduction to one coordinate is valid
+only over the interior of the drive — samples below a quarter of the peak
+sweep rate are dropped and the ends clamped. And the profile *inherits the
+ergometer*, since the joint angles behind it are the erg-fitted ones. When
+the rower becomes forward-dynamic this stops being computed and becomes a
+consequence of the multibody chain.
+
+#### The superseded design question: what inertia?
 
 `I·φ̈ = τ_handle − τ_blade` needs an inertia, and **the oar's own is far too
 small.** Measured on the catalogue eight: `inertia_about_lock = 4.44 kg m²`,
@@ -232,7 +289,7 @@ inboard:
 So the effective inertia has to be ~25× the oar's, and essentially all of
 it is body. **The oar angle's dynamics are the rower's dynamics.**
 
-So there are two ways to do phase 2, and they are a real choice:
+From that, the choice looked like this, and it looked like a real one:
 
 1. **Lumped effective inertia** — oar plus the crew's reflected mass, as one
    number per seat. Cheap, keeps the prescribed crew kinematics, and gets
@@ -241,8 +298,12 @@ So there are two ways to do phase 2, and they are a real choice:
 2. **Wait for the forward-dynamic rower (phase 4)** and let the inertia come
    out of the multibody chain, where it is geometry rather than a fit.
 
-Option 1 is the smaller step and can be validated against option 2 later;
-option 2 is the honest one but reorders the programme. **Not decided.**
+**Both were wrong**, because the quantity is computable from things already
+in the model — see the section above. The instinct that a default inertia
+would become a parameter nobody remembered fitting was right; the remedy,
+making it a required argument and forcing a choice, was not. Kept on the
+record because a wrong framing that survived a day of work is worth being
+able to recognise again.
 
 ---
 
