@@ -8,10 +8,20 @@ deterministic path as the prerequisite.
 
 Detailed derivations, sources and the record of what was tried and
 rejected live in [SOURCES.md](SOURCES.md), numbered by section; this file
-points at them rather than repeating them.
+points at them rather than repeating them. Known defects are in
+[TRACKING.md](TRACKING.md), and the programme currently fixing two of them
+offline — while the released trainer stays frozen — is in
+[PHYSICS_PROGRAMME.md](PHYSICS_PROGRAMME.md).
 
-Test suite: **1014 passing** in the fast lane (`pytest -m "not slow"`,
-~4 min); full suite ~1160 tests, ~25 min.
+Test suite: **1647 passing** in the fast lane (`pytest -m "not slow"`,
+~7 min); full suite **1771 passing and 14 expected failures**, ~29 min.
+
+Every one of those 14 is a strict `xfail` carrying the reason in its own
+text: they are measurements the model currently gets wrong, kept rather
+than loosened so that fixing the model makes them fail loudly. Five are
+the drive duration against on-water pairs, six are published race pace
+compared without controlling for power, and the rest are recorded in
+[TRACKING.md](TRACKING.md).
 
 ---
 
@@ -19,9 +29,14 @@ Test suite: **1014 passing** in the fast lane (`pytest -m "not slow"`,
 
 **Physics.** 6-DOF rigid-body dynamics after Formaggia et al. (2009);
 hull hydrostatics from an exact mesh, wrapped in a b-spline surrogate
-over (heave, pitch, roll); slip-based blade model after Cabrera & Ruina;
-feathered vs squared blade drag; wind with a log profile at WMO
-anemometer height; de Leva segment inertias driving a full joint chain.
+over (heave, pitch, roll); feathered vs squared blade drag; wind with a
+log profile at WMO anemometer height; de Leva segment inertias driving a
+full joint chain.
+
+The slip-based blade model after Cabrera & Ruina is **written but not in
+use, and does not work as wired** — switched on as an efficiency factor
+the boat collapses from 3.92 m/s to 0.63. It used to be listed here as
+something that works. See [PHYSICS_PROGRAMME.md](PHYSICS_PROGRAMME.md).
 
 **Crew.** Phase-dependent balance authority (drive vs recovery), learned
 stroke-to-stroke trim by iterative learning control, coupled-oscillator

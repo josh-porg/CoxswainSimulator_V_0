@@ -321,6 +321,88 @@ Proc. IMechE Part P (with V. Kleshnev).
 
 ---
 
+## 9. Ernst Jan Grift, Mark Tummers & Jerry Westerweel — TU Delft
+
+*Hydrodynamics of rowing propulsion*, J. Fluid Mech. **918** (2021) A32;
+*Drag force on an accelerating submerged plate*, J. Fluid Mech. **866**
+(2019).
+
+**Two blocked items depend on this**, both recorded in
+`docs/PHYSICS_PROGRAMME.md`:
+
+* The 2019 paper measures drag coefficient against immersion depth on an
+  aspect-ratio-2 plate chosen to resemble an oar blade — 1.10 at the
+  surface, peaking near 1.60 at 20 mm, settling to 1.30 deeper. Our
+  `immersion_factor` is a monotone saturating curve whose own docstring
+  admits it is "a *shape* chosen … and not a fitted law". **The
+  measurement has an optimum and ours does not**, so it is qualitatively
+  wrong, and three points read from an abstract are not enough to fit.
+* The 2021 paper is the only source found that gives the **tangential**
+  blade force through a realistic stroke. Our model's tangential
+  component is identically zero. It is the primary validation target for
+  the lift-and-drag blade model.
+
+> Subject: Digitised force and drag curves from your rowing-blade work
+>
+> Dear Dr Grift,
+>
+> I'm building an open 6-DOF dynamics simulator for racing shells, with
+> every empirical constant traced to a source. Two of your results bear
+> directly on the part of it I am currently unable to do honestly.
+>
+> My blade model is [CR06]'s Model 1 — a normal force proportional to the
+> square of slip — which has no tangential component at all. Your 2021
+> PIV-and-force measurements appear to be the only dataset that resolves
+> normal and tangential through a realistic blade path. Would you be
+> willing to share the time series behind those figures?
+>
+> Separately, my ventilation factor is a shape I chose to be monotone in
+> immersion depth, which your 2019 plate measurements show is the wrong
+> shape — there is an optimum. I have the three points quoted in the
+> abstract, which is enough to know I am wrong and not enough to fix it.
+> The C_D-against-depth curve would replace a guess with a measurement.
+>
+> Either would be used with attribution and the provenance recorded in
+> the open source tree.
+>
+> With thanks,
+> [name]
+
+---
+
+## 10. James Hill & Bernhard Fahrig
+
+*The impact of fluctuations in boat velocity during the rowing cycle on
+race time*, Scand. J. Med. Sci. Sports **19**(4) 585–594.
+
+Their Table 1 is already the model's independent check on stroke timing.
+The ask is the **boat speeds** that go with the drive durations.
+
+> Subject: Boat speeds alongside the drive durations in your Table 1
+>
+> Dear Dr Hill,
+>
+> I'm building an open dynamics simulator for racing shells. Your Table 1
+> — eight elite coxless pairs at stepped rates, with measured drive
+> durations — has been the out-of-sample check on my stroke timing for
+> some time.
+>
+> I've now made the oar angle a dynamic state rather than a prescribed
+> schedule, and as a result the drive duration stops being a formula of
+> stroke rate and becomes a consequence of how hard the rower pulls and
+> how fast the hull is moving. My model already predicts that the drive
+> shortens as the boat speeds up. To test that against your measurements
+> I need the **mean boat speed at each of the four rates**, which the
+> table as published does not carry.
+>
+> If those are to hand it would turn a plausible prediction into a
+> falsifiable one.
+>
+> With thanks,
+> [name]
+
+---
+
 ## Notes on sending these
 
 * **Send them individually**, not as a mailing list. Each is written to

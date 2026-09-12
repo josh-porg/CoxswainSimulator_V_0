@@ -141,6 +141,38 @@ def hull_resistance(u, v, w, wetted_area, transverse_area, plan_area,
     return ca.vertcat(force_x, force_y, force_z)
 
 
+def lift_coefficient_at(surface, angle):
+    """Whicker-Fehlner lift coefficient, symbolically.
+
+    Mirrors :func:`coxswain.hydro.appendages.lift_coefficient_at` term for
+    term: a potential term plus a cross-flow term, both carrying the
+    ``cos`` that stalls the surface near 45 degrees instead of letting it
+    grow without limit.
+
+    **This used to be ``lift_curve_slope * angle``**, the small-angle
+    limit, and the two models therefore disagreed about the boat by up to
+    6.5% of rudder force -- the linear form reading *low* around 15
+    degrees, because the cross-flow term it omitted adds more than the
+    ``cos`` it also omitted takes away.  The optimiser was solving for a
+    boat with a weaker rudder than the simulator would give it, which
+    matters precisely where ``SOURCES.md`` sec. 10 says steering is
+    marginal: against the tightest bends.  It survived because the test
+    comparing the two paths could not run at all (see below), so nothing
+    was checking.
+
+    Differentiable enough for the NLP: ``sin|sin|`` has derivative
+    ``2|sin|cos``, which is continuous through zero, so the kink in
+    ``fabs`` does not reach the gradient.
+    """
+    import casadi as ca
+
+    sin_a, cos_a = ca.sin(angle), ca.cos(angle)
+    potential = surface.lift_curve_slope * sin_a * cos_a
+    crossflow = (surface.crossflow_coefficient * sin_a * ca.fabs(sin_a)
+                 * cos_a)
+    return potential + crossflow
+
+
 def surface_load(surface, u, v, yaw_rate, deflection=0.0,
                  density: float = 1000.0):
     """Force and moment from one lifting surface, as CasADi expressions.
@@ -171,7 +203,7 @@ def surface_load(surface, u, v, yaw_rate, deflection=0.0,
         # was set, and raise TypeError wherever it was not.
         local_angle = local_angle - surface.control_effectiveness * limited
 
-    lift_coefficient = surface.lift_curve_slope * local_angle
+    lift_coefficient = lift_coefficient_at(surface, local_angle)
     dynamic_pressure = 0.5 * density * speed ** 2
     area = float(surface.area)
 

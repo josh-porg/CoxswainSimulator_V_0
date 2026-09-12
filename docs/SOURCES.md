@@ -195,8 +195,29 @@ independent check on **stroke timing**:
 | [F09] τ_a formula (ms) | 829 | 798 | 772 | 747 |
 | error | −3.8% | −1.5% | −0.9% | −0.7% |
 
-The drive-duration formula this model inherits from [F09] is accurate to
-better than 1% at racing rates against data it was not fitted to.
+[F09]'s formula is accurate to better than 1% at racing rates against data
+it was not fitted to — a genuine out-of-sample validation.
+
+**This model no longer uses it, and no longer passes this check.**
+`StrokeTiming.drive_fraction` was refitted to Telfer et al. (2023), who
+measured **ergometer** rowers, and against the same table it now reads
+1100 / 1030 / 959 / 886 ms — **+27.6%, +27.1%, +23.1%, +17.9%**. On the
+water the drive is 29.6–39.5% of the cycle; the ergometer fit says
+37.8–46.5%, a gap of about 0.08 of the cycle at every rate. Both datasets
+are right about their own conditions: on the water a crew has to let the
+boat run, and on a stationary ergometer there is no boat to run. This
+model is of a boat.
+
+Carried as a strict xfail in `tests/regression/test_paper_validation.py`
+rather than loosened, so the fix announces itself. See `docs/TRACKING.md`
+and `docs/PHYSICS_PROGRAMME.md`.
+
+*Wanted from this paper and not yet extracted:* the pairs' **boat speeds**
+at each rate. With the oar angle as a dynamic state, drive duration stops
+being a formula of stroke rate and becomes a consequence of the pull and
+the boat speed — and the model already predicts that it shortens as the
+hull speeds up (0.970 s at 2.8 m/s, 0.720 at 4.85, 0.634 at 6.0 for one
+pull). Testing that against this table needs the speeds that go with it.
 
 They also quantify the *cost* of fluctuation: 4.6–5.1 s over 2000 m
 relative to a hypothetical constant-speed boat, rising with rate.
@@ -656,21 +677,41 @@ thrust impulse ratio is **1.005**. The two independent calibrations agree
 to within half a percent. That is meaningful: the lumped constant was
 right, and the sweep should be flat at about 0.30.
 
-#### What is still unexplained
+#### What is still unexplained — superseded 2026-09-12
 
-Switching the blade model on at flatness 0.30 nonetheless costs speed —
-5.10 to 4.28 m/s — despite that thrust-neutral steady-state balance. The
-gap is the *within-stroke* speed variation. Efficiency is evaluated at the
-instantaneous hull surge, which swings 54% peak-to-peak; the boat is
-slowest at the catch, which makes the mid-drive slip more negative and so
-costs more than the constant-speed estimate predicts. The effect is real
-and correctly modelled, but its size rides on the model's speed
-fluctuation, which is itself the known open discrepancy of section 4
-(model 55-65%, measured 37.5-50%). **Until that is closed, the blade
-model's absolute level cannot be calibrated**, so it stays opt-in.
+This section used to read: *"Switching the blade model on at flatness 0.30
+nonetheless costs speed — 5.10 to 4.28 m/s"*, and attributed the gap to
+within-stroke speed variation whose size rides on the section 4
+fluctuation discrepancy.
 
-This is the first place the fluctuation gap has been shown to change a
-physical prediction rather than just a diagnostic number.
+**The mechanism was right and the measurement was not.** 5.10 → 4.28 was
+taken after 70 s, and 70 s is not convergence. Re-measured on the eight at
+rate 28, scale 0.45, where the prescribed model settles at 3.92 m/s:
+
+| duration | started at 3.4 m/s | started at 6.5 m/s |
+|---|---|---|
+| 70 s | 1.88 | 2.17 |
+| 250 s | **0.63** | **0.64** |
+
+The boat does not settle lower. **It collapses**, from either direction,
+and flattening the sweep does not rescue it — 0.63 m/s at flatness 0.00,
+0.66 at 0.30, 1.60 at 0.60.
+
+The within-stroke variation is indeed the mechanism. Over a settled cycle
+at a mean 3.904 m/s, force-weighted blade efficiency is **0.628** at the
+mean speed and **0.494** at the instantaneous one, against the **0.780**
+being replaced; at peak oar force the hull is doing 2.76 m/s and the
+efficiency there is 0.40. The hull's minimum and the force peak both sit
+near 40% of the drive, so the loading lands where the blade is worst.
+
+What that adds up to is not a level error but **positive feedback**:
+thrust cut to 63%, boat slows, surge dip deepens, efficiency falls again.
+It runs away because the efficiency factor is the destabilising half of
+the blade physics on its own — a real blade whose slip rises also makes
+*less force*, and that restoring term lives in the force model. So the
+conclusion "until the fluctuation gap is closed the blade model cannot be
+calibrated" is too weak: **this wiring has no operating point to calibrate
+at any fluctuation**. See `docs/TRACKING.md` and `tests/test_blade_tier1.py`.
 
 #### The flatness question is still open
 

@@ -35,13 +35,30 @@ pytestmark = pytest.mark.slow
 # ==========================================================================
 # [F09] section 5 -- stroke timing
 # ==========================================================================
-def test_f09_drive_duration_formula():
-    """tau_a = 0.00015625 (r-24)^2 - 0.008125 (r-24) + 0.8"""
+def _f09_drive_duration(rate):
+    """[F09] section 5: ``tau_a = 0.00015625 (r-24)^2 - 0.008125 (r-24) + 0.8``"""
+    offset = rate - 24.0
+    return 0.00015625 * offset ** 2 - 0.008125 * offset + 0.8
+
+
+def test_the_model_no_longer_uses_f09s_drive_duration():
+    """Deliberate, and recorded here because it cost an out-of-sample check.
+
+    ``StrokeTiming.drive_fraction`` was changed to ``0.63067 - 5.20991/r``,
+    fitted to Telfer et al. (2023) -- who measured **ergometer** rowers --
+    because [F09]'s quadratic gave a catch fraction of 0.300 against
+    Telfer's measured 0.394 at 22 spm.
+
+    The trade was not free, and the tests below record what it cost. This
+    one just pins that the change is real, so that nobody re-reads [F09]
+    and assumes the formula in the paper is the formula in the code.
+    """
     for rate in (20.0, 24.0, 30.0, 36.0, 40.0):
-        offset = rate - 24.0
-        expected = 0.00015625 * offset ** 2 - 0.008125 * offset + 0.8
-        assert StrokeTiming(rate).drive_duration == pytest.approx(expected,
-                                                                  abs=1e-9)
+        timing = StrokeTiming(rate)
+        assert timing.drive_fraction == pytest.approx(
+            0.63067 - 5.20991 / rate, abs=1e-9)
+        assert timing.drive_duration != pytest.approx(
+            _f09_drive_duration(rate), rel=0.05), rate
 
 
 def test_f09_recovery_is_period_minus_drive():
@@ -183,6 +200,18 @@ def test_f09_single_scull_hull_properties():
 # ==========================================================================
 # Published on-water performance
 # ==========================================================================
+@pytest.mark.xfail(strict=True, reason=(
+    "THE TEST IS MIS-SPECIFIED, not the model. It runs each boat at the "
+    "catalogue default power_scales of 1.0, which is not a race power and "
+    "is not even a consistent one: 540 W per rower for an eight at 24 spm, "
+    "720 at 32, 854 at 38, 795 for the four, and 1124 for a single at 30 -- "
+    "against roughly 330 W that the two-parameter model says a crew can "
+    "hold for a six-minute race. So every boat is driven at two to three "
+    "times race power and every one of them beats published race pace, "
+    "which is the only thing that could have happened. Comparing against a "
+    "published pace means first putting the crew at a published POWER, and "
+    "choosing that number needs a source this project does not yet have. "
+    "See docs/PHYSICS_PROGRAMME.md, 'Blocked, and on what'."))
 @pytest.mark.parametrize("name,rate,low,high", [
     ("8+", 24.0, 4.3, 5.1),
     ("8+", 32.0, 5.0, 5.6),
@@ -201,6 +230,28 @@ def test_steady_speed_matches_published_race_pace(name, rate, low, high,
         f"{name} at rate {rate} settled at {speed:.3f} m/s, outside the "
         f"published band [{low}, {high}]"
     )
+
+
+@pytest.mark.slow
+def test_scale_one_is_not_a_race_power_on_any_boat():
+    """The diagnosis above, asserted so it cannot quietly stop being true.
+
+    ``power_scales = 1.0`` is a force scale, not a wattage, and what it
+    means in watts depends on the boat and the rate. Until a boat is put
+    at a stated power, no comparison with a published pace means anything.
+    """
+    from coxswain.crew.exertion import mean_handle_power, optimal_pace
+
+    sustainable = optimal_pace(360.0)          # a six-minute race
+    watts = {}
+    for name, rate in (("8+", 24.0), ("8+", 32.0), ("8+", 38.0),
+                       ("4+", 32.0), ("1x", 20.0), ("1x", 30.0)):
+        boat = catalog.build(name, rate=rate)
+        watts[(name, rate)] = mean_handle_power(boat, samples=180)
+
+    assert min(watts.values()) > 1.5 * sustainable, watts
+    # and it is not even consistent between boats, which is the sharper point
+    assert max(watts.values()) > 2.0 * min(watts.values()), watts
 
 
 @pytest.mark.slow
@@ -324,7 +375,37 @@ def test_the_boat_class_ordering_of_fluctuation_is_right(simulate):
 
 # ==========================================================================
 # [HF09] Hill & Fahrig (2009) -- independent check on stroke timing
+#
+# THE MODEL NO LONGER PASSES THIS, AND THAT IS THE POINT OF KEEPING IT.
+#
+# These were a genuine out-of-sample validation: [F09]'s drive-duration
+# quadratic, fitted to entirely different data, reproduced Hill & Fahrig's
+# on-water measurements to better than 1% at racing rates.  Replacing it
+# with a fit to Telfer et al.'s ERGOMETER kinematics lost that:
+#
+#   rate   measured   model     error    [F09] for comparison
+#   20.6    862 ms    1100 ms   +27.6%    829 ms  (-3.8%)
+#   24.2    810 ms    1030 ms   +27.1%    798 ms  (-1.4%)
+#   27.7    779 ms     959 ms   +23.1%    772 ms  (-0.9%)
+#   31.5    752 ms     886 ms   +17.9%    748 ms  (-0.6%)
+#
+# On the water the drive is 29.6-39.5% of the cycle; the ergometer fit
+# says 37.8-46.5%.  The gap is ~0.08 of the cycle at every rate, and it
+# has an obvious cause: on the water a crew has to let the boat run, and
+# on a stationary ergometer there is no boat to run.  Both datasets are
+# right about their own conditions -- and this model is of a boat.
+#
+# Marked strict-xfail rather than deleted or loosened, so it announces
+# itself when the drive fraction is put right.  See
+# docs/PHYSICS_PROGRAMME.md and docs/TRACKING.md.
 # ==========================================================================
+HF09_DRIVE_MS = {20.6: 862, 24.2: 810, 27.7: 779, 31.5: 752}
+
+
+@pytest.mark.xfail(strict=True, reason=(
+    "drive_fraction is fitted to Telfer et al.'s ergometer kinematics and "
+    "is 18-28% longer than Hill & Fahrig measured on the water. [F09]'s "
+    "quadratic, which this replaced, matched them to 0.6-3.8%."))
 @pytest.mark.parametrize("rate,measured_drive_ms,tolerance_ms", [
     (20.6, 862, 40),
     (24.2, 810, 20),
@@ -333,13 +414,7 @@ def test_the_boat_class_ordering_of_fluctuation_is_right(simulate):
 ])
 def test_drive_duration_matches_measured_pairs(rate, measured_drive_ms,
                                                tolerance_ms):
-    """[HF09] Table 1: eight elite coxless pairs, stepped stroke rates.
-
-    The drive-duration formula this model inherits from [F09] section 5 was
-    fitted to entirely different data, so reproducing Hill & Fahrig's
-    measured drive times to better than 1% at racing rates is a genuine
-    out-of-sample validation.
-    """
+    """[HF09] Table 1: eight elite coxless pairs, stepped stroke rates."""
     predicted_ms = StrokeTiming(rate).drive_duration * 1000.0
     assert predicted_ms == pytest.approx(measured_drive_ms,
                                          abs=tolerance_ms), (
@@ -348,10 +423,25 @@ def test_drive_duration_matches_measured_pairs(rate, measured_drive_ms,
     )
 
 
+@pytest.mark.xfail(strict=True, reason=(
+    "the ergometer-fitted drive fraction is worst at low rates and still "
+    "18% out at 31.5 spm; it was better than 1% before the refit."))
 def test_drive_duration_accuracy_improves_towards_racing_rates():
     """The fit is at its best where racing happens."""
-    measured = {20.6: 862, 24.2: 810, 27.7: 779, 31.5: 752}
     errors = {rate: abs(StrokeTiming(rate).drive_duration * 1000.0 - ms) / ms
-              for rate, ms in measured.items()}
+              for rate, ms in HF09_DRIVE_MS.items()}
     assert errors[31.5] < errors[20.6]
     assert errors[31.5] < 0.01, "better than 1% at racing rate"
+
+
+def test_f09s_formula_is_the_one_that_matched_the_water():
+    """The evidence for the item above, asserted rather than asserted-in-prose.
+
+    If this ever stops holding, the comparison in the comment block above
+    is wrong and the conclusion drawn from it has to be revisited.
+    """
+    for rate, measured_ms in HF09_DRIVE_MS.items():
+        f09_ms = _f09_drive_duration(rate) * 1000.0
+        model_ms = StrokeTiming(rate).drive_duration * 1000.0
+        assert abs(f09_ms / measured_ms - 1.0) < 0.04, (rate, f09_ms)
+        assert model_ms / measured_ms - 1.0 > 0.17, (rate, model_ms)

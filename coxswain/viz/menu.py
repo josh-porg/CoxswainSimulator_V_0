@@ -492,7 +492,8 @@ def boat_from_lineup(lineup, rate: float, catalog=None):
     return boat, lineup.shell
 
 
-def build_boat(key: str, rate: float, catalog=None, lineup=None):
+def build_boat(key: str, rate: float, catalog=None, lineup=None,
+               profile=None):
     """A boat from a menu key, or the nearest thing the catalog has.
 
     With a ``lineup`` from the rig editor, that crew on that rig; see
@@ -502,7 +503,21 @@ def build_boat(key: str, rate: float, catalog=None, lineup=None):
     and a menu that offers a boat the code cannot build is worse than a
     short menu -- so this reports what it actually made.
     Returns ``(boat, made_key)``.
+
+    ``profile`` names the physics (see :mod:`coxswain.physics`) and
+    defaults to the frozen ``shipped`` configuration.  This is the single
+    place the trainer's physics is pinned: every route the menu can take
+    to a boat passes through here, so the freeze is one line rather than a
+    convention, and ``tests/test_physics_profiles.py`` checks it holds.
     """
+    from .. import physics
+
+    boat, made = _build_boat(key, rate, catalog, lineup)
+    return physics.resolve(profile).apply(boat), made
+
+
+def _build_boat(key: str, rate: float, catalog=None, lineup=None):
+    """:func:`build_boat` without the physics profile applied."""
     if catalog is None:
         from ..boats import catalog as catalog_module
 

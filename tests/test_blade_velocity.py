@@ -10,21 +10,35 @@ wherever the model was calibrated.
 What that does to the numbers, measured: with the force independent of
 speed, the steady-state balance ``R(v) v = eta P`` forces
 ``eta = (R(v)/P) v``, and since ``R`` is set by the force rather than
-by the speed, ``eta`` comes out proportional to ``v``:
+by the speed, ``eta`` comes out proportional to ``v``.  Both boats at
+rate 28, four power levels each, as ``speed (m/s) / eta``:
 
-    ====== ====== ======
-    speed  eight  four
-    ====== ====== ======
-    2.8      0.366  0.338
-    3.6      0.477  0.456
-    4.8      0.640  0.563
-    5.7      0.766  0.695
-    ====== ====== ======
+    ======  ============  ============
+    scale   eight         four
+    ======  ============  ============
+    0.25    2.81 / 0.239  2.39 / 0.197
+    0.45    3.92 / 0.342  3.34 / 0.277
+    0.70    5.02 / 0.432  4.30 / 0.352
+    0.95    5.93 / 0.517  5.07 / 0.420
+    ======  ============  ============
 
-The two boats lie on the same line, so this is a property of the force
-path and not of either hull.  It is why the quasi-steady evaluator runs
-7% optimistic against the eight and 35% against the four: the eight is
-close to where this was calibrated and the four is not.
+``eta/v`` is 0.0849-0.0872 on the eight (spread 2.7%) and 0.0819-0.0830
+on the four (1.3%), and the fitted intercepts are -0.008 and +0.0002 --
+indistinguishable from zero on both hulls.  So the two boats lie on one
+line through the origin: this is a property of the force path and not
+of either hull.
+
+**These numbers were re-measured on 2026-09-12 and they are not the ones
+this file used to carry.**  The earlier table (0.366 at 2.8 m/s, rising
+to 0.766) was taken before ``a053540`` made the blade load perpendicular
+to the shaft.  That commit's message said ``f_x`` was unchanged so "no
+speed or power calibration moved", which is true of thrust and boat
+speed and **false of handle power**: the handle sweeps about the pin, so
+its velocity is perpendicular to the shaft and the lateral force
+component does work.  Mean handle power for the eight at rate 28 went
+from 411 W to 630 W -- 53% -- and eta fell by the same factor.  Nothing
+caught it; the validation scorecard did, on its first run.  See
+``coxswain.validation``.
 """
 
 from __future__ import annotations
@@ -57,40 +71,24 @@ def test_the_force_path_takes_no_velocity():
 
 
 def _efficiency(boat, scale, start):
-    from coxswain.core.state import State
-    from coxswain.crew.exertion import mean_handle_power
-    from coxswain.hydro.resistance import hull_resistance
-    from coxswain.sim.control import Coxswain
-    from coxswain.sim.simulator import RowingSimulator
+    """``(speed, efficiency)`` -- now measured by the validation harness.
 
-    boat.power_scales = np.full(boat.n_seats, scale)
-    sim = RowingSimulator(boat, coxswain=Coxswain(rudder_override=lambda t, s: 0.0),
-                          fast=True)
-    result = sim.run(duration=70.0, dt=0.01, surge_speed=start)
-    time_s = np.asarray(result.time)
-    speed = np.hypot(*np.asarray(result.velocity)[:2])
-    v = float(speed[time_s > 70.0 - 4 * boat.timing.period].mean())
+    This used to be defined here, and the definition was promoted into
+    :mod:`coxswain.validation.scorecard` so the scorecard and the test
+    that found the defect cannot drift apart and leave nobody able to say
+    which number is right.
+    """
+    from coxswain.validation.scorecard import efficiency_at
 
-    crew = mean_handle_power(boat, samples=360) * scale * boat.n_seats
-    y = sim.initial_state(surge_speed=v)
-    props = boat.mesh.submerged(np.array([0.0, 0.0, float(y[2])]),
-                                np.asarray(y[3:6], dtype=float),
-                                rho=boat.water.density, gravity=9.81)
-    res = hull_resistance(State.from_vector(y).velocity_hull, props,
-                          boat.length, boat.water, boat.resistance,
-                          getattr(boat, "shallow", None),
-                          wave_table=getattr(boat, "wave_table", None))
-    force = res[0] if isinstance(res, tuple) else res
-    drag = abs(float(np.asarray(force)[0]))
-    return v, (drag * v) / max(crew, 1e-9)
+    return efficiency_at(boat, scale, start)
 
 
 @pytest.mark.slow
 @pytest.mark.xfail(strict=True, reason=(
     "The blade carries no velocity term, so propulsive efficiency comes "
     "out proportional to boat speed instead of roughly constant across "
-    "the racing range. Measured 0.37 at 2.8 m/s and 0.77 at 5.8 -- a "
-    "factor of 2.1. When the force path gains a slip term this should "
+    "the racing range. Measured 0.239 at 2.81 m/s and 0.517 at 5.93 -- a "
+    "factor of 2.2. When the force path gains a slip term this should "
     "pass, and that is the point of it being strict. See "
     "docs/TRACKING.md, 'The blade does not know the boat's speed'."))
 def test_efficiency_should_not_double_across_the_racing_range():

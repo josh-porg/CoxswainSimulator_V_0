@@ -70,7 +70,7 @@ MODEL = {
 MASTERS_POWER = 0.658
 
 
-def reference_eight(rate=28.0):
+def reference_eight(rate=28.0, profile=None):
     """The masters eight the tactical work is priced on.
 
     ``power_scales`` is set, which it was not: the steering leg used to
@@ -78,12 +78,14 @@ def reference_eight(rate=28.0):
     the report described a crew rowing 6.10 m/s while the other half
     priced lines at a masters 4.85.
     """
-    boat = catalog.eight(rate=rate)
+    from coxswain import physics
+
+    boat = physics.resolve(profile).apply(catalog.eight(rate=rate))
     boat.power_scales = np.full(boat.n_seats, MASTERS_POWER)
     return boat
 
 
-def hocr_four(rate=30.0):
+def hocr_four(rate=30.0, profile=None):
     """This project's own Women's Veteran 60+ four, from the rig editor.
 
     Their weights, heights, rig and coxswain, and each seat's share of
@@ -97,7 +99,7 @@ def hocr_four(rate=30.0):
     from coxswain.viz.rigview import PRESETS
 
     lineup = PRESETS["HOCR 4+"]()
-    boat, _made = build_boat("4+", rate, lineup=lineup)
+    boat, _made = build_boat("4+", rate, lineup=lineup, profile=profile)
     watts = [r.watts for r in lineup.rowers if r.watts]
     target = float(np.mean(watts)) if watts else 0.0
     unit = mean_handle_power(boat, samples=180)
@@ -142,6 +144,7 @@ def settled_speed(boat, start_speed, duration=70.0, dt=0.01):
 
 
 def quasi_steady_gap(reference_speed, scale=MASTERS_POWER, rate=28.0,
+                     profile=None,
                      duration=70.0, dt=0.01):
     """How optimistic the quasi-steady evaluator is, measured.
 
@@ -154,7 +157,9 @@ def quasi_steady_gap(reference_speed, scale=MASTERS_POWER, rate=28.0,
     the time anybody checked it was 7% -- which is exactly what the rest
     of this page refuses to do: nothing here is transcribed.
     """
-    boat = catalog.eight(rate=rate)
+    from coxswain import physics
+
+    boat = physics.resolve(profile).apply(catalog.eight(rate=rate))
     boat.power_scales = np.full(boat.n_seats, scale)
     sim = RowingSimulator(boat, coxswain=Coxswain(rudder_override=lambda t, s: 0.0),
                           fast=True)
@@ -291,6 +296,12 @@ def main(argv=None):
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--out", default="out/report")
+    parser.add_argument(
+        "--physics", default=None,
+        help="physics profile (see coxswain.physics). Defaults to the "
+             "frozen 'shipped' configuration, which is what the online "
+             "report must use; pass 'research' for the offline programme. "
+             "Every figure is stamped with whichever was used.")
     parser.add_argument("--quick", action="store_true",
                         help="skip the animations, which dominate the runtime")
     parser.add_argument("--month", type=int, default=10)
@@ -342,7 +353,7 @@ def main(argv=None):
     # optimised at the eight's speed, and at the four's pace a different
     # candidate wins.  A report that hands this crew a line optimised
     # for a boat 1.2 m/s quicker is giving them somebody else's race.
-    four, four_lineup, four_watts = hocr_four()
+    four, four_lineup, four_watts = hocr_four(profile=args.physics)
     from coxswain.crew.exertion import WPrimeBalance
     four_cp, four_wprime = four.crew_physiology
     pace = measured_four_pace(course)
@@ -420,7 +431,7 @@ def main(argv=None):
              course.offset_position(station, route4.offset_at(station))}
     control_rows = []
     controllers = [] if args.no_steering else ["reactive", "mpc"]
-    eight_boat = reference_eight()
+    eight_boat = reference_eight(profile=args.physics)
     eight_settled = settled_speed(eight_boat, 5.2)
     four_settled = settled_speed(four, four_speed)
     fleet = [("masters eight", eight_boat, eight_settled),
@@ -463,6 +474,7 @@ def main(argv=None):
                           lines_png, figures_dir, args.quick,
                           dt=args.dt, out=args.out, overall=overall,
                           optimism=optimism, search=search,
+                          physics_profile=args.physics,
                           four=(four_lineup, four_watts,
                                                   four_cp, four_wprime, pace))
     path = report.write(os.path.join(args.out, "hocr_report.html"))
@@ -570,7 +582,7 @@ def _fallback_caveat(control_rows) -> str:
 def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
                  control_rows, chart_paths, loss_png, lines_png, figures_dir,
                  quick, dt=0.02, out=".", overall=None, optimism=None,
-                 four=None, search=None):
+                 four=None, search=None, physics_profile=None):
     """Assemble the page.
 
     ``dt``, ``out`` and ``overall`` are passed in rather than read off a
@@ -1176,7 +1188,16 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
                     "set. Switch the layer, drag the water level, change "
                     "the wind, and watch the line move.")]
 
+    from coxswain import physics as _physics
+
+    profile = _physics.resolve(physics_profile)
     report.caveats = [
+        ("Every number on this page was produced by the %s physics "
+         "profile: blade tier %d, %s rower. The released trainer runs "
+         "'shipped' and nothing else; a page built from another profile "
+         "is a study, not a description of the game. See "
+         "docs/PHYSICS_PROGRAMME.md." % (profile.name, profile.blade_tier,
+                                          profile.rower)),
         (("The line search is coordinate descent, which finds a LOCAL "
           "optimum: it is run at several resolutions and the best kept. "
           + "; ".join("%s took %d control points, and the spread across "

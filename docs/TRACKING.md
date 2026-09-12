@@ -61,21 +61,29 @@ calibrated, in both directions.
 
 With the force independent of speed, the steady balance `R(v)·v = η·P`
 forces `η = (R(v)/P)·v`, and `R` is set by the force rather than by the
-speed, so **η comes out proportional to v**. Measured, both boats, four
-power levels each:
+speed, so **η comes out proportional to v**. The catalogue was calibrated
+where an eight races, so the line passes through one plausible-looking
+point. That is why it was never caught.
 
-| speed | eight | four |
+Measured by `coxswain.validation` on 2026-09-12. Both boats at rate 28,
+four power levels each, as `speed (m/s) / η`. *(An earlier table here,
+0.366 rising to 0.766, was taken before `a053540` and is deleted rather
+than kept, because a known-wrong table on the page is something somebody
+will quote.)*
+
+| scale | eight | four |
 |---|---|---|
-| 2.8 m/s | 0.366 | 0.338 |
-| 3.6 | 0.477 | 0.456 |
-| 4.8 | 0.640 | 0.563 |
-| 5.7 | 0.766 | 0.695 |
+| 0.25 | 2.81 / 0.239 | 2.39 / 0.197 |
+| 0.45 | 3.92 / 0.342 | 3.34 / 0.277 |
+| 0.70 | 5.02 / 0.432 | 4.30 / 0.352 |
+| 0.95 | 5.93 / 0.517 | 5.07 / 0.420 |
 
-η/v is constant to within 2% on both hulls (0.130–0.133 for the eight,
-0.122–0.127 for the four), so this is a property of the force path and
-not of either boat. The catalogue was calibrated where an eight races,
-4.85 m/s, where η lands at 0.64 and looks plausible. That is why it was
-never caught.
+η/v is 0.0849–0.0872 on the eight (spread 2.7%) and 0.0819–0.0830 on the
+four (1.3%). Fitting η against v and asking **where the line reaches zero
+efficiency** gives 0.090 m/s on the eight and 0.003 on the four — 2.0%
+and 0.07% of each boat's mean speed. The line goes through the origin on
+both hulls. The defect is unchanged and now scored; the *level* moved,
+for the reason in the next item.
 
 It explains the split the report now measures: the quasi-steady
 evaluator runs **+7% optimistic against the eight and +35% against the
@@ -89,6 +97,144 @@ validation, the golden trajectory, the published targets), so it is a
 decision rather than a patch. `tests/test_blade_velocity.py` pins the
 mechanism and carries a strict xfail for the invariant that should hold,
 so the fix announces itself.
+
+### The blade model cannot be wired in as an efficiency alone
+**Impact: high — it is what "tier 1" was scheduled to be.**
+
+`Boat.blade_model` scales the transmitted force by the instantaneous slip
+efficiency instead of the oar's fixed 0.78. It looks like a cheap first
+step toward a real blade. **It has no viable operating point.** On the
+eight at rate 28, scale 0.45, where the prescribed model settles at
+3.92 m/s:
+
+| duration | started at 3.4 | started at 6.5 |
+|---|---|---|
+| 70 s | 1.88 m/s | 2.17 m/s |
+| 250 s | **0.63 m/s** | **0.64 m/s** |
+
+At 70 s it has not converged — which is why `SOURCES.md` §7's recorded
+"5.10 to 4.28 m/s" is a transient, not an equilibrium. Run it out and the
+boat collapses to a crawl from either direction. Flattening the oar sweep
+does not rescue it: 0.63 m/s at flatness 0.00, 0.66 at 0.30, 1.60 at 0.60.
+
+**The mechanism.** Efficiency is evaluated at the instantaneous hull surge,
+which swings 56% peak-to-peak with its minimum near 40% of the drive — the
+same place the oar force peaks. Over a settled cycle at a mean 3.904 m/s,
+force-weighted blade efficiency is **0.628** evaluated at the mean speed
+and **0.494** at the instantaneous one, against the **0.780** it replaces.
+At peak oar force the hull is doing 2.76 m/s and the efficiency is 0.40.
+
+So thrust is cut to 63%, the boat slows, the surge dip deepens, efficiency
+falls again. That is positive feedback, and it runs away because the
+wiring supplies **only the destabilising half of the physics**: a real
+blade whose slip rises also makes *less force*, and that restoring term
+lives in the force model, not in the efficiency factor.
+
+*Consequence for the plan:* tier 1 is not "the blade model, switched on".
+It is the slip-quadratic **force**, which needs the oar angle as a dynamic
+state. The two phases are not separable and have been merged. Pinned by
+`tests/test_blade_tier1.py`.
+
+### The drive is 18–28% too long, and the cause is the ergometer
+**Impact: high — drive duration sets the time base of the whole stroke.**
+
+`StrokeTiming.drive_fraction` was changed to `0.63067 − 5.20991/rate`,
+fitted to Telfer et al. (2023) — who measured **ergometer** rowers —
+because [F09]'s quadratic gave a catch fraction of 0.300 against Telfer's
+0.394 at 22 spm.
+
+That traded away an out-of-sample validation. [HF09] Table 1 measured
+eight elite coxless **pairs on the water**:
+
+| rate | measured drive | model | error | [F09]'s formula |
+|---|---|---|---|---|
+| 20.6 | 862 ms | 1100 ms | **+27.6%** | 829 ms (−3.8%) |
+| 24.2 | 810 ms | 1030 ms | **+27.1%** | 798 ms (−1.4%) |
+| 27.7 | 779 ms | 959 ms | **+23.1%** | 772 ms (−0.9%) |
+| 31.5 | 752 ms | 886 ms | **+17.9%** | 748 ms (−0.6%) |
+
+On the water the drive is 29.6–39.5% of the cycle; the ergometer fit says
+37.8–46.5%. The gap is about **0.08 of the cycle at every rate**, and it
+has an obvious cause: on the water a crew has to let the boat run, and on
+a stationary ergometer there is no boat to run. Both datasets are right
+about their own conditions — and this model is of a boat.
+
+This is defect two of the physics programme, showing up in the single most
+directly measurable quantity in the stroke, and it was sitting in a
+regression test nobody had run green since 26 August.
+
+*Not fixed here.* Putting it right moves the time base of every calibration
+in the project, so it belongs in the `research` profile behind the
+scorecard. `tests/regression/test_paper_validation.py` carries the [HF09]
+comparison as a strict xfail, so the fix announces itself.
+
+### Handle power moved 53% and nobody noticed
+**Impact: high — handle power is what CP and W′ are measured against.**
+
+`a053540` made the blade load perpendicular to the shaft. Its message
+says `f_x` is unchanged so "nothing about speed or power moves". That is
+true of thrust and of boat speed. **It is false of handle power.**
+
+The handle sweeps about the pin, so its velocity is perpendicular to the
+shaft, and `mean_handle_power` dots the *whole* force vector with it.
+With the old `+side` sign the force sat at an angle to the handle
+velocity and the dot product carried a `cos(2φ)` factor; with the
+corrected sign the force is parallel to the handle velocity and the
+factor is 1. Measured directly on the eight at rate 28:
+
+| sign | mean handle power |
+|---|---|
+| old, `+side` | 411.1 W |
+| corrected, `−side` | 629.6 W |
+
+**+53%.** Every η in this file moved by the same factor, `mean_handle_
+power`'s own docstring ("about 470 W per rower at scale 1.0") is stale,
+and so is any pacing or W′ calibration that was fitted against the old
+number — including v0.13's per-rower reserve.
+
+The new value is the physically right one: a rower pulling perpendicular
+to the oar does full work on it, and the old `cos(2φ)` was an artefact of
+the sign bug. So this is a correction, not a regression. But it was
+invisible for the same reason everything else here is: **nothing measured
+it.** The validation scorecard caught it on its first run, which is what
+the scorecard is for.
+
+#### What it does to every published speed
+
+`mean_handle_power` is the unit that converts watts into `power_scales`.
+Both the trainer (`fpv.py`: `base_scale = nominal_power / reference_power`)
+and the report (`hocr_four`: `power_scales = target / unit`) divide by it,
+so a 53% rise in the unit is a **35% cut in the force scale** for the same
+stated wattage. On this project's own four, at its measured 131.2 W per
+rower:
+
+| | handle power at scale 1.0 | power scale for 131.2 W |
+|---|---|---|
+| before `a053540` | 486.4 W | 0.2698 |
+| after | 744.9 W | 0.1761 |
+
+So the boat is driven **35% softer** for the same crew watts, and every
+speed computed before `a053540` is stale — including the report's 2.70 m/s
+for the four and the "+7% / +35% optimistic" split, none of which have been
+rebuilt since. **The report needs a full re-run before any of its numbers
+are quoted again.** The released trainer is *not* affected: v0.13 was cut
+at `6836a47`, before this commit.
+
+*Still open, and separate:* `mean_handle_power` dots the **oarlock**
+force with the **handle** velocity. Under [F09]'s ideal lever those are
+not a conjugate pair — `F_h = −(L − r_h)/L · F_o` — so the product may
+carry a gearing factor it should not. Not investigated; flagged because
+it sits underneath every power number in the project.
+
+### Still open: should an eight have a combined fin-and-rudder?
+**Impact: low, but it is an unexamined modelling change.**
+
+`0b35995` replaced the eight's separate skeg with one `_fin_with_rudder`,
+so `catalog.eight()` now has a single controllable surface where the four
+still has `[skeg, rudder]`. Physically a shell's rudder *is* a flap on the
+fin, so the combined surface is defensible — but the change was made
+inside a large commit, it silently disabled 14 tests (see Fixed), and
+nothing records why the eight and the four should differ. Not settled.
 
 ### The two speed models disagree by a factor of 2.3 in efficiency
 **Impact: high — it decides every published target.**
@@ -301,6 +447,57 @@ already runs the hull sweep.  There is no tensor workload here for a TPU.
 
 ## Done — running on the machine you have
 
+### The offline physics programme — phase 0
+
+Scaffolding for fixing the blade and the rower offline while the shipped
+trainer stays frozen. **No physics changed.** See the plan of 2026-09-12.
+
+| what | where | pinned by |
+|---|---|---|
+| physics resolved by **name**, not constructed implicitly; `shipped` is frozen, `research` and `learned` are the offline programme | `coxswain/physics.py` | `tests/test_physics_profiles.py` |
+| `resolve()` and `resolve(None)` both give `shipped`, so forgetting a profile cannot promote research physics into the game | `physics.resolve` | same |
+| the blade coefficient follows the rig — [CR06] fit `C2` at 84.5 sweep / 58.7 sculling — and the outboard comes from the boat, not the paper's 2.28 m | `PhysicsProfile.blade_model` | same |
+| the trainer's physics pinned in **one place**: every menu route to a boat goes through `build_boat`, which applies `shipped` | `viz/menu.py` | same |
+| a **source scan** failing if anything the trainer can execute names a non-frozen profile — a behaviour test cannot cover a path no test exercises, which is how v0.12 shipped its crash | `tests/test_physics_profiles.py` | itself, plus a planted-offence test so the guard can fail |
+| one validation battery, every profile scored on it; targets carry provenance, and one that cannot be run is reported `pending` **with its reason** rather than dropped | `coxswain/validation/` | `tests/test_validation_scorecard.py` |
+| targets above a profile's blade tier are `n/a`, never `pass` — Kleshnev's 78.5% against a tier-0 model checks the lumped constant against itself | `validation/scorecard.py` | same |
+| the η-against-v defect **scored**: the fitted line reaches zero efficiency at 2.0% (eight) and 0.07% (four) of mean speed — through the origin on both hulls — with η/v flat to 2.7% and 1.3% | `validation/targets.py` | same, and `tests/test_blade_velocity.py`'s strict xfail |
+| surge swing quoted at the fastest operating point, because it runs 77.4% at 2.81 m/s down to 37.6% at 5.93 and a figure at an unstated speed is not a target | `validation/scorecard.py` | same |
+| the efficiency measurement has **one** definition, shared by the scorecard and the test that found the defect | `validation.scorecard.efficiency_at` | `tests/test_blade_velocity.py` imports it |
+
+### The offline physics programme — phase 1, gate failed
+
+Tier 1 was scheduled as "switch the blade model on". It has no viable
+operating point, so phase 1 is closed and merged into phase 2.
+
+| what | where | pinned by |
+|---|---|---|
+| the efficiency-only wiring measured to convergence, not to 70 s: the boat collapses 3.92 → 0.63 m/s from either direction | `validation/scorecard.py` | `tests/test_blade_tier1.py` |
+| the sweep shape ruled out as the cause — flatness 0.00 / 0.30 / 0.60 all collapse | — | same |
+| the mechanism identified: efficiency at the instantaneous surge, whose minimum coincides with peak oar force; 0.628 at the mean speed against 0.494 at the instantaneous | — | same |
+| `SOURCES.md` §7's "5.10 to 4.28 m/s" corrected — it was an unconverged transient | `docs/SOURCES.md` | same |
+
+### The offline physics programme — phase 2, the unit
+
+The oar angle as a state, built and tested standalone before anything is
+wired into the simulator.
+
+| what | where | pinned by |
+|---|---|---|
+| `I·φ̈ = τ_handle(t) + l·F_n(φ, φ̇, v)`, integrated from the catch to the finish angle | `coxswain/crew/oardynamics.py` | `tests/test_oar_dynamics.py` |
+| the inertia is a **required argument with no default** — the oar's own is twenty times too small and the rest is the rower's body, so a default would become a fitted parameter nobody remembered fitting | same | same |
+| a prescribed angle delivers **+0.2 N·s at 4.85 m/s and −171 at 6.0** under the same force model; the dynamic angle gives +163 and +127 | same | same |
+| thrust now **falls** with boat speed — the restoring term the efficiency-only wiring lacked | same | same |
+| drive duration becomes an output: 0.970 / 0.720 / 0.634 s at 2.8 / 4.85 / 6.0 m/s for one pull | same | same |
+| the integrator checked against a closed form (no water, constant torque → `φ = φ₀ − ½(τ/I)t²`) and for step convergence | same | same |
+
+**What phase 0 found on the way:** four defects nothing was catching —
+handle power moved 53% at `a053540`; the suite had 26 failures reported as
+none; the optimiser and simulator disagreed about the rudder; and the drive
+is 18–28% too long because it was refitted to ergometer data. All four are
+open items above, and the last two were found only because a phase was
+spent on measurement before any physics was touched.
+
 ### v0.13 — asked for, and done
 
 | what | where | pinned by |
@@ -446,6 +643,8 @@ to.
 
 | what it was | how it was found |
 |---|---|
+| **The optimiser and the simulator disagreed about the rudder.** `hydro_casadi.surface_load` used `lift_curve_slope * angle` where the numpy path uses Whicker–Fehlner — dropping both the `cos` that stalls the surface and the cross-flow term. Up to **6.5% low at 15°**, and unbounded growth past stall, which is exactly the sort of thing an optimiser exploits. The CasADi path is what `PathMPC`, `ReducedModel` and the route optimiser run on, and `SOURCES.md` §10 says steering is already marginal against the tightest bends. | Investigating why 14 CasADi tests had been failing. The comparison against numpy was there and had been **unable to run since 26 August**, so nothing was checking. Now agrees to 0.0 across every appendage, deflection and sideslip tried, and `tests/unit/test_hydro_casadi.py` sweeps the lift curve degree by degree from −45° to +45° instead of sampling it, carries a planted-failure test so the guard can fail, and checks the surface stalls instead of growing without limit. |
+| **14 CasADi appendage tests silently disabled for 17 days.** `0b35995` gave the eight one combined `_fin_with_rudder`, and the module fixture was `catalog.eight()`; every test picking `[s for s in appendages if not s.controllable][0]` raised IndexError or compared the wrong surface. The suite was reported green when it was not. | Running the full suite before starting the physics programme. The fixture is now a four (which still has one of each) and **asserts** it has both, so the next catalogue change fails with a sentence rather than an IndexError. |
 | **v0.12 crashed before the first frame.** The minimap read the boat as `state` in the windowed loop, where it is `pose`. | A rower's crash log. Every bench and screenshot used `--shot`, which returns before that loop, so nothing here ever ran it. Guarded by `tests/test_no_undefined_names.py`, and by starting the downloaded build before each release. |
 | **The pause menu called a function that did not exist** (`_blit`, since `4103ad3`), and **the setup menu used a settings module imported in a different function.** Both crashed on use. | pyflakes, run over the package after the crash above. |
 | **A bucket rig rowed as a standard rig.** The setup menu returned the lineup and `main` read `boat`, `race` and `rate` from it and nothing else; a sub-menu also reset it to `None`. So no editor lineup ever raced. | Reported from the boat. |
