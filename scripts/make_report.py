@@ -46,7 +46,7 @@ from coxswain.river.trajectory import (ReducedModel,       # noqa: E402
                                        fit_reduced_model)
 from coxswain.sim.control import Coxswain                 # noqa: E402
 from coxswain.sim.guidance import PathFollower            # noqa: E402
-from coxswain.sim.mpc import PathMPC                      # noqa: E402
+from coxswain.sim.mpc import PathMPC, horizon_for                      # noqa: E402
 from coxswain.sim.simulator import RowingSimulator        # noqa: E402
 
 NBI = {
@@ -181,6 +181,48 @@ def build_course(month: int = 10):
     return raster, course, flow, gates
 
 
+#: Control points to try when searching for a line.
+#:
+#: Measured, both boats, 150 iterations each: the eight reads 1001.9 s
+#: at 13 points, 999.5 at 17, 1001.5 at 19, 998.0 at 27; the four reads
+#: 1320.7, 1315.3, 1315.0, 1308.6 and 1304.8 at 35, then 1306.1 at 41.
+#: Two things follow.  Thirteen points -- what this used -- cannot hold
+#: the shape: the four's answer was 2.0 s WORSE than a hand-drawn
+#: candidate, and starting the search from that candidate still ended
+#: worse than it began, which is a resolution limit and not a failure
+#: to converge (250 iterations and a different seed both change
+#: nothing).  And the sequence is not monotone -- 19 beats 27 for
+#: neither boat, 41 loses to 35 -- because coordinate descent finds a
+#: LOCAL optimum and each resolution finds a different one.  So the
+#: search is run at several and the best kept.  Peak yaw stays at
+#: 4.06 deg/s against 4.44 for the best hand-drawn line, so the quicker
+#: lines are not weaving between control points to beat a quasi-steady
+#: model.
+LINE_RESOLUTIONS = (17, 23, 27, 35)
+
+
+def best_line(ev, name, resolutions=LINE_RESOLUTIONS, iterations=150,
+              seed=0):
+    """The quickest line this search can find, and how much the
+    resolution mattered.
+
+    Returns ``(route, clock, n_control, spread)``.  ``spread`` is the
+    range across resolutions: it is the honest measure of how much of
+    "optimised" is the optimiser and how much is luck.
+    """
+    found = []
+    for n in resolutions:
+        got = optimise_route(ev, n_control=n, iterations=iterations,
+                             seed=seed)
+        route = Route(got.route.stations, got.route.offsets, name=name)
+        result = ev.evaluate(route)
+        found.append((result.elapsed_clean + 60.0 * result.illegal_arches,
+                      n, route))
+    found.sort(key=lambda item: item[0])
+    clock, n, route = found[0]
+    return route, clock, n, found[-1][0] - clock
+
+
 def evaluator(course, flow, raster, gates, pins=None, reference_speed=5.2,
               exertion=None, rowers=8):
     ev = RouteEvaluator(course, flow=flow, reference_speed=reference_speed,
@@ -193,28 +235,38 @@ def evaluator(course, flow, raster, gates, pins=None, reference_speed=5.2,
     return ev
 
 
-def steer(path, controller, boat, dt=0.01):
-    """Run the 6-DOF boat down ``path``; returns (times, positions, error)."""
+def steer(path, controller, boat, dt=0.01, cruise=4.7):
+    """Run the 6-DOF boat down ``path``; returns (times, positions, error).
+
+    ``cruise`` is the speed THIS boat holds, and everything that used to
+    be the eight's 4.7 comes off it: the model the controller predicts
+    with, the speed the run starts at, how long the run is given, and
+    the horizon.  Left at 4.7 the four started 74% above the speed it
+    can hold, decelerated down the whole leg and ran out of time before
+    the end -- its steering numbers came from a run that never reached
+    the finish.
+    """
     if controller == "mpc":
-        model = fit_reduced_model(boat, reference_speed=4.7)
-        driver = PathMPC(path, model=model, horizon=6.0, steps=12,
-                         interval=0.20)
+        model = fit_reduced_model(boat, reference_speed=cruise)
+        driver = PathMPC(path, model=model, horizon=horizon_for(cruise),
+                         steps=12, interval=0.20)
     else:
         driver = PathFollower(path, boundary_layer=25.0)
 
     sim = RowingSimulator(boat, coxswain=Coxswain(rudder_override=driver))
     heading = float(np.arctan2(path[1, 1] - path[0, 1],
                                path[1, 0] - path[0, 0]))
-    state = sim.initial_state(surge_speed=4.7)
+    state = sim.initial_state(surge_speed=cruise)
     state[0], state[1] = path[0]
     state[5] = heading
     # Velocity is stored in the ABSOLUTE frame, so it has to be rotated to
     # the heading or the boat starts crabbing at the heading angle.
-    state[6] = 4.7 * np.cos(heading)
-    state[7] = 4.7 * np.sin(heading)
+    state[6] = cruise * np.cos(heading)
+    state[7] = cruise * np.sin(heading)
 
     leg = float(np.hypot(*np.diff(path, axis=0).T).sum())
-    result = sim.run(duration=1.15 * leg / 4.6, dt=dt, initial_state=state)
+    result = sim.run(duration=1.40 * leg / max(0.95 * cruise, 0.5),
+                     dt=dt, initial_state=state)
     positions = np.asarray(result.position)[:2].T
     times = np.asarray(result.time)
 
@@ -282,9 +334,8 @@ def main(argv=None):
 
     overall.set_description("optimising the racing line"); overall.update(1)
     ev = evaluator(course, flow, raster, gates)
-    best = optimise_route(ev, n_control=13, iterations=70, seed=0)
-    route = Route(best.route.stations, best.route.offsets,
-                  name="optimised (eight)")
+    route, eight_clock, eight_n, eight_spread = best_line(
+        ev, "optimised (eight)")
 
     # The four, its own operating point, and its OWN optimised line.
     # Scoring the eight's line for the four is not enough: the line was
@@ -301,9 +352,10 @@ def main(argv=None):
                     exertion=WPrimeBalance(critical_power=four_cp,
                                            capacity=four_wprime),
                     rowers=4)
-    best4 = optimise_route(ev4, n_control=13, iterations=70, seed=0)
-    route4 = Route(best4.route.stations, best4.route.offsets,
-                   name="optimised (this four)")
+    route4, four_clock, four_n, four_spread = best_line(
+        ev4, "optimised (this four)")
+    search = [("masters eight", eight_n, eight_spread),
+              ("this four", four_n, four_spread)]
 
     candidates = lines.candidate_lines(course, raster, gates, margin=4.0)
     candidates.extend([route, route4])
@@ -368,13 +420,18 @@ def main(argv=None):
              course.offset_position(station, route4.offset_at(station))}
     control_rows = []
     controllers = [] if args.no_steering else ["reactive", "mpc"]
-    fleet = [("masters eight", reference_eight()), ("this four", four)]
-    runs = [(label, boat, c) for label, boat in fleet for c in controllers]
-    for label, boat, controller in progress(runs, desc="  controllers",
-                                            unit="run"):
+    eight_boat = reference_eight()
+    eight_settled = settled_speed(eight_boat, 5.2)
+    four_settled = settled_speed(four, four_speed)
+    fleet = [("masters eight", eight_boat, eight_settled),
+             ("this four", four, four_settled)]
+    runs = [(label, boat, cruise, c)
+            for label, boat, cruise in fleet for c in controllers]
+    for label, boat, cruise, controller in progress(runs, desc="  controllers",
+                                                    unit="run"):
         times, positions, errors, driver = steer(paths[label][leg],
                                                  controller, boat,
-                                                 dt=args.dt)
+                                                 dt=args.dt, cruise=cruise)
         settled = errors[len(errors) // 5:]
         control_rows.append([
             label,
@@ -388,8 +445,6 @@ def main(argv=None):
 
     # The evaluator's optimism, measured on this run rather than quoted,
     # for each boat at its own operating point.
-    eight_settled = settled_speed(reference_eight(), 5.2)
-    four_settled = settled_speed(four, four_speed)
     optimism = [("masters eight", 5.2, eight_settled),
                 ("this four", four_speed, four_settled)]
 
@@ -407,7 +462,8 @@ def main(argv=None):
                           loss_rows, control_rows, written, loss_png,
                           lines_png, figures_dir, args.quick,
                           dt=args.dt, out=args.out, overall=overall,
-                          optimism=optimism, four=(four_lineup, four_watts,
+                          optimism=optimism, search=search,
+                          four=(four_lineup, four_watts,
                                                   four_cp, four_wprime, pace))
     path = report.write(os.path.join(args.out, "hocr_report.html"))
     overall.close()
@@ -514,7 +570,7 @@ def _fallback_caveat(control_rows) -> str:
 def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
                  control_rows, chart_paths, loss_png, lines_png, figures_dir,
                  quick, dt=0.02, out=".", overall=None, optimism=None,
-                 four=None):
+                 four=None, search=None):
     """Assemble the page.
 
     ``dt``, ``out`` and ``overall`` are passed in rather than read off a
@@ -552,6 +608,24 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
                 "derived", "Four arch strategies each optimised separately.",
                 weight=90),
         _line_ranking_finding(line_rows),
+        Finding("A tight line has to be steered before it is worth anything",
+                "This four holds the centreline to 2.8 m and loses its own "
+                "optimised line entirely -- unless the steering anticipates.",
+                "Rudder force goes as the square of the speed, so at "
+                "2.70 m/s this four has about a third of the eight's "
+                "steering authority, on a line asking for 4.1 deg/s of "
+                "yaw. Measured, same boat and same controller, only the "
+                "line changing: centreline (3.38 deg/s) 2.75 m rms; "
+                "inside the bends (4.44) 17.39 m; its own optimised line "
+                "(4.06) 15.88 m and it never reached the finish. The "
+                "boundary layer is not the cause -- 8 m to 25 m all fail. "
+                "The predictive controller holds the same line to 0.80 m "
+                "because it acts on what is 28 m ahead instead of "
+                "correcting an error that already exists. So the seconds "
+                "an optimised line promises are only available to a "
+                "coxswain steering off the water ahead; taken reactively "
+                "they are not there, and the gentler line is worth more.",
+                "measured", "", weight=80),
         Finding("The conventional line is close to optimal",
                 "Given a free choice the optimiser picks the centre arches "
                 "by itself.",
@@ -924,13 +998,15 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
         Table("Steering the real boat",  ["boat", "controller", "elapsed (s)",
                                          "cross-track rms (m)", "worst (m)",
                                          "solver fallbacks"], control_rows,
-              "The full 6-DOF boat driven down the optimised line, measured "
-              "after the opening transient. Both boats, each at its own "
-              "operating point. The predictive controller is tuned on the "
-              "eight, and on this run it held the four WORSE than the "
-              "simple pursuit controller did -- the tuning does not "
-              "transfer to a shorter, slower boat, which is a result "
-              "about the controller rather than about the four.",
+              "Each boat down its OWN optimised line, at its own cruising "
+              "speed, measured after the opening transient. The "
+              "predictive controller looks a fixed DISTANCE ahead rather "
+              "than a fixed time: six seconds is 29 m for the eight and "
+              "16 m for the four, and on 16 m the four cannot steer at "
+              "all (12.88 m rms, never reaching the finish). Given the "
+              "same 28 m it holds the line to 0.80 m, better than the "
+              "eight. The pursuit controller has no such fix: see the "
+              "finding above.",
               group="The line"),
     ]
 
@@ -1101,6 +1177,15 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
                     "the wind, and watch the line move.")]
 
     report.caveats = [
+        (("The line search is coordinate descent, which finds a LOCAL "
+          "optimum: it is run at several resolutions and the best kept. "
+          + "; ".join("%s took %d control points, and the spread across "
+                      "resolutions was %.1f s" % (label, n, spread)
+                      for label, n, spread in search)
+          + ". A line quicker than these exists and this has not found "
+          "it.") if search else
+         "The line search is coordinate descent and finds a local "
+         "optimum."),
         "The 82 s depth loss is the largest claim here and the least "
         "checked. It rests on the shallow-water model at depth Froude 0.86, "
         "the steepest part of that curve. A GPS trace with depth would "

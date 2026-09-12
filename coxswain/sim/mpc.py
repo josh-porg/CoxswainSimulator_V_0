@@ -75,6 +75,31 @@ import numpy as np
 __all__ = ["PathMPC"]
 
 
+#: How far ahead the controller should look, in METRES.
+#:
+#: :attr:`PathMPC.horizon` is a time, and a time is the wrong unit: a
+#: boat steers by what is ahead of it on the water.  Six seconds is 29 m
+#: of preview for an eight at 4.85 m/s and 16 m for a masters four at
+#: 2.70, and the four cannot steer on 16 m.  Measured on the Charles --
+#: same line, same weights, only the horizon changed:
+#:
+#: ==============  ========  =========  =======
+#: horizon         preview   rms error  arrives
+#: ==============  ========  =========  =======
+#: 6.0 s (as set)     16 m     12.88 m  no
+#: 10.4 s             28 m      0.81 m  yes
+#: 14.0 s             38 m      0.86 m  yes
+#: ==============  ========  =========  =======
+#:
+#: So set the horizon from the speed the boat actually holds.
+PREVIEW_DISTANCE = 28.0
+
+
+def horizon_for(speed: float, preview: float = PREVIEW_DISTANCE) -> float:
+    """Seconds of horizon that give ``preview`` metres of look-ahead."""
+    return float(preview) / max(float(speed), 0.5)
+
+
 @dataclass
 class PathMPC:
     """Receding-horizon steering, solved with CasADi and IPOPT.
