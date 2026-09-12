@@ -169,41 +169,70 @@ def test_a_small_split_can_cancel_the_sweep_rigs_own_yaw_bias(eight):
 
     A sweep eight yaws even with a perfectly synchronised crew -- the rig
     is not port-starboard symmetric.  A small timing offset between the
-    sides pushes the other way, and near 20 ms it takes about 45% of
-    the bias out.
+    sides pushes the other way, and near 9 ms it takes about 12% of the
+    bias out -- the other side leading, and a smaller effect than this
+    test once recorded.
 
     That makes crew timing a steering trim as well as a disturbance, which
     is a different statement from "timing error is bad".
 
-    It read "very nearly cancels" once.  That was measured with every
-    port seat wearing the starboard leader's arms (see the grouping test
-    above); with each side's arms on its own handle the residual is
-    real.  Pinned as a search for the minimum rather than a tuned lag,
-    so the claim is what is tested, not the number.
+    This number has moved twice, and both moves were corrections rather
+    than model choices.  It read "very nearly cancels" while every port
+    seat wore the starboard leader's arms; with each side's arms on its
+    own handle it became 45%.  It is now 12%, because the blade load was
+    not perpendicular to the shaft -- the rig's couple pointed the wrong
+    way, so the split measured against it was opposing the wrong thing.
+    Pinned as a search over BOTH directions for the minimum, so the
+    claim is what is tested and not the sign or the number.
     """
     eight.phase_offsets = np.zeros(eight.n_seats)
     synchronised = np.sqrt(np.mean(_oar_loads_over_a_stroke(eight)[1] ** 2))
 
+    # BOTH directions.  Which side has to lead depends on which way the
+    # rig's couple points, and that is set by the blade load's direction
+    # -- which was mirrored until the load was made perpendicular to the
+    # shaft (tests/test_blade_velocity.py).  The claim here is that a
+    # small split cancels much of the bias, not that a particular side
+    # leads, so searching one sign only pinned the sign rather than the
+    # claim.
     best_lag, best = None, synchronised
     for lag in (0.010, 0.015, 0.020, 0.025, 0.030):
-        eight.phase_offsets = _split(eight, lag)
-        trimmed = np.sqrt(np.mean(_oar_loads_over_a_stroke(eight)[1] ** 2))
-        if trimmed < best:
-            best_lag, best = lag, trimmed
+        for signed in (lag, -lag):
+            eight.phase_offsets = _split(eight, signed)
+            trimmed = np.sqrt(np.mean(_oar_loads_over_a_stroke(eight)[1] ** 2))
+            if trimmed < best:
+                best_lag, best = signed, trimmed
 
-    assert best_lag is not None and best_lag <= 0.030, best_lag
-    assert best < 0.65 * synchronised, (synchronised, best, best_lag)
+    assert best_lag is not None and abs(best_lag) <= 0.030, best_lag
+    # 12%, not the 45% this once read.  That figure was measured with the
+    # blade load mirrored -- it was not perpendicular to the shaft, so
+    # the rig's couple pointed the wrong way and the split that opposed
+    # it was a different split.  With the load perpendicular the best a
+    # 9 ms lag can do is take an eighth out, and it is the OTHER side
+    # that has to lead.  The claim that survives is the weaker one: the
+    # split is a small trim, not a cure.
+    assert best < 0.92 * synchronised, (synchronised, best, best_lag)
+    assert best > 0.60 * synchronised, (
+        "if a split ever cancels most of the bias again, say so here "
+        "rather than leaving a bound that no longer bites")
 
 
 def test_the_yaw_disturbance_is_not_monotonic_in_the_split(eight):
     """Because it first cancels the rig's own bias and then overtakes it."""
-    magnitudes = []
-    for lag in (0.0, 0.020, 0.080):
+    # Signed toward whichever side cancels: see the test above.
+    def disturbance(lag):
         eight.phase_offsets = _split(eight, lag)
-        magnitudes.append(
-            np.sqrt(np.mean(_oar_loads_over_a_stroke(eight)[1] ** 2)))
-    assert magnitudes[1] < magnitudes[0]
-    assert magnitudes[2] > magnitudes[0]
+        return np.sqrt(np.mean(_oar_loads_over_a_stroke(eight)[1] ** 2))
+
+    # 10 ms, not 20: the minimum sits near 9 ms now, and by 20 ms even
+    # the helping direction is back above the synchronised crew.  That
+    # is the non-monotonicity this is about, so the probe has to be
+    # inside it.
+    flat = disturbance(0.0)
+    forward, backward = disturbance(0.010), disturbance(-0.010)
+    sign = 1.0 if forward <= backward else -1.0
+    assert min(forward, backward) < flat, (flat, forward, backward)
+    assert disturbance(sign * 0.080) > flat
 
 
 def test_small_splits_barely_touch_propulsion(eight):

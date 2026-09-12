@@ -32,6 +32,22 @@ bias steering the boat.  Measured in ``tests/unit/test_synchronisation``
 -- the timing split that "very nearly cancelled" the rig's yaw bias now
 takes 45% of it, which is the honest figure.
 
+It has now been re-recorded a **third** time, again for a correction.
+The blade load was not perpendicular to the oar shaft: with
+``oar_axis`` = ``(sin, side cos)`` the code returned ``(cos, +side
+sin)``, whose dot with the shaft is ``|F| sin(2 phi)`` -- 1049 N at
+mid-drive on a four, where a load normal to the blade must give zero.
+[CR06]'s "force normal to the blade", which this model is built on and
+which ``oar_force``'s own docstring specifies, requires ``-side``.
+
+``f_x`` is identical either way, so nothing about speed or power moved:
+the four covers 62.18 m in these twelve seconds before and after, and
+the largest change in ``x`` over the whole run is 0.7 mm.  What changed
+is the direction of the yaw couple an alternate rig carries -- the boat
+ends 0.70 m to one side instead of 0.72 m to the other, and heading
+-0.34 deg instead of +0.38.  A bucket rig cancels the couple either
+way, which is what bucket rigs are for.
+
 The stroke tables that speed the trainer (``Boat.tabulate_crew``) are
 OFF for this file and for every study, on purpose: they are held to
 the exact chain by their own tests, and a tolerance here would let a

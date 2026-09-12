@@ -579,10 +579,24 @@ def oar_force(t, timing: StrokeTiming, side: int,
     shape = float(profile.magnitude(t, timing))
     angle = float(sweep(t, timing))
 
+    # The lateral component is NEGATIVE side: the load is perpendicular
+    # to the shaft, and with ``oar_axis`` = (sin, side cos) the
+    # perpendicular with a forward component is (cos, -side sin).  With
+    # +side the vector is the mirror of that and f . axis comes out as
+    # |F| sin(2 phi) -- 1049 N at mid-drive on a four, where a force
+    # perpendicular to the shaft must give zero.
+    #
+    # Why it is perpendicular: the blade sweeps about the oarlock, so it
+    # moves across the water at right angles to the shaft, and the
+    # water's reaction opposes that motion.  f_x is unchanged by the
+    # sign, so nothing about speed or power moves; what changes is the
+    # direction of the yaw couple an ALTERNATE rig carries -- 63 N m on
+    # a standard four, 123 on an eight.  A bucket rig cancels it either
+    # way, which is what bucket rigs are for.
     horizontal = profile.max_x * shape
     return np.array([
         horizontal * np.cos(angle),
-        side * horizontal * np.sin(angle),
+        -side * horizontal * np.sin(angle),
         profile.max_z * shape,
     ])
 

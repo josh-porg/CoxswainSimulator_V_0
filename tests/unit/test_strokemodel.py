@@ -324,12 +324,33 @@ def test_position_derivative_is_the_rotated_velocity(model):
 
 
 def test_rudder_turns_the_boat(model):
+    """The rudder's own authority, measured against no rudder.
+
+    This compared |yaw with rudder| against |yaw without|ticks, which
+    works only while the rig's standing yaw bias and the rudder happen
+    to push the same way.  They no longer do: the blade load was
+    mirrored until it was made perpendicular to the shaft, so the bias
+    changed sign, and a rudder that opposes it now takes the yaw rate
+    through zero -- +0.033 to -0.023, a real turn that the old
+    assertion read as the rudder doing less.
+
+    So measure the CHANGE the rudder makes, and that reversing it
+    reverses the change by about as much.  That is the claim, and it
+    does not care which way the rig leans.
+    """
     function = model.function()
     state = np.array([0.0, 0.0, 0.0, 0.0, 5.2, 0.0, 0.0, 0.0, 176000.0])
     straight = np.array(function(state, [0.0, 0.0, 1.0], 0.2)).ravel()
-    turning = np.array(
+    one_way = np.array(
         function(state, [np.radians(12.0), 0.0, 1.0], 0.2)).ravel()
-    assert abs(turning[6]) > abs(straight[6])
+    other = np.array(
+        function(state, [-np.radians(12.0), 0.0, 1.0], 0.2)).ravel()
+
+    pushed = one_way[6] - straight[6]
+    pulled = other[6] - straight[6]
+    assert abs(pushed) > 0.02, pushed
+    assert np.sign(pushed) == -np.sign(pulled), (pushed, pulled)
+    assert abs(pushed) == pytest.approx(abs(pulled), rel=0.25), (pushed, pulled)
 
 
 def test_split_turns_the_boat_only_on_the_drive(model, boat):
