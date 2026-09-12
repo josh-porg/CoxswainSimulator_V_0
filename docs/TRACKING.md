@@ -49,8 +49,51 @@ figures do not include the resync dynamics.
 
 ---
 
+### The blade does not know the boat's speed
+**Impact: high — it is the cause of the item below.**
+
+`oar_force(t, timing, side)` and `Boat.oar_forces_at(times, sides)` take
+stroke phase and side. There is no velocity argument anywhere in the
+force path, so a crew makes the same propulsive force at 2 m/s as at 6.
+A real blade's force falls as the hull catches up with it — that is what
+slip is — so the model's error grows with distance from wherever it was
+calibrated, in both directions.
+
+With the force independent of speed, the steady balance `R(v)·v = η·P`
+forces `η = (R(v)/P)·v`, and `R` is set by the force rather than by the
+speed, so **η comes out proportional to v**. Measured, both boats, four
+power levels each:
+
+| speed | eight | four |
+|---|---|---|
+| 2.8 m/s | 0.366 | 0.338 |
+| 3.6 | 0.477 | 0.456 |
+| 4.8 | 0.640 | 0.563 |
+| 5.7 | 0.766 | 0.695 |
+
+η/v is constant to within 2% on both hulls (0.130–0.133 for the eight,
+0.122–0.127 for the four), so this is a property of the force path and
+not of either boat. The catalogue was calibrated where an eight races,
+4.85 m/s, where η lands at 0.64 and looks plausible. That is why it was
+never caught.
+
+It explains the split the report now measures: the quasi-steady
+evaluator runs **+7% optimistic against the eight and +35% against the
+four**, because the four races at 2.70 m/s in the simulator and 3.63 on
+the river.
+
+*Next:* a velocity term in the blade force — force from the blade's
+motion relative to the water rather than from stroke phase alone. That
+invalidates every calibration built on the present path (Holt
+validation, the golden trajectory, the published targets), so it is a
+decision rather than a patch. `tests/test_blade_velocity.py` pins the
+mechanism and carries a strict xfail for the invariant that should hold,
+so the fix announces itself.
+
 ### The two speed models disagree by a factor of 2.3 in efficiency
 **Impact: high — it decides every published target.**
+**Cause found:** see the item above — the blade force carries no
+velocity term, so the implied efficiency is proportional to speed.
 
 `CoursePacing` (which produces the targets in `scripts/targets.py`)
 solves `R(v)v = 0.80 x gate power x rowers`: a flat blade efficiency of
