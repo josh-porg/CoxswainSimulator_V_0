@@ -219,3 +219,55 @@ def test_the_steering_caption_transcribes_nothing():
     assert "%.0f m" % PREVIEW_DISTANCE in caption
     for stale in ("29 m", "16 m", "12.88", "0.80 m", "the eight"):
         assert stale not in caption, stale
+
+
+# ---------------------------------------------------------------------------
+# the blade-path figure on the report
+# ---------------------------------------------------------------------------
+def test_the_shipped_blade_figure_draws_the_schedule(tmp_path):
+    """Shipped physics has only a schedule to draw -- no simulation needed."""
+    from coxswain.boats import catalog
+
+    make_report = _make_report()
+    four = physics.resolve(physics.SHIPPED).apply(
+        catalog.build("4+", rate=30.0))
+    path = make_report.blade_path_figure(four, str(tmp_path),
+                                         physics.SHIPPED, quick=True)
+    assert os.path.getsize(path) > 10_000
+    with open(path, "rb") as handle:
+        assert handle.read(8) == b"\x89PNG\r\n\x1a\n"
+
+
+def test_the_blade_figure_says_what_each_physics_draws():
+    """A shipped page must not describe the dynamic oar's finding, and a
+    research page must not claim the loads are unused."""
+    make_report = _make_report()
+    shipped = " ".join(make_report._blade_path_words(
+        physics.resolve(physics.SHIPPED)))
+    research = " ".join(make_report._blade_path_words(
+        physics.resolve("research")))
+    assert "does not use a blade model" in shipped
+    assert "re-anchor" not in shipped
+    assert "re-anchors" in research and "dynamic oar" in research
+    assert "does not use a blade model" not in research
+
+
+@pytest.mark.slow
+def test_the_research_blade_figure_draws_this_four_from_the_dynamic_oar(
+        tmp_path, monkeypatch):
+    from coxswain.sim.dynamic_oar import DynamicOarSimulator
+
+    calls = []
+    original = DynamicOarSimulator.run_strokes
+
+    def spy(self, *args, **kwargs):
+        calls.append(args)
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(DynamicOarSimulator, "run_strokes", spy)
+    make_report = _make_report()
+    four, _lineup, _watts = make_report.hocr_four(profile="research")
+    path = make_report.blade_path_figure(four, str(tmp_path), "research",
+                                         quick=True)
+    assert len(calls) == 2, "half and full erg power"
+    assert os.path.getsize(path) > 10_000

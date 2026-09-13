@@ -117,3 +117,26 @@ def test_a_trace_with_no_crossings_still_plots(tmp_path):
                       slip=np.ones(10), speed=3.0)
     path = plot([flat], str(tmp_path / "flat.png"))
     assert os.path.getsize(path) > 5_000
+
+
+def test_the_prescribed_trace_is_drawn_on_the_oars_own_side():
+    """A starboard oar is the port oar's mirror image, not a copy of it.
+
+    It used to ignore the side, so beside a starboard seat's dynamic trace
+    the prescribed "comparison" panel was mirrored -- a difference a reader
+    would take for physics.
+    """
+    four = catalog.build("4+", rate=32.0)
+    port = prescribed_trace(four, 4.0, "p", side=+1)
+    starboard = prescribed_trace(four, 4.0, "s", side=-1)
+    assert np.allclose(port.x, starboard.x)
+    assert np.allclose(port.y, -starboard.y)
+    assert np.allclose(port.direction[:, 0], starboard.direction[:, 0])
+    assert np.allclose(port.direction[:, 1], -starboard.direction[:, 1])
+    assert np.allclose(port.load, starboard.load)
+
+    # And by default it is the boat's own first lock -- the one the dynamic
+    # trace draws.
+    lock_side = int(four.rig.seats[0].oarlocks[0].side)
+    default = prescribed_trace(four, 4.0, "d")
+    assert np.allclose(default.y, (port if lock_side > 0 else starboard).y)

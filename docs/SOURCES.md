@@ -723,6 +723,37 @@ Changing it is a substantive change to the crew kinematics that would
 re-pin the regression suite, and it should be made on the strength of a
 measured oar-angle trace rather than on one indirect constraint.
 
+### [CG06a] Caplan & Gardner blade coefficients — *secondary, via Atkinson*
+Bill Atkinson, *Oarblade Lift and Drag*,
+[atkinsopht.com/row/liftdrag.htm](http://www.atkinsopht.com/row/liftdrag.htm),
+quoting Caplan & Gardner (2006), flume measurements in "a relatively narrow and
+shallow experimental channel":
+
+    C_L = A_l sin(2α)        C_D = A_d sin²(α)
+
+| blade | A_l | A_d |
+|---|---|---|
+| flat plate | 1.3 | 2.0 |
+| Dreissigacker Big Blade | 1.25 | 2.07 |
+| Macon | 1.24 | 1.90 |
+
+Reported with no significant stall at any attack angle, and no Reynolds number.
+
+**The status of these numbers, plainly.** Secondary: the primary is paywalled
+and has not been read, so the constants are *provisional* — any tier 2 result
+built on them is labelled as resting on a secondary source until Caplan &
+Gardner are checked. Two things support using them meanwhile, neither of which
+verifies the constants:
+
+- **The shape is corroborated.** Lift going as `sin 2α` and drag as `sin²α` is
+  the separated-flow form used for flapping plates (arXiv:2508.19899).
+- **The scale agrees with [CR06] in order.** At α = 90° the drag form is a pure
+  normal load `½ ρ A A_d w²` — for the rig's 0.11 m² Big Blade, **114 w²** N,
+  against [CR06]'s fitted `C2 = 84.5`. Same order, 35% higher.
+
+Not usable from the same page: Hoerner's older flat-plate table, which gives no
+Reynolds number or flow conditions.
+
 ### [B09] Brearley (2009)
 *A method of improving oar efficiency.* **ANZIAM J. 50** 534–540.
 [PDF](http://bionics.seas.ucla.edu/education/Rowing/Math_Model_2009_05.pdf)

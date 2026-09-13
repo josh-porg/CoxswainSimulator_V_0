@@ -233,13 +233,19 @@ measured on the oar balance alone, at a fixed 4.85 m/s under a constant pull.
 It is true of that unit and false of the full model, and has been corrected in
 PHYSICS_PROGRAMME rather than left standing.
 
-Most likely the same physics as the blade-efficiency gap above: a blade a
-quarter less efficient than a real one has to be swept longer for the same boat
-speed. [HF09] measured pairs, so the comparison is not like-for-like for an
-eight or a four.
+This entry first called it most likely the same physics as the
+blade-efficiency gap above. **That now looks wrong.** On the oar balance alone —
+eight at rate 28, 4.85 m/s, the torque 380 W needs — a draft tier 2 blade on the
+provisional [CG06a] coefficients raises energetic efficiency from 0.624 to 0.735
+and leaves the drive fraction exactly where it was, 0.399. More grip closes the
+efficiency gap without shortening the drive, so these look like two causes.
+[HF09] measured pairs, so the comparison is not like-for-like for an eight or a
+four.
 
-*Next:* re-measure when tier 2's lift lands; if the efficiency gap closes and
-this does not, it is a separate cause.
+*Next:* confirm on the full hull once tier 2 is wired in. If it holds, the drive
+time needs its own cause — candidates are the pull shape, which is an erg-fitted
+curve applied by angle, and the reflected inertia clamped at the catch, which
+each added about 0.03 of the stroke on the oar alone.
 
 ### The drive is 18–28% too long, and the cause is the ergometer
 **Impact: high — drive duration sets the time base of the whole stroke.**

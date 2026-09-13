@@ -460,9 +460,17 @@ rate 32.
 So **no single power reproduces both the on-water drive time and the published
 race pace.** At the power that gives the pace the drive is 18% long; at the
 power that gives the drive time the boat is 20% fast. That is physics, not a
-missing input, and it is very likely the same thing as the blade-efficiency
-gap: a blade a quarter less efficient than a real one has to be swept longer
-for the same boat speed. Tracked in [TRACKING.md](TRACKING.md).
+missing input. Tracked in [TRACKING.md](TRACKING.md).
+
+**It is probably not the blade-efficiency gap**, which this section first said
+it very likely was. Tried on the oar balance alone — eight at rate 28, boat held
+at 4.85 m/s, the torque 380 W needs — with a *draft* tier 2 blade on the
+provisional [CG06a] coefficients: energetic efficiency rises from 0.624 to
+0.735, most of the way to Kleshnev's floor, and the drive fraction does not move
+at all (0.399 both ways; 0.361 and 0.359 at 5.5 m/s). More grip closes the
+efficiency gap and leaves the drive time where it was, so the two gaps look
+like separate causes. Oar alone and a draft blade, so this is evidence, not a
+result, until it is measured on the full hull.
 
 Two qualifications on the comparison itself: [HF09] measured coxless **pairs**,
 so an eight and a four are not like-for-like against them; and there is no
@@ -547,7 +555,7 @@ the boat speeds that go with their drive durations).
 |---|---|---|
 | Immersion curve refit | Grift et al. (2019), JFM 866 — the full C_D against depth figure | Three points from the abstract (1.10 at the surface, 1.60 at ~20 mm, 1.30 deeper) are enough to show ours is *qualitatively* wrong — monotone where the measurement has an optimum — and not enough to fit. Three second-hand numbers are not a basis for physics. |
 | Entrainment term | the same paper | They show a single added-mass coefficient does not capture prolonged acceleration and define an entrainment rate instead. The rate is in the paper, not in the abstract. |
-| Tier 2 coefficients | Caplan & Gardner (2007) C_L, C_D against sweep angle | Needs digitising. |
+| Tier 2 coefficients — **located, provisional** | Caplan & Gardner's own paper, to verify the constants | Found via a secondary source, [CG06a] in SOURCES: `C_L = A_l sin 2α`, `C_D = A_d sin²α`, with A_l = 1.25 and A_d = 2.07 for the Big Blade. The primary is paywalled. The shape is corroborated and the scale agrees with [CR06] in order, so tier 2 can be built on them — labelled as resting on a secondary source until the primary is checked. |
 | Tier 2 validation | Grift et al. (2021), JFM 918 — time-resolved force traces | The only source found that gives the tangential component, which the model has never had. |
 | Coordination replication | the forward-dynamic crew (phase 4) | Nothing to run it against yet. |
 | The masters eight in the research report | a sourced handle power per rower for a masters eight | The dynamic oar is driven at stated watts. `MASTERS_POWER` is a force scale, and the only scale-to-watts conversion in the project is the questionable `mean_handle_power`. Coaching material gives ranges (roughly 100–200 W for social masters), not measurements, so the eight's steering run and settled speed are left off the research page rather than invented. Its lines are still priced, because the route evaluator never runs the simulator. |

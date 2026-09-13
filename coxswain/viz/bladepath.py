@@ -131,22 +131,32 @@ def dynamic_trace(sim, run, label: str, seat_slot: int = 0,
 
 
 def prescribed_trace(boat, speed: float, label: str,
-                     samples: int = 600) -> BladeTrace:
-    """The old schedule: the prescribed sweep at a constant boat speed."""
+                     samples: int = 600, side=None) -> BladeTrace:
+    """The old schedule: the prescribed sweep at a constant boat speed.
+
+    ``side`` is the oar's side, +1 port and -1 starboard, and defaults to the
+    boat's first oarlock -- the same lock :func:`dynamic_trace` draws.  It
+    used to be ignored, so every prescribed trace was a PORT oar: beside a
+    starboard seat's dynamic trace the "comparison" panel was its mirror
+    image, which is exactly the kind of difference a reader would take for
+    physics.
+    """
     from ..crew.oarlock import BladeModel
 
     timing = boat.timing
-    outboard = float(boat.rig.seats[0].oarlocks[0].oar.outboard)
+    lock = boat.rig.seats[0].oarlocks[0]
+    outboard = float(lock.oar.outboard)
+    side = int(lock.side) if side is None else int(side)
     blade = BladeModel.sweep(outboard=outboard)
     t = np.linspace(0.0, timing.drive_fraction * timing.period, int(samples))
     angle = np.asarray(boat.oar_sweep(t, timing), dtype=float)
     rate = np.asarray(boat.oar_sweep.rate(t, timing), dtype=float)
 
     x = float(speed) * t + outboard * np.sin(angle)
-    y = outboard * np.cos(angle)
+    y = side * outboard * np.cos(angle)
     slip = np.asarray(blade.slip_velocity(angle, rate, float(speed)))
     load = np.asarray(blade.normal_force(angle, rate, float(speed)))
-    direction = np.stack([np.cos(angle), -np.sin(angle)], axis=1)
+    direction = np.stack([np.cos(angle), -side * np.sin(angle)], axis=1)
     return BladeTrace(label=label, x=x - x[0], y=y - y[0], load=load,
                       direction=direction, slip=slip, speed=float(speed),
                       crossings=_crossings(slip))

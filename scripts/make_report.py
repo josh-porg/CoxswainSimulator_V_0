@@ -531,6 +531,8 @@ def main(argv=None):
     lines_png = line_plot([(r, o) for r, o in scored], course, raster, gates,
                           ReducedModel(),
                           os.path.join(figures_dir, "racing_lines.png"))
+    blade_png = blade_path_figure(four, figures_dir, args.physics,
+                                  quick=args.quick)
 
     overall.set_description("assembling"); overall.update(1)
     report = build_report(bridge_rows, arch_rows, line_rows, strategy_rows,
@@ -539,6 +541,7 @@ def main(argv=None):
                           dt=args.dt, out=args.out, overall=overall,
                           optimism=optimism, search=search,
                           physics_profile=args.physics,
+                          blade_png=blade_png,
                           four=(four_lineup, four_watts,
                                                   four_cp, four_wprime, pace))
     path = report.write(os.path.join(args.out, "hocr_report.html"))
@@ -641,6 +644,67 @@ def _pace_reason(profile) -> str:
             "the field is the arbiter.")
 
 
+def blade_path_figure(four, figures_dir, profile=None, quick=False):
+    """The blade's path through the water for this four, by its physics.
+
+    Under a dynamic-oar profile it is drawn from what the four actually did
+    -- the integrated oar states at half and at full erg power -- beside the
+    old prescribed sweep at the same speed, so the one difference the dynamic
+    oar makes to the picture is visible: the prescribed sweep re-anchors at
+    the finish because it forces the oar to stop, and the dynamic oar does
+    not. Under ``shipped`` there is only the schedule, at three speeds.
+    """
+    from coxswain import physics
+    from coxswain.viz.bladepath import dynamic_trace, plot, prescribed_trace
+
+    resolved = physics.resolve(profile)
+    path = os.path.join(figures_dir, "blade_path.png")
+    traces = []
+    if resolved.uses_dynamic_oar:
+        from coxswain.sim.dynamic_oar import DynamicOarSimulator
+
+        strokes = 8 if quick else 14
+        watts = float(four.handle_watts)
+        for fraction in (0.5, 1.0):
+            sim = DynamicOarSimulator(
+                four, peak_torque=DynamicOarSimulator.peak_torque_for_power(
+                    four, fraction * watts))
+            run = sim.run_strokes(strokes, surge_speed=2.8 + 0.8 * fraction)
+            traces.append(dynamic_trace(
+                sim, run, "this four, %.0f W per rower" % (fraction * watts)))
+        traces.append(prescribed_trace(four, traces[-1].speed,
+                                       "the old prescribed sweep"))
+        title = ("This four under %s physics -- the blade's path in the "
+                 "inertial frame" % resolved.name)
+    else:
+        for speed in (3.0, 3.6, 4.3):
+            traces.append(prescribed_trace(four, speed, "prescribed sweep"))
+        title = ("This four under shipped physics -- the prescribed sweep "
+                 "in the inertial frame")
+    return plot(traces, path, title=title)
+
+
+def _blade_path_words(profile):
+    """Caption and reading for the blade-path figure, by physics."""
+    if profile.uses_dynamic_oar:
+        return ("This four's blade at half and full erg power per rower, "
+                "drawn from the dynamic oar, beside the old prescribed sweep "
+                "at the same speed. Top-down, camera fixed to the water.",
+                "Arrows are the normal load on the blade. Look for the second "
+                "reversal: the prescribed sweep re-anchors near the finish "
+                "because it forces the oar to stop there, and the dynamic "
+                "oar -- still swinging at the finish -- does not. The "
+                "tangential component is zero by construction under this "
+                "blade model; it is what tier 2 adds.")
+    return ("The prescribed sweep this physics rows, at three boat speeds. "
+            "Top-down, camera fixed to the water.",
+            "The loads drawn are the slip model's, for comparison only -- "
+            "the shipped physics does not use a blade model at all, its oar "
+            "force is a function of stroke phase. The run-back through the "
+            "water shrinks as the boat speeds up, which is the defect this "
+            "programme exists to fix, drawn.")
+
+
 def _steering_caption() -> str:
     """The steering table's caption, with nothing transcribed into it.
 
@@ -702,7 +766,8 @@ def _fallback_caveat(control_rows) -> str:
 def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
                  control_rows, chart_paths, loss_png, lines_png, figures_dir,
                  quick, dt=0.02, out=".", overall=None, optimism=None,
-                 four=None, search=None, physics_profile=None):
+                 four=None, search=None, physics_profile=None,
+                 blade_png=None):
     """Assemble the page.
 
     ``dt``, ``out`` and ``overall`` are passed in rather than read off a
@@ -1233,6 +1298,13 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
     # Animations are embedded whenever they exist on disk -- they are
     # produced by scripts/animate_race.py and scripts/render3d.py, which
     # are slow, so the report picks up the latest rather than re-rendering.
+    if blade_png:
+        from coxswain import physics as _blade_physics
+
+        caption, reading = _blade_path_words(
+            _blade_physics.resolve(physics_profile))
+        figures.append(Figure(blade_png, "The blade's path through the water",
+                              caption, reading, group="The blade"))
     figures.extend([
         Figure("out/animation/race_2100_2800_chase_mpc.gif",
                "The boat rowing the line",
