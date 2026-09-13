@@ -5840,6 +5840,17 @@ The fault is in the §15 phase authority, not in `trim.py`. Both tests are
 marked `xfail` with this diagnosis attached rather than having their
 thresholds tuned to pass, because tuning either would hide a real result.
 
+**Update, 2026-09-13: the load was a bug, the defect is not.**  The
+growing swing above was driven by the port rowers wearing starboard arms,
+a lateral load fixed in `da0a0b9`.  With it gone the unloaded eight swings
+0.03° and both tests XPASSed while testing nothing.  With the load given
+back explicitly, a steady heel of 1.1 × the recovery authority (102 N m),
+the phase-limited authority loses the boat with or without trim.  The flat
+authority holds it to 0.069°, and the trim cuts that to 0.020°.  Below the
+recovery authority, at 30 N m, the two are bit-identical.  Numbers and
+history are in `docs/TRACKING.md`, "The crew cannot hold a steady heel
+through the recovery".
+
 ## 65. The report page got tabs
 
 `coxswain/report.py`. The page rendered every finding, then every table,

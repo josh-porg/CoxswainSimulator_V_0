@@ -11,6 +11,8 @@ iterative learning across strokes [BTA06].
         control", IEEE Control Systems Magazine 26(3):96-114.
 """
 
+from dataclasses import dataclass
+
 import numpy as np
 import pytest
 
@@ -117,11 +119,34 @@ def test_trim_rejects_a_degenerate_memory():
 # --------------------------------------------------------------------------
 # it has to actually help the boat
 # --------------------------------------------------------------------------
-def _run_strokes(eight, trim, n_strokes, dt=0.009):
+#: The steady heel the crew is given to hold, as a multiple of what they
+#: can apply on the recovery -- about 102 N m on the eight, an 80 kg rower
+#: sitting 13 cm off the centreline.  It has to exceed the recovery
+#: authority or the test exercises nothing: below it the phase window never
+#: binds, and at 30 N m ``PhaseAuthority`` and the flat ``max_moment`` give
+#: bit-identical swings.  Until da0a0b9 the port rowers' starboard arms
+#: supplied this load unnoticed; with them fixed the unloaded boat swings
+#: 0.03 deg and these tests passed without the authority ever limiting.
+LIST_OVER_RECOVERY = 1.1
+
+
+@dataclass
+class _ListedCoxswain(Coxswain):
+    """The crew's balance moment, plus a steady heel they did not choose."""
+
+    heel: float = 0.0       # N m
+
+    def roll_moment(self, state, t=None):
+        return super().roll_moment(state, t) + self.heel
+
+
+def _run_strokes(eight, trim, n_strokes, dt=0.009, flat=False):
     authority = PhaseAuthority.from_boat(eight)
-    controller = BalanceController(authority=authority, timing=eight.timing,
-                                   trim=trim)
-    simulator = RowingSimulator(eight, coxswain=Coxswain(balance=controller))
+    controller = BalanceController(authority=None if flat else authority,
+                                   timing=eight.timing, trim=trim)
+    coxswain = _ListedCoxswain(balance=controller,
+                               heel=LIST_OVER_RECOVERY * authority.recovery)
+    simulator = RowingSimulator(eight, coxswain=coxswain)
     state = simulator.initial_state(surge_speed=4.6)
     period = eight.timing.period
     swings = []
@@ -133,19 +158,32 @@ def _run_strokes(eight, trim, n_strokes, dt=0.009):
         if trim is not None:
             trim.update(np.asarray(result.time) + k * period,
                         np.asarray(result.roll), eight.timing)
-    return np.array(swings)
+    swings = np.array(swings)
+    # Comparing the swings of two boats that have gone over means nothing,
+    # and post-capsize numbers can cross a threshold by accident -- so the
+    # boat staying up is asserted before anything is compared.
+    assert swings.max() < 45.0, (int(swings.argmax()), swings.max())
+    return swings
 
 
-@pytest.mark.xfail(reason=
-    "Open defect, diagnosed but not fixed: with PhaseAuthority the roll "
-    "swing grows over strokes even with NO trim at all (1.43 -> 1.90 deg "
-    "over 14 strokes), so the learned trim is a small correction on an "
-    "already-diverging system. The authority window is 93-1525 N m against "
-    "a 4000 N m max_moment; with the flat max_moment the same trim cuts "
-    "swing 1.45 -> 0.64 deg and both these tests pass. The fault is in the "
-    "phase-limited balance authority of SOURCES sec. 15, not in the ILC "
-    "law -- so neither the learning gain nor these thresholds should be "
-    "tuned to hide it. See SOURCES sec. 63.", strict=False)
+_AUTHORITY_DEFECT = (
+    "Open defect, diagnosed but not fixed: the phase-limited balance "
+    "authority of SOURCES sec. 15 cannot hold an eight against a steady "
+    "heel just beyond its 93 N m recovery authority -- the boat goes over "
+    "with or without the learned trim. The same heel under the flat 4000 N m "
+    "max_moment is held to hundredths of a degree and passes both "
+    "thresholds (test_the_same_heel_is_held_with_a_flat_authority), so the "
+    "fault is in the authority, not the ILC law -- neither the learning "
+    "gain nor these thresholds should be tuned to hide it. The load used "
+    "to come from the port rowers' starboard arms (1.39 -> 1.99 deg with "
+    "no trim, 2.37 with it); da0a0b9 fixed those and these tests XPASSed "
+    "on a 0.03 deg swing until the heel was added. See SOURCES sec. 64 and "
+    "docs/TRACKING.md, 'The crew cannot hold a steady heel through the "
+    "recovery'.")
+
+
+@pytest.mark.xfail(reason=_AUTHORITY_DEFECT, strict=True,
+                   raises=AssertionError)
 @pytest.mark.slow
 def test_learned_trim_reduces_roll_swing_over_strokes(eight):
     """The mechanism by which a crew reaches a tolerance no reactive loop
@@ -162,16 +200,8 @@ def test_learned_trim_reduces_roll_swing_over_strokes(eight):
         (without[-3:].mean(), with_trim[-3:].mean())
 
 
-@pytest.mark.xfail(reason=
-    "Open defect, diagnosed but not fixed: with PhaseAuthority the roll "
-    "swing grows over strokes even with NO trim at all (1.43 -> 1.90 deg "
-    "over 14 strokes), so the learned trim is a small correction on an "
-    "already-diverging system. The authority window is 93-1525 N m against "
-    "a 4000 N m max_moment; with the flat max_moment the same trim cuts "
-    "swing 1.45 -> 0.64 deg and both these tests pass. The fault is in the "
-    "phase-limited balance authority of SOURCES sec. 15, not in the ILC "
-    "law -- so neither the learning gain nor these thresholds should be "
-    "tuned to hide it. See SOURCES sec. 63.", strict=False)
+@pytest.mark.xfail(reason=_AUTHORITY_DEFECT, strict=True,
+                   raises=AssertionError)
 @pytest.mark.slow
 def test_a_novice_crew_learns_less_than_a_practised_one(eight):
     """Skill as parameters rather than as a fudge.
@@ -184,6 +214,28 @@ def test_a_novice_crew_learns_less_than_a_practised_one(eight):
     practised = _run_strokes(eight, StrokeTrim(learning_gain=0.60,
                                                forgetting=0.95), 16)
     assert practised[-3:].mean() < novice[-3:].mean()
+
+
+@pytest.mark.slow
+def test_the_same_heel_is_held_with_a_flat_authority(eight):
+    """The two expected failures above belong to the authority.
+
+    Same heel, same crews, same thresholds, with the flat ``max_moment``
+    in place of the phase window.  If this fails, the strict xfails above
+    are failing for some reason other than the one they name.
+    """
+    without = _run_strokes(eight, None, 16, flat=True)
+    with_trim = _run_strokes(eight, StrokeTrim(), 16, flat=True)
+    assert with_trim[-3:].mean() < 0.8 * without[-3:].mean(), \
+        (without[-3:].mean(), with_trim[-3:].mean())
+
+    novice = _run_strokes(eight, StrokeTrim(learning_gain=0.10,
+                                            forgetting=0.60), 16, flat=True)
+    practised = _run_strokes(eight, StrokeTrim(learning_gain=0.60,
+                                               forgetting=0.95), 16,
+                             flat=True)
+    assert practised[-3:].mean() < novice[-3:].mean(), \
+        (novice[-3:].mean(), practised[-3:].mean())
 
 
 def test_trim_is_still_bounded_by_what_the_crew_can_apply(eight):

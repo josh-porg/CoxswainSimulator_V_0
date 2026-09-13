@@ -758,6 +758,46 @@ which.  Until that is settled, "the boat has to be sat" is a surrogate
 claim the simulation contradicts, and the two balance tests that assumed
 it are expected failures pointing here.
 
+### The crew cannot hold a steady heel through the recovery
+The phase-limited balance authority (SOURCES §15, `PhaseAuthority`:
+1525 N m on the drive, 93 N m on the recovery) loses an eight to a steady
+heeling moment just beyond the recovery figure, where the flat 4000 N m
+`max_moment` holds it to hundredths of a degree.  Measured with the
+harness in `tests/unit/test_trim.py`: eight at rate 32, 4.6 m/s, 16
+strokes, a steady **102 N m** heel (1.1 × the recovery authority, an 80 kg
+rower 13 cm off the centreline).  Swing is the mean of the last three
+strokes; "over" is a swing past 180°.
+
+| authority | no trim | learned trim | novice | practised |
+|---|---|---|---|---|
+| flat `max_moment` | 0.069° | 0.020° | 0.058° | 0.025° |
+| `PhaseAuthority` | over by stroke 4 | over by stroke 6 | 13.7° | over by stroke 6 |
+
+At 30 N m the phase window never binds and the two authorities give
+bit-identical swings (0.033°, 0.013° with trim).  With no balance
+controller at all the boat goes over even at 30 N m (290° in the first
+stroke), so the self-righting in the item above is for a disturbed but
+unloaded boat, not for one carrying a steady heel.
+
+**History.**  §64 diagnosed this on 2026-09-01 from swing growing over
+strokes (1.43 → 1.90°).  The load behind that growth was the port rowers'
+starboard arms (see Fixed): at `da0a0b9~1` the harness gives 1.39 → 1.99°
+without trim and 2.37° with it; at `da0a0b9`, 0.038° and 0.015°.  With the
+bias gone both tests XPASSed on a 0.03° swing from 2026-09-08 (the
+"2 xpassed" in that commit's full run, and in the full run of 2026-09-13)
+while exercising nothing.  They now apply the heel explicitly and are
+strict xfails with `raises=AssertionError`.  The harness asserts that the
+boat stays under a 45° swing before comparing, because post-capsize
+numbers missed passing the trim threshold by only 6% (145° against 137°).  A flat-authority companion,
+`test_the_same_heel_is_held_with_a_flat_authority`, must pass, so a strict
+xfail cannot be failing for a reason other than the one it names.
+
+**Not settled:** whether a real crew holds a 100 N m heel through the
+recovery (a crew visibly sits out a lean), and so whether 93 N m is too
+little authority or the missing mechanism is elsewhere, such as more than
+2° of trunk lean.  Neither the learning gain nor the test thresholds
+should be tuned to hide it.
+
 ### `mean_handle_power` ignores `power_scales`
 Its docstring says it reports power "at the boat's current scale". It
 does not — it integrates `oar_force` without the scale, so it always
