@@ -37,7 +37,7 @@ implicitly.
 | profile | blade | rower | who runs it |
 |---|---|---|---|
 | `shipped` | tier 0, prescribed | prescribed, erg-fitted | the game, the online report |
-| `research` | tier 1, dynamic oar → 2 | prescribed now; forward-dynamic, torque-driven next | the validation scorecard (the report is not ported) |
+| `research` | tier 1, dynamic oar → 2 | prescribed now; forward-dynamic, torque-driven next | the validation scorecard, and the offline report (the four only — see Blocked) |
 | `learned` | tier 2 | a trained policy | training and study runs |
 
 **`research` is PARTIAL, and says so.** Until 2026-09-12 it resolved to the
@@ -160,7 +160,11 @@ blade resists, the angle follows.
 - [x] The report refuses `--physics research` at argument parsing, before any expensive stage
 - [x] `scorecard.run("research")` end to end: both defect targets pass on the eight and the four, where `shipped` fails both
 - [x] Score `blade_efficiency_level` on the dynamic oar, **measured on the run** — and it **fails**: 0.586 on the eight and 0.590 on the four at race pace, against 0.754–0.816
-- [ ] Port the report to the dynamic oar
+- [x] Drive the dynamic oar the way every consumer drives a simulator: `DynamicOarSimulator.run()` on the base class's contract, and `simulator_for(boat)` choosing the simulator from the boat's stamp, with a dynamic-oar boat refused unless it states `handle_watts`
+- [x] `fit_reduced_model` asks the factory, so steering authority is fitted with the physics the stamp names
+- [x] Report ported: `--physics research` runs. The four is driven at its own erg watts; the **masters eight's simulated parts are left off the page** — no sourced wattage — while its lines are still priced
+- [x] The report's door now refuses only physics that does not exist (`learned`), and its caveats that stated the shipped defect as fact are functions of the profile
+- [x] **Run end to end** (`--physics research --quick --steer-leg 150`, 229 s, clean log): page stamped research, the eight's gap stated, no shipped-only claim on it. The four steers through the dynamic oar — reactive 1.96 m rms, predictive 1.10 m rms with **0 / 285** solver fallbacks — and the quasi-steady evaluator's optimism on the four reads **+5%** (3.63 m/s priced against 3.47 settled), against **+35%** recorded under `shipped`. One quick run, not yet a sweep
 - [ ] `StrokeTable` bypassed on the `research` profile (it assumes the chain depends on stroke time and nothing else)
 - [ ] Hands follow the dynamic angle, so the crew kinematics solve online
 - [ ] `flatness` deleted as a free parameter — it becomes an output
@@ -521,6 +525,7 @@ the boat speeds that go with their drive durations).
 | Tier 2 coefficients | Caplan & Gardner (2007) C_L, C_D against sweep angle | Needs digitising. |
 | Tier 2 validation | Grift et al. (2021), JFM 918 — time-resolved force traces | The only source found that gives the tangential component, which the model has never had. |
 | Coordination replication | the forward-dynamic crew (phase 4) | Nothing to run it against yet. |
+| The masters eight in the research report | a sourced handle power per rower for a masters eight | The dynamic oar is driven at stated watts. `MASTERS_POWER` is a force scale, and the only scale-to-watts conversion in the project is the questionable `mean_handle_power`. Coaching material gives ranges (roughly 100–200 W for social masters), not measurements, so the eight's steering run and settled speed are left off the research page rather than invented. Its lines are still priced, because the route evaluator never runs the simulator. |
 | Validating against published race pace | a published **race power** per boat class | The regression tests compare settled speed against published pace while driving each boat at `power_scales = 1.0` — which is 540 W per rower for an eight at 24 spm, 720 at 32, 854 at 38, 795 for the four and **1124 for a single at 30**, against roughly 330 W a crew can hold for six minutes. Every boat beats race pace, which is the only thing that could have happened. Scale 1.0 is a force scale, not a wattage, and it does not even mean the same thing between boats. Fixing the comparison means stating the power first, and that needs a source. |
 | Putting the drive fraction right | a decision, not data | [HF09] on-water pairs and Telfer's ergometer rowers disagree by ~0.08 of the cycle and both are right about their own conditions. Choosing the on-water number moves the time base of every calibration in the project, so it belongs in `research` behind the scorecard. |
 

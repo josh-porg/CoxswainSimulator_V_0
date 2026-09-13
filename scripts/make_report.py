@@ -47,7 +47,10 @@ from coxswain.river.trajectory import (ReducedModel,       # noqa: E402
 from coxswain.sim.control import Coxswain                 # noqa: E402
 from coxswain.sim.guidance import PathFollower            # noqa: E402
 from coxswain.sim.mpc import PathMPC, horizon_for                      # noqa: E402
-from coxswain.sim.simulator import RowingSimulator        # noqa: E402
+# The simulator a boat's physics needs, never RowingSimulator by name: a
+# research-stamped boat is refused by the prescribed oar block, and the
+# page must not be able to price one boat with the other boat's oar.
+from coxswain.sim.dynamic_oar import simulator_for       # noqa: E402
 
 NBI = {
     "River Street": (42.36124, -71.11675),
@@ -80,9 +83,28 @@ def reference_eight(rate=28.0, profile=None):
     """
     from coxswain import physics
 
+    _refuse_masters_eight(profile)
     boat = physics.resolve(profile).apply(catalog.eight(rate=rate))
     boat.power_scales = np.full(boat.n_seats, MASTERS_POWER)
     return boat
+
+
+def _refuse_masters_eight(profile):
+    """The masters eight cannot be simulated with the dynamic oar -- yet.
+
+    A dynamic-oar boat is driven at a stated handle power per rower, and
+    there is no sourced figure for a masters eight: coaching material gives
+    ranges, not measurements. ``MASTERS_POWER`` is a force scale, and the
+    only conversion from a scale to watts in the project is the questionable
+    ``mean_handle_power``. Refused rather than guessed; the page says so.
+    """
+    from coxswain import physics
+
+    if physics.resolve(profile).uses_dynamic_oar:
+        raise ValueError(
+            "the masters eight has no sourced handle power, and profile %r "
+            "drives the oar at stated watts per rower; it is not simulated "
+            "under this physics (docs/TRACKING.md)" % (profile,))
 
 
 def hocr_four(rate=30.0, profile=None):
@@ -94,6 +116,7 @@ def hocr_four(rate=30.0, profile=None):
     which reports the scale-1.0 figure, so the ratio is the scale that
     puts the crew at their measured watts.
     """
+    from coxswain import physics
     from coxswain.crew.exertion import mean_handle_power
     from coxswain.viz.menu import build_boat
     from coxswain.viz.rigview import PRESETS
@@ -102,9 +125,23 @@ def hocr_four(rate=30.0, profile=None):
     boat, _made = build_boat("4+", rate, lineup=lineup, profile=profile)
     watts = [r.watts for r in lineup.rowers if r.watts]
     target = float(np.mean(watts)) if watts else 0.0
-    unit = mean_handle_power(boat, samples=180)
     ratios = np.asarray(getattr(boat, "seat_ratios",
                                 np.ones(boat.n_seats)), dtype=float)
+
+    if physics.resolve(profile).uses_dynamic_oar:
+        # The crew's own erg watts, stated directly. The dynamic oar's power
+        # is closed-form, so the prescribed scale-to-watts conversion --
+        # mean_handle_power, an open question -- is never consulted here.
+        # seat_ratios already average to one, so the crew's mean handle
+        # power per rower is exactly the stated figure.
+        if target <= 0.0:
+            raise ValueError("the HOCR lineup states no erg watts, and the "
+                             "dynamic oar needs a stated power")
+        boat.handle_watts = target
+        boat.power_scales = ratios
+        return boat, lineup, target
+
+    unit = mean_handle_power(boat, samples=180)
     boat.power_scales = (target / max(unit, 1.0)) * ratios
     return boat, lineup, target
 
@@ -134,9 +171,9 @@ def measured_four_pace(course, year=2024, club="Sammamish"):
 
 def settled_speed(boat, start_speed, duration=70.0, dt=0.01):
     """The speed this boat settles at, driven straight."""
-    sim = RowingSimulator(boat,
-                          coxswain=Coxswain(rudder_override=lambda t, s: 0.0),
-                          fast=True)
+    sim = simulator_for(boat,
+                        coxswain=Coxswain(rudder_override=lambda t, s: 0.0),
+                        fast=True)
     result = sim.run(duration=duration, dt=dt, surge_speed=start_speed)
     time_s = np.asarray(result.time)
     speed = np.hypot(*np.asarray(result.velocity)[:2])
@@ -159,10 +196,12 @@ def quasi_steady_gap(reference_speed, scale=MASTERS_POWER, rate=28.0,
     """
     from coxswain import physics
 
+    _refuse_masters_eight(profile)
     boat = physics.resolve(profile).apply(catalog.eight(rate=rate))
     boat.power_scales = np.full(boat.n_seats, scale)
-    sim = RowingSimulator(boat, coxswain=Coxswain(rudder_override=lambda t, s: 0.0),
-                          fast=True)
+    sim = simulator_for(boat,
+                        coxswain=Coxswain(rudder_override=lambda t, s: 0.0),
+                        fast=True)
     result = sim.run(duration=duration, dt=dt, surge_speed=reference_speed)
     time_s = np.asarray(result.time)
     speed = np.hypot(*np.asarray(result.velocity)[:2])
@@ -258,7 +297,7 @@ def steer(path, controller, boat, dt=0.01, cruise=4.7):
     else:
         driver = PathFollower(path, boundary_layer=25.0)
 
-    sim = RowingSimulator(boat, coxswain=Coxswain(rudder_override=driver))
+    sim = simulator_for(boat, coxswain=Coxswain(rudder_override=driver))
     heading = float(np.arctan2(path[1, 1] - path[0, 1],
                                path[1, 0] - path[0, 0]))
     state = sim.initial_state(surge_speed=cruise)
@@ -328,12 +367,13 @@ def main(argv=None):
     # what it cannot do yet.
     from coxswain import physics as _physics
 
-    if _physics.resolve(args.physics).uses_dynamic_oar:
+    resolved = _physics.resolve(args.physics)
+    if resolved.blade_tier >= 2 or resolved.rower != "prescribed":
         parser.error(
-            "profile %r makes the oar angle a dynamic state, and this report "
-            "still drives the prescribed oar through power_scales. Not "
-            "ported yet: run coxswain.validation.scorecard.run(%r) for "
-            "that physics." % (args.physics, args.physics))
+            "profile %r needs physics that does not exist yet -- blade tier "
+            "%d, %s rower. This report runs tier 0 and tier 1 blades with "
+            "the prescribed rower." % (args.physics, resolved.blade_tier,
+                                        resolved.rower))
 
     started = time.time()
     overall = progress(total=6, desc="report", unit="stage")
@@ -447,11 +487,18 @@ def main(argv=None):
              course.offset_position(station, route4.offset_at(station))}
     control_rows = []
     controllers = [] if args.no_steering else ["reactive", "mpc"]
-    eight_boat = reference_eight(profile=args.physics)
-    eight_settled = settled_speed(eight_boat, 5.2)
     four_settled = settled_speed(four, four_speed)
-    fleet = [("masters eight", eight_boat, eight_settled),
-             ("this four", four, four_settled)]
+    fleet = [("this four", four, four_settled)]
+    eight_settled = None
+    # The eight is simulated only where it has a power to be driven at. Its
+    # LINES are priced either way -- the route evaluator is quasi-steady and
+    # never runs the simulator -- but under the dynamic oar there is no
+    # sourced masters-eight wattage, so its steering run and its settled
+    # speed are left off the page rather than invented.
+    if not resolved.uses_dynamic_oar:
+        eight_boat = reference_eight(profile=args.physics)
+        eight_settled = settled_speed(eight_boat, 5.2)
+        fleet.insert(0, ("masters eight", eight_boat, eight_settled))
     runs = [(label, boat, cruise, c)
             for label, boat, cruise in fleet for c in controllers]
     for label, boat, cruise, controller in progress(runs, desc="  controllers",
@@ -472,8 +519,9 @@ def main(argv=None):
 
     # The evaluator's optimism, measured on this run rather than quoted,
     # for each boat at its own operating point.
-    optimism = [("masters eight", 5.2, eight_settled),
-                ("this four", four_speed, four_settled)]
+    optimism = [("this four", four_speed, four_settled)]
+    if eight_settled is not None:
+        optimism.insert(0, ("masters eight", 5.2, eight_settled))
 
     overall.set_description("figures"); overall.update(1)
     written = charts.write_all(figures_dir, month=args.month)
@@ -557,6 +605,40 @@ def _optimiser_note(line_rows, column, name):
             "that search has not converged and its line should be read as "
             "a candidate rather than a best."
             % (best[0], mine - float(best[column])))
+
+
+def _optimism_reason(profile) -> str:
+    """Why the quasi-steady evaluator and the 6-DOF boat disagree.
+
+    A function of the physics, because the reason is. Under ``shipped`` it
+    is the known defect; under a dynamic-oar profile that defect is gone,
+    and stating it as fact would be false on that page.
+    """
+    if profile.uses_dynamic_oar:
+        return ("Under this physics the blade's force depends on its slip, "
+                "so the efficiency no longer rises in proportion to boat "
+                "speed. What remains rides on the prescribed crew motion, and "
+                "on a blade a quarter less efficient than measured ones "
+                "(docs/TRACKING.md). The masters eight is not simulated here: "
+                "there is no sourced handle power for it.")
+    return ("The reason is known: the blade's force is a function of stroke "
+            "phase with no velocity term, so the propulsive efficiency the "
+            "6-DOF path implies comes out proportional to boat speed -- "
+            "0.37 at 2.8 m/s rising to 0.77 at 5.8, on both hulls. It was "
+            "calibrated where an eight races, which is why the eight looks "
+            "right and this four does not.")
+
+
+def _pace_reason(profile) -> str:
+    """Why the four's lines are priced at its measured pace."""
+    if profile.uses_dynamic_oar:
+        return ("because the field is the arbiter. Under this physics the "
+                "simulator drives the four at its own erg watts and its blade "
+                "is a quarter less efficient than measured (docs/TRACKING.md), "
+                "so its settled speed is a study, not the crew's pace.")
+    return ("because the simulator's own power path disagrees with the "
+            "field by a factor of 2.3 on this boat (docs/TRACKING.md) and "
+            "the field is the arbiter.")
 
 
 def _fallback_caveat(control_rows) -> str:
@@ -1235,13 +1317,12 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
           "not a collegiate mean. The eight is still a masters reference "
           "crew rather than anybody in particular. Its lines are priced "
           "at the four's measured Charles pace -- %s in %d, %.2f m/s -- "
-          "because the simulator's own power path disagrees with the "
-          "field by a factor of 2.3 on this boat (docs/TRACKING.md) and "
-          "the field is the arbiter."
+          "%s"
           % (four[2], four[3] / 1000.0,
              "%d:%04.1f" % (four[4][0] // 60, four[4][0] % 60)
              if four[4] else "no result on file",
-             2024, four[4][1] if four[4] else float("nan")))
+             2024, four[4][1] if four[4] else float("nan"),
+             _pace_reason(profile)))
          if four and four[4] else
          "Critical power and anaerobic capacity are collegiate means, not "
          "this crew."),
@@ -1255,12 +1336,7 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
                       % (label, priced, got, 100.0 * (priced - got) / got)
                       for label, priced, got in optimism)
           + ". Rankings survive that; absolute finishing times do not. "
-          "The reason is known: the blade's force is a function of stroke "
-          "phase with no velocity term, so the propulsive efficiency the "
-          "6-DOF path implies comes out proportional to boat speed -- "
-          "0.37 at 2.8 m/s rising to 0.77 at 5.8, on both hulls. It was "
-          "calibrated where an eight races, which is why the eight looks "
-          "right and this four does not.")
+          + _optimism_reason(profile))
          if optimism else
          "The route evaluator is quasi-steady and optimistic against the "
          "full 6-DOF boat. Rankings survive that; absolute finishing times "

@@ -183,6 +183,41 @@ Candidates, in the order they are being checked:
 Pinned by `test_research_passes_the_defect_targets_shipped_fails`, which
 asserts the fail and the value, so a fix announces itself.
 
+### The research report has no masters eight to simulate
+**Impact: medium — half the fleet is missing from one page.**
+
+The offline report runs `--physics research`, and the dynamic oar drives a
+boat at a stated handle power per rower. The four has one: its own erg
+watts. The masters eight does not. `MASTERS_POWER = 0.658` is a force scale,
+and turning a scale into watts means `mean_handle_power` — which dots the
+oarlock force with the handle velocity, not a conjugate pair under the ideal
+lever, and already an open question. Coaching material gives ranges, not
+on-water measurements.
+
+So under research the eight's steering run and settled speed are **left off
+the page, and the page says why**. `reference_eight` and `quasi_steady_gap`
+refuse a dynamic-oar profile rather than guess. The eight's racing lines are
+still priced, because the route evaluator is quasi-steady and never runs the
+simulator.
+
+*Next:* a sourced masters-eight handle power — an instrumented masters crew
+or a published power meter study — and the eight goes back on the page.
+Pinned by `test_the_masters_eight_is_refused_under_the_dynamic_oar`.
+
+### The steering table's caption is transcribed, and wrong on a research page
+**Impact: low — a caption, but it contradicts the table beside it.**
+
+`build_report`'s "Steering the real boat" caption quotes numbers as prose:
+"six seconds is 29 m for the eight and 16 m for the four", "12.88 m rms",
+"holds the line to 0.80 m, better than the eight". They were true of one
+shipped run and are not recomputed. On a `--physics research` page there is
+no eight in the table at all, and the four's predictive run reads 1.10 m rms,
+not 0.80. It is the same failure the rest of the page was rebuilt to avoid:
+nothing on it should be transcribed.
+
+*Next:* compute the look-ahead distances and the rms figures from the run's
+own rows, or drop the numbers from the caption.
+
 ### The drive is 18–28% too long, and the cause is the ergometer
 **Impact: high — drive duration sets the time base of the whole stroke.**
 

@@ -26,20 +26,96 @@ def _research_boat():
     return physics.resolve("research").apply(catalog.build("4+", rate=30.0))
 
 
-def test_the_report_refuses_a_dynamic_oar_profile_at_the_door(tmp_path):
-    """Before the river is built, not forty minutes in.
-
-    The prescribed oar block would refuse at the first derivative anyway,
-    but only after the expensive stages had run.
-    """
+def _make_report():
     sys.path.insert(0, os.path.join(ROOT, "scripts"))
     import make_report
 
+    return make_report
+
+
+def test_the_report_refuses_unbuilt_physics_at_the_door(tmp_path):
+    """Before the river is built, not forty minutes in.
+
+    ``learned`` names a tier 2 blade and a trained policy, neither of which
+    exists. It used to be ``research`` refused here; research is ported now,
+    and the door refuses what is genuinely not there.
+    """
+    make_report = _make_report()
     out = tmp_path / "report"
     with pytest.raises(SystemExit) as raised:
-        make_report.main(["--physics", "research", "--out", str(out)])
+        make_report.main(["--physics", "learned", "--out", str(out)])
     assert raised.value.code == 2
     assert not out.exists(), "it refused, so it must not have started"
+
+
+def test_the_report_lets_research_through_the_door(tmp_path, monkeypatch):
+    """Research gets past argument checking and into the first stage."""
+    make_report = _make_report()
+
+    class _PastTheDoor(Exception):
+        pass
+
+    def stop(*_args, **_kwargs):
+        raise _PastTheDoor()
+
+    monkeypatch.setattr(make_report, "progress", stop)
+    with pytest.raises(_PastTheDoor):
+        make_report.main(["--physics", "research",
+                          "--out", str(tmp_path / "report")])
+
+
+def test_the_masters_eight_is_refused_under_the_dynamic_oar():
+    """No sourced wattage, so no simulated eight -- refused, not guessed."""
+    make_report = _make_report()
+    with pytest.raises(ValueError, match="handle power"):
+        make_report.reference_eight(profile="research")
+    with pytest.raises(ValueError, match="handle power"):
+        make_report.quasi_steady_gap(5.2, profile="research")
+    # The shipped eight is untouched.
+    boat = make_report.reference_eight(profile=physics.SHIPPED)
+    assert boat.physics_profile == physics.SHIPPED
+
+
+def test_the_four_is_driven_at_its_own_erg_watts(monkeypatch):
+    """Roster watts directly; the questionable conversion never consulted."""
+    import numpy as np
+
+    from coxswain.crew import exertion
+    from coxswain.sim.dynamic_oar import DynamicOarSimulator, simulator_for
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("mean_handle_power ran on a dynamic-oar four")
+
+    monkeypatch.setattr(exertion, "mean_handle_power", forbidden)
+    make_report = _make_report()
+    boat, lineup, target = make_report.hocr_four(profile="research")
+
+    watts = [r.watts for r in lineup.rowers if r.watts]
+    assert target == np.mean(watts)
+    assert boat.handle_watts == target
+    assert float(np.mean(boat.power_scales)) == pytest.approx(1.0, abs=1e-12)
+    assert isinstance(simulator_for(boat), DynamicOarSimulator)
+
+
+@pytest.mark.slow
+def test_the_reports_settle_runs_the_dynamic_oar_under_research(monkeypatch):
+    """``settled_speed`` on the research four goes through the dynamic run."""
+    from coxswain.sim.dynamic_oar import DynamicOarSimulator
+
+    calls = []
+    original = DynamicOarSimulator.run
+
+    def spy(self, *args, **kwargs):
+        calls.append(kwargs.get("duration", args[0] if args else None))
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(DynamicOarSimulator, "run", spy)
+    make_report = _make_report()
+    boat, _lineup, _target = make_report.hocr_four(profile="research")
+    period = float(boat.timing.period)
+    speed = make_report.settled_speed(boat, 3.6, duration=6.0 * period)
+    assert calls, "the dynamic oar never ran"
+    assert 1.5 < speed < 6.0, speed
 
 
 def test_the_scorecard_prescribed_settle_refuses_a_dynamic_oar_boat():
