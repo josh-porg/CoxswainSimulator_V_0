@@ -144,14 +144,17 @@ TARGETS = (
         implemented=False,
         min_blade_tier=1,
         note="PENDING DATA. Aspect ratio 2, chosen to resemble an oar "
-             "blade, Re 4-8e4. The abstract gives three points -- 1.10 at "
-             "the surface, peaking at 1.60 around 20 mm, settling to 1.30 "
-             "deeper -- which is enough to show our immersion_factor is "
-             "QUALITATIVELY wrong (ours is monotone and saturating; the "
-             "measurement has an optimum) but not enough to fit against. "
-             "The full curve needs digitising from the paper's figure, "
-             "which has not been obtained. Three second-hand points are "
-             "not a basis for physics.",
+             "blade, Re 4-8e4. The open-access paper has been read in full "
+             "([G19] in docs/SOURCES.md): steady-phase C_D is 1.10 with the "
+             "plate's top edge at the surface, peaks at 1.60 at 20 mm "
+             "cover (1/5 of the 100 mm plate height, a 45% rise), and is "
+             "1.30 fully submerged. That is enough to show our "
+             "immersion_factor is QUALITATIVELY wrong (ours is monotone and "
+             "saturating; the measurement has an optimum) but not enough to "
+             "fit against: the full curve is the paper's figure 4 and still "
+             "needs digitising, and its depths are for a 100 mm plate, so "
+             "carrying it to a blade needs cover as a fraction of blade "
+             "width. Three points are not a basis for physics.",
     ),
     Target(
         key="grift_force_decomposition",
