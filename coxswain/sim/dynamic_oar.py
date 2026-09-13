@@ -147,7 +147,19 @@ class DynamicOarSimulator(RowingSimulator):
     :func:`~coxswain.sim.oarloop.settle_at_power` gives a starting point).
     """
 
-    def __init__(self, boat, peak_torque: float, **kwargs):
+    #: The blade laws this simulator can run.  ``"slip"`` is tier 1 --
+    #: [CR06] Model 1, a normal load from the normal slip -- and is the
+    #: default, with its arithmetic untouched.  ``"liftdrag"`` is tier 2 --
+    #: :class:`~coxswain.crew.liftdrag.LiftDragBlade`, lift and drag on the
+    #: angle of attack, on provisional coefficients.
+    BLADE_LAWS = ("slip", "liftdrag")
+
+    def __init__(self, boat, peak_torque: float, blade_law: str = "slip",
+                 **kwargs):
+        if blade_law not in self.BLADE_LAWS:
+            raise ValueError("unknown blade law %r; this simulator runs %s"
+                             % (blade_law, ", ".join(self.BLADE_LAWS)))
+        self.blade_law = blade_law
         super().__init__(boat, **kwargs)
         offsets = np.asarray(boat.phase_offsets, dtype=float)
         if offsets.size and np.ptp(offsets) > 1e-12:
@@ -182,6 +194,20 @@ class DynamicOarSimulator(RowingSimulator):
                 boat, inertia=shared[key], seat=index))
         self.n_oar_states = len(self._seats)
         self._oar_state = None
+
+        # Tier 2: one lift-drag blade per seat, sized from that seat's own
+        # oar -- sweep and sculling blades differ in area, 0.110 m^2 against
+        # 0.083 -- and the water it rows in.
+        self._liftdrag = []
+        if self.blade_law == "liftdrag":
+            from ..crew.liftdrag import LiftDragBlade
+
+            for slot, seat in enumerate(self._seats):
+                lock = boat.rig.seats[seat].oarlocks[0]
+                self._liftdrag.append(LiftDragBlade.big_blade(
+                    outboard=float(self._oars[slot].outboard),
+                    area=float(lock.oar.blade_area),
+                    density=float(boat.water.density)))
 
     @staticmethod
     def peak_torque_for_power(boat, watts: float) -> float:
@@ -255,6 +281,26 @@ class DynamicOarSimulator(RowingSimulator):
             np.asarray(lock.position, dtype=float))
         return float(velocity @ normal) / max(float(np.cos(angle)), 1e-6)
 
+    def _lock_velocity(self, state, lock) -> np.ndarray:
+        """The oarlock's water-relative velocity, hull frame."""
+        return self._water_velocity_hull(state) + np.cross(
+            np.asarray(state.omega_hull, dtype=float),
+            np.asarray(lock.position, dtype=float))
+
+    def _blade_loads(self, slot, angle, rate, state, lock):
+        """``(F_n, F_t)``: the blade's load normal to it and along the shaft.
+
+        Tier 1 has no tangential load, by construction.  Tier 2 resolves the
+        whole velocity of the blade through the water, so it has both.
+        """
+        if self.blade_law == "slip":
+            speed = self._lock_speed_on_normal(state, lock, angle)
+            return (float(self._oars[slot].blade.normal_force(angle, rate,
+                                                              speed)), 0.0)
+        velocity = self._lock_velocity(state, lock)
+        return self._liftdrag[slot].loads(angle, rate, velocity[:2],
+                                          int(lock.side))
+
     def _torque(self, seat_slot: int, angle: float, state: State,
                 t: float) -> float:
         """Handle torque for one seat at time ``t``.
@@ -288,12 +334,19 @@ class DynamicOarSimulator(RowingSimulator):
                 continue                          # blade out: recovery
             for lock in self.boat.rig.seats[seat].oarlocks:
                 side = int(lock.side)
-                speed = self._lock_speed_on_normal(state, lock, angle)
-                normal_force = float(oar.blade.normal_force(angle, rate,
-                                                            speed))
                 normal = np.array([np.cos(angle), -side * np.sin(angle), 0.0])
                 axis = np.array([np.sin(angle), side * np.cos(angle), 0.0])
-                load = normal_force * normal
+                if self.blade_law == "slip":
+                    speed = self._lock_speed_on_normal(state, lock, angle)
+                    normal_force = float(oar.blade.normal_force(angle, rate,
+                                                                speed))
+                    load = normal_force * normal
+                else:
+                    f_n, f_t = self._blade_loads(slot, angle, rate, state,
+                                                 lock)
+                    # The tangential load acts along the shaft, so it moves
+                    # the boat without turning the oar.
+                    load = f_n * normal + f_t * axis
                 point = np.asarray(lock.position, dtype=float) \
                     + oar.outboard * axis
                 force += load
@@ -320,7 +373,7 @@ class DynamicOarSimulator(RowingSimulator):
             torque = self._torque(slot, angle, state, t)
             locks = self.boat.rig.seats[seat].oarlocks
             angle_rate[slot] = rate
-            if len(locks) == 1:
+            if len(locks) == 1 and self.blade_law == "slip":
                 # A sweep seat: one rower, one oar -- exactly the balance the
                 # unit was validated on, arithmetic unchanged.
                 rate_rate[slot] = float(oar.acceleration(
@@ -328,11 +381,11 @@ class DynamicOarSimulator(RowingSimulator):
                     self._lock_speed_on_normal(state, locks[0], angle)))
             else:
                 rate_rate[slot] = self._seat_acceleration(
-                    oar, angle, rate, torque, state, locks)
+                    oar, angle, rate, torque, state, locks, slot)
         return np.concatenate([hull_rate, angle_rate, rate_rate])
 
     def _seat_acceleration(self, oar, angle, rate, torque, state,
-                           locks) -> float:
+                           locks, slot: Optional[int] = None) -> float:
         """``phi_ddot`` for a seat whose one rower swings several oars.
 
         One body, one balance::
@@ -352,9 +405,17 @@ class DynamicOarSimulator(RowingSimulator):
         moment, slope = oar.inertia_at(angle)
         oar_inertia = float(getattr(oar.inertia, "oar_inertia", 0.0))
         seat_inertia = moment + (len(locks) - 1) * oar_inertia
-        blade = sum(float(oar.blade_torque(
-            angle, rate, self._lock_speed_on_normal(state, lock, angle)))
-            for lock in locks)
+        if self.blade_law == "slip":
+            blade = sum(float(oar.blade_torque(
+                angle, rate, self._lock_speed_on_normal(state, lock, angle)))
+                for lock in locks)
+        else:
+            if slot is None:
+                slot = self._oars.index(oar)
+            # Only the normal load turns the oar; the tangential load acts
+            # along the shaft, through the pin.
+            blade = sum(oar.outboard * self._blade_loads(
+                slot, angle, rate, state, lock)[0] for lock in locks)
         return float((-len(locks) * torque + blade
                       - 0.5 * slope * rate ** 2) / seat_inertia)
 
@@ -392,13 +453,32 @@ class DynamicOarSimulator(RowingSimulator):
                 if angle <= oar.finish_angle:
                     continue
                 for lock in self.boat.rig.seats[seat].oarlocks:
-                    speed = self._lock_speed_on_normal(state, lock, angle)
-                    load = abs(float(oar.blade.normal_force(angle, rate,
-                                                            speed)))
-                    if load <= 0.0:
-                        continue
-                    weighted += load * float(oar.blade.efficiency(
-                        angle, rate, speed))
+                    if self.blade_law == "slip":
+                        speed = self._lock_speed_on_normal(state, lock, angle)
+                        load = abs(float(oar.blade.normal_force(angle, rate,
+                                                                speed)))
+                        if load <= 0.0:
+                            continue
+                        efficiency = float(oar.blade.efficiency(
+                            angle, rate, speed))
+                    else:
+                        # Same definition as tier 1, so the two tiers score
+                        # against one band: 1 - |normal slip|/|blade speed|,
+                        # weighted by the normal load.
+                        blade = self._liftdrag[slot]
+                        velocity = self._lock_velocity(state, lock)[:2]
+                        f_n, _f_t = blade.loads(angle, rate, velocity,
+                                                int(lock.side))
+                        load = abs(float(f_n))
+                        if load <= 0.0:
+                            continue
+                        w_n, _w_a = blade.relative_velocity(
+                            angle, rate, velocity, int(lock.side))
+                        sweep = abs(oar.outboard * rate)
+                        efficiency = (float(np.clip(1.0 - abs(w_n) / sweep,
+                                                    0.0, 1.0))
+                                      if sweep > 1e-9 else 0.0)
+                    weighted += load * efficiency
                     total += load
         return weighted / total if total > 0.0 else None
 

@@ -89,6 +89,14 @@ def dynamic_trace(sim, run, label: str, seat_slot: int = 0,
     states = getattr(run, "last_states", None)
     if states is None:
         raise ValueError("this run did not keep its last stroke's states")
+    law = getattr(sim, "blade_law", "slip")
+    if law != "slip":
+        # This draws tier 1's normal-only load.  Drawing it for a tier 2 run
+        # would show the wrong load under the right label -- so refuse until
+        # the figure can draw both components.
+        raise NotImplementedError(
+            "the blade-path figure draws the slip law's normal load only; "
+            "this simulator runs %r" % (law,))
 
     n = sim.n_oar_states
     oar = sim._oars[seat_slot]

@@ -151,10 +151,20 @@ schedule the level rose with speed (0.49 → 0.81 on the eight), which is η ∝
 at the blade; measured on the dynamic run it is flat and falls slightly with
 power. So the defect is gone, and what is left is a level gap.
 
-**An open tension.** The eight and four reach published race pace at 380 W
-per rower *with* these blades. A blade a quarter less efficient than a real
-one should not do that, so something else is generous, 380 W is high, or the
-comparison is not like-for-like.
+**An open tension, and tier 2 sharpened it.** The eight and four reach
+published race pace at 380 W per rower *with* these blades. A blade a quarter
+less efficient than a real one should not do that, so something else is
+generous, 380 W is high, or the comparison is not like-for-like. **With the tier
+2 blade the boats overshoot:** the four settles at 5.27 m/s against a published
+4.5–5.1. So it is not a quirk of a leaky blade — either the drag is generous or
+380 W is high for those paces, which is the published-race-power data item.
+
+It has been seen before, independently. SOURCES §47 put the tier 1 slip blade
+on the prescribed sweep, in one degree of freedom with nothing fitted, and
+predicted 4.10 m/s against 3.82 measured on the water: 7% high. That was a
+different test (a prescribed sweep, not the dynamic oar), so it corroborates
+the direction rather than the size, and it does not say whether the drag or
+the power is the generous one.
 
 Candidates, in the order they are being checked:
 
@@ -174,7 +184,11 @@ Candidates, in the order they are being checked:
    and the next candidate is the first one that is.
 2. **No lift.** [CR06] Model 1 is a pure normal force. Sliasas & Tullis find
    propulsion lift-dominated in the first half of the drive, exactly where
-   this model's blade is least efficient. That is tier 2.
+   this model's blade is least efficient. That is tier 2. **Measured
+   (2026-09-13): it closes a little under half the gap.** With lift and drag
+   on the angle of attack, on the provisional [CG06a] coefficients, the level
+   is 0.663 on the eight and 0.669 on the four at 380 W, against 0.586 and
+   0.592 — still below 0.754, so this is part of the cause and not all of it.
 3. **The pull shape.** Kleshnev's handle-force curve against drive progress,
    applied here as a function of oar angle.
 4. **The reflected inertia**, derived from the ergometer kinematics and
@@ -242,8 +256,15 @@ efficiency gap without shortening the drive, so these look like two causes.
 [HF09] measured pairs, so the comparison is not like-for-like for an eight or a
 four.
 
-*Next:* confirm on the full hull once tier 2 is wired in. If it holds, the drive
-time needs its own cause — candidates are the pull shape, which is an erg-fitted
+**Confirmed on the full hull, with a qualification** (2026-09-13). Tier 2
+shortens the drive by about 5% — the eight from 0.400 to 0.379 at rate 28, the
+four from 0.510 to 0.486 at rate 32 — but only because the boat is faster; at a
+fixed speed it did not move the drive at all. The four is still 0.486 against
+0.395 on the water, so most of the gap remains. And tier 2 makes the four too
+fast at 380 W (5.27 m/s against a published 4.5–5.1), which is recorded in the
+blade-efficiency item above.
+
+*Next:* the drive time needs its own cause — candidates are the pull shape, which is an erg-fitted
 curve applied by angle, and the reflected inertia clamped at the catch, which
 each added about 0.03 of the stroke on the oar alone.
 

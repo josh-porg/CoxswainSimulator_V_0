@@ -417,3 +417,104 @@ def test_a_scullers_drive_closes_its_energy_books(single):
     kinetic = 0.5 * inertia * rate ** 2
     residual = handle + water - kinetic
     assert abs(residual) < 0.002 * handle, (handle, water, kinetic, residual)
+
+
+# ---------------------------------------------------------------------------
+# tier 2: lift and drag on the angle of attack
+# ---------------------------------------------------------------------------
+def test_an_unknown_blade_law_is_refused(eight):
+    with pytest.raises(ValueError, match="blade law"):
+        DynamicOarSimulator(eight, peak_torque=600.0, blade_law="magic")
+
+
+def test_the_default_is_still_tier_one(eight):
+    sim = DynamicOarSimulator(eight, peak_torque=600.0)
+    assert sim.blade_law == "slip"
+    assert sim._liftdrag == []
+
+
+def test_tier_two_puts_both_load_components_on_the_hull(eight):
+    """Normal AND tangential, at the blade -- checked by hand."""
+    from coxswain.crew.liftdrag import LiftDragBlade
+
+    sim = DynamicOarSimulator(eight, peak_torque=600.0, blade_law="liftdrag")
+    n = sim.n_oar_states
+    angle, rate = np.radians(25.0), -2.0
+    sim._oar_state = (np.full(n, angle), np.full(n, rate))
+    state = _straight(4.85)
+    try:
+        force, moment = sim._oar_loads(0.0, state)
+    finally:
+        sim._oar_state = None
+
+    expected_f, expected_m = np.zeros(3), np.zeros(3)
+    tangential_seen = 0.0
+    for slot, seat in enumerate(sim._seats):
+        lock = eight.rig.seats[seat].oarlocks[0]
+        oar = sim._oars[slot]
+        blade = LiftDragBlade.big_blade(outboard=oar.outboard,
+                                        area=lock.oar.blade_area,
+                                        density=eight.water.density)
+        side = int(lock.side)
+        f_n, f_t = blade.loads(angle, rate, np.array([4.85, 0.0]), side)
+        tangential_seen = max(tangential_seen, abs(f_t))
+        normal = np.array([np.cos(angle), -side * np.sin(angle), 0.0])
+        axis = np.array([np.sin(angle), side * np.cos(angle), 0.0])
+        load = f_n * normal + f_t * axis
+        point = np.asarray(lock.position) + oar.outboard * axis
+        expected_f += load
+        expected_m += np.cross(point, load)
+    assert np.allclose(force, expected_f, rtol=1e-12, atol=1e-9)
+    assert np.allclose(moment, expected_m, rtol=1e-12, atol=1e-9)
+    assert tangential_seen > 1.0, "a blade at 25 degrees has flow along it"
+
+
+def test_tier_two_turns_the_oar_with_its_normal_load_only(eight):
+    """``I phi_ddot + (1/2) I' w^2 = -tau + l F_n`` for a sweep seat."""
+    sim = DynamicOarSimulator(eight, peak_torque=600.0, blade_law="liftdrag")
+    y, state, angle, rate = _mid_drive(sim, surge=4.85)
+    n = sim.n_oar_states
+    got = sim.derivative(0.1, y)[STATE_SIZE + n]
+
+    oar = sim._oars[0]
+    lock = eight.rig.seats[sim._seats[0]].oarlocks[0]
+    torque = sim._torque(0, angle, state, 0.1)
+    f_n, _f_t = sim._blade_loads(0, angle, rate, state, lock)
+    moment, slope = oar.inertia_at(angle)
+    expected = (-torque + oar.outboard * f_n - 0.5 * slope * rate ** 2) / moment
+    assert got == pytest.approx(expected, rel=1e-12)
+
+
+def test_tier_two_efficiency_uses_tier_ones_definition(single):
+    """``1 - |normal slip| / |blade speed|``, weighted by normal load --
+    so the two tiers are scored against one band."""
+    sim = DynamicOarSimulator(single, peak_torque=400.0, blade_law="liftdrag")
+    n = sim.n_oar_states
+    states = np.zeros((STATE_SIZE + 2 * n, 1))
+    states[6, 0] = 4.3
+    angle, rate = np.radians(10.0), -2.2
+    states[STATE_SIZE:STATE_SIZE + n, 0] = angle
+    states[STATE_SIZE + n:, 0] = rate
+    got = sim._stroke_blade_efficiency(np.array([0.0]), states)
+
+    blade = sim._liftdrag[0]
+    oar = sim._oars[0]
+    locks = single.rig.seats[0].oarlocks
+    weighted = total = 0.0
+    for lock in locks:
+        u = np.array([4.3, 0.0])
+        f_n, _ = blade.loads(angle, rate, u, int(lock.side))
+        w_n, _ = blade.relative_velocity(angle, rate, u, int(lock.side))
+        eff = min(max(1.0 - abs(w_n) / abs(oar.outboard * rate), 0.0), 1.0)
+        weighted += abs(f_n) * eff
+        total += abs(f_n)
+    assert got == pytest.approx(weighted / total, rel=1e-12)
+
+
+def test_the_figure_refuses_to_draw_tier_two_as_tier_one(single):
+    from coxswain.viz.bladepath import dynamic_trace
+
+    sim = DynamicOarSimulator(single, peak_torque=400.0, blade_law="liftdrag")
+    run = sim.run_strokes(1, surge_speed=4.0)
+    with pytest.raises(NotImplementedError, match="slip law"):
+        dynamic_trace(sim, run, "tier 2")

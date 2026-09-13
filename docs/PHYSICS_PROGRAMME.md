@@ -61,7 +61,7 @@ shipped its crash.
 |---|---|---|
 | 0 | prescribed force profile, a function of stroke phase | **shipped** |
 | 1 | [CR06] Model 1 — normal load from blade slip, oar angle a dynamic state | **on the full hull, in `research`** — crew still prescribed |
-| 2 | [CR06] Model 2 family — lift and drag resolved against angle of attack | **unit built** (`coxswain/crew/liftdrag.py`), on provisional coefficients [CG06a]; not yet wired |
+| 2 | [CR06] Model 2 family — lift and drag resolved against angle of attack | **wired into the dynamic oar** (`blade_law="liftdrag"`) and measured on the full hull, on provisional coefficients [CG06a]; not yet a profile |
 | 3 | (rower, not blade) transformer policy outputting joint torques | planned |
 
 ---
@@ -73,7 +73,7 @@ shipped its crash.
 | 0 | Scaffolding: profiles, validation battery, freeze guards | scorecard reproduces every number the report already claims | **done** |
 | 1 | ~~Tier 1 blade as an efficiency factor~~ | **failed its gate — merged into phase 2** | **closed** |
 | 2 | Tier 1 blade: slip-quadratic **force**, oar angle a dynamic state | η against v — is the line through the origin gone, and does net propulsive impulse survive at race pace? | **gate passed on the full 6-DOF hull; `research` repointed, PARTIAL** |
-| 3 | Tier 2 blade: lift and drag on angle of attack | reproduces the sign and timing of Grift's measured tangential force | **unit built and tested; wiring next** |
+| 3 | Tier 2 blade: lift and drag on angle of attack | reproduces the sign and timing of Grift's measured tangential force | **wired and measured; the gate needs Grift's traces** |
 | 4 | Forward-dynamic rower (Rongère's formalism, torque-driven) | predicted CoM excursion lands in the measured band **without being fitted to it** | planned |
 | 5 | Tier 3 infrastructure: vectorised env, delay channels, BC dataset | throughput, measured, against the 10⁶–10⁷ steps training needs | planned |
 | 6 | Tier 3 training: BC then constrained PPO | the five acceptance tests, none of them trained on | planned |
@@ -475,6 +475,43 @@ result, until it is measured on the full hull.
 Two qualifications on the comparison itself: [HF09] measured coxless **pairs**,
 so an eight and a four are not like-for-like against them; and there is no
 sourced on-water drive fraction for a single.
+
+#### Tier 2 on the full hull — half the efficiency gap, and the boats get too fast
+
+`DynamicOarSimulator(..., blade_law="liftdrag")` runs the tier 2 blade: lift
+and drag on the angle of attack, both load components applied to the hull, the
+normal one turning the oar. The default law is still tier 1, arithmetic
+untouched. Same boats, same stated 380 W per rower, 14 strokes:
+
+| boat | blade | speed (m/s) | drive fraction | measured blade efficiency | surge swing |
+|---|---|---|---|---|---|
+| eight, rate 28 | tier 1 | 5.62 | 0.400 | 0.586 | 45% |
+| eight, rate 28 | **tier 2** | **6.00** | **0.379** | **0.663** | 41% |
+| four, rate 32 | tier 1 | 4.90 | 0.510 | 0.592 | 54% |
+| four, rate 32 | **tier 2** | **5.27** | **0.486** | **0.669** | 50% |
+
+Three things, measured rather than expected:
+
+- **It closes a little under half the efficiency gap.** On the scored
+  definition the level rises from 0.59 to 0.67, against a floor of 0.754 — so
+  it still fails, by less. (The oar-alone probe's 0.74 was the *energetic*
+  definition, which reads higher; that offset was measured before.)
+- **The drive shortens by about 5%, and only because the boat is faster.** On
+  the oar alone, at a fixed speed, tier 2 did not move the drive at all. On the
+  full hull the boat speeds up and the drive follows. The four at rate 32 is
+  still 0.486 against 0.395 on the water, so most of that gap remains, and
+  "separate causes" mostly holds — with that qualification.
+- **A better blade makes the boats too fast at 380 W.** The four settles at
+  5.27 m/s, above its published 4.5–5.1. That turns the tension recorded
+  earlier — boats reaching published pace with blades a quarter less efficient
+  than real ones — from a quirk of a leaky blade into a real question upstream:
+  either something in the drag is generous, or 380 W per rower is high for
+  those published paces. That is the published-race-power data item already
+  listed as blocked, now with a sharper reason to want it.
+
+On provisional coefficients from a secondary source, and not yet a profile:
+`research` still runs tier 1, and nothing here moves until the primary is read
+and the scorecard runs on tier 2.
 
 #### The inertia question, answered — derived, not fitted
 
