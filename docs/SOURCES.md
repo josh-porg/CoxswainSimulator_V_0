@@ -479,6 +479,90 @@ on `0.9 < Fr_h < 1.1` should be treated as indicative. Pinning it down
 needs the tank programme [D11] describes, or a finite-depth Michell
 calculation (Scragg & Nelson).
 
+### Finite-depth Michell: two sources read, one piece still missing
+
+A finite-depth Michell integral needs three things: the thin ship as a
+distribution of sources, the source that satisfies the free surface **and**
+the bed, and the conversion of the far-field waves into resistance. Two
+sources have been read in full; between them they cover the first and most
+of the third, not the second.
+
+#### [LV09] Lazauskas (2009), PhD thesis, chapter 5 — the deep-water chain, printed
+
+**L. V. Lazauskas**, *Resistance, Wave-Making and Wave-Decay of Thin Ships,
+with Emphasis on the Effects of Viscosity*, PhD thesis, Applied Mathematics,
+University of Adelaide, April 2009. Supplied as a PDF. Equations below were
+read from the rendered pages (thesis pp. 5-2 to 5-4; PDF pp. 43–45), because
+text extraction drops the symbols. §5.1 states its assumption plainly: water
+"of infinite extent".
+
+- `k₀ = g/U²`; a wave at angle `θ` has `k₂ = k₀ sec²θ` (§2, eq. 2.2 context);
+- unit Havelock source (eq. 5.4–5.5): a Rankine source plus a free-surface
+  image `K₁(k,θ) e^{k(z+ζ)}`, `K₁ = (k + k₂)/(k − k₂)`, the `k` path passing
+  above the pole at `k₂`;
+- Michell's source strength (eq. 5.8): `m(ξ,ζ) = 2U Y_ξ(ξ,ζ)`, `Y` the half-offset;
+- the hull transform (eq. 5.10–5.11):
+  `P + iQ = −(1/ik₁) ∬ Y_ξ e^{ik₁ξ + kζ} dξ dζ`, `k₁ = k cos θ`; by parts, the
+  offsets themselves plus a transom term;
+- far-field free-wave spectrum from the residue at `k₂` (eq. 5.16):
+  `A(θ) = −(2i/π) k₂² (P + iQ)`;
+- **Michell's integral** from the far-field energy (eq. 5.17):
+  `R_W = (π/2) ρ U² ∫_{−π/2}^{π/2} |A(θ)|² cos³θ dθ`;
+- the depth weight on the offsets (eq. 5.23): `M(x;k₂) = ∫_{z_b}^0 Y(x,z) e^{k₂z} dz`.
+
+This is the same integral `coxswain/hydro/michell.py` implements in Tuck's
+`λ = sec θ` form: its weight `e^{λ²gz/U²}` is `e^{k₂z}`. The thesis's form is
+an independent printed statement of it, so the prefactors can be checked
+against each other numerically before anything is extended.
+
+The rest of chapter 5 adds a viscous free-surface condition (eq. 5.18–5.25);
+not needed here.
+
+#### [LE16] Li & Ellingsen (2016) — the finite-depth wave pieces
+
+**Y. Li & S. Å. Ellingsen**, *Ship waves on uniform shear current at finite
+depth: wave resistance and critical velocity*, J. Fluid Mech. (2016);
+open access as arXiv:1604.06608. Full text read. Its "ship" is a moving
+**surface pressure distribution**, not a thin hull. With the shear set to zero,
+the paper says, it recovers Havelock's classical finite-depth results.
+
+- **finite-depth dispersion** — `c₀(k)² = (g/k)·tanh kh` (eq. 2.19 at `S = 0`);
+- **the stationary-wave condition** — `k·V = k c(k)` (eq. 2.15); for a wave
+  at angle `θ` that is `k V² cos²θ = g tanh kh`, which replaces
+  `k₂ = k₀ sec²θ` with a scalar root `K₀(θ)` per angle (eq. 2.25), no closed form;
+- **the resistance integral's structure** (eq. 2.26, §5 eq. 5.3): one
+  integral over `θ` of the source spectrum at `K₀(θ)`, divided by the
+  group-velocity factor `Fr² cos²θ − H f(θ) sech² K₀H`, with Heaviside factors
+  keeping only angles whose root exists;
+- **the critical speed** — `V_crit = √(gh)` (§3, after Havelock 1908): above
+  it, transverse waves drop out. That is the `Fr_h > 1` behaviour [D11]
+  describes and `shallow.py` currently *chooses* a relaxation for;
+- **the shape to expect** — Havelock (1922), as summarised in §5: resistance
+  peaks just *below* `√(gh)` and falls past it.
+
+#### What is still not sourced
+
+**The finite-depth Havelock source.** In [LV09] the thin ship enters through
+the source's free-surface image `e^{k(z+ζ)}`, which is where the hull's depth
+weight `e^{kζ}` comes from. With a bed at `z = −h` that image changes, and so
+do the depth weight and the prefactor of `A(θ)`. [LE16] does not give it: a
+surface pressure has no depth to weight. The weight is expected to become a
+ratio of hyperbolic cosines, but **no printed form has been read**, and that
+factor, with the normalisation, is the whole of the missing piece.
+
+Candidates: Wehausen & Laitone (1960), *Surface Waves* (cited by [LV09] as
+[139]); Srettensky (1936); Scragg & Nelson (1993), which applied finite-depth
+thin-ship theory to an eight. A Tuck & Lazauskas preprint, *Drag on a ship and
+Michell's integral*, was refused (HTTP 403). Tuck, Scullen & Lazauskas (2000)
+is infinite depth only.
+
+**Status: not implemented.** Before any extension: (a) check `michell.py`
+against [LV09] eq. 5.17 numerically on the Wigley hull. Then, with a printed
+finite-depth source or a derivation from one, (b) the deep limit `h → ∞` must
+reproduce (a), (c) `Fr_h ≤ 0.5` must match deep water [D11], and (d)
+resistance must peak just below `Fr_h = 1` (Havelock 1922). (b)–(d) are
+necessary, not sufficient.
+
 ### Verification of the drag increment
 
 Checks the implementation passes, against numbers not used to build it:

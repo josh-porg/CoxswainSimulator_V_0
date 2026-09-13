@@ -350,6 +350,20 @@ three chosen numbers; (2) unsteady wave resistance with memory — what [D11]
 validated at low frequency; (3) unsteady viscous resistance — no validated
 model yet, flagged. The ledger records the same.
 
+*Sourcing for (1), 2026-09-13.* Two sources read in full (SOURCES §6).
+Lazauskas's thesis [LV09] prints the whole **deep-water** thin-ship chain:
+Havelock source, source strength `2U Y_ξ`, hull transform with depth weight
+`e^{kζ}`, free-wave spectrum, and `R_W = (π/2)ρU²∫|A|²cos³θ dθ`. That is the
+integral `michell.py` already implements in Tuck's form, so it gives an
+independent check. Li & Ellingsen (2016) [LE16] prints the **finite-depth**
+wave pieces for a pressure source: the dispersion relation, the per-angle
+root that replaces `k₀ sec²θ`, the group-velocity denominator, the Heaviside
+cut-offs and the critical speed `√(gh)`. **Missing: the finite-depth Havelock
+source**, which sets the hull's depth weight and the spectrum's prefactor
+once a bed is present. Candidates: Wehausen & Laitone (1960), Srettensky
+(1936), Scragg & Nelson (1993). **Not implemented.** First step, which needs
+nothing new: check `michell.py` against [LV09] eq. 5.17 on the Wigley hull.
+
 ### The dynamic oar's drive is started by the water, not the rower
 **Impact: high — it is in every `research` stroke, and it blocks [CR06]'s release rule.**
 
