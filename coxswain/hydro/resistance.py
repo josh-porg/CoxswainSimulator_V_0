@@ -227,7 +227,17 @@ def hull_resistance(velocity_hull: np.ndarray,
                * coefficients.form_factor)
     shallow = shallow or DEEP_WATER
     depth_factor = float(shallow.factor(u))
-    if wave_table is not None:
+    at_depth = getattr(wave_table, "at_depth", None)
+    if at_depth is not None and shallow.enabled:
+        # A depth-aware table, which research profiles carry
+        # (:class:`~coxswain.hydro.finite_depth_michell.FiniteDepthWaveTable`):
+        # Sretenskii's finite-depth integral knows the bed, so the chosen
+        # shallow-water factor is not applied on top of it.  The factor
+        # reported is what depth did to the wave term.
+        deep_wave = float(np.abs(wave_table(abs(u))))
+        wave = float(at_depth(abs(u), shallow.depth))
+        depth_factor = wave / deep_wave if deep_wave > 0.0 else 1.0
+    elif wave_table is not None:
         # Michell's integral, precomputed against speed.  This replaces the
         # constant coefficient entirely: there is no fitted wave number
         # left, only the hull's own offsets.  The shallow-water factor

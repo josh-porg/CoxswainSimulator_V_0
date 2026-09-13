@@ -545,28 +545,125 @@ the paper says, it recovers Havelock's classical finite-depth results.
 - **the shape to expect** — Havelock (1922), as summarised in §5: resistance
   peaks just *below* `√(gh)` and falls past it.
 
-#### What is still not sourced
+#### [WL60] Wehausen & Laitone (1960) — the finite-depth integral, printed
 
-**The finite-depth Havelock source.** In [LV09] the thin ship enters through
-the source's free-surface image `e^{k(z+ζ)}`, which is where the hull's depth
-weight `e^{kζ}` comes from. With a bed at `z = −h` that image changes, and so
-do the depth weight and the prefactor of `A(θ)`. [LE16] does not give it: a
-surface pressure has no depth to weight. The weight is expected to become a
-ratio of hyperbolic cosines, but **no printed form has been read**, and that
-factor, with the normalisation, is the whole of the missing piece.
+**J. V. Wehausen & E. V. Laitone**, *Surface Waves*, Handbuch der Physik IX
+(Springer, 1960), pp. 446–778; online edition, Regents of the University of
+California, 2002, [surfacewaves.berkeley.edu](https://surfacewaves.berkeley.edu/),
+free for personal or academic use. Read: §20, pp. 579–582 (files
+`p573-604.pdf`), from the rendered pages; §13, pp. 477–495, for the source
+solutions; and the errata.
 
-Candidates: Wehausen & Laitone (1960), *Surface Waves* (cited by [LV09] as
-[139]); Srettensky (1936); Scragg & Nelson (1993), which applied finite-depth
-thin-ship theory to an eight. A Tuck & Lazauskas preprint, *Drag on a ship and
-Michell's integral*, was refused (HTTP 403). Tuck, Scullen & Lazauskas (2000)
-is infinite depth only.
+Eq. (20.69), which they attribute to **Sretenskii (1937)**, is the thin-ship
+wave resistance in water of depth `h`. In their axes `y` is vertical and
+`F(x, y)` the half-offset, with `ν = g/c²`:
 
-**Status: not implemented.** (a) Done: `michell.py` agrees with [LV09]
-eq. 5.17 analytically, and with trapezoid weights matches its Fig. 7.1. Then, with a printed
-finite-depth source or a derivation from one, (b) the deep limit `h → ∞` must
-reproduce (a), (c) `Fr_h ≤ 0.5` must match deep water [D11], and (d)
-resistance must peak just below `Fr_h = 1` (Havelock 1922). (b)–(d) are
-necessary, not sufficient.
+    R = (2ρg/π) ∫_{μ_h}^∞ [P²(μ) + Q²(μ)] √(μ / (μ − ν tanh μh)) dμ
+    P, Q = ∬ F_x(x, y) · cosh μ(y+h)/cosh μh · cos, sin(x √(νμ tanh μh)) dx dy
+
+- `μ_h` is "the nonzero solution of `μ = ν tanh μh` if such exists, i.e. if
+  `c²/gh < 1`; otherwise `μ_h = 0`";
+- **errata, p. 581:** "in numerator of first coefficient eliminate c". The
+  printed `2ρgc/π` is wrong; `2ρg/π` is the only coefficient that gives newtons;
+- "As `h → ∞`, `μ_h → ν` and one obtains one of the forms of Michell's integral."
+  With `μ = νλ²` the depth weight becomes `e^{νλ²y}`, the x-wavenumber `νλ`,
+  `√(μ/(μ−ν)) dμ = 2νλ²/√(λ²−1) dλ`, and `R = (4ρg²/πc²) ∫₁^∞ λ²/√(λ²−1)(P²+Q²) dλ`.
+  That is W&L eq. (20.68), [LV09] eq. 5.17, and `michell.py`'s form.
+
+The depth weight `cosh μ(y+h)/cosh μh`, which [LE16] could not supply and
+§6 above flagged as missing, is printed here.
+
+#### Built as a study, and checked
+
+`coxswain/hydro/finite_depth_michell.py`, `FiniteDepthMichell(depth=...)`, a
+subclass of `MichellWave` using the same station and level weights, and since
+2026-09-13 the research profiles' wave model (below). Numerics: `μ = μ_h + s²` removes the integrable singularity at
+the root; the upper limit is the parent's draft decay.
+
+| check | source | result |
+|---|---|---|
+| deep limit `h = 50 L`, Wigley, Fr 0.2–1.0 | W&L; `MichellWave` | ratio 1.00000 at all five |
+| `Fr_h ≤ 0.5` like deep water | [D11] | eight: within 0.14% at 3.80 m, 0.04% at 5.01 m |
+| resistance peaks just below `√(gh)` | Havelock (1922), via [LE16] | eight: at `Fr_h` 0.994, 0.983, 0.980, 0.979 for 1.64, 2.60, 3.80, 5.01 m |
+| quadrature converged near critical | — | 400, 1600, 6400 points agree to 0.001 N at `Fr_h` 0.95–1.05 |
+
+`tests/test_finite_depth_michell.py` pins these on the Wigley.
+
+*Against `shallow.py`'s chosen factor*, on the rate-32 eight with trapezoid
+weights (`R_h/R_deep` from Sretenskii, then `shallow.py`'s factor):
+
+| depth | 5.00 m/s | 5.50 m/s | 6.00 m/s | 6.50 m/s |
+|---|---|---|---|---|
+| 2.60 m | `Fr_h` 0.99: 2.26 / 2.94 | 1.09: 1.38 / 2.88 | 1.19: 1.13 / 2.53 | 1.29: 1.01 / 2.07 |
+| 3.80 m | 0.82: 1.17 / 1.17 | 0.90: 1.42 / 1.44 | 0.98: 1.39 / 2.83 | 1.07: 1.08 / 2.94 |
+| 5.01 m | 0.71: 1.04 / 1.05 | 0.79: 1.13 / 1.12 | 0.86: 1.18 / 1.26 | 0.93: 1.18 / 1.61 |
+
+Below about `Fr_h = 0.9` Schlichting's construction agrees with Sretenskii to a
+few percent. The chosen numbers do not. Near critical the chosen cap of 3.0
+stands where Sretenskii gives 1.4–2.3, and above critical the chosen relaxation
+holds the factor at 2–3 where the integral has already fallen to 1.0–1.4. In
+the shallowest water, 1.64 m, the ratio swings between 0.93 and 1.65 below
+critical, because depth moves the humps and hollows rather than scaling
+them, which no multiplying factor can represent. In absolute terms at 2.60 m and
+5.50 m/s the factor gives 82.7 N of wave drag against Sretenskii's 39.7 N,
+about 43 N on a total near 345 N.
+
+#### In the research model
+
+`research` and `learned` carry `wave="sretenskii"`
+(`coxswain/physics.py`). `apply()` hands the boat a `FiniteDepthWaveTable`:
+called with a speed it is the trapezoid deep-water table; `at_depth(u, h)`
+answers from Sretenskii rows tabulated as `R/U²` at depth nodes a ratio 1.10
+apart, each built the first time a depth near it is asked for.
+`hull_resistance` takes the wave term from `at_depth` instead of multiplying by
+the chosen factor. `shipped` keeps `"michell"`, and a plain table still gives
+exactly the old table × factor (`tests/test_research_wave_profile.py`).
+
+Between rows the table holds speed fixed below `Fr_h` 0.8, where the hull's
+humps sit at fixed speed, and `Fr_h` fixed above 0.9, where the critical peak
+does, blended between. Against the direct integral on the eight at depths
+half-way between rows (2.58 and 3.78 m), `Fr_h` 0.5–1.5: **worst 0.64%, 0.26 N**.
+Holding `Fr_h` fixed everywhere had left +7.7% at `Fr_h` 0.5, and 0.05-wide
+`Fr_h` nodes below 0.8 had left 9–13% at 0.575.
+
+*The Charles at constant power*, quasi-steady (power balance per station, no
+surge, current or wind), rate-32 eight, 4,826 m surveyed line (depth median
+3.19 m, 10th percentile 2.58 m, minimum 2.14 m). Time lost to depth against
+each model's own deep water:
+
+| deep-water speed at that power | chosen factor | Sretenskii | research − shipped |
+|---|---|---|---|
+| 4.5 m/s (1,077 W delivered) | +6.8 s | +1.1 s | −7.0 s |
+| 5.0 m/s (1,437 W) | +14.5 s | +13.7 s | −1.8 s |
+| 5.5 m/s (1,892 W) | +28.3 s | +13.6 s | −15.5 s |
+| 6.0 m/s (2,435 W) | +38.1 s | +5.5 s | −33.4 s |
+
+Near 5.0 m/s the 2.2–2.6 m shallows put the boat at critical, where the integral
+does peak, and the two agree. Faster, most of the course is supercritical and the
+chosen relaxation still charges two to three times the integral's wave drag. The
+largest local difference is 0.30 m/s, at `Fr_h` 1.04.
+
+*The validation scorecard*, whose races are in deep water, so only the
+trapezoid correction reaches it (rate 28; before → after):
+
+| law · boat | speed per watt | surge swing % | zero crossing | blade efficiency |
+|---|---|---|---|---|
+| slip · 8+ | 0.18828 → 0.18846 (+0.10%) | 47.20 → 47.16 | 1.2219 → 1.2202 | 0.5593 → 0.5594 |
+| slip · 4+ | 0.32869 → 0.32912 (+0.13%) | 50.35 → 50.29 | 1.3001 → 1.2890 | 0.5658 → 0.5658 |
+| lift-drag · 8+ | 0.20141 → 0.20160 (+0.10%) | 42.87 → 42.83 | 2.1146 → 2.1006 | 0.6305 → 0.6304 |
+| lift-drag · 4+ | 0.35130 → 0.35175 (+0.13%) | 46.43 → 46.36 | 2.3683 → 2.3478 | 0.6390 → 0.6390 |
+
+Every change is under 1% and in the direction 3% less wave drag should move
+it. No target changes status: blade-efficiency level still fails, everything
+implemented still passes.
+
+*Not converted:* `river/route.py`'s depth-to-speed table, `crew/pacing.py`'s
+factors, and `river/hydro_casadi.py`'s symbolic factor still use `shallow.py`
+whatever the profile.
+
+Still assumed: thin ship, linear free surface, flat bed, no banks, no sinkage or
+trim, and steady resistance at the instantaneous speed, which [D11] found to
+be the larger error near `Fr_h = 1`.
 
 ### Verification of the drag increment
 

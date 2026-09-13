@@ -94,6 +94,12 @@ class PhysicsProfile:
     #: state, with the blade model living in
     #: :class:`~coxswain.sim.dynamic_oar.DynamicOarSimulator`.
     oar: str = "prescribed"
+    #: Wave resistance.  ``"michell"``: the boat's own deep-water Michell
+    #: table times the chosen shallow-water factor, what ships.
+    #: ``"sretenskii"``: Michell with trapezoid weights, which matches
+    #: Lazauskas's printed Wigley curve, and Sretenskii's finite-depth
+    #: integral in place of the shallow-water factor (SOURCES sec. 6).
+    wave: str = "michell"
     #: Frozen profiles may not be altered, and the game may resolve only
     #: a frozen one.
     frozen: bool = False
@@ -107,6 +113,8 @@ class PhysicsProfile:
                 f"unknown rower driver {self.rower!r}")
         if self.oar not in ("prescribed", "efficiency", "dynamic"):
             raise ValueError(f"unknown oar driver {self.oar!r}")
+        if self.wave not in ("michell", "sretenskii"):
+            raise ValueError(f"unknown wave model {self.wave!r}")
         # A blade model and a prescribed oar are a contradiction in either
         # direction: tier 0 has no blade to be dynamic, and a tier above 0
         # whose oar ignores the blade is tier 0 wearing a label.
@@ -172,6 +180,14 @@ class PhysicsProfile:
             # efficiency-only wiring on top, which is the configuration
             # with no operating point.
             boat.blade_model = None
+        if self.wave == "sretenskii":
+            # Only where the boat already carries Michell's table: a boat
+            # built on the constant wave coefficient stays on it.
+            offsets = getattr(boat, "offsets", None)
+            if offsets is not None and getattr(boat, "wave_table",
+                                               None) is not None:
+                from .hydro.finite_depth_michell import wave_table_for
+                boat.wave_table = wave_table_for(offsets)
         boat.physics_profile = self.name
         return boat
 
@@ -235,6 +251,7 @@ PROFILES: Dict[str, PhysicsProfile] = {
         blade_tier=1,
         rower="prescribed",
         oar="dynamic",
+        wave="sretenskii",
     ),
     # Declared so the shape of the programme is visible in the code and not
     # only in the plan.  NOTHING behind it exists yet: there is no tier 2
@@ -250,6 +267,7 @@ PROFILES: Dict[str, PhysicsProfile] = {
         blade_tier=2,
         rower="learned",
         oar="dynamic",
+        wave="sretenskii",
     ),
 }
 

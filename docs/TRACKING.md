@@ -46,9 +46,11 @@ keeps the shipped sum bit for bit, pinned by a test. Tests pin the trapezoid
 sum to Fig. 7.1 at five Froude numbers, and the uniform excess at the peak
 (`tests/test_michell_quadrature.py`).
 
-*Open.* Switching `Boat`'s default changes every shipped speed by about 0.1%
-and the Holt comparison's numbers with it, so it is left for a decision rather
-than made here.
+*Decided, 2026-09-13: the research model takes it.* The aim is the research
+model's accuracy, and the game is frozen. So `MichellWave` keeps `"uniform"` as
+its default, which leaves `shipped` and the Holt comparison exactly where they
+were, and the `research` and `learned` profiles use trapezoid weights through
+`wave="sretenskii"` (see the shallow-water item).
 
 ### No model of a blade squared and immersed before the catch
 **Impact: medium.** The model has two clean regimes — a feathered skim
@@ -403,6 +405,44 @@ once a bed is present. Candidates: Wehausen & Laitone (1960), Srettensky
 (1936), Scragg & Nelson (1993). **Not implemented.** That first check is done:
 the formula agrees analytically and the shipped quadrature reads about 3%
 high ("Michell's sum reads about 3% high", above).
+
+*Sourced and built, 2026-09-13* — supersedes "Missing" above. Wehausen &
+Laitone (1960) [WL60] print Sretenskii's (1937) finite-depth thin-ship
+integral, eq. (20.69), with an erratum to its coefficient. Built as
+`FiniteDepthMichell` (`coxswain/hydro/finite_depth_michell.py`), now the research
+profiles' wave model. It passes the three checks: the deep limit reproduces `MichellWave`
+to 1.00000; at `Fr_h ≤ 0.5` it is within 0.14% of deep water; and resistance
+peaks at `Fr_h` 0.98–0.99 at all four Charles depth quantiles.
+
+*What it says about `shallow.py`:* below `Fr_h ≈ 0.9` Schlichting's
+construction agrees to a few percent. **The three chosen numbers overstate
+wave drag by up to about 2×:** the cap of 3.0 where the integral gives 1.4–2.3,
+and a relaxation still at 2–3 above critical where the integral is already
+1.0–1.4. On the eight at 2.60 m and 5.50 m/s that is 82.7 N of wave drag against
+39.7 N, about 43 N of a total near 345 N. In 1.64 m of water depth moves the
+humps and hollows, which no multiplying factor can represent (SOURCES §6).
+
+*Wired into the research model, 2026-09-13.* `research` and `learned` carry
+`wave="sretenskii"`; `shipped` is untouched. The boat gets a depth-aware table
+(within 0.64% of the direct integral between its depth rows) and
+`hull_resistance` uses it instead of the factor. On the Charles at constant
+power, quasi-steady, the eight's time lost to depth over 4,826 m:
+
+| deep-water speed | chosen factor | Sretenskii | research − shipped |
+|---|---|---|---|
+| 4.5 m/s | +6.8 s | +1.1 s | −7.0 s |
+| 5.0 m/s | +14.5 s | +13.7 s | −1.8 s |
+| 5.5 m/s | +28.3 s | +13.6 s | −15.5 s |
+| 6.0 m/s | +38.1 s | +5.5 s | −33.4 s |
+
+The validation scorecard (deep water, so the trapezoid correction only) moves by
+under 1% everywhere, speed per watt +0.10 to +0.13%, and no target changes
+status (SOURCES §6).
+
+**Still open.** `river/route.py`'s depth-to-speed table, `crew/pacing.py` and
+`river/hydro_casadi.py` still use the chosen factor for every profile, so route
+and pacing optimisation does not see this yet. And it is steady resistance at
+the instantaneous speed, which [D11] found is the larger error near critical.
 
 ### The dynamic oar's drive is started by the water, not the rower
 **Impact: high — it is in every `research` stroke, and it blocks [CR06]'s release rule.**
