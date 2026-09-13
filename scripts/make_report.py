@@ -300,8 +300,10 @@ def main(argv=None):
         "--physics", default=None,
         help="physics profile (see coxswain.physics). Defaults to the "
              "frozen 'shipped' configuration, which is what the online "
-             "report must use; pass 'research' for the offline programme. "
-             "Every figure is stamped with whichever was used.")
+             "report must use. A profile whose oar angle is a dynamic "
+             "state -- currently 'research' -- is refused until the "
+             "report is ported to it; run coxswain.validation.scorecard "
+             "for those. Every figure is stamped with the profile used.")
     parser.add_argument("--quick", action="store_true",
                         help="skip the animations, which dominate the runtime")
     parser.add_argument("--month", type=int, default=10)
@@ -318,6 +320,20 @@ def main(argv=None):
                              "boat's yaw time constant is 0.06 s so this "
                              "still resolves the dynamics")
     args = parser.parse_args(argv)
+
+    # Refuse up front, not forty minutes in.  The prescribed oar block would
+    # refuse a dynamic-oar boat at its first derivative anyway, but after
+    # the river has been built and the bridges rendered -- and a report
+    # that dies half-way is a worse message than one that says at the door
+    # what it cannot do yet.
+    from coxswain import physics as _physics
+
+    if _physics.resolve(args.physics).uses_dynamic_oar:
+        parser.error(
+            "profile %r makes the oar angle a dynamic state, and this report "
+            "still drives the prescribed oar through power_scales. Not "
+            "ported yet: run coxswain.validation.scorecard.run(%r) for "
+            "that physics." % (args.physics, args.physics))
 
     started = time.time()
     overall = progress(total=6, desc="report", unit="stage")

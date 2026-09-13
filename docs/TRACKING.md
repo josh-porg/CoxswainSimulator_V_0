@@ -503,6 +503,23 @@ wired into the simulator.
 | published race pace reached at **380 W per rower**: eight 5.33 m/s (band 5.0–5.6), four 4.76 (band 4.5–5.1) — where the prescribed model needed 720 W and 795 W and overshot anyway | same | same |
 | boat-class ordering falls out at equal power: eight > four > double > single, imposed nowhere | same | same |
 | the rower's pull takes the measured front-loaded curve, parameterised by oar **angle** because the drive duration is now an output | `torque_shape` | same |
+| a seam in the shipped simulator: the oar block moved verbatim into `RowingSimulator._oar_loads`, and **bit-identical** across the move | `simulator.py` | `tests/test_stepwise.py`, `tests/test_kernels.py`, `tests/unit/test_state_cache.py` — 17 passed |
+| the dynamic oar on the **full 6-DOF hull**: one angle per seat, blade load applied at the blade with no gearing factor, slip against the water-relative oarlock velocity so a turning boat's two sides differ | `coxswain/sim/dynamic_oar.py` | `tests/test_dynamic_oar.py` |
+| handle power is **closed-form**: work per drive is `peak × ∫shape dφ` whatever the speed, so the torque for a stated wattage needs no search; the integrated measurement agrees to 1% | `DynamicOarSimulator.peak_torque_for_power` | same |
+| the test that pins the efficiency-only collapse now builds that wiring **directly**, not through `research` — it is evidence of a failed approach and must not change meaning when the profile is repointed; the direct construction is proven identical to the profile's | `tests/test_blade_tier1.py` | same |
+| `research` **repointed at the dynamic oar**: profiles carry an `oar` driver (prescribed / efficiency / dynamic), a contradiction between tier and oar is rejected, and `apply` leaves `blade_model` off for a dynamic oar so the efficiency wiring cannot be laid on top | `coxswain/physics.py` | `tests/test_physics_profiles.py` |
+| UNSTABLE retired for **PARTIAL**, which names what is still unfinished: prescribed crew, synchronised crews only, report not ported. The tripwire still requires a warning on every unfrozen profile | same | same |
+| **the prescribed oar block refuses a dynamic-oar boat** -- one check that covers the scorecard, the report and anything else, firing only when the prescribed force is about to be applied, so reading a trim state is still allowed | `RowingSimulator._oar_loads` | same |
+| the scorecard **settles dynamic-oar boats at stated watts**, routed by the profile stamp, with drag priced by one shared helper; the questionable `mean_handle_power` conversion is kept out of the new physics | `coxswain/validation/scorecard.py` | `tests/test_validation_scorecard.py` |
+| the full hull's residual rise in η is **decomposed, not smoothed over**. The guessed cause — the swing starving the blade — was measured and is backwards. Half is power lost to the swing through nonlinear drag (16% at 3 m/s, 6% at 5.5); half is the blade slipping more on a slower boat, which is real physics. The drag half rides on the prescribed crew motion, i.e. defect two | `DynamicRun.drag_power_ratio` | `tests/test_dynamic_oar.py` |
+| the report **refuses a dynamic-oar profile at argument parsing**, before any expensive stage runs, rather than at the prescribed oar block's first derivative | `scripts/make_report.py` | `tests/test_dynamic_oar_consumers.py` |
+| **`research` scored end to end on the baseline's own harness**: η zero crossing 1.462 (eight) and 1.592 (four) against a floor of 0.15, η/v spread 0.380 and 0.389 against 0.08 — both defect targets that `shipped` fails (0.020, 0.027), passed on both boats | `scorecard.run("research")` | `tests/test_dynamic_oar_consumers.py` |
+
+**Open, found by that run:** the blade-efficiency *level* target
+(Kleshnev, 0.754–0.816) scores **n/a** on `research`. It is read from
+`boat.blade_model` and the prescribed sweep, and a dynamic-oar boat carries
+neither by design. It needs measuring from the dynamic run itself —
+force-weighted slip efficiency over the drive.
 
 **Found by checking the level and not just the shape**, which is the point
 of carrying both: the rig's **gearing was being applied to the blade force**

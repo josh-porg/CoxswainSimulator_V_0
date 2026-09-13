@@ -229,6 +229,17 @@ def test_the_efficiency_only_wiring_does_not_hold_the_boat_up():
     baseline = scorecard.settle(prescribed, SCALE, 3.4).speed
     assert baseline > 3.5, baseline
 
-    bladed = physics.resolve("research").apply(catalog.eight(rate=RATE))
+    # The failed wiring is built DIRECTLY, not through the ``research``
+    # profile.  This test is evidence of an approach that was tried and
+    # failed; it must keep measuring that approach whatever ``research``
+    # resolves to later.  Built through the profile, repointing the
+    # profile at the dynamic oar would have silently turned it into a
+    # test of something else -- and the assertion below would then fail
+    # for the wrong reason, or worse, pass for one.
+    from coxswain.crew.oarlock import BladeModel
+
+    bladed = catalog.eight(rate=RATE)
+    outboard = float(bladed.rig.seats[0].oarlocks[0].oar.outboard)
+    bladed.blade_model = BladeModel.sweep(outboard=outboard)
     collapsed = scorecard.settle(bladed, SCALE, 3.4, duration=250.0).speed
     assert collapsed < 0.5 * baseline, (baseline, collapsed)

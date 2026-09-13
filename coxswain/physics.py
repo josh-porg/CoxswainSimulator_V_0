@@ -87,6 +87,13 @@ class PhysicsProfile:
     blade_tier: int
     #: ``"prescribed"``, ``"forward"`` or ``"learned"``.
     rower: str
+    #: How the oars load the hull.  ``"prescribed"``: a function of stroke
+    #: phase, what ships.  ``"efficiency"``: the prescribed force scaled
+    #: by slip efficiency -- tried, has no operating point, and kept only
+    #: so the evidence stays buildable.  ``"dynamic"``: the oar angle as a
+    #: state, with the blade model living in
+    #: :class:`~coxswain.sim.dynamic_oar.DynamicOarSimulator`.
+    oar: str = "prescribed"
     #: Frozen profiles may not be altered, and the game may resolve only
     #: a frozen one.
     frozen: bool = False
@@ -98,6 +105,21 @@ class PhysicsProfile:
         if self.rower not in ("prescribed", "forward", "learned"):
             raise ValueError(
                 f"unknown rower driver {self.rower!r}")
+        if self.oar not in ("prescribed", "efficiency", "dynamic"):
+            raise ValueError(f"unknown oar driver {self.oar!r}")
+        # A blade model and a prescribed oar are a contradiction in either
+        # direction: tier 0 has no blade to be dynamic, and a tier above 0
+        # whose oar ignores the blade is tier 0 wearing a label.
+        if (self.blade_tier == 0) != (self.oar == "prescribed"):
+            raise ValueError(
+                f"blade tier {self.blade_tier} cannot have a {self.oar!r} "
+                "oar: tier 0 is exactly the prescribed oar")
+
+    @property
+    def uses_dynamic_oar(self) -> bool:
+        """True when the oar angle is a state and the ordinary simulator's
+        prescribed oar block must not be used for this physics."""
+        return self.oar == "dynamic"
 
     # -- the blade -------------------------------------------------------
     def blade_model(self, boat=None):
@@ -141,7 +163,15 @@ class PhysicsProfile:
         callers already hold references to it -- and returns it so this
         reads as a pipeline at the call site.
         """
-        boat.blade_model = self.blade_model(boat)
+        if self.oar == "efficiency":
+            boat.blade_model = self.blade_model(boat)
+        else:
+            # Prescribed: tier 0 has none.  Dynamic: the blade lives in the
+            # dynamic simulator and must NOT also be set here -- the
+            # ordinary simulator reads ``blade_model`` and would lay the
+            # efficiency-only wiring on top, which is the configuration
+            # with no operating point.
+            boat.blade_model = None
         boat.physics_profile = self.name
         return boat
 
@@ -187,26 +217,24 @@ PROFILES: Dict[str, PhysicsProfile] = {
         rower="prescribed",
         frozen=True,
     ),
-    # WARNING, and it is not a small one.  ``blade_tier=1`` is the TARGET.
-    # What tier 1 currently resolves to is the efficiency-only wiring --
-    # the transmitted force scaled by the instantaneous slip efficiency --
-    # and that has **no viable operating point**: the eight collapses from
-    # 3.92 m/s to 0.63 because the efficiency factor is the destabilising
-    # half of the blade physics and the restoring half lives in the force
-    # model.  See ``tests/test_blade_tier1.py`` and TRACKING.
-    #
-    # It is left resolving to tier 1 rather than quietly dropped to tier 0
-    # because the collapse is the finding, and a profile that silently
-    # behaves like ``shipped`` would hide it.  Do not quote a speed from
-    # this profile until phase 2 lands the slip FORCE.
+    # The dynamic oar held phase 2's gate on the full 6-DOF hull on
+    # 2026-09-12, so this no longer resolves to the efficiency-only wiring
+    # (which collapsed the boat, and whose summary said UNSTABLE).  It is
+    # still PARTIAL, and says what is unfinished: the crew is prescribed
+    # and does not follow the dynamic oar, only synchronised crews run,
+    # and only the validation scorecard is ported -- the prescribed oar
+    # block refuses a boat carrying this stamp, so the report cannot
+    # silently simulate the shipped oar under this name.
     "research": PhysicsProfile(
         name="research",
-        summary="The offline programme: blade force from slip, oar angle "
-                "a dynamic state, torque-driven rower. UNSTABLE until "
-                "phase 2 -- the blade is wired as an efficiency only and "
-                "the boat collapses. Not for speed numbers.",
+        summary="The offline programme: blade force from slip with the oar "
+                "angle a dynamic state, on the full 6-DOF hull. PARTIAL -- "
+                "the crew is still prescribed from ergometer data and does "
+                "not follow the dynamic oar, synchronised crews only, and "
+                "only the validation scorecard runs it; the report refuses.",
         blade_tier=1,
         rower="prescribed",
+        oar="dynamic",
     ),
     # Declared so the shape of the programme is visible in the code and not
     # only in the plan.  NOTHING behind it exists yet: there is no tier 2
@@ -221,6 +249,7 @@ PROFILES: Dict[str, PhysicsProfile] = {
                 "programme. Not for any number at all.",
         blade_tier=2,
         rower="learned",
+        oar="dynamic",
     ),
 }
 

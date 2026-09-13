@@ -37,16 +37,18 @@ implicitly.
 | profile | blade | rower | who runs it |
 |---|---|---|---|
 | `shipped` | tier 0, prescribed | prescribed, erg-fitted | the game, the online report |
-| `research` | tier 1 → 2 | forward-dynamic, torque-driven | the offline report |
+| `research` | tier 1, dynamic oar → 2 | prescribed now; forward-dynamic, torque-driven next | the validation scorecard (the report is not ported) |
 | `learned` | tier 2 | a trained policy | training and study runs |
 
-**`research` is currently unstable and says so.** Tier 1 resolves to the
-efficiency-only wiring, which collapses the boat (see phase 1 below). It is
-deliberately left resolving to tier 1 rather than quietly dropped to tier 0,
-because the collapse is the finding and a profile that silently behaved like
-`shipped` would hide it — but it must not look safe, so the summary string
-says "UNSTABLE" and a test asserts that it does. **Do not quote a speed from
-`research` until phase 2 lands the slip force.**
+**`research` is PARTIAL, and says so.** Until 2026-09-12 it resolved to the
+efficiency-only wiring, which collapses the boat, and its summary said
+UNSTABLE. It now makes the oar angle a dynamic state on the full 6-DOF hull,
+which held phase 2's gate. What is still unfinished is named in its own
+summary: the crew is prescribed from ergometer data and does not follow the
+dynamic oar, only synchronised crews run, and only the validation scorecard
+is ported. **The prescribed oar block refuses a boat carrying this stamp**,
+so nothing -- the report included -- can silently simulate the shipped oar
+under the research label.
 
 `shipped` is **frozen, not current**. The freeze is held by a source scan
 over everything the trainer can execute, not by convention — a behaviour
@@ -58,7 +60,7 @@ shipped its crash.
 | tier | model | state |
 |---|---|---|
 | 0 | prescribed force profile, a function of stroke phase | **shipped** |
-| 1 | [CR06] Model 1 — normal load from blade slip, oar angle a dynamic state | in progress |
+| 1 | [CR06] Model 1 — normal load from blade slip, oar angle a dynamic state | **on the full hull, in `research`** — crew still prescribed |
 | 2 | [CR06] Model 2 family — lift and drag resolved against angle of attack | planned |
 | 3 | (rower, not blade) transformer policy outputting joint torques | planned |
 
@@ -70,7 +72,7 @@ shipped its crash.
 |---|---|---|---|
 | 0 | Scaffolding: profiles, validation battery, freeze guards | scorecard reproduces every number the report already claims | **done** |
 | 1 | ~~Tier 1 blade as an efficiency factor~~ | **failed its gate — merged into phase 2** | **closed** |
-| 2 | Tier 1 blade: slip-quadratic **force**, oar angle a dynamic state | η against v — is the line through the origin gone, and does net propulsive impulse survive at race pace? | **gate passed on the reduced model; full wiring next** |
+| 2 | Tier 1 blade: slip-quadratic **force**, oar angle a dynamic state | η against v — is the line through the origin gone, and does net propulsive impulse survive at race pace? | **gate passed on the full 6-DOF hull; `research` repointed, PARTIAL** |
 | 3 | Tier 2 blade: lift and drag on angle of attack | reproduces the sign and timing of Grift's measured tangential force | planned |
 | 4 | Forward-dynamic rower (Rongère's formalism, torque-driven) | predicted CoM excursion lands in the measured band **without being fitted to it** | planned |
 | 5 | Tier 3 infrastructure: vectorised env, delay channels, BC dataset | throughput, measured, against the 10⁶–10⁷ steps training needs | planned |
@@ -137,7 +139,7 @@ restoring term, because the restoring term is in the force model.
 model on costs "5.10 to 4.28 m/s". That was measured at 70 s, and 70 s is
 not convergence — from 3.4 m/s it reads 1.88 at 70 s and 0.63 at 250 s.
 
-### Phase 2 — in progress
+### Phase 2 — gate passed on the full hull; report not yet ported
 
 Tier 1 properly: the slip-quadratic **force** from [CR06] Model 1, with the
 oar angle as a dynamic state per seat. The rower drives the handle, the
@@ -148,7 +150,17 @@ blade resists, the angle follows.
 - [x] Inertia **derived** from de Leva masses and the joint chain, not fitted — and it varies sevenfold across the drive, so the balance carries the `½(dI/dφ)φ̇²` term
 - [x] Drive fraction predicted, unfitted, and it lands on the on-water measurement
 - [x] Couple it to hull surge on a reduced model, and answer the gate (`coxswain/sim/oarloop.py`)
-- [ ] Wire it into the full simulator: two states per seat
+- [x] A seam in the shipped simulator (`RowingSimulator._oar_loads`), cut as a verbatim move and held **bit-identical** by the golden trajectory
+- [x] `DynamicOarSimulator` on the full 6-DOF hull: one oar angle per seat, blade load applied at the blade, slip against the water-relative **oarlock** velocity so a turning boat's two sides differ (`coxswain/sim/dynamic_oar.py`)
+- [x] Handle power is closed-form — work per drive is `peak × ∫shape dφ` whatever the speed — and the integrated measurement agrees to 1%
+- [x] The gate on the full hull, with the crew's surge swing present — **passes, but weaker** (below)
+- [x] `research` repointed at the dynamic oar; UNSTABLE retired for PARTIAL, which names what is left
+- [x] The prescribed oar block refuses a dynamic-oar boat, so no consumer can run the shipped oar under a research label
+- [x] The scorecard settles dynamic-oar boats at **stated watts**, not power scales -- the only scale-to-watts conversion in the project is the questionable `mean_handle_power`
+- [x] The report refuses `--physics research` at argument parsing, before any expensive stage
+- [x] `scorecard.run("research")` end to end: both defect targets pass on the eight and the four, where `shipped` fails both
+- [ ] Score `blade_efficiency_level` on the dynamic oar — n/a today, because the level is read from `boat.blade_model`, which a dynamic-oar boat does not carry
+- [ ] Port the report to the dynamic oar
 - [ ] `StrokeTable` bypassed on the `research` profile (it assumes the chain depends on stroke time and nothing else)
 - [ ] Hands follow the dynamic angle, so the crew kinematics solve online
 - [ ] `flatness` deleted as a free parameter — it becomes an output
@@ -267,6 +279,111 @@ have passed straight through:
 - A **sculler was charged for one oar and credited with two**, which
   flattered the single by a factor of two in power and put it 28% above
   its published race pace.
+
+#### The gate on the full hull: holds, and weaker than the reduced model promised
+
+`DynamicOarSimulator` puts the oar physics on the full 6-DOF simulator, with
+the prescribed crew surging on its own clock. That is the thing the reduced
+model said it could not show.
+
+**It does not collapse.** On the eight at rate 28 — the regime where the
+efficiency-only wiring fell to 0.63 m/s — runs started at 3.4 and at 6.5 m/s
+meet at a racing speed, with the swing present. The restoring term the force
+model supplies is what the efficiency factor lacked.
+
+**The gate passes, by twelve times the floor.**
+
+| | η zero crossing | η/v spread |
+|---|---|---|
+| baseline, prescribed force | 0.020 × mean speed | 2.7% (flat) |
+| floor the target sets | 0.15 | — |
+| reduced model, no crew swing | 8.9 | — |
+| **full 6-DOF hull** | **1.81** | **39%** |
+
+| peak τ | speed | W per rower | η | surge swing |
+|---|---|---|---|---|
+| 200 N·m | 2.97 | 79 | 0.557 | 78% |
+| 450 | 4.21 | 178 | 0.665 | 58% |
+| 900 | 5.48 | 355 | 0.691 | 46% |
+
+The crossing is 1.81 on the full hull, not the reduced model's 8.9: η still
+rises with speed, 0.557 → 0.691, where the reduced model's was nearly flat.
+The swing is back, and it is largest exactly where the boat is slowest.
+
+**The obvious explanation is wrong, and was measured before it could be
+written down.** The guess was that the swing starves the blade at low speed,
+as it did the efficiency-only wiring. Blade efficiency weighted by force, at
+instantaneous against mean speed:
+
+| peak torque | swing | instantaneous / mean |
+|---|---|---|
+| 200 N m | 77% | **1.089** |
+| 450 | 58% | 0.923 |
+| 900 | 46% | 0.873 |
+
+The reverse of the prediction: the swing slightly *helps* the blade when the
+boat is slow and costs it more when fast. So the blade channel is not why
+eta is low at low speed. The next candidate is the drag channel -- drag power
+is steeply nonlinear in speed, so a large swing spends power that the
+numerator R(v_mean) v_mean never counts (Hofmijster's velocity efficiency).
+
+**Measured, and it is half the story.** Drag power averaged over a settled
+stroke, against drag power at the mean speed:
+
+| peak torque | swing | ⟨R(v)·v⟩ / R(v̄)·v̄ | η at mean speed | η, charged for the swing |
+|---|---|---|---|---|
+| 200 N·m | 77% | **1.164** | 0.558 | 0.650 |
+| 450 | 58% | 1.074 | 0.665 | 0.715 |
+| 900 | 46% | 1.062 | 0.692 | 0.734 |
+
+The swing wastes 16% of the drag power at 3 m/s and 6% at 5.5 m/s. Charge
+for it and the rise in η across the range halves, from 24% to 13%. What is
+left is the blade itself: force-weighted blade efficiency at mean speed rises
+0.563 → 0.671 over the same range, because a slower boat lets the same pull
+slip more. That is not a defect — SOURCES §7 already records blade efficiency
+rising with boat speed as a real term in the power budget — and it is exactly
+the speed dependence the prescribed model could not have.
+
+**So the residual is physics, not a phase 2 bug.** Half is the blade slipping
+more on a slower boat. Half is power lost to the surge swing, which is real,
+but whose size rides on the crew's prescribed motion — defect two, and phase
+4's job. Pinned by `test_the_residual_rise_in_eta_is_half_swing_and_half_blade`.
+
+#### The scorecard, on the same harness as the baseline
+
+`scorecard.run("research")` — the first time the research physics has been
+scored by the battery that recorded the defect. Dynamic-oar boats settle at
+stated watts per rower (80–360), not power scales.
+
+| target | band | `shipped` | `research` eight | `research` four |
+|---|---|---|---|---|
+| η zero crossing | ≥ 0.15 | 0.020 **fail** | 1.462 pass | 1.592 pass |
+| η/v spread | ≥ 0.08 | 0.027 **fail** | 0.380 pass | 0.389 pass |
+| surge swing | 30–60% | — | 46.1% pass | 49.6% pass |
+| blade efficiency level | 0.754–0.816 | n/a | **n/a** | **n/a** |
+
+Both defect targets that `shipped` fails, `research` passes, on both boats.
+(The crossing reads 1.46 here against 1.81 from the torque sweep above: the
+operating points differ, and the scorecard's is the canonical number.)
+
+**The level target is a gap, not a pass.** `_blade_efficiency_level` reads
+`boat.blade_model` and the prescribed sweep, and a dynamic-oar boat carries
+neither by design. Measuring it properly means weighting blade efficiency by
+force over the dynamic run itself.
+
+**Published race pace at 380 W per rower, full hull:**
+
+| boat | speed | band | |
+|---|---|---|---|
+| eight, rate 32 | 5.557 | 5.0–5.6 | in |
+| four, rate 32 | 4.902 | 4.5–5.1 | in |
+| single, rate 30 | 3.993 | 4.1–4.7 | **2.6% below** |
+
+The single misses, and it missed on the reduced model too (4.05), so the
+full hull did not cause it. It also carries the largest swing of the three
+(68%). Recorded as a miss, not tuned away: 380 W may simply be low for a
+racing sculler, and that is the published-race-power data item already
+listed as blocked.
 
 #### An unfitted prediction that lands on the water
 
@@ -395,6 +512,11 @@ the boat speeds that go with their drive durations).
 | 2026-09-12 | Roll is a budgeted constraint, not a weighted penalty | A weighted sum silently picks a Pareto point nobody chose |
 | 2026-09-12 | Phases 1 and 2 merged: tier 1 **is** the slip force with a dynamic oar angle | The efficiency factor alone is the destabilising half of the blade physics and has no operating point. Measured, not argued |
 | 2026-09-12 | Settle measurements run to 250 s, not 70 | 70 s is not convergence for this system, and two recorded figures were unconverged transients quoted as equilibria |
+| 2026-09-12 | Tier 3 tokenises on **stroke phase**, not time — 32 tokens per cycle, rate as a conditioning feature | Rate-invariant by construction; a time token covers a different amount of stroke at 20 spm than at 36, so the policy would see a shifted distribution for no physical reason |
+| 2026-09-12 | Sensory delays are **per channel**, not one number: proprioceptive ~30–50 ms, vestibular ~50–100, auditory ~160, visual ~180–200 | They are different pathways with different latencies, and they map onto the mechanical-versus-sensory coupling already scoped in `PLAN_SYNCHRONISATION_AND_BLADES.md`. Values are textbook and need a citation before they reach the report |
+| 2026-09-12 | The behaviour-cloning prior is **annealed out**, and constrains only what the erg genuinely establishes — joint limits, legs–trunk–arms sequencing, torque envelopes — not the torque trajectory | The trajectory is the part the fixed stretcher contaminates. A permanent L2 pull toward it is a pull toward the defect; PPO's KL term is a different regulariser toward a different centre |
+| 2026-09-12 | PPO is the baseline; **short-horizon analytic gradients (SHAC family)** run alongside it | The CasADi path already gives analytic derivatives, which most RL problems lack. Also: one shared policy with a seat embedding and a centralised critic (MAPPO), and GRU and temporal-convolution baselines so the transformer has to earn its place |
+| 2026-09-12 | Reward is **distance over a fixed number of stroke cycles**, under the existing `WPrimeBalance` energy budget | Instantaneous speed invites transient exploits; without an energy budget a policy produces unbounded power |
 | 2026-09-12 | Broken regression tests are xfail-strict with the reason, never loosened or deleted | Four of today's findings were sitting in failing tests. A loosened test would have hidden all four; a deleted one would have lost the evidence |
 
 ## Open questions
@@ -402,10 +524,6 @@ the boat speeds that go with their drive durations).
 - The neural-network rowing paper neither of us can place. Proceeding as
   though the application is genuinely open; rowing NN work found is all
   estimation, and generative muscle control has never been pointed at an oar.
-- Phase- or time-based tokenisation for tier 3. Leaning phase: rate-invariant
-  by construction. Cheap now, expensive after training starts.
-- PPO only, or PPO plus short-horizon analytic gradients? We have a
-  differentiable simulator, which most RL problems do not.
 - `mean_handle_power` dots the **oarlock** force with the **handle**
   velocity; under the ideal lever those are not a conjugate pair. It sits
   underneath every power number in the project.

@@ -213,6 +213,18 @@ class RowingSimulator:
         #: which the trainer's low tiers use; see
         #: :func:`coxswain.core.integrators.heun_step`.
         self.scheme = "rk4"
+        #: True when the boat carries a dynamic-oar profile stamp and this is
+        #: the ordinary simulator: its prescribed oar block must then refuse
+        #: to run, or it would simulate the shipped oar under a research
+        #: label.  A subclass that replaces ``_oar_loads`` is not refused.
+        #: See :meth:`_oar_loads`.
+        self._refuse_prescribed_oar = False
+        stamp = getattr(self.boat, "physics_profile", None)
+        if (stamp is not None
+                and type(self)._oar_loads is RowingSimulator._oar_loads):
+            from .. import physics as _physics
+            self._refuse_prescribed_oar = bool(
+                _physics.resolve(stamp).uses_dynamic_oar)
 
     def _blade_efficiency(self, t: float, state: State, blade) -> float:
         """Instantaneous blade efficiency, from slip and water depth.
@@ -336,28 +348,32 @@ class RowingSimulator:
         self._hand_cache = (t, value)
         return value
 
-    # -- force assembly ---------------------------------------------------
-    def breakdown(self, t: float, state: State) -> ForceBreakdown:
-        """Every force and moment acting, in the absolute frame."""
+    def _oar_loads(self, t: float, state: State):
+        """Force and moment the oars put on the hull, both in the hull frame.
+
+        A seam, not a change.  This is the prescribed-force block that used
+        to sit inline in :meth:`breakdown`, moved verbatim so that a research
+        simulator can replace how the oars load the hull without copying
+        the other four hundred lines of the force assembly.  The shipped
+        path must be bit-identical across the move, and
+        ``tests/test_stepwise.py`` holds it to the golden trajectory.
+
+        Refuses a boat stamped with a dynamic-oar profile.  Every consumer
+        that builds a boat through a profile and then simulates it -- the
+        scorecard, the report -- reaches the oars through here, so one
+        check covers them all, and it fires only when the prescribed force
+        is actually about to be applied: building the simulator to read a
+        trim state or a drag table is still allowed.
+        """
+        if getattr(self, "_refuse_prescribed_oar", False):
+            raise RuntimeError(
+                "this boat is stamped with physics profile %r, whose oar "
+                "angle is a dynamic state, but it is being run through the "
+                "PRESCRIBED oar block -- which would silently simulate the "
+                "shipped oar under a research label. Use "
+                "coxswain.sim.dynamic_oar.DynamicOarSimulator."
+                % getattr(self.boat, "physics_profile", None))
         boat = self.boat
-        rot = hull_to_abs(state.attitude)
-        gravity_abs = np.array([0.0, 0.0, -self.gravity])
-
-        # -- crew: prescribed motion in the hull frame -------------------
-        mass, position_hull, velocity_hull, acceleration_hull = \
-            self.crew_field(t)
-        field_abs = MovingMassField(
-            mass=mass, position=position_hull, velocity=velocity_hull,
-            acceleration=acceleration_hull,
-        ).to_abs(rot)
-        crew_force, crew_moment = moving_mass_reaction(field_abs, state.omega)
-
-        # -- gravity: on the whole system, moment from the crew offsets --
-        gravity_force = boat.total_mass * gravity_abs
-        gravity_moment = cross3(field_abs.position,
-                                mass[:, None] * gravity_abs).sum(axis=0)
-
-        # -- oars ---------------------------------------------------------
         oar_force_hull = np.zeros(3)
         oar_moment_hull = np.zeros(3)
         hands = self.hand_positions(t)
@@ -418,6 +434,31 @@ class RowingSimulator:
         lever = rig["position"] - hand + gearing[:, None] * hand
         oar_force_hull = oar_force_hull + (gearing[:, None] * applied).sum(axis=0)
         oar_moment_hull = oar_moment_hull + np.cross(lever, applied).sum(axis=0)
+        return oar_force_hull, oar_moment_hull
+
+    # -- force assembly ---------------------------------------------------
+    def breakdown(self, t: float, state: State) -> ForceBreakdown:
+        """Every force and moment acting, in the absolute frame."""
+        boat = self.boat
+        rot = hull_to_abs(state.attitude)
+        gravity_abs = np.array([0.0, 0.0, -self.gravity])
+
+        # -- crew: prescribed motion in the hull frame -------------------
+        mass, position_hull, velocity_hull, acceleration_hull = \
+            self.crew_field(t)
+        field_abs = MovingMassField(
+            mass=mass, position=position_hull, velocity=velocity_hull,
+            acceleration=acceleration_hull,
+        ).to_abs(rot)
+        crew_force, crew_moment = moving_mass_reaction(field_abs, state.omega)
+
+        # -- gravity: on the whole system, moment from the crew offsets --
+        gravity_force = boat.total_mass * gravity_abs
+        gravity_moment = cross3(field_abs.position,
+                                mass[:, None] * gravity_abs).sum(axis=0)
+
+        # -- oars ---------------------------------------------------------
+        oar_force_hull, oar_moment_hull = self._oar_loads(t, state)
 
         # -- hydrostatics -------------------------------------------------
         submerged = boat.mesh.submerged(

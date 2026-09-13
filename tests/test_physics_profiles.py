@@ -132,7 +132,10 @@ def test_apply_stamps_the_boat():
 
     boat = physics.resolve("research").apply(catalog.build("4+", rate=30.0))
     assert boat.physics_profile == "research"
-    assert boat.blade_model is not None
+    # A dynamic-oar profile leaves blade_model OFF: the blade lives in the
+    # dynamic simulator, and setting it here would lay the efficiency-only
+    # wiring on top in the ordinary simulator.
+    assert boat.blade_model is None
 
 
 # ---------------------------------------------------------------------------
@@ -216,22 +219,75 @@ def test_the_scan_would_catch_a_promotion():
     assert physics.SHIPPED not in found
 
 
-def test_the_research_profile_advertises_that_it_is_unstable():
-    """So nobody resolves it and quotes a boat speed.
+def test_the_research_profile_advertises_that_it_is_partial():
+    """So nobody resolves it and mistakes it for finished physics.
 
-    Tier 1 currently resolves to the efficiency-only wiring, which has no
-    operating point -- the eight collapses from 3.92 m/s to 0.63. The
-    profile is deliberately left at tier 1 rather than dropped to tier 0,
-    because the collapse is the finding and a profile that silently
-    behaved like ``shipped`` would hide it. What it must not do is look
-    safe. See ``tests/test_blade_tier1.py``.
+    History, kept because it is the point of the tripwire: until
+    2026-09-12 this profile resolved to the efficiency-only wiring, which
+    has no operating point, and its summary said UNSTABLE. That was retired
+    when the dynamic oar held phase 2's gate on the full 6-DOF hull. It is
+    still not finished -- the crew is prescribed from ergometer data and
+    does not follow the dynamic oar, only synchronised crews run, and the
+    report refuses it -- so it now says PARTIAL, and names what is left.
     """
     research = physics.resolve("research")
     assert research.blade_tier == 1
+    assert research.oar == "dynamic"
+    assert research.uses_dynamic_oar
     assert research.frozen is False
     summary = research.summary.lower()
-    assert "unstable" in summary
-    assert "collapse" in summary
+    assert "partial" in summary
+    assert "prescribed" in summary
+
+
+def test_a_dynamic_oar_profile_leaves_the_efficiency_wiring_off():
+    """``apply`` must not also set ``blade_model`` on a dynamic-oar boat.
+
+    The ordinary simulator reads ``blade_model`` and would lay the
+    efficiency-only wiring on top -- the configuration with no operating
+    point. The blade lives in the dynamic simulator instead.
+    """
+    from coxswain.boats import catalog
+
+    boat = physics.resolve("research").apply(catalog.build("4+", rate=30.0))
+    assert boat.blade_model is None
+    assert physics.resolve(physics.SHIPPED).oar == "prescribed"
+    assert physics.resolve(physics.SHIPPED).uses_dynamic_oar is False
+
+
+def test_the_prescribed_oar_block_refuses_a_dynamic_oar_boat():
+    """One check that covers every consumer, the report included.
+
+    A boat built through the research profile and handed to the ordinary
+    simulator would otherwise run the shipped oar under a research label.
+    Reading a trim state is still allowed; applying the prescribed oar
+    force is not.
+    """
+    from coxswain.boats import catalog
+    from coxswain.sim.simulator import RowingSimulator
+
+    boat = physics.resolve("research").apply(catalog.build("4+", rate=30.0))
+    sim = RowingSimulator(boat, fast=True)
+    y = sim.initial_state(surge_speed=4.0)
+    with pytest.raises(RuntimeError, match="dynamic state"):
+        sim.derivative(0.0, y)
+
+    shipped = physics.resolve(physics.SHIPPED).apply(
+        catalog.build("4+", rate=30.0))
+    RowingSimulator(shipped, fast=True).derivative(
+        0.0, RowingSimulator(shipped, fast=True).initial_state(4.0))
+
+
+def test_a_tier_and_an_oar_that_contradict_are_rejected():
+    with pytest.raises(ValueError):
+        physics.PhysicsProfile(name="x", summary="unbuilt", blade_tier=0,
+                               rower="prescribed", oar="dynamic")
+    with pytest.raises(ValueError):
+        physics.PhysicsProfile(name="x", summary="unbuilt", blade_tier=1,
+                               rower="prescribed", oar="prescribed")
+    with pytest.raises(ValueError):
+        physics.PhysicsProfile(name="x", summary="unbuilt", blade_tier=1,
+                               rower="prescribed", oar="sideways")
 
 
 def test_the_learned_profile_advertises_that_it_is_unbuilt():
@@ -261,7 +317,8 @@ def test_no_unfrozen_profile_looks_safe():
         if profile.frozen:
             continue
         summary = profile.summary.lower()
-        assert ("unstable" in summary or "unbuilt" in summary), (
+        assert any(word in summary
+                   for word in ("unstable", "unbuilt", "partial")), (
             "profile %r carries no warning in its summary. If it is now "
             "finished and trustworthy, say so here and in "
             "docs/PHYSICS_PROGRAMME.md rather than deleting this check -- "

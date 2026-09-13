@@ -37,8 +37,8 @@ import numpy as np
 from .. import physics
 from .targets import Target, TARGETS
 
-__all__ = ["Score", "Settled", "settle", "efficiency_at", "measure", "run",
-           "table", "OPERATING_POINTS"]
+__all__ = ["Score", "Settled", "settle", "settle_dynamic", "efficiency_at",
+           "measure", "run", "table", "OPERATING_POINTS", "DYNAMIC_POINTS"]
 
 
 #: ``(power_scale, starting_speed)`` pairs spanning the racing range.
@@ -55,11 +55,30 @@ OPERATING_POINTS = ((0.25, 2.6), (0.45, 3.4), (0.70, 4.4), (0.95, 5.4))
 SETTLE_DURATION = 70.0
 SETTLE_DT = 0.01
 
+#: ``(watts_per_rower, starting_speed)`` for a profile whose oar angle is a
+#: dynamic state.
+#:
+#: Stated in watts, not as a power scale, and deliberately.  A power scale
+#: is a multiplier on the prescribed handle force, and the only conversion
+#: to watts in the project is ``mean_handle_power``, which dots the oarlock
+#: force with the handle velocity -- not a conjugate pair under the ideal
+#: lever, and listed as an open question in docs/PHYSICS_PROGRAMME.md.  The
+#: dynamic oar's power is closed-form and measured, so importing that
+#: conversion into it would carry a known-bad number into the new physics.
+#: The span matches the speed range of the power-scale points.
+DYNAMIC_POINTS = ((80.0, 3.0), (180.0, 4.2), (260.0, 4.8), (360.0, 5.5))
+
+#: Strokes to settle a dynamic-oar run.  Sixteen leaves the stroke-to-stroke
+#: drift under 1% on the eight across the whole range of DYNAMIC_POINTS.
+SETTLE_STROKES = 16
+
 
 @dataclass(frozen=True)
 class Settled:
     """One boat, run to steady state at one power level."""
 
+    #: The operating point: a power scale for a prescribed-oar profile, and
+    #: WATTS PER ROWER for a dynamic-oar one (see ``DYNAMIC_POINTS``).
     scale: float
     #: Mean speed over the last few whole cycles, m/s.
     speed: float
@@ -117,11 +136,16 @@ def settle(boat, scale: float, start: float,
     because a scorecard that lets the coxswain controller intervene is
     measuring the controller as much as the physics.
     """
-    from ..core.state import State
     from ..crew.exertion import mean_handle_power
-    from ..hydro.resistance import hull_resistance
     from ..sim.control import Coxswain
     from ..sim.simulator import RowingSimulator
+
+    if _uses_dynamic_oar(boat):
+        raise ValueError(
+            "settle() drives the prescribed oar through power_scales; this "
+            "boat is stamped %r, whose oar angle is a dynamic state -- use "
+            "settle_dynamic(), which takes a stated wattage"
+            % getattr(boat, "physics_profile", None))
 
     boat.power_scales = np.full(boat.n_seats, float(scale))
     sim = RowingSimulator(
@@ -135,11 +159,29 @@ def settle(boat, scale: float, start: float,
     swing = float(np.ptp(speed[tail]) / max(mean_speed, 1e-9))
 
     crew = mean_handle_power(boat, samples=360) * float(scale) * boat.n_seats
+    drag = _drag_at(sim, boat, mean_speed)
 
-    # Resistance at the settled speed, computed exactly as the simulator
-    # computes it -- same submerged properties, same coefficients, same
-    # wave table -- so the two cannot disagree about what the drag is.
-    y = sim.initial_state(surge_speed=mean_speed)
+    return Settled(scale=float(scale), speed=mean_speed, surge_swing=swing,
+                   crew_power=crew, drag_power=drag * mean_speed)
+
+
+def _uses_dynamic_oar(boat) -> bool:
+    """Whether the profile stamped on ``boat`` makes the oar angle a state."""
+    name = getattr(boat, "physics_profile", None)
+    return name is not None and physics.resolve(name).uses_dynamic_oar
+
+
+def _drag_at(sim, boat, speed: float) -> float:
+    """Hull resistance at ``speed``, computed exactly as the simulator does.
+
+    Same submerged properties, same coefficients, same wave table -- so the
+    two cannot disagree about what the drag is.  Shared by both settles so
+    the prescribed and dynamic scorecards price drag identically.
+    """
+    from ..core.state import State
+    from ..hydro.resistance import hull_resistance
+
+    y = sim.initial_state(surge_speed=speed)
     props = boat.mesh.submerged(np.array([0.0, 0.0, float(y[2])]),
                                 np.asarray(y[3:6], dtype=float),
                                 rho=boat.water.density, gravity=9.81)
@@ -148,9 +190,37 @@ def settle(boat, scale: float, start: float,
                           getattr(boat, "shallow", None),
                           wave_table=getattr(boat, "wave_table", None))
     force = res[0] if isinstance(res, tuple) else res
-    drag = abs(float(np.asarray(force)[0]))
+    return abs(float(np.asarray(force)[0]))
 
-    return Settled(scale=float(scale), speed=mean_speed, surge_swing=swing,
+
+def settle_dynamic(boat, watts: float, start: float,
+                   strokes: int = SETTLE_STROKES) -> Settled:
+    """Settle a dynamic-oar boat at a stated handle power per rower.
+
+    Driven dead straight, as :func:`settle` is.  ``power_scales`` is set to
+    ones so the stated wattage is not silently rescaled per seat, and the
+    torque that delivers it is the closed form -- work per drive is
+    ``peak * integral(shape dphi)`` whatever the speed.  Crew power is the
+    measured handle power of the run itself, not the stated figure, so a
+    mismatch between the two would show in the table rather than be
+    assumed away.
+    """
+    from ..sim.control import Coxswain
+    from ..sim.dynamic_oar import DynamicOarSimulator
+
+    boat.power_scales = np.ones(boat.n_seats)
+    torque = DynamicOarSimulator.peak_torque_for_power(boat, float(watts))
+    sim = DynamicOarSimulator(
+        boat, peak_torque=torque,
+        coxswain=Coxswain(rudder_override=lambda t, s: 0.0), fast=True)
+    run = sim.run_strokes(int(strokes), surge_speed=float(start))
+
+    mean_speed = run.settled_speed()
+    swing = float(np.mean([each.surge_swing for each in run.strokes[-4:]]))
+    rowers = sum(1 for seat in boat.rig.seats if seat.oarlocks)
+    crew = run.settled_power() * rowers
+    drag = _drag_at(sim, boat, mean_speed)
+    return Settled(scale=float(watts), speed=mean_speed, surge_swing=swing,
                    crew_power=crew, drag_power=drag * mean_speed)
 
 
@@ -165,9 +235,18 @@ def efficiency_at(boat, scale: float, start: float):
     return got.speed, got.efficiency
 
 
-def sweep(boat, points: Sequence = OPERATING_POINTS):
-    """Settle ``boat`` at each operating point."""
-    return [settle(boat, scale, start) for scale, start in points]
+def sweep(boat, points: Optional[Sequence] = None):
+    """Settle ``boat`` at each operating point, by the physics it carries.
+
+    A boat stamped with a dynamic-oar profile is settled at stated
+    wattages (``DYNAMIC_POINTS``); anything else at power scales
+    (``OPERATING_POINTS``), exactly as before.
+    """
+    if _uses_dynamic_oar(boat):
+        chosen = DYNAMIC_POINTS if points is None else points
+        return [settle_dynamic(boat, watts, start) for watts, start in chosen]
+    chosen = OPERATING_POINTS if points is None else points
+    return [settle(boat, scale, start) for scale, start in chosen]
 
 
 # ---------------------------------------------------------------------------

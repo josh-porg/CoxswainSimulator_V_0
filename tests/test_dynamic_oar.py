@@ -1,0 +1,294 @@
+r"""The dynamic oar on the full 6-DOF hull.
+
+The reduced model (``tests/test_oarloop.py``) passed phase 2's gate and said
+what it could not show: the crew's mass did not move, so there was no
+intracycle surge swing -- the thing that destroyed the efficiency-only
+wiring.  This is the same oar physics on the full simulator, with the
+prescribed crew surging on its own clock and every other line of the force
+assembly the one ``shipped`` runs.
+
+The fast tests check the pieces against definitions that already exist.
+The slow ones measure the question the reduced model left open.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+import pytest
+
+from coxswain.core.state import STATE_SIZE, State
+from coxswain.sim.dynamic_oar import DynamicOarSimulator
+
+
+@pytest.fixture(scope="module")
+def single():
+    from coxswain.boats import catalog
+
+    return catalog.single_scull(rate=30.0)
+
+
+@pytest.fixture(scope="module")
+def eight():
+    from coxswain.boats import catalog
+
+    return catalog.eight(rate=32.0)
+
+
+def _straight(surge: float, yaw_rate: float = 0.0) -> State:
+    y = np.zeros(STATE_SIZE)
+    y[6] = surge
+    y[11] = yaw_rate
+    return State.from_vector(y)
+
+
+# ---------------------------------------------------------------------------
+# the pieces
+# ---------------------------------------------------------------------------
+def test_shipped_still_uses_the_prescribed_oar_block(eight):
+    """The seam is a seam. The shipped simulator's own ``_oar_loads`` is
+    the inline block moved verbatim; the golden trajectory holds it to the
+    bit (``tests/test_stepwise.py``). Here: the research override is not
+    what the base class runs."""
+    from coxswain.sim.simulator import RowingSimulator
+
+    assert (RowingSimulator._oar_loads
+            is not DynamicOarSimulator._oar_loads)
+
+
+def test_straight_running_slip_is_the_blade_models_own(eight):
+    """``u_lock . n / cos(phi)`` is just the surge when nothing turns."""
+    sim = DynamicOarSimulator(eight, peak_torque=600.0)
+    state = _straight(4.85)
+    for seat in eight.rig.seats:
+        for lock in seat.oarlocks:
+            for angle in np.radians((50.0, 10.0, -30.0)):
+                assert sim._lock_speed_on_normal(state, lock, angle) == \
+                    pytest.approx(4.85, rel=1e-12)
+
+
+def test_a_turning_boat_loads_its_two_sides_differently(single):
+    """Under yaw the outside blade meets faster water than the inside one."""
+    sim = DynamicOarSimulator(single, peak_torque=400.0)
+    state = _straight(4.0, yaw_rate=0.2)
+    locks = single.rig.seats[0].oarlocks
+    speeds = {int(lock.side): sim._lock_speed_on_normal(state, lock,
+                                                        np.radians(10.0))
+              for lock in locks}
+    assert len(speeds) == 2
+    assert abs(speeds[+1] - speeds[-1]) > 0.05, speeds
+
+
+def test_blade_load_acts_at_the_blade_with_no_gearing(eight):
+    """The Newtonian statement, checked against a hand calculation.
+
+    For the hull-plus-crew system the blade force is the external load, so
+    the hull gets ``sum F_n n`` at ``r_lock + l a`` -- not ``gearing`` times
+    it. The reduced model's level check caught exactly that factor.
+    """
+    sim = DynamicOarSimulator(eight, peak_torque=600.0)
+    n = sim.n_oar_states
+    angle, rate = np.radians(10.0), -2.0
+    sim._oar_state = (np.full(n, angle), np.full(n, rate))
+    state = _straight(4.85)
+    try:
+        force, moment = sim._oar_loads(0.0, state)
+    finally:
+        sim._oar_state = None
+
+    expected_f, expected_m = np.zeros(3), np.zeros(3)
+    for slot, seat in enumerate(sim._seats):
+        oar = sim._oars[slot]
+        for lock in eight.rig.seats[seat].oarlocks:
+            side = int(lock.side)
+            fn = float(oar.blade.normal_force(angle, rate, 4.85))
+            normal = np.array([np.cos(angle), -side * np.sin(angle), 0.0])
+            axis = np.array([np.sin(angle), side * np.cos(angle), 0.0])
+            point = np.asarray(lock.position) + oar.outboard * axis
+            expected_f += fn * normal
+            expected_m += np.cross(point, fn * normal)
+
+    assert np.allclose(force, expected_f, rtol=1e-12, atol=1e-9)
+    assert np.allclose(moment, expected_m, rtol=1e-12, atol=1e-9)
+    # A balanced eight's lateral loads cancel; the thrust does not.
+    assert abs(force[1]) < 1e-6 * abs(force[0])
+    assert force[0] > 0.0
+
+
+def test_a_finished_oar_puts_no_load_on_the_hull(eight):
+    sim = DynamicOarSimulator(eight, peak_torque=600.0)
+    n = sim.n_oar_states
+    finish = sim._oars[0].finish_angle
+    sim._oar_state = (np.full(n, finish - 1e-3), np.full(n, -2.0))
+    try:
+        force, moment = sim._oar_loads(0.0, _straight(4.85))
+    finally:
+        sim._oar_state = None
+    assert np.allclose(force, 0.0) and np.allclose(moment, 0.0)
+
+
+def test_refuses_what_it_does_not_model(eight):
+    from coxswain.boats import catalog
+
+    staggered = catalog.eight(rate=32.0)
+    offsets = np.zeros(staggered.n_seats)
+    offsets[3] = 0.02
+    staggered.phase_offsets = offsets
+    with pytest.raises(ValueError, match="synchronised"):
+        DynamicOarSimulator(staggered, peak_torque=600.0)
+
+    with pytest.raises(ValueError, match="blade_contact"):
+        DynamicOarSimulator(eight, peak_torque=600.0,
+                            blade_contact=object())
+
+
+def test_power_is_the_closed_form_work(single):
+    """Work per drive is ``peak * integral(shape dphi)``, whatever the speed.
+
+    Measured by integrating ``|tau phi_dot|`` through a real stroke and
+    compared with the closed form. A sculler, so the count of two oars per
+    rower is exercised too.
+    """
+    torque = DynamicOarSimulator.peak_torque_for_power(single, 380.0)
+    run = DynamicOarSimulator(single, peak_torque=torque).run_strokes(
+        1, surge_speed=4.3)
+    assert run.strokes[0].finished
+    assert run.strokes[0].handle_power == pytest.approx(380.0, rel=0.01)
+
+
+# ---------------------------------------------------------------------------
+# what the reduced model could not show
+# ---------------------------------------------------------------------------
+@pytest.mark.slow
+def test_it_does_not_collapse_where_the_efficiency_wiring_did():
+    """Phase 1's failure, re-run with the force model in place.
+
+    The efficiency-only wiring took the eight at rate 28 to 0.63 m/s from
+    either side -- positive feedback between the surge dip and blade
+    efficiency, with no restoring term. Same boat, same rate, the crew's
+    surge swing present, started from both sides of the answer: the two
+    runs must meet, at a racing speed.
+    """
+    from coxswain.boats import catalog
+
+    boat = catalog.eight(rate=28.0)
+    torque = DynamicOarSimulator.peak_torque_for_power(boat, 283.0)
+    finals = []
+    for start in (3.4, 6.5):
+        run = DynamicOarSimulator(boat, peak_torque=torque).run_strokes(
+            18, surge_speed=start)
+        assert all(s.finished for s in run.strokes[-4:])
+        assert run.strokes[-1].surge_swing > 0.3, "the swing must be present"
+        finals.append(run.settled_speed())
+    assert min(finals) > 3.0, finals
+    assert abs(finals[0] - finals[1]) < 0.01 * np.mean(finals), finals
+
+
+@pytest.mark.slow
+def test_the_eight_and_four_reach_published_pace_at_380_watts():
+    """The reduced model's result, on the full hull."""
+    from coxswain.boats import catalog
+
+    for name, low, high in (("8+", 5.0, 5.6), ("4+", 4.5, 5.1)):
+        boat = catalog.build(name, rate=32.0)
+        torque = DynamicOarSimulator.peak_torque_for_power(boat, 380.0)
+        run = DynamicOarSimulator(boat, peak_torque=torque).run_strokes(
+            16, surge_speed=low)
+        assert run.drift() < 0.005, (name, run.drift())
+        assert run.settled_power() == pytest.approx(380.0, rel=0.01)
+        assert low <= run.settled_speed() <= high, (name,
+                                                    run.settled_speed())
+
+
+@pytest.mark.slow
+def test_the_gate_holds_on_the_full_hull():
+    """Phase 2's gate, scored on the full hull the way the baseline was.
+
+    Where the fitted eta-against-v line reaches zero, as a multiple of
+    mean speed. Measured 2026-09-12 on the eight at rate 28:
+
+        baseline, prescribed force     0.020  (through the origin)
+        the floor the target sets      0.15
+        reduced model, no crew swing   8.9
+        full 6-DOF hull                1.81
+
+    It passes, and by twelve times the floor -- but it is a much weaker
+    pass than the reduced model promised, and the difference is recorded
+    rather than smoothed over. On the full hull eta still rises with
+    speed (0.557 at 2.97 m/s to 0.691 at 5.48), where the reduced model's
+    was nearly flat. The crew's surge swing is back, and it is largest
+    exactly where the boat is slowest (78% of mean speed at 2.97 m/s, 46%
+    at 5.48).
+
+    Thresholds sit well below the measurement so the test is about the
+    gate, not about the third decimal: the crossing must clear the floor
+    with room to spare, and eta/v must be nowhere near constant -- it was
+    flat to 2.7% on the baseline and is 39% here.
+    """
+    from coxswain.boats import catalog
+    from coxswain.sim.oarloop import drag_curve
+
+    boat = catalog.eight(rate=28.0)
+    drag = drag_curve(boat)
+    speeds, etas = [], []
+    for torque in (200.0, 450.0, 900.0):
+        run = DynamicOarSimulator(boat, peak_torque=torque).run_strokes(
+            16, surge_speed=4.5)
+        assert run.drift() < 0.01, (torque, run.drift())
+        speed = run.settled_speed()
+        speeds.append(speed)
+        etas.append(drag(speed) * speed / (run.settled_power() * 8))
+
+    speeds, etas = np.array(speeds), np.array(etas)
+    slope, intercept = np.polyfit(speeds, etas, 1)
+    crossing = abs(-intercept / slope) / speeds.mean()
+    assert crossing > 0.5, (slope, intercept, crossing)
+
+    ratio = etas / speeds
+    assert np.ptp(ratio) / ratio.mean() > 0.2, ratio
+
+
+@pytest.mark.slow
+def test_the_residual_rise_in_eta_is_half_swing_and_half_blade():
+    """Why eta still rises with speed on the full hull -- measured, not guessed.
+
+    The first guess was that the swing starves the blade at low speed, as
+    it did the efficiency-only wiring. It was measured and is backwards:
+    blade efficiency at instantaneous speed is 1.09x its mean-speed value
+    when slow and 0.87x when fast.
+
+    What it actually is, on the eight at rate 28:
+
+    * **the drag channel** -- drag power is steeply nonlinear in speed, so
+      a swinging boat spends more than R(v_mean) v_mean, the numerator
+      eta uses. 16% more at 3 m/s, 6% at 5.5. Charging for it halves the
+      rise in eta, 24% to 13%.
+    * **the blade itself** -- a slower boat lets the same pull slip more.
+      That part is real physics, recorded in SOURCES sec. 7, and exactly
+      the speed dependence the prescribed model could not have.
+
+    The drag half rides on the prescribed crew motion, which is defect
+    two and phase 4's job, not phase 2's.
+    """
+    from coxswain.boats import catalog
+    from coxswain.sim.oarloop import drag_curve
+
+    boat = catalog.eight(rate=28.0)
+    drag = drag_curve(boat)
+    rows = []
+    for torque in (200.0, 900.0):
+        run = DynamicOarSimulator(boat, peak_torque=torque).run_strokes(
+            14, surge_speed=4.5)
+        power = run.settled_power() * 8
+        speed = run.settled_speed()
+        swing_cost = run.drag_power_ratio(drag)
+        naive = drag(speed) * speed / power
+        rows.append((swing_cost, naive, naive * swing_cost))
+
+    (cost_slow, naive_slow, true_slow), (cost_fast, naive_fast, true_fast) = rows
+    # The swing costs more on the slow boat, and always costs something.
+    assert cost_slow > cost_fast > 1.0, (cost_slow, cost_fast)
+    # Charging for it removes part of the rise, not all of it: what is left
+    # is the blade slipping more on a slower boat.
+    naive_rise = naive_fast - naive_slow
+    true_rise = true_fast - true_slow
+    assert naive_rise > true_rise > 0.0, (naive_rise, true_rise)
