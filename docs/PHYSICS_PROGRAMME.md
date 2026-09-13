@@ -74,7 +74,7 @@ shipped its crash.
 | 1 | ~~Tier 1 blade as an efficiency factor~~ | **failed its gate — merged into phase 2** | **closed** |
 | 2 | Tier 1 blade: slip-quadratic **force**, oar angle a dynamic state | η against v — is the line through the origin gone, and does net propulsive impulse survive at race pace? | **gate passed on the full 6-DOF hull; `research` repointed, PARTIAL** |
 | 3 | Tier 2 blade: lift and drag on angle of attack | reproduces the sign and timing of Grift's measured tangential force | **wired and measured; the gate needs Grift's traces** |
-| 4 | Forward-dynamic rower (Rongère's formalism, torque-driven) | predicted CoM excursion lands in the measured band **without being fitted to it** | planned |
+| 4 | Forward-dynamic rower (Rongère's formalism, torque-driven) | predicted CoM excursion lands in the measured band **without being fitted to it** | **planned in steps — 4.1, hands follow the oar, first** |
 | 5 | Tier 3 infrastructure: vectorised env, delay channels, BC dataset | throughput, measured, against the 10⁶–10⁷ steps training needs | planned |
 | 6 | Tier 3 training: BC then constrained PPO | the five acceptance tests, none of them trained on | planned |
 | 7 | Uncertainty, and the coupled-oscillator replication | — | planned |
@@ -165,9 +165,6 @@ blade resists, the angle follows.
 - [x] Report ported: `--physics research` runs. The four is driven at its own erg watts; the **masters eight's simulated parts are left off the page** — no sourced wattage — while its lines are still priced
 - [x] The report's door now refuses only physics that does not exist (`learned`), and its caveats that stated the shipped defect as fact are functions of the profile
 - [x] **Run end to end** (`--physics research --quick --steer-leg 150`, 229 s, clean log): page stamped research, the eight's gap stated, no shipped-only claim on it. The four steers through the dynamic oar — reactive 1.96 m rms, predictive 1.10 m rms with **0 / 285** solver fallbacks — and the quasi-steady evaluator's optimism on the four reads **+5%** (3.63 m/s priced against 3.47 settled), against **+35%** recorded under `shipped`. One quick run, not yet a sweep
-- [ ] `StrokeTable` bypassed on the `research` profile (it assumes the chain depends on stroke time and nothing else)
-- [ ] Hands follow the dynamic angle, so the crew kinematics solve online
-- [ ] `flatness` deleted as a free parameter — it becomes an output
 - [x] Blade-path figure in the inertial frame, key events labelled (`coxswain/viz/bladepath.py`): drawn from the dynamic run, on the offline report under its own tab, and drawing BOTH load components when the simulator runs tier 2. Under the TIER 1 blade it showed the second flow reversal belongs to the prescribed schedule, not to rowing. **Under tier 2 that does not hold**: the eight at rate 28 and 380 W shows three slip reversals, one of them a re-anchor near the finish, with the blade anchored 11% of the drive. Tier 2 normal load peaks at 2231 N against 720 N for tier 1 at the same power, and the tangential load at 188 N, 8% of the normal. So whether a real blade re-anchors near the finish is a question for measured traces, not a settled finding of either tier
 - [ ] Immersion curve — **blocked on data**, see below
 - [ ] Entrainment term in place of a constant added mass — **blocked on the same data**
@@ -589,6 +586,59 @@ record because a wrong framing that survived a day of work is worth being
 able to recognise again.
 
 ---
+
+### Phase 3 — tier 2 built, wired, drawn and scored; its gate is blocked on data
+
+Everything phase 3 can do without Grift's traces is done: the lift-drag blade
+as a tested unit, wired into the dynamic oar behind `blade_law`, both load
+components on the blade-path figure, and the validation battery run on it as a
+study. Its gate — does tier 2 reproduce the sign and timing of the measured
+tangential force — needs the time-resolved traces of Grift et al. (2021), and
+the coefficients themselves need their primary source. Both are in Blocked,
+below. Tier 2 stays a study, not a profile, until they arrive.
+
+### Phase 4 — the forward-dynamic rower (planned)
+
+**Why this is next.** The two gaps phase 2 and 3 left open both point at the
+crew, not the blade. The drive runs long at a race power and tier 2 does not
+shorten it; and the reflected inertia the dynamic oar leans on diverges at the
+catch and the finish, because the prescribed body does not stop when the oar
+does. Both are symptoms of a crew whose motion is prescribed in time, from an
+ergometer, while its oar is not.
+
+**The formalism** stays as decided: Rongère, Khalil & Kobus (2011), recursive
+Newton–Euler on a free-floating base, tree-structured with kinematic loops —
+the boat, oars and crew topology exactly — driven by joint torques, not muscles.
+
+**The steps, in the order each can be validated before the next is built:**
+
+- [ ] **4.1 — The hands follow the oar.** Before any torque-driven chain, make
+  the prescribed crew kinematically consistent with the dynamic oar: the hands
+  on the handle wherever the integrated angle puts it, the rest of the body
+  solving to reach it. `StrokeTable` is bypassed on this path, because it
+  assumes the chain depends on stroke time and nothing else. *Validated by:*
+  the reflected inertia stops diverging at the catch and the finish, and the
+  hand-on-handle residual is zero by construction rather than ignored.
+- [ ] **4.2 — Sweep shape becomes an output.** With the hands on the dynamic
+  handle, `OarAngleSweep.flatness` has nothing left to set, and is deleted from
+  this path. *Validated by:* the sweep that results, against a measured oar-angle
+  trace when one is obtained.
+- [ ] **4.3 — Joint torques drive the chain.** Recursive Newton–Euler on the
+  free-floating base, with a stroke-tracking controller fitted to the erg data
+  as ONE operating point, not as the model. *Validated by:* reproducing that one
+  operating point without being tuned past it.
+- [ ] **4.4 — Synchronisation and roll controllers.** Hand-written, per the
+  plan: the classical baseline tier 3 has to beat. The coupled-oscillator model
+  is kept as the null hypothesis.
+
+**Gate:** does the predicted crew centre-of-mass excursion land in the measured
+band without being fitted to it? That is the test the prescribed crew cannot
+take, because for it the excursion is an input.
+
+**What phase 4 is expected to move, stated before it is measured,** so the
+measurement can contradict it: the drive fraction at race power (0.467 on the
+eight at rate 32, against 0.395 on the water), and the part of the efficiency
+gap tier 2 left (0.664 against a floor of 0.754).
 
 ## Blocked, and on what
 
