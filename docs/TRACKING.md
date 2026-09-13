@@ -334,6 +334,29 @@ the handle *and* conserve momentum, because the erg-fitted body is still
 moving where the sweep rate is zero. That needs a constraint force — phase
 4.3 — and is not fixable inside 4.1.
 
+**Update — a measured deceleration, and a sourced release rule** (2026-09-13).
+Reading [CR06] in full changed both halves of this item:
+
+1. *The release rule.* [CR06] takes the blade out when its normal velocity
+   returns to zero — the blade force is exactly zero there — and never stops
+   the oar: it keeps moving with the hands. Ours takes the blade out at a fixed
+   `finish_angle` and holds the oar dead. And because the tier 1 blade force
+   is `−sign(slip) C₂ slip²` while the blade is in, ours can *brake* in the
+   late drive — the "re-anchor" on the blade-path figure — which [CR06]'s
+   rule excludes by construction.
+2. *A measured deceleration.* [CR06] Fig. 3 is vector, and its measured oar
+   angle was extracted exactly (SOURCES.md, [CR06]). At the release time the
+   measured oar is still sweeping at 80 °/s, 53% of its 150 °/s peak, and
+   turns round 5.3° and 0.119 s later: a mean deceleration of 11.7 rad/s².
+   Ours arrives at 69% of peak on the single and stops in one step. So the
+   defect is the dead stop, not the speed at release. One athlete, and the
+   release time is the model's — a target to check against, not a constant
+   to fit.
+
+What would use it, not yet done: the release rule is a candidate for the
+dynamic oar on its own (it needs no new number); the recovery needs something
+to decelerate the oar, which is the rower, so it belongs with 4.3.
+
 **Fix (a) is blocked on data, and the `research` finish defect stays open.**
 Searched for a source on the handle's deceleration into the finish: [FE17]
 and [N-FISA] (SOURCES.md) confirm a measured oar turns round at the finish —

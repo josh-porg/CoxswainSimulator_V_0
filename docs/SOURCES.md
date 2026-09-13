@@ -80,6 +80,51 @@ from their own oar handles.
 Also useful: their boat drag coefficients `C₁ = 3.16 N/(m/s)²` (single) and
 `1.99` (four), and blade drag `C₂ = 58.7` (scull) / `84.5` (sweep).
 
+**Read in full** (2026-09-13; full text supplied by the project owner). What the
+entry above did not record:
+
+- **The oar follows the body, not the other way round.** Leg, back and arm
+  displacements (`x_B/F`, `x_S/B`, `x_H/S`) are prescribed as periodic cubic
+  splines, twice differentiable; the oar angle is then *given* by eq. (8)
+  with the arms free, and the handle force and boat velocity are outputs of
+  one ODE, eq. (18). Every acceleration is the second derivative of a smooth
+  prescribed function, so the model has no velocity jumps and conserves
+  momentum by construction.
+- **The oar is never stopped.** The drive starts when the blade's normal
+  velocity is zero, eq. (16), and ends when the blade force is exactly zero
+  again — the same condition — located by an iterative root-find (App. A.3).
+  Through the recovery the oar keeps moving with the hands; the equations are
+  the drive's with the blade force set to zero.
+- **Blade slip is necessary:** a no-slip blade (`C_D = ∞`, eq. 19) predicts
+  the handle force badly (peak nearly double). The best-fit `C₂` is 2.4× the
+  nominal value, and the fit is worst near catch and release, which the
+  authors attribute to the instantaneous transition rule.
+- **Validation:** women's single, T = 1.94 s: residuals under 2.1° oar angle,
+  0.35 cm seat, 0.13 m/s boat velocity, 11 N handle force; boat velocity
+  predicted to ~0.08 m/s when not fitted. Boat added mass neglected (0.0065 of
+  displaced mass for a Rankine ovoid).
+- **Their own statement on prescription:** "the ability of the model to fit
+  data does not depend on whether forces or motions are prescribed".
+
+**Fig. 3 measured traces, extracted from the vector figure.** The PDF's Fig. 3
+(p. 204) is vector, so the measured curves (heavy, 49–51 points — App. A.5
+resamples each cycle into 50 intervals) were read from its path coordinates
+and calibrated from each panel's own grid lines (residuals ≤ 4×10⁻⁴ s in time,
+0.06° in angle). Checked against the text: mean boat velocity 4.19 m/s against
+the paper's measured 4.18.
+
+| quantity (women's single, T = 1.94 s) | value |
+|---|---|
+| peak drive oar angular velocity | 150 °/s (2.62 rad/s) |
+| oar angle at the release time | −39.1°, sweeping at 80 °/s — 53% of peak |
+| turning point | −44.4° at 1.013 s, 5.3° and 0.119 s after release |
+| mean angular deceleration, release to turning point | 672 °/s² (11.7 rad/s²) |
+| handle force: peak / at release | 557 N at 0.507 s / −40 N |
+| boat velocity: mean / min / max / at release | 4.19 / 3.06 / 5.13 / 4.47 m/s |
+
+*Caveat:* the release time is the model's (its open-circle marker), plotted on
+the data; the data carry no independent blade-exit event. One athlete.
+
 ### [S10] Serveto, Barré, Kobus & Mariot (2010)
 *A three-dimensional model of the boat–oars–rower system using ADAMS and
 LifeMOD commercial software.* **Proc. IMechE Part P 224**(1) 75–83.

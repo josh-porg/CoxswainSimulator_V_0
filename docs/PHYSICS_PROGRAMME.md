@@ -674,6 +674,14 @@ force are not in the paper and have to be built and validated here.
   5.36 m/s against the clock crew's 5.62, single 4.20 against 4.22 — still
   carry that leak and are not results.
 
+  *Qualified on reading [CR06] in full:* the direction of slaving decides
+  it. [CR06] slaves the **oar to the body** — smooth prescribed leg, back and
+  arm motions, the oar angle given by the hand-on-handle relation, arms free —
+  and that is consistent by construction: no jumps, momentum exact, and the
+  oar never stops. What fails is the direction 4.1 took, a body slaved to an
+  oar whose angle is *integrated* under a torque. [CR06]'s price is that the
+  oar is not predicted; the coordination is fitted.
+
   **Closed on a finding, not a pass.** A body slaved *kinematically* to the
   oar cannot hold its hands on the handle and conserve momentum at once,
   because the ergometer-fitted body is still moving where the sweep's rate is
