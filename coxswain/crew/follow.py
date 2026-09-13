@@ -36,9 +36,28 @@ the last 5% of the eight's drive.  ``|phi_dot_p|`` is floored at
 ``rate_floor`` times its peak -- the floor ``reflected_inertia`` already
 uses.  Inside the floor the pose stays on the handle but the velocity is
 capped, so it is no longer the exact derivative of the pose, and the power
-balance between hull and oar does not close exactly there.  That is measured
-in ``tests/test_crew_follows.py``, not assumed away.  The sweep shape that
-causes it is phase 4.2's to remove.
+balance between hull and oar does not close exactly there.  Nor does the
+momentum: the acceleration is not the derivative of the velocity inside the
+floor, because the pose runs through the table at the true clock rate while
+the velocity is scaled by the capped one.  Using the true clock rate in the
+acceleration was tried -- it reached 7e14 at the catch and the run overflowed.
+
+The velocity also jumps twice a stroke -- at the finish, where the oar is
+held and the body stops with it, and at the catch, where the retimed
+recovery arrives moving.  An acceleration cannot carry a jump, so
+:class:`~coxswain.sim.dynamic_oar.DynamicOarSimulator` hands each one to the
+hull as an impulse that conserves the momentum of hull plus crew.  The first
+wiring did not, and handed the hull +361 N s a stroke that the body never had.
+
+**What is left, and why it cannot be fixed here.**  With the impulses, the
+eight at 380 W still hands the hull +148 N s a stroke that the body does not
+have, measured with RK4's own weights; the single +13.5.  It sits in the
+first step off the catch and the last steps before the finish -- inside the
+floor.  The cause is structural: the ergometer-fitted body is still moving
+where the sweep's rate is zero, so a body slaved *kinematically* to the oar
+cannot keep its hands on the handle and conserve momentum at once.  That
+needs the hand-on-handle condition enforced by a constraint force, which is
+the torque-driven chain of phase 4.3.
 
 Recovery
 --------
@@ -132,6 +151,11 @@ class FollowingCrew:
         slope_rate = self._at(self._slope_rate, phi)
         position, velocity, accel = self.table.at(tau)
         clock = slope * float(rate)
+        # The floored clock, not the true one.  The true clock rate
+        # phi_dot / phi_dot_p is integrable at the ends but not integrable
+        # by a fixed step: tried, it reached 7e14 at the catch and the run
+        # overflowed.  The floor's price is a small momentum mismatch
+        # inside it, measured in tests/test_crew_follows.py.
         return (np.array(position, dtype=float), velocity * clock,
                 accel * clock ** 2
                 + velocity * (slope_rate * float(rate) ** 2

@@ -216,7 +216,12 @@ def _crew_momentum_books(sim, strokes=4, surge=5.3):
         sim._crew_state = None
         momentum.append(float((mass * velocity[:, 0]).sum()))
         force.append(float((mass * accel[:, 0]).sum()))
-    return float(np.trapezoid(force, times)), momentum[-1] - momentum[0]
+    # A jump handed to the hull as an impulse is momentum the hull WAS given,
+    # just not through the acceleration.
+    jumps = sum(float(dp[0]) for when, dp in getattr(sim, "_crew_jumps", [])
+                if times[0] < when <= times[-1])
+    return (float(np.trapezoid(force, times)) + jumps,
+            momentum[-1] - momentum[0])
 
 
 @pytest.mark.slow
@@ -231,12 +236,13 @@ def test_the_clock_crew_hands_the_hull_no_momentum_of_its_own():
 
 
 @pytest.mark.slow
-@pytest.mark.xfail(strict=True, reason=(
-    "phase 4.1 defect, TRACKING: the following crew's velocity jumps at the "
-    "finish (the oar is stopped dead there, and the body with it) and at the "
-    "catch, and inside the rate floor its acceleration is not dv/dt. "
-    "Measured on the eight at 380 W: +361 N s per stroke against a momentum "
-    "change of +108; the settled speed it produced, 5.06 m/s, is an artefact"))
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason=(
+    "phase 4.1, TRACKING: a body slaved kinematically to the oar cannot keep "
+    "its hands on the handle and conserve momentum at once. The velocity "
+    "jumps at the finish and catch are now handed to the hull as impulses "
+    "(first wiring: +361 N s a stroke on the eight); inside the rate floor "
+    "the acceleration is still not dv/dt, leaving +148 N s a stroke by "
+    "RK4's own weights. Needs the constraint force of phase 4.3"))
 def test_the_following_crew_hands_the_hull_no_momentum_of_its_own():
     from coxswain.boats import catalog
 
@@ -246,3 +252,38 @@ def test_the_following_crew_hands_the_hull_no_momentum_of_its_own():
                               crew="follows")
     impulse, change = _crew_momentum_books(sim)
     assert abs(impulse - change) < 0.5, (impulse, change)
+
+
+def test_a_crew_jump_conserves_the_momentum_of_hull_and_crew(eight):
+    """``M [dv; d omega] = -[sum m dv_rel; sum m r x dv_rel]``: the hull takes
+    exactly the momentum the crew's jump gives up."""
+    from coxswain.core.frames import hull_to_abs
+    from coxswain.core.state import State
+
+    sim = DynamicOarSimulator(eight, peak_torque=600.0, crew="follows")
+    n = sim.n_oar_states
+    period = float(eight.timing.period)
+    before = sim.augmented_initial_state(5.0)
+    before[STATE_SIZE:STATE_SIZE + n] = sim._oars[0].finish_angle - 0.01
+    before[STATE_SIZE + n:STATE_SIZE + 2 * n] = -2.0
+    before[STATE_SIZE + 2 * n:] = 0.9                  # drive took 0.9 s
+    sim._stroke_start = 0.0
+    after = sim._catch(period, before, index=1)
+
+    field = lambda y, start: sim._following(
+        period, y, start, lambda: sim.crew_field(period))
+    mass, position, v0, _a = field(before, 0.0)
+    _m, _p, v1, _a = field(after, period)
+    state = State.from_vector(after[:STATE_SIZE])
+    rot = hull_to_abs(state.attitude)
+    jump = (v1 - v0) @ rot.T
+    arm = position @ rot.T
+    expected = -np.concatenate([(mass[:, None] * jump).sum(axis=0),
+                                (mass[:, None] * np.cross(arm, jump)).sum(axis=0)])
+    matrix = sim._following(period, after, period,
+                            lambda: sim.mass_matrix(period, state))
+    change = np.concatenate([after[6:9] - before[6:9],
+                             after[9:12] - before[9:12]])
+    np.testing.assert_allclose(matrix @ change, expected, rtol=1e-9, atol=1e-9)
+    assert abs(expected[0]) > 10.0          # a real jump, not a trivial pass
+    assert len(sim._crew_jumps) == 1

@@ -44,11 +44,12 @@ Limits, stated before they are measured
   up to 0.19 m off the handle on the eight at 380 W, 0.74 m on the single.
   ``crew="follows"`` is phase 4.1 -- the body slaved to the oar angle through
   the drive, hands on the handle by construction; see
-  :mod:`coxswain.crew.follow`.  It is a study, and **not yet
-  momentum-consistent**: the body's velocity jumps at the finish and the
-  catch, handing the hull +361 N s a stroke on the eight (TRACKING).  Do not
-  read speeds from it.  It is still kinematic; phase 4.3 replaces it with a
-  torque-driven chain.
+  :mod:`coxswain.crew.follow`.  It is a study, and **not
+  momentum-consistent**: its velocity jumps at the finish and catch are
+  handed to the hull as impulses, but inside the rate floor it still hands
+  the hull +148 N s a stroke on the eight (TRACKING).  Do not read speeds
+  from it.  That cannot be fixed kinematically; phase 4.3 enforces the
+  handle by a constraint force instead.
 * **Synchronised crews only.**  Oar states are reset to the catch at each
   stroke boundary, and with per-seat phase offsets those boundaries differ by
   seat.  Refused rather than approximated.
@@ -230,6 +231,10 @@ class DynamicOarSimulator(RowingSimulator):
         # that needs them; and the time the current stroke's catch fell at.
         self._crew_state = None
         self._stroke_start = 0.0
+        #: Following crew only: every velocity jump handed to the hull, as
+        #: ``(t, sum m dv)`` -- the crew's momentum change relative to the
+        #: hull, hull frame -- so the books can be checked.
+        self._crew_jumps = []
         #: Oar states per seat: angle and rate, plus the elapsed drive time
         #: when the crew follows the oar.
         self._per_oar = 3 if crew == "follows" else 2
@@ -459,6 +464,105 @@ class DynamicOarSimulator(RowingSimulator):
                     oar, angle, rate, torque, state, locks, slot)
         return angle_rate, rate_rate
 
+    # -- the following crew's jumps -------------------------------------------
+    def _following(self, t, y, stroke_start, work):
+        """Run ``work()`` with the crew field following the state ``y``."""
+        n = self.n_oar_states
+        saved = (self._crew_state, self._stroke_start)
+        self._stroke_start = float(stroke_start)
+        self._crew_state = (y[STATE_SIZE:STATE_SIZE + n],
+                            y[STATE_SIZE + n:STATE_SIZE + 2 * n],
+                            np.zeros(n),
+                            y[STATE_SIZE + 2 * n:STATE_SIZE + 3 * n],
+                            float(t))
+        try:
+            return work()
+        finally:
+            self._crew_state, self._stroke_start = saved
+
+    def _hand_jump_to_hull(self, t, before, start_before, after,
+                           start_after):
+        """``after`` with the hull's velocity changed by the crew's jump.
+
+        The crew's velocity relative to the hull goes from what ``before``
+        gives to what ``after`` gives, instantaneously.  Hull plus crew
+        conserves momentum and angular momentum across it:
+        ``M [dv; d omega] = -[sum m dv_rel; sum m r x dv_rel]``, with ``M``
+        the same mass matrix the derivative solves against.  Energy is not
+        conserved -- a body stopped dead is an inelastic event, and the
+        energy it loses is the rower's to absorb.
+        """
+        from ..core.frames import hull_to_abs
+
+        mass, position, v0, _a = self._following(
+            t, before, start_before, lambda: self.crew_field(t))
+        state = State.from_vector(after[:STATE_SIZE])
+        _m, _p, v1, _a = self._following(
+            t, after, start_after, lambda: self.crew_field(t))
+        matrix = self._following(
+            t, after, start_after, lambda: self.mass_matrix(t, state))
+
+        jump_hull = v1 - v0
+        rot = hull_to_abs(state.attitude)
+        jump = jump_hull @ rot.T
+        arm = position @ rot.T
+        impulse = -(mass[:, None] * jump).sum(axis=0)
+        moment = -(mass[:, None] * np.cross(arm, jump)).sum(axis=0)
+        change = np.linalg.solve(matrix, np.concatenate([impulse, moment]))
+
+        out = np.array(after, dtype=float)
+        out[6:9] += change[0:3]
+        out[9:12] += change[3:6]
+        self._crew_jumps.append(
+            (float(t), (mass[:, None] * jump_hull).sum(axis=0)))
+        return out
+
+    def _integrate_stroke(self, t_span, y0, dt):
+        """One stroke, ``(times, states)`` as :func:`integrators.rk4` gives.
+
+        The clock crew is exactly that call.  The following crew is stepped
+        by hand so a finish can be caught on the step it happens: the body
+        is taken as still driving at the finish angle with the rate the oar
+        arrived at, against the retimed recovery the state now selects, and
+        the difference is handed to the hull.
+        """
+        if self.crew != "follows":
+            return integrators.rk4(self.derivative, t_span, y0, dt)
+        t_start, t_end = float(t_span[0]), float(t_span[1])
+        n_steps = int(np.ceil((t_end - t_start) / dt))
+        n = self.n_oar_states
+        finishes = np.array([oar.finish_angle for oar in self._oars])
+        times = np.empty(n_steps + 1)
+        states = np.empty((len(y0), n_steps + 1))
+        t, y = t_start, np.array(y0, dtype=float)
+        times[0], states[:, 0] = t, y
+        start = self._stroke_start
+        for i in range(n_steps):
+            step = min(dt, t_end - t)
+            live = y[STATE_SIZE:STATE_SIZE + n] > finishes
+            y = integrators.rk4_step(self.derivative, t, y, step)
+            t += step
+            crossed = live & (y[STATE_SIZE:STATE_SIZE + n] <= finishes)
+            if crossed.any():
+                driving = np.array(y, dtype=float)
+                driving[STATE_SIZE:STATE_SIZE + n][crossed] = \
+                    finishes[crossed] + 1e-9
+                y = self._hand_jump_to_hull(t, driving, start, y, start)
+            times[i + 1], states[:, i + 1] = t, y
+        return times, states
+
+    def _catch(self, t0, y, index):
+        """Reset every oar to the catch; hand the crew's jump to the hull."""
+        n = self.n_oar_states
+        before = np.array(y, dtype=float)
+        after = np.array(y, dtype=float)
+        after[STATE_SIZE:STATE_SIZE + n] = self._catch_angles()
+        after[STATE_SIZE + n:] = 0.0
+        if self.crew == "follows" and index > 0:
+            after = self._hand_jump_to_hull(t0, before, self._stroke_start,
+                                            after, t0)
+        return after
+
     # -- the crew ------------------------------------------------------------
     def crew_field(self, t: float, exact: bool = False):
         """The crew's masses and motion -- following the oar when asked.
@@ -655,15 +759,14 @@ class DynamicOarSimulator(RowingSimulator):
 
         pieces_t, pieces_y = [], []
         t0, stroke = 0.0, 0
+        self._crew_jumps = []
         while t0 < duration - 1e-9:
             if on_stroke is not None:
                 on_stroke(stroke, self.boat)
-            y = np.array(y, dtype=float)
-            y[STATE_SIZE:STATE_SIZE + n] = self._catch_angles()
-            y[STATE_SIZE + n:] = 0.0
+            y = self._catch(t0, y, stroke)
             self._stroke_start = t0
             t1 = min(t0 + period, float(duration))
-            times, states = integrators.rk4(self.derivative, (t0, t1), y, dt)
+            times, states = self._integrate_stroke((t0, t1), y, dt)
             keep = slice(0, -1) if t1 < duration else slice(None)
             pieces_t.append(times[keep])
             pieces_y.append(states[:STATE_SIZE, keep])
@@ -686,13 +789,11 @@ class DynamicOarSimulator(RowingSimulator):
         records = []
         rowers = max(len(self._seats), 1)
 
+        self._crew_jumps = []
         for index in range(int(strokes)):
-            y = np.array(y, dtype=float)
-            y[STATE_SIZE:STATE_SIZE + n] = self._catch_angles()
-            y[STATE_SIZE + n:] = 0.0
+            y = self._catch(t0, y, index)
             self._stroke_start = t0
-            times, states = integrators.rk4(self.derivative,
-                                            (t0, t0 + period), y, dt)
+            times, states = self._integrate_stroke((t0, t0 + period), y, dt)
 
             speed = np.hypot(states[6], states[7])
             angles = states[STATE_SIZE:STATE_SIZE + n]

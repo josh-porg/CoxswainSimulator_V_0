@@ -597,7 +597,7 @@ tangential force — needs the time-resolved traces of Grift et al. (2021), and
 the coefficients themselves need their primary source. Both are in Blocked,
 below. Tier 2 stays a study, not a profile, until they arrive.
 
-### Phase 4 — the forward-dynamic rower (4.1 built, its gate failed)
+### Phase 4 — the forward-dynamic rower (4.1 closed on a finding; 4.3 next)
 
 **Why this is next.** The two gaps phase 2 and 3 left open both point at the
 crew, not the blade. The drive runs long at a race power and tier 2 does not
@@ -646,6 +646,28 @@ the boat, oars and crew topology exactly — driven by joint torques, not muscle
   0.400 → 0.424 — measured that defect, not the physics, and predicted the
   opposite of what I had stated beforehand. It is void. Pinned as a strict
   xfail in `tests/test_crew_follows.py`; TRACKING has the fix options.
+
+  *Fix (b), and what it showed.* The velocity jumps are now handed to the
+  hull as impulses through the system mass matrix, conserving the momentum
+  of hull plus crew (unit-tested exactly). Measured with RK4's own weights,
+  that leaves **+148 N·s a stroke on the eight** and +13.5 on the single,
+  sitting in the first step off the catch and the last steps before the
+  finish — inside the rate floor, where the pose runs through the stroke
+  table at the true clock rate and the velocity is scaled by the capped one.
+  Using the true clock rate in the acceleration was tried and overflowed (it
+  reaches 7×10¹⁴ at the catch). The settled runs with the impulses — eight
+  5.36 m/s against the clock crew's 5.62, single 4.20 against 4.22 — still
+  carry that leak and are not results.
+
+  **Closed on a finding, not a pass.** A body slaved *kinematically* to the
+  oar cannot hold its hands on the handle and conserve momentum at once,
+  because the ergometer-fitted body is still moving where the sweep's rate is
+  zero — the same inconsistency `reflected_inertia` already documents. The
+  way out is to enforce hand-on-handle by a constraint force rather than by
+  construction: the kinematic loop of Rongère's formulation, i.e. step 4.3.
+  4.2 (the sweep as an output) needs that too, so it follows 4.3 rather than
+  preceding it. The following crew stays as a study, marked as not
+  momentum-consistent.
 - [ ] **4.2 — Sweep shape becomes an output.** With the hands on the dynamic
   handle, `OarAngleSweep.flatness` has nothing left to set, and is deleted from
   this path. *Validated by:* the sweep that results, against a measured oar-angle

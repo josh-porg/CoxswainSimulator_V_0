@@ -319,6 +319,29 @@ floor with the sweep of phase 4.2, whose ends are not singular.
 `tests/test_crew_follows.py` holds the eight to 0.5 N·s as a strict xfail, so
 the fix announces itself.
 
+**Update — fix (b) built; the item is closed as a finding** (2026-09-13).
+The finish and catch jumps are handed to the hull as impulses through the
+system mass matrix (conservation unit-tested to 1e-9). What remains,
+measured with RK4's own weights rather than a trapezoid on the samples (which
+overstated it at +182): **+148 N·s a stroke on the eight, +13.5 on the
+single**, inside the rate floor at both ends. Putting the true clock rate into
+the acceleration was tried and overflowed — 7×10¹⁴ at the catch. The strict
+xfail now accepts only an `AssertionError`: the first attempt diverged and a
+bare xfail counted the crash as the expected failure.
+
+Conclusion: a body slaved kinematically to the oar cannot keep its hands on
+the handle *and* conserve momentum, because the erg-fitted body is still
+moving where the sweep rate is zero. That needs a constraint force — phase
+4.3 — and is not fixable inside 4.1.
+
+**Fix (a) is blocked on data, and the `research` finish defect stays open.**
+Searched for a source on the handle's deceleration into the finish: [FE17]
+and [N-FISA] (SOURCES.md) confirm a measured oar turns round at the finish —
+angular velocity zero there by definition — but neither gives a deceleration
+law, and [FE17]'s 117 °/s peak was at 17–18 spm with no power reported, so it
+is context and not a target. Needs a measured oar-angle trace, already on the
+Blocked list.
+
 ### The drive is 18–28% too long, and the cause is the ergometer
 **Impact: high — drive duration sets the time base of the whole stroke.**
 
@@ -718,7 +741,7 @@ is 18–28% too long because it was refitted to ergometer data. All four are
 open items above, and the last two were found only because a phase was
 spent on measurement before any physics was touched.
 
-### The offline physics programme — phase 4.1, built; gate failed
+### The offline physics programme — phase 4.1, built; closed on a finding
 
 | what | where | pinned by |
 |---|---|---|
@@ -728,6 +751,8 @@ spent on measurement before any physics was touched.
 | recovery retimed from the dynamic finish to the next catch, starting from the finish pose and arriving at the catch pose | same | same |
 | `crew="follows"` on the dynamic oar, a study: one elapsed-drive state per seat, the oar computed before the hull, the clock crew's arithmetic and order untouched | `coxswain/sim/dynamic_oar.py` | same, plus the dynamic-oar suites (62 fast, 8 slow) |
 | the momentum books: the clock crew closes to 0.005 N·s a stroke; the following crew does not — open item above | same | same (the latter strict xfail) |
+| the following crew's velocity jumps at the finish and catch handed to the hull as impulses that conserve the momentum of hull plus crew; the finish detected on the step it happens | `DynamicOarSimulator._hand_jump_to_hull`, `_integrate_stroke` | `tests/test_crew_follows.py` |
+| the finish searched for a source: a measured oar turns round there, no deceleration law published in what was found | [FE17], [N-FISA] in SOURCES.md | — |
 
 ### v0.13 — asked for, and done
 

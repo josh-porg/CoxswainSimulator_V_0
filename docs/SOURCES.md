@@ -723,6 +723,32 @@ Changing it is a substantive change to the crew kinematics that would
 re-pin the regression suite, and it should be made on the strength of a
 measured oar-angle trace rather than on one indirect constraint.
 
+### [FE17] Feigean et al. — oar angle and angular velocity, coxless pair
+M. Feigean, M. R'Kiouak, R. J. Bootsma & J. Bourbousson (2017), *Effects of
+intensive crew training on individual and collective characteristics of oar
+movement in rowing as a coxless pair*, Front. Psychol. 8:1139,
+[PMC5498552](https://pmc.ncbi.nlm.nih.gov/articles/PMC5498552/). Open access.
+
+Two 17-year-old expert male scullers in a coxless pair, 17–18 spm; PowerLine
+oarlock position sensors at 50 Hz, 7 Hz low-pass Butterworth run twice,
+angular velocity by central difference. Catch-to-finish arc 88.3° and 88.8°;
+peak drive angular velocity 115.1 ± 3.3 and 117.9 ± 3.3 °/s. The angular
+velocity is zero at the finish, the maximal oar angle, by that definition.
+
+*What it settles:* a measured oar turns round at the finish rather than being
+stopped there. *What it does not:* how the handle decelerates into it, and no
+power or drive time is reported, so its 117 °/s peak cannot be compared with
+the dynamic oar, which is driven at a stated wattage. Context, not a target.
+
+### [N-FISA] Nolte — biomechanics chapter, FISA coaching course
+V. Nolte, *Introduction to the Biomechanics of Rowing*, FISA Coaching
+Development Programme Course, Level III, section 3, pp. 83–91
+([worldrowing.com PDF](https://worldrowing.com/wp-content/uploads/2020/12/3Chapter3_English-1.pdf)).
+Figure 4 (after Hänyes et al., 1988) is a measured oar-angle trace alongside
+oarlock and stretcher forces: the angle rounds smoothly through the finish.
+Figure 6 (Nolte, 1984) is an *idealised* pull falling to zero at the finish.
+Both qualitative; no deceleration law is given.
+
 ### [CG06a] Caplan & Gardner blade coefficients — *secondary, via Atkinson*
 Bill Atkinson, *Oarblade Lift and Drag*,
 [atkinsopht.com/row/liftdrag.htm](http://www.atkinsopht.com/row/liftdrag.htm),
