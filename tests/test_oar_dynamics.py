@@ -180,9 +180,14 @@ def test_a_prescribed_angle_delivers_nothing_at_racing_speed(eight, oar):
                            dtype=float)
         return float(np.trapezoid(force * np.cos(angle), t))
 
-    assert impulse_at(2.80) > 300.0            # fine where it was calibrated
-    assert abs(impulse_at(4.85)) < 25.0        # nothing at racing speed
-    assert impulse_at(6.00) < -50.0            # and braking above it
+    # Measured with the blade force at the blade CENTRE (l = 2.30 m on this
+    # eight; it was the tip, 2.56 m).  A shorter lever arm slows the blade,
+    # so the prescribed sweep fails EARLIER: impulse +299 N s at 2.80 m/s,
+    # crossing zero at 4.36 m/s (it was ~4.85), -69 N s at 4.85, -215 at 6.
+    assert impulse_at(2.80) > 250.0            # fine where it was calibrated
+    assert impulse_at(4.40) == pytest.approx(0.0, abs=25.0)   # nothing there
+    assert impulse_at(4.85) < -25.0            # braking at racing speed
+    assert impulse_at(6.00) < -150.0           # and harder above it
 
     # The dynamic angle, by contrast, drives the boat at all three.
     for speed in (2.80, 4.85, 6.00):
@@ -245,12 +250,27 @@ def test_the_integrator_has_converged_at_the_step_it_uses(oar):
 
 
 def test_geometry_comes_from_the_boat(eight, oar):
+    """The blade acts at its centre: [CR06]'s ``l``, not the oar's tip."""
     lock = eight.rig.seats[0].oarlocks[0].oar
     assert oar.inboard == pytest.approx(lock.inboard)
-    assert oar.outboard == pytest.approx(lock.outboard)
-    assert oar.blade.outboard == pytest.approx(lock.outboard)
+    assert oar.outboard == pytest.approx(lock.blade_centre_outboard)
+    assert oar.blade.outboard == pytest.approx(lock.blade_centre_outboard)
+    assert oar.outboard < lock.outboard
     assert oar.catch_angle == pytest.approx(eight.oar_sweep.catch_angle)
     assert oar.finish_angle == pytest.approx(eight.oar_sweep.finish_angle)
+
+
+def test_the_blade_centre_is_half_a_blade_in_from_the_tip():
+    """Overall length is to the tip (Concept2's convention); [CR06] applies
+    the blade force half a blade length in: 2.36 m on their sweep oar,
+    1.805 m on their scull."""
+    from coxswain.boats.rig import SCULLING_OAR, SWEEP_OAR
+
+    assert SWEEP_OAR.blade_centre_outboard == pytest.approx(3.70 - 1.14 - 0.26)
+    assert SCULLING_OAR.blade_centre_outboard == pytest.approx(
+        2.88 - 0.88 - 0.215)
+    # the shipped trainer's gearing still reads the overall length
+    assert SWEEP_OAR.gearing == pytest.approx(1.14 / 3.70)
 
 
 def test_a_pull_too_weak_to_finish_says_so(oar):

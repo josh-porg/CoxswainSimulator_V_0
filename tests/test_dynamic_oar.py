@@ -87,7 +87,11 @@ def test_blade_load_acts_at_the_blade_with_no_gearing(eight):
     """
     sim = DynamicOarSimulator(eight, peak_torque=600.0)
     n = sim.n_oar_states
-    angle, rate = np.radians(10.0), -2.0
+    # A clearly DRIVING blade: slip = l phi_dot + v cos(phi) is about -1 m/s.
+    # It was -2.0 rad/s, which with the blade force at the tip sat at -0.34
+    # and with it at the blade centre (l = 2.30 m) sits at +0.18 -- a
+    # braking blade, which is not what this test is about.
+    angle, rate = np.radians(10.0), -2.5
     sim._oar_state = (np.full(n, angle), np.full(n, rate))
     state = _straight(4.85)
     try:
@@ -254,6 +258,10 @@ def test_the_gate_holds_on_the_full_hull():
         the floor the target sets      0.15
         reduced model, no crew swing   8.9
         full 6-DOF hull                1.81
+
+    Re-measured 2026-09-13 with the blade force at the blade centre (2.30 m,
+    not the tip at 2.56): reduced model 6.4, full hull 1.57, eta/v spread
+    37%; eta 0.518 at 2.90 m/s to 0.660 at 5.39, swing 80% to 47%.
 
     It passes, and by twelve times the floor -- but it is a much weaker
     pass than the reduced model promised, and the difference is recorded
@@ -439,7 +447,10 @@ def test_tier_two_puts_both_load_components_on_the_hull(eight):
 
     sim = DynamicOarSimulator(eight, peak_torque=600.0, blade_law="liftdrag")
     n = sim.n_oar_states
-    angle, rate = np.radians(25.0), -2.0
+    # -2.5 rad/s puts the attack angle near 33 degrees, where the tangential
+    # load is tens of newtons; at -2.0 the normal flow sat near zero once the
+    # blade force moved from the tip to the blade centre, and it was ~1 N.
+    angle, rate = np.radians(25.0), -2.5
     sim._oar_state = (np.full(n, angle), np.full(n, rate))
     state = _straight(4.85)
     try:

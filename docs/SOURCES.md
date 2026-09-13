@@ -825,6 +825,86 @@ falling to about zero at the finish angle, catch near −60° and finish near
 +45°. Qualitative for the finish: no deceleration law, so it does not unblock
 the `research` finish defect.
 
+### [G19] Grift, Vijayaragavan, Tummers & Westerweel — accelerating submerged plate
+E. J. Grift, N. B. Vijayaragavan, M. J. Tummers & J. Westerweel (2019),
+*Drag force on an accelerating submerged plate*, J. Fluid Mech. **866**,
+369–398, doi:10.1017/jfm.2019.102. Open access (CC BY 4.0); full text read.
+
+A rectangular normal flat plate, aspect ratio **AR = 2** "to resemble an oar
+blade", uniformly accelerated from rest to a constant target velocity; plate
+depth, acceleration and target velocity varied; Re 4 × 10⁴ – 8 × 10⁴ on
+plate width. Three phases: acceleration (drag enhanced), transition, steady.
+
+- **Steady drag against depth** (fig. 4): `C_D = 1.10` with the plate's top
+  edge at the surface; peak **1.60 at 20 mm cover** (1/5 plate height), a 45%
+  rise; **1.30** fully submerged (the value for a 1:2 plate).
+- **Force decomposition**, eq. (3.2): `F_x = ½ρV²C_D·A + (m_p + m_h)·a`.
+- **Constant added mass for small motions from rest**, eq. (3.3), Patton
+  (1965) for AR 2 in unbounded inviscid flow: `m_h = 0.84·(πρ/4)·l_a·l_b²`
+  (1.3 kg for their plate, `l_a > l_b`); eq. (3.4), Yu (1945), an empirical
+  correlation for any aspect ratio with a plate-thickness term. The measured
+  residual force matches Yu's constant only for the first part of the motion.
+- **Entrainment instead of a constant**, eqs. (3.5)–(3.8): the residual force
+  grows linearly in time during the acceleration; defining `F_mh = m_h·a`
+  gives an entrainment rate `dm_h/dt = (1/a)·dF_mh/dt`, found linear in the
+  acceleration, and "strongly enhanced" with the plate at the free surface.
+- **Range tested:** `a` = 0.41, 0.62, 0.82, 1.02, 1.23, 1.44, 1.64 m/s²;
+  `V` = 0.20–0.40 m/s; depths 0, 20 and 100 mm; 105 measurements.
+
+*What it settles:* a blade's added mass is not negligible and not a single
+constant, and the free surface changes both steady drag and entrainment.
+*What it does not:* rowing accelerations. A blade at the catch sees roughly
+16 m/s², an order of magnitude past the data, so the entrainment rate cannot
+be carried over without extrapolation; and the plate moved on a straight
+path, not an arc.
+
+### [BR18] Brouzet, Ermanyuk, Moulin, Pillet & Dauxois — added mass of a plate
+C. Brouzet, E. V. Ermanyuk, M. Moulin, G. Pillet & T. Dauxois (2018), *Added
+mass: a complex face of tidal conversion*, arXiv:1805.04335. Section 5.1: "The
+added mass of a flat plate oscillating in a homogeneous fluid of infinite
+depth … is m_A = πρ₀b²/4 (see for example Brennen (1982))" — per unit span,
+plate height `b`, motion normal to the plate. Used only as the sourced 2-D
+value; Brennen (1982), *A Review of Added Mass and Fluid Inertial Forces*
+(NCEL CR82.010), was not reachable (both hosts refused).
+
+### [C2OAR] Concept2 — how oars are measured, and the ranges in use
+Concept2 sweep and scull "Length and Rigging" and "Blades" pages
+(concept2.com, read 2026-09-13).
+
+- **Overall length:** "measured from the end of the grip down the centerline
+  of the shaft to the edge of the blade" — to the blade **tip**.
+- **Inboard:** "from the end of the grip to the blade side of the collar".
+  The collar moves "for a total of 12 cm" along the sleeve.
+- **Sweep inboard:** adjustable handle 107–119 cm, fixed handle 111–123 cm.
+  **Scull inboard:** adjustable 79–91 cm, fixed 84–96 cm.
+- **Sweep overall lengths:** Comp and Smoothie2 367–378 cm, Fat2 362–373 cm
+  (short, medium and long settings).
+- **Blade lengths**, sweep: Smoothie2 54.5 cm, Fat2 55 cm, Big Blade 55 or
+  52 cm, Comp 43.5 cm, Macon 58 cm. Scull: Smoothie2 and Fat2 46 cm, Big Blade
+  44 cm, Comp 37 cm, Bantam 36 cm, Macon 50 cm.
+- **Blade area is not published** on these pages. Figures of 857 cm² (Fat2)
+  and 809 cm² (Smoothie2) circulate without a primary page; not used.
+
+*What it settles:* the rig's 3.70 m and 2.88 m are overall (tip) lengths, so
+the blade force acts half a blade in from `length − inboard`. [CR06]'s Table 1
+implies 0.52 m (sweep) and 0.43 m (scull) blades, matching the Big Blade.
+
+### [USR23] USRowing — Rules of Rowing, 2023 edition
+Article III, Equipment. Verbatim:
+
+- **3-101 Free Construction of Equipment:** "Except as specifically limited
+  in these rules, there shall be no limitations on the design and
+  construction of boats, oars, and other Equipment."
+- **3-107 Oars:** "The blade of an oar shall have the following minimum
+  thickness: Sweep oar, 5 mm. (measured 3 mm. from the tip of the blade);
+  Scull oar, 3 mm. (measured 2 mm. from the tip of the blade)."
+- **3-202 Oars:** "Oars, whether Sweep or Scull, must be uniform throughout
+  the Crew, except that each Rower in a composite Crew may use the colors of
+  his or her own Club."
+
+*What it settles:* nothing in the rules bounds oar length, inboard or blade
+area; those are rig choices, bounded in practice by manufacturers' ranges.
+
 ### [FE17] Feigean et al. — oar angle and angular velocity, coxless pair
 M. Feigean, M. R'Kiouak, R. J. Bootsma & J. Bourbousson (2017), *Effects of
 intensive crew training on individual and collective characteristics of oar

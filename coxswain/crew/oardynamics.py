@@ -414,11 +414,12 @@ class OarDynamics:
         if blade is None:
             sculling = not bool(boat.rig.is_sweep)
             maker = BladeModel.sculling if sculling else BladeModel.sweep
-            blade = maker(outboard=float(lock.oar.outboard))
+            # the blade force acts at the blade's centre, not its tip
+            blade = maker(outboard=float(lock.oar.blade_centre_outboard))
         return cls(
             blade=blade,
             inboard=float(lock.oar.inboard),
-            outboard=float(lock.oar.outboard),
+            outboard=float(lock.oar.blade_centre_outboard),
             inertia=inertia if callable(inertia) else float(inertia),
             catch_angle=float(boat.oar_sweep.catch_angle),
             finish_angle=float(boat.oar_sweep.finish_angle),

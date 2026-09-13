@@ -8,19 +8,22 @@ efficiency, as a multiple of mean speed*, the baseline reads **0.020** on
 the eight; a blade with real physics should not pass anywhere near the
 origin.
 
-Measured here: **8.9**.  The gate passes by a factor of sixty.
+Measured here: **6.4**.  The gate passes by a factor of about forty.
+(It was 8.9 with the blade force at the oar's tip; the force now acts at the
+blade centre, [CR06]'s ``l`` -- 2.30 m on this eight, not 2.56 -- which slows
+the blade and moves every row below.)
 
     ========  =======  ===========  ==========
     peak tau  speed    W per rower  eta
     ========  =======  ===========  ==========
-    200 N m   3.00     79           0.571
-    300       3.50     119          0.583
-    450       4.04     178          0.597
-    650       4.65     257          0.600
-    900       5.24     356          0.604
+    200 N m   2.92     79           0.528
+    300       3.41     119          0.540
+    450       3.95     178          0.557
+    650       4.54     257          0.563
+    900       5.13     356          0.569
     ========  =======  ===========  ==========
 
-``eta`` is now nearly flat -- and at a level, about 0.6, that a blade
+``eta`` is now nearly flat -- and at a level, about 0.55, that a blade
 efficiency can actually be.  It also does something the prescribed model
 could not: at **one realistic handle power** the eight and the four reach
 their published race paces, where the prescribed model needed 720 W and

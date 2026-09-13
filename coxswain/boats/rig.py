@@ -38,7 +38,11 @@ class Oar:
     Attributes
     ----------
     length:
-        ``L``, blade centre to handle end, in metres.
+        ``L``, the overall length in metres, measured as Concept2 measure
+        it: "from the end of the grip down the centerline of the shaft to
+        the edge of the blade" -- the blade TIP.  (This was documented as
+        blade centre to handle end; the standard oars below are overall
+        lengths, so ``outboard`` reaches the tip.)
     inboard:
         ``r_h``, oarlock to handle centre, in metres.
     blade_area:
@@ -66,6 +70,11 @@ class Oar:
     #: oar; Concept2's published mass for a Fat2/Skinny sweep oar is about
     #: 2.7 kg depending on layup and length.
     mass: float = 2.7
+    #: Blade length along the shaft, in metres.  The blade's force acts at
+    #: its centre, half this in from the tip -- [CR06] applies its blade
+    #: force at ``outboard - blade_length / 2``.  Zero keeps the old tip
+    #: lever arm for an oar built without one.
+    blade_length: float = 0.0
 
     def __post_init__(self) -> None:
         if not 0.0 < self.blade_efficiency <= 1.0:
@@ -116,8 +125,17 @@ class Oar:
 
     @property
     def outboard(self) -> float:
-        """``L - r_h``, oarlock to blade centre."""
+        """``L - r_h``, oarlock to the blade TIP (``L`` is overall length)."""
         return self.length - self.inboard
+
+    @property
+    def blade_centre_outboard(self) -> float:
+        """Oarlock to blade centre, ``L - r_h - blade_length / 2``, metres.
+
+        Where the blade force acts: [CR06]'s ``l``, and the lever arm the
+        research dynamic oar uses.  The shipped trainer does not read it.
+        """
+        return self.length - self.inboard - 0.5 * self.blade_length
 
 
 #: World Rowing standard sweep oar: 3.70 m overall, 1.14 m inboard.
@@ -128,12 +146,17 @@ class Oar:
 #: oarlock.  It is not decoration -- with both hands modelled at the same
 #: point the outside shoulder finishes 0.75 m from a 0.70 m arm, i.e. the
 #: rower cannot hold their own oar.
-SWEEP_OAR = Oar(length=3.70, inboard=1.14, blade_area=0.110,
+#: ``blade_length`` 0.52 m: implied by [CR06] Table 1 (actual outboard
+#: 2.62 m, force at 2.36 m) and matching Concept2's Big Blade (52/55 cm).
+SWEEP_OAR = Oar(length=3.70, inboard=1.14, blade_area=0.110, blade_length=0.52,
                 grip_separation=0.30)
 
 #: Standard sculling oar: 2.88 m overall, 0.88 m inboard.  A sculler has
 #: one hand per oar, so there is no grip separation.
-SCULLING_OAR = Oar(length=2.88, inboard=0.88, blade_area=0.083)
+#: ``blade_length`` 0.43 m: implied by [CR06] Table 1 (2.02 m -> 1.805 m)
+#: and close to Concept2's Big Blade scull (44 cm).
+SCULLING_OAR = Oar(length=2.88, inboard=0.88, blade_area=0.083,
+                   blade_length=0.43)
 
 
 @dataclass(frozen=True)

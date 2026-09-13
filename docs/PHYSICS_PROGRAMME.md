@@ -252,9 +252,15 @@ rising 0.24 → 0.52 over the same range.
 | 450 | 4.04 | 178 | 0.597 |
 | 900 | 5.24 | 356 | 0.604 |
 
+*Re-measured 2026-09-13 after the blade-centre correction* — the blade force now acts at [CR06]'s `l`, 2.30 m on the eight, not the oar's tip at 2.56 m (TRACKING, Fixed): the zero crossing is **6.4** (was 8.9), still about forty times the
+floor, and η runs 0.528 → 0.569 across 2.92 → 5.13 m/s (200 N·m: 2.92 m/s,
+0.528; 450: 3.95, 0.557; 900: 5.13, 0.569).
+
 **And it reaches published race pace at a power a rower could produce.**
 Driven at one stated 380 W per rower, the eight at rate 32 settles at
 5.33 m/s (published band 5.0–5.6) and the four at 4.76 (band 4.5–5.1).
+*Re-measured after the blade-centre correction:* 5.21 and 4.66, both still
+in band.
 The prescribed model needed 720 W and 795 W to get there and overshot
 every band anyway — which is why that regression test is a strict xfail.
 The boat-class ordering falls out too: at equal power per rower, eight >
@@ -310,6 +316,10 @@ model supplies is what the efficiency factor lacked.
 The crossing is 1.81 on the full hull, not the reduced model's 8.9: η still
 rises with speed, 0.557 → 0.691, where the reduced model's was nearly flat.
 The swing is back, and it is largest exactly where the boat is slowest.
+
+*Re-measured 2026-09-13 after the blade-centre correction* — the blade force now acts at [CR06]'s `l`, 2.30 m on the eight, not the oar's tip at 2.56 m (TRACKING, Fixed): the full-hull crossing is **1.57** (was 1.81) and the η/v spread 37% (was
+39%) — still ten times the floor. 200 N·m: 2.90 m/s, η 0.518, swing 80%;
+450: 4.13, 0.633, 59%; 900: 5.39, 0.660, 47%.
 
 **The obvious explanation is wrong, and was measured before it could be
 written down.** The guess was that the swing starves the blade at low speed,
@@ -371,6 +381,21 @@ targets pass by a wider margin, the surge swing comes down, and the efficiency
 level rises from 0.59 to 0.67 — still failing the band, which matches the
 bespoke full-hull measurement to the third decimal. Lift is part of the
 efficiency gap, not all of it.
+
+*Re-measured 2026-09-13 after the blade-centre correction* — the blade force
+now acts at [CR06]'s `l`, 2.30 m on the eight, not the oar's tip (TRACKING,
+Fixed). Same battery, same boats, rate 28:
+
+| target | band | tier 1 eight | tier 1 four | tier 2 eight | tier 2 four |
+|---|---|---|---|---|---|
+| η zero crossing | ≥ 0.15 | 1.222 pass | 1.300 pass | 2.115 pass | 2.368 pass |
+| η/v spread | ≥ 0.08 | 0.356 pass | 0.363 pass | 0.425 pass | 0.440 pass |
+| surge swing | 30–60% | 47.2% pass | 50.4% pass | 42.9% pass | 46.4% pass |
+| blade efficiency level | 0.754–0.816 | 0.559 **fail** | 0.566 **fail** | 0.631 **fail** | 0.639 **fail** |
+
+Every pass and fail is unchanged. A blade closer to the pin sweeps more slowly
+for the same slip, so the defect targets pass by a little less and the
+efficiency level falls about 0.03 further below the band, on both tiers.
 
 Both defect targets that `shipped` fails, `research` passes, on both boats.
 (The crossing reads 1.46 here against 1.81 from the torque sweep above: the
