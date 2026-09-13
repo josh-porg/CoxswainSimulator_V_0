@@ -197,7 +197,8 @@ def _drag_at(sim, boat, speed: float) -> float:
 
 
 def settle_dynamic(boat, watts: float, start: float,
-                   strokes: int = SETTLE_STROKES) -> Settled:
+                   strokes: int = SETTLE_STROKES,
+                   blade_law: str = "slip") -> Settled:
     """Settle a dynamic-oar boat at a stated handle power per rower.
 
     Driven dead straight, as :func:`settle` is.  ``power_scales`` is set to
@@ -214,7 +215,7 @@ def settle_dynamic(boat, watts: float, start: float,
     boat.power_scales = np.ones(boat.n_seats)
     torque = DynamicOarSimulator.peak_torque_for_power(boat, float(watts))
     sim = DynamicOarSimulator(
-        boat, peak_torque=torque,
+        boat, peak_torque=torque, blade_law=blade_law,
         coxswain=Coxswain(rudder_override=lambda t, s: 0.0), fast=True)
     run = sim.run_strokes(int(strokes), surge_speed=float(start))
 
@@ -239,16 +240,30 @@ def efficiency_at(boat, scale: float, start: float):
     return got.speed, got.efficiency
 
 
-def sweep(boat, points: Optional[Sequence] = None):
+def sweep(boat, points: Optional[Sequence] = None, blade_law: str = "slip"):
     """Settle ``boat`` at each operating point, by the physics it carries.
 
     A boat stamped with a dynamic-oar profile is settled at stated
     wattages (``DYNAMIC_POINTS``); anything else at power scales
     (``OPERATING_POINTS``), exactly as before.
+
+    ``blade_law`` selects the dynamic oar's blade -- ``"slip"`` (tier 1) or
+    ``"liftdrag"`` (tier 2).  It is a study parameter, not a profile: tier 2
+    rests on provisional coefficients and is not promoted until their
+    primary source is read.  Anything but tier 1 is refused for a boat
+    without the dynamic oar, because there is no blade law to switch.
     """
+    if blade_law != "slip" and not _uses_dynamic_oar(boat):
+        raise ValueError(
+            "blade law %r needs the dynamic oar; this boat is stamped %r"
+            % (blade_law, getattr(boat, "physics_profile", None)))
     if _uses_dynamic_oar(boat):
         chosen = DYNAMIC_POINTS if points is None else points
-        return [settle_dynamic(boat, watts, start) for watts, start in chosen]
+        if blade_law == "slip":
+            return [settle_dynamic(boat, watts, start)
+                    for watts, start in chosen]
+        return [settle_dynamic(boat, watts, start, blade_law=blade_law)
+                for watts, start in chosen]
     chosen = OPERATING_POINTS if points is None else points
     return [settle(boat, scale, start) for scale, start in chosen]
 
@@ -321,11 +336,18 @@ def _blade_efficiency_level(boat, speed: float) -> Optional[float]:
     return float((eff * weight).sum() / total)
 
 
-def measure(boat, name: str, profile, runs=None):
-    """Score every target that can be run against this boat."""
+def measure(boat, name: str, profile, runs=None, blade_law: str = "slip"):
+    """Score every target that can be run against this boat.
+
+    A non-default ``blade_law`` is stamped into every score's profile label
+    -- ``research+liftdrag`` -- so a table cannot pass tier 2 numbers off as
+    the profile's own.
+    """
     profile = physics.resolve(profile)
+    label = (profile.name if blade_law == "slip"
+             else "%s+%s" % (profile.name, blade_law))
     if runs is None:
-        runs = sweep(boat)
+        runs = sweep(boat, blade_law=blade_law)
     slope, crossing, spread = _fit_efficiency(runs)
     # Single-number targets are quoted at the FASTEST operating point,
     # because that is nearest racing and racing is where the published
@@ -370,28 +392,29 @@ def measure(boat, name: str, profile, runs=None):
     scores = []
     for target in TARGETS:
         if not target.implemented:
-            scores.append(Score(target, profile.name, name, None,
+            scores.append(Score(target, label, name, None,
                                 "pending", target.note.split(".")[0]))
             continue
         if profile.blade_tier < target.min_blade_tier:
             scores.append(Score(
-                target, profile.name, name, None, "n/a",
+                target, label, name, None, "n/a",
                 "needs blade tier %d; this profile is tier %d"
                 % (target.min_blade_tier, profile.blade_tier)))
             continue
         value = values.get(target.key)
         if value is None:
-            scores.append(Score(target, profile.name, name, None, "n/a",
+            scores.append(Score(target, label, name, None, "n/a",
                                 "no measurement on this profile"))
             continue
         low, high = target.band
         status = "pass" if low <= value <= high else "fail"
-        scores.append(Score(target, profile.name, name, float(value),
+        scores.append(Score(target, label, name, float(value),
                             status, details.get(target.key, "")))
     return scores
 
 
-def run(profile=physics.SHIPPED, boats=("8+", "4+"), rate=28.0):
+def run(profile=physics.SHIPPED, boats=("8+", "4+"), rate=28.0,
+        blade_law: str = "slip"):
     """Score ``profile`` on every boat named, and return a flat list.
 
     This is the whole point of the module: the same call, the same
@@ -404,7 +427,7 @@ def run(profile=physics.SHIPPED, boats=("8+", "4+"), rate=28.0):
     scores = []
     for name in boats:
         boat = resolved.apply(catalog.build(name, rate=rate))
-        scores.extend(measure(boat, name, resolved))
+        scores.extend(measure(boat, name, resolved, blade_law=blade_law))
     return scores
 
 

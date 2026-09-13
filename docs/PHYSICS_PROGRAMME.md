@@ -139,7 +139,7 @@ restoring term, because the restoring term is in the force model.
 model on costs "5.10 to 4.28 m/s". That was measured at 70 s, and 70 s is
 not convergence — from 3.4 m/s it reads 1.88 at 70 s and 0.63 at 250 s.
 
-### Phase 2 — gate passed on the full hull; report not yet ported
+### Phase 2 — gate passed on the full hull; report ported (the four), tier 2 built alongside
 
 Tier 1 properly: the slip-quadratic **force** from [CR06] Model 1, with the
 oar angle as a dynamic state per seat. The rower drives the handle, the
@@ -359,12 +359,21 @@ but whose size rides on the crew's prescribed motion — defect two, and phase
 scored by the battery that recorded the defect. Dynamic-oar boats settle at
 stated watts per rower (80–360), not power scales.
 
-| target | band | `shipped` | `research` eight | `research` four |
-|---|---|---|---|---|
-| η zero crossing | ≥ 0.15 | 0.020 **fail** | 1.462 pass | 1.592 pass |
-| η/v spread | ≥ 0.08 | 0.027 **fail** | 0.380 pass | 0.389 pass |
-| surge swing | 30–60% | — | 46.1% pass | 49.6% pass |
-| blade efficiency level | 0.754–0.816 | n/a | 0.586 **fail** | 0.590 **fail** |
+| target | band | `shipped` | `research` eight | `research` four | tier 2 eight | tier 2 four |
+|---|---|---|---|---|---|---|
+| η zero crossing | ≥ 0.15 | 0.020 **fail** | 1.462 pass | 1.592 pass | 2.214 pass | 2.370 pass |
+| η/v spread | ≥ 0.08 | 0.027 **fail** | 0.380 pass | 0.389 pass | 0.429 pass | 0.440 pass |
+| surge swing | 30–60% | — | 46.1% pass | 49.6% pass | 42.0% pass | 45.5% pass |
+| blade efficiency level | 0.754–0.816 | n/a | 0.586 **fail** | 0.590 **fail** | 0.664 **fail** | 0.671 **fail** |
+
+*Tier 2 columns:* `scorecard.run("research", blade_law="liftdrag")`, stamped
+`research+liftdrag` on every score. A study, not a profile — the coefficients
+are provisional until their primary source is read. On the battery that
+recorded the defect, tier 2 moves every target the right way: both defect
+targets pass by a wider margin, the surge swing comes down, and the efficiency
+level rises from 0.59 to 0.67 — still failing the band, which matches the
+bespoke full-hull measurement to the third decimal. Lift is part of the
+efficiency gap, not all of it.
 
 Both defect targets that `shipped` fails, `research` passes, on both boats.
 (The crossing reads 1.46 here against 1.81 from the torque sweep above: the

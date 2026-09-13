@@ -271,3 +271,74 @@ def test_the_research_blade_figure_draws_this_four_from_the_dynamic_oar(
                                          quick=True)
     assert len(calls) == 2, "half and full erg power"
     assert os.path.getsize(path) > 10_000
+
+
+
+# ---------------------------------------------------------------------------
+# scoring tier 2 as an explicit study
+# ---------------------------------------------------------------------------
+def test_a_sweep_forwards_the_blade_law(monkeypatch):
+    from coxswain.validation import scorecard
+
+    seen = []
+
+    def fake(boat, watts, start, strokes=scorecard.SETTLE_STROKES,
+             blade_law="slip"):
+        seen.append(blade_law)
+        return scorecard.Settled(scale=watts, speed=start, surge_swing=0.4,
+                                 crew_power=watts * 4, drag_power=watts * 2)
+
+    monkeypatch.setattr(scorecard, "settle_dynamic", fake)
+    scorecard.sweep(_research_boat(), blade_law="liftdrag")
+    assert seen and all(law == "liftdrag" for law in seen)
+
+
+def test_a_blade_law_needs_the_dynamic_oar():
+    from coxswain.boats import catalog
+    from coxswain.validation import scorecard
+
+    shipped = physics.resolve(physics.SHIPPED).apply(
+        catalog.build("4+", rate=30.0))
+    with pytest.raises(ValueError, match="dynamic oar"):
+        scorecard.sweep(shipped, blade_law="liftdrag")
+
+
+def test_tier_two_scores_are_stamped_with_their_law(monkeypatch):
+    """A table must not pass tier 2 numbers off as the profile own."""
+    from coxswain.validation import scorecard
+
+    def fake(boat, watts, start, strokes=scorecard.SETTLE_STROKES,
+             blade_law="slip"):
+        return scorecard.Settled(scale=watts, speed=2.0 + watts / 100.0,
+                                 surge_swing=0.4, crew_power=watts * 4,
+                                 drag_power=watts * (1.0 + watts / 500.0),
+                                 blade_efficiency=0.6)
+
+    monkeypatch.setattr(scorecard, "settle_dynamic", fake)
+    boat = _research_boat()
+    stamped = scorecard.measure(boat, "4+", "research", blade_law="liftdrag")
+    plain = scorecard.measure(boat, "4+", "research")
+    assert {s.profile for s in stamped} == {"research+liftdrag"}
+    assert {s.profile for s in plain} == {"research"}
+
+
+@pytest.mark.slow
+def test_research_scored_with_the_tier_two_blade():
+    """The canonical battery, run on tier 2 as a study.
+
+    The level target rises from the tier 1 measurement (0.586 on the eight)
+    and, on these provisional coefficients, still sits below Kleshnev band.
+    Both defect targets must still pass: a better blade must not bring back
+    the line through the origin.
+    """
+    from coxswain.validation import scorecard
+
+    scores = {s.target.key: s
+              for s in scorecard.run("research", boats=("8+",), rate=28.0,
+                                     blade_law="liftdrag")}
+    assert all(s.profile == "research+liftdrag" for s in scores.values())
+    for key in ("blade_efficiency_zero_crossing",
+                "blade_efficiency_linearity"):
+        assert scores[key].status == "pass", (key, scores[key].value)
+    level = scores["blade_efficiency_level"]
+    assert level.value is not None and level.value > 0.6, level.value
