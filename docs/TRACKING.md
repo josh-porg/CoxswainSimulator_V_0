@@ -218,6 +218,29 @@ nothing on it should be transcribed.
 *Next:* compute the look-ahead distances and the rms figures from the run's
 own rows, or drop the numbers from the caption.
 
+### The full model cannot match on-water drive time and published pace at once
+**Impact: high — it undoes a result the programme had called its best.**
+
+On the full 6-DOF hull, at a stated power and the measured front-loaded pull,
+the eight's drive fraction at rate 32 is 0.467 at 380 W (published pace, 5.56
+m/s) against 0.395 measured on the water. Pulling harder shortens the drive —
+0.420 at 500 W, 0.377 at 650 W — but at 650 W the boat is doing 6.78 m/s, far
+past the published 5.0–5.6. **No single power gives both.** The four at rate 32
+and 380 W is worse, 0.510.
+
+The earlier claim that the unfitted drive fraction "lands on the water" was
+measured on the oar balance alone, at a fixed 4.85 m/s under a constant pull.
+It is true of that unit and false of the full model, and has been corrected in
+PHYSICS_PROGRAMME rather than left standing.
+
+Most likely the same physics as the blade-efficiency gap above: a blade a
+quarter less efficient than a real one has to be swept longer for the same boat
+speed. [HF09] measured pairs, so the comparison is not like-for-like for an
+eight or a four.
+
+*Next:* re-measure when tier 2's lift lands; if the efficiency gap closes and
+this does not, it is a separate cause.
+
 ### The drive is 18–28% too long, and the cause is the ergometer
 **Impact: high — drive duration sets the time base of the whole stroke.**
 
@@ -575,7 +598,7 @@ wired into the simulator.
 | the integrator checked against a closed form (no water, constant torque → `φ = φ₀ − ½(τ/I)t²`) and for step convergence | same | same |
 | the inertia **derived, not fitted**: `Σᵢ mᵢ\|∂xᵢ/∂φ\|²` from de Leva masses and the joint chain, both already in the model | `reflected_inertia` | same |
 | it is not a constant — 93 kg·m² early in the drive to 13 at the finish — so the balance carries `½(dI/dφ)φ̇²`, which is a first-order term here and not a refinement | `InertiaProfile`, `OarDynamics.acceleration` | same |
-| **an unfitted prediction that lands on the water**: across 183–808 W per rower the predicted drive fraction spans 0.319–0.406 against 0.296–0.395 measured by [HF09]; the ergometer-fitted formula exceeds the measurement at every rate by 18–28% | same | same |
+| an unfitted drive-fraction prediction **on the oar alone** (fixed 4.85 m/s, constant pull): 0.319–0.406 across 183–808 W against 0.296–0.395 measured by [HF09]. **Corrected 2026-09-13: it does not hold on the full model** — see the open item on drive time and pace | same | same |
 
 ### The offline physics programme — phase 2, the gate
 
@@ -762,6 +785,7 @@ to.
 
 | what it was | how it was found |
 |---|---|
+| **A sculler's body was counted once per oar.** The dynamic oar averaged each oar's own balance, and each carried the rower's whole reflected inertia, so a sculler's two oars did not balance as one body: 2.2% of the handle work over a drive went unaccounted for. Now one seat balance, `(I_crew + n I_oar) φ̈ = −n τ + Σ blade`, in both the dynamic simulator and the reduced model; sweep seats are bit-identical. The single at 380 W went from 3.99 m/s — the recorded 2.6% miss below its published band — to **4.22, inside 4.1–4.7**, and its drive from 0.628 of the stroke to 0.559. | Drawing the blade-path figure: the single's drive filled most of the stroke, and closing the energy books over one drive showed the residual. |
 | **The optimiser and the simulator disagreed about the rudder.** `hydro_casadi.surface_load` used `lift_curve_slope * angle` where the numpy path uses Whicker–Fehlner — dropping both the `cos` that stalls the surface and the cross-flow term. Up to **6.5% low at 15°**, and unbounded growth past stall, which is exactly the sort of thing an optimiser exploits. The CasADi path is what `PathMPC`, `ReducedModel` and the route optimiser run on, and `SOURCES.md` §10 says steering is already marginal against the tightest bends. | Investigating why 14 CasADi tests had been failing. The comparison against numpy was there and had been **unable to run since 26 August**, so nothing was checking. Now agrees to 0.0 across every appendage, deflection and sideslip tried, and `tests/unit/test_hydro_casadi.py` sweeps the lift curve degree by degree from −45° to +45° instead of sampling it, carries a planted-failure test so the guard can fail, and checks the surface stalls instead of growing without limit. |
 | **14 CasADi appendage tests silently disabled for 17 days.** `0b35995` gave the eight one combined `_fin_with_rudder`, and the module fixture was `catalog.eight()`; every test picking `[s for s in appendages if not s.controllable][0]` raised IndexError or compared the wrong surface. The suite was reported green when it was not. | Running the full suite before starting the physics programme. The fixture is now a four (which still has one of each) and **asserts** it has both, so the next catalogue change fails with a sentence rather than an IndexError. |
 | **v0.12 crashed before the first frame.** The minimap read the boat as `state` in the windowed loop, where it is `pose`. | A rower's crash log. Every bench and screenshot used `--shot`, which returns before that loop, so nothing here ever ran it. Guarded by `tests/test_no_undefined_names.py`, and by starting the downloaded build before each release. |

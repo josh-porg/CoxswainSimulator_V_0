@@ -148,7 +148,7 @@ blade resists, the angle follows.
 - [x] Torque balance about the pin, as a standalone unit (`coxswain/crew/oardynamics.py`), tested in isolation before anything is wired in
 - [x] The comparison that justifies the change, measured rather than asserted
 - [x] Inertia **derived** from de Leva masses and the joint chain, not fitted — and it varies sevenfold across the drive, so the balance carries the `½(dI/dφ)φ̇²` term
-- [x] Drive fraction predicted, unfitted, and it lands on the on-water measurement
+- [x] Drive fraction predicted, unfitted — and on the oar alone, at a fixed 4.85 m/s under a constant pull, it lands on the on-water measurement. **On the full model it does not**: no single power gives both on-water drive time and published pace (below)
 - [x] Couple it to hull surge on a reduced model, and answer the gate (`coxswain/sim/oarloop.py`)
 - [x] A seam in the shipped simulator (`RowingSimulator._oar_loads`), cut as a verbatim move and held **bit-identical** by the golden trajectory
 - [x] `DynamicOarSimulator` on the full 6-DOF hull: one oar angle per seat, blade load applied at the blade, slip against the water-relative **oarlock** velocity so a turning boat's two sides differ (`coxswain/sim/dynamic_oar.py`)
@@ -408,40 +408,65 @@ is physics; the next candidate is the missing lift, which is tier 2.
 |---|---|---|---|
 | eight, rate 32 | 5.557 | 5.0–5.6 | in |
 | four, rate 32 | 4.902 | 4.5–5.1 | in |
-| single, rate 30 | 3.993 | 4.1–4.7 | **2.6% below** |
+| single, rate 30 | 4.22 | 4.1–4.7 | in |
 
-The single misses, and it missed on the reduced model too (4.05), so the
-full hull did not cause it. It also carries the largest swing of the three
-(68%). Recorded as a miss, not tuned away: 380 W may simply be low for a
-racing sculler, and that is the published-race-power data item already
-listed as blocked.
+**The single used to miss** — 3.993 m/s, 2.6% below its band — and it was
+recorded as a miss rather than tuned away. The cause turned out to be a bug,
+not the power: a sculler's two oars were each balanced against the rower's
+whole reflected inertia, so the body was counted once per oar and 2.2% of the
+handle work over a drive went unaccounted for. With one seat balance —
+`(I_crew + n I_oar) φ̈ = −n τ + Σ blade` — the energy books close and the
+single settles at 4.22, inside its band. Sweep seats are bit-identical, so the
+eight and four above did not move. (The reduced model's 4.05 was measured
+before the same fix and has not been re-measured.)
 
-#### An unfitted prediction that lands on the water
+#### An unfitted prediction — true of the oar alone, not of the full model
 
-The best result so far, and it is the reason the change is worth making.
+**Corrected 2026-09-13.** This section used to be headed "an unfitted
+prediction that lands on the water" and called it the best result so far. The
+measurement it rests on is real, but it was taken on the oar balance **alone**,
+at a **fixed** 4.85 m/s, under a **constant** pull. On the full 6-DOF hull, at a
+stated power and the measured front-loaded pull, it does not hold.
 
-Drive duration is currently a formula of stroke rate, refitted to ergometer
-kinematics, and it misses on-water pairs by 18–28%. With the angle dynamic
-it is not a formula at all — the rower pulls, the blade resists, and how
-long the drive takes is what the balance produces. Eight at rate 28, boat
-at 4.85 m/s, sweeping the handle power across everything a crew could do:
+What was measured, and still stands as a statement about the unit: eight at
+rate 28, boat held at 4.85 m/s, constant handle torque swept across a 4.4x
+range of power —
 
 | | drive fraction |
 |---|---|
-| predicted, 183–808 W per rower | **0.319 – 0.406** |
-| measured on the water, [HF09], 20.6–31.5 spm | **0.296 – 0.395** |
-| the current ergometer-fitted formula | 0.378 – 0.465 |
+| the oar alone, 183–808 W per rower | 0.319 – 0.406 |
+| measured on the water, [HF09] pairs, 20.6–31.5 spm | 0.296 – 0.395 |
+| the ergometer-fitted formula | 0.378 – 0.465 |
 
-The predicted range essentially coincides with the measured one, and the
-formula it replaces **exceeds the measurement at every single rate, by 18
-to 28%**. (Its range is shifted up rather than disjoint — the comparison
-that means anything is rate by rate.)
+What the full model does, settled at a stated power with the measured pull:
 
-At a representative 440 W per rower the prediction is 0.3575 against
-0.3596 measured at 27.7 spm. That agreement is luckier than the method
-deserves — the handle power is an input and a different one moves the
-answer — but the *range* is the point: every plausible power lands where
-the measurements are, from a model with nothing fitted to them.
+| boat | rate | W per rower | speed | drive fraction | on the water [HF09] | erg formula |
+|---|---|---|---|---|---|---|
+| eight | 28 | 180 | 4.23 | 0.534 | 0.362 | 0.445 |
+| eight | 28 | 380 | 5.62 | **0.400** | 0.362 | 0.445 |
+| eight | 32 | 380 | 5.56 | **0.467** | 0.395 | 0.468 |
+| eight | 32 | 500 | 6.16 | 0.420 | 0.395 | 0.468 |
+| eight | 32 | 650 | **6.78** | **0.377** | 0.395 | 0.468 |
+| four | 32 | 380 | 4.90 | 0.510 | 0.395 | 0.468 |
+
+At rate 28 and a race power the eight's drive sits between the water and the
+erg formula. At rate 32 the drive *time* barely changes (0.856 s to 0.875 s),
+so its fraction climbs to the erg formula's value. On the water crews shorten
+the drive as rate rises, and they do it by pulling harder — and the model does
+that too: at 650 W the eight's drive fraction reaches the on-water 0.377. **But
+it is then doing 6.78 m/s**, far past the published 5.0–5.6 for an eight at
+rate 32.
+
+So **no single power reproduces both the on-water drive time and the published
+race pace.** At the power that gives the pace the drive is 18% long; at the
+power that gives the drive time the boat is 20% fast. That is physics, not a
+missing input, and it is very likely the same thing as the blade-efficiency
+gap: a blade a quarter less efficient than a real one has to be swept longer
+for the same boat speed. Tracked in [TRACKING.md](TRACKING.md).
+
+Two qualifications on the comparison itself: [HF09] measured coxless **pairs**,
+so an eight and a four are not like-for-like against them; and there is no
+sourced on-water drive fraction for a single.
 
 #### The inertia question, answered — derived, not fitted
 

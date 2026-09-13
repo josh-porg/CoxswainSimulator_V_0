@@ -181,6 +181,17 @@ def settle_coupled(boat, handle_torque: float, oar=None, resistance=None,
 
     period = float(boat.timing.period)
     n_oars = sum(len(seat.oarlocks) for seat in boat.rig.seats)
+    # Oars per rower: 1 for sweep, 2 for sculling.  A sculler is ONE body
+    # swinging both, so the balance below is the seat's, not the mean of
+    # two oars each carrying the whole rower -- see
+    # DynamicOarSimulator._seat_acceleration for the measurement.
+    # Named for what it is.  An earlier draft called this ``per_rower``, and
+    # the power accounting at the end of each cycle already uses that name
+    # for watts per rower -- so after the first cycle every boat, sweep
+    # included, fell into the sculler branch with n in the hundreds.  The
+    # eight settled at 5.75 m/s instead of 5.33, and a slow test caught it.
+    oars_per_rower = int(round(n_oars / max(boat.n_seats, 1)))
+    oar_inertia = float(getattr(oar.inertia, "oar_inertia", 0.0))
     mass = float(boat.total_mass)
 
     speed = float(start_speed)
@@ -197,8 +208,18 @@ def settle_coupled(boat, handle_torque: float, oar=None, resistance=None,
             on_drive = drive_end is None
             if on_drive:
                 torque = handle_torque * shape(angle)
-                accel = float(oar.acceleration(angle, rate, -torque,
-                                               speed, water_depth))
+                if oars_per_rower == 1:
+                    accel = float(oar.acceleration(angle, rate, -torque,
+                                                   speed, water_depth))
+                else:
+                    moment, slope = oar.inertia_at(angle)
+                    blade = float(oar.blade_torque(angle, rate, speed,
+                                                   water_depth))
+                    accel = ((-oars_per_rower * torque
+                              + oars_per_rower * blade
+                              - 0.5 * slope * rate ** 2)
+                             / (moment
+                                + (oars_per_rower - 1) * oar_inertia))
                 force = float(oar.blade.normal_force(angle, rate, speed,
                                                      water_depth))
                 # NO gearing factor.  For the hull-plus-crew system the

@@ -206,3 +206,16 @@ def test_research_passes_the_defect_targets_shipped_fails():
     # instead of being noticed in a table.
     assert level.status == "fail", (level.value, level.detail)
     assert 0.5 < level.value < 0.7, level.value
+
+
+def test_the_steering_caption_transcribes_nothing():
+    """It used to quote one shipped run as prose -- an eight the research page
+    does not have, and rms figures the table beside it contradicted. The only
+    number it states now is the controller's own look-ahead, read from the
+    controller."""
+    from coxswain.sim.mpc import PREVIEW_DISTANCE
+
+    caption = _make_report()._steering_caption()
+    assert "%.0f m" % PREVIEW_DISTANCE in caption
+    for stale in ("29 m", "16 m", "12.88", "0.80 m", "the eight"):
+        assert stale not in caption, stale

@@ -156,6 +156,13 @@ def test_power_is_the_closed_form_work(single):
     # And the stroke carries a measured blade efficiency, not a placeholder.
     level = run.strokes[0].blade_efficiency
     assert level is not None and 0.0 < level < 1.0, level
+    # And the last stroke's full augmented state is kept, consistent with the
+    # speed trace kept beside it -- it is what the blade-path figure draws.
+    n = DynamicOarSimulator(single, peak_torque=torque).n_oar_states
+    assert run.last_states.shape == (STATE_SIZE + 2 * n,
+                                     run.last_time.size)
+    assert np.allclose(np.hypot(run.last_states[6], run.last_states[7]),
+                       run.last_speed)
 
 
 def test_blade_efficiency_is_measured_on_the_states_the_boat_had(single):
@@ -329,3 +336,84 @@ def test_the_residual_rise_in_eta_is_half_swing_and_half_blade():
     naive_rise = naive_fast - naive_slow
     true_rise = true_fast - true_slow
     assert naive_rise > true_rise > 0.0, (naive_rise, true_rise)
+
+
+# ---------------------------------------------------------------------------
+# one body, several oars
+# ---------------------------------------------------------------------------
+def _mid_drive(sim, surge=4.0, angle=np.radians(10.0), rate=-2.0):
+    y = sim.augmented_initial_state(surge)
+    n = sim.n_oar_states
+    y[STATE_SIZE:STATE_SIZE + n] = angle
+    y[STATE_SIZE + n:] = rate
+    return y, State.from_vector(y[:STATE_SIZE]), angle, rate
+
+
+def test_a_sweep_seat_keeps_the_single_oar_balance(eight):
+    """Bit-identical to the unit's own balance -- the sculler fix does not
+    touch a seat with one oar."""
+    sim = DynamicOarSimulator(eight, peak_torque=600.0)
+    y, state, angle, rate = _mid_drive(sim, surge=4.85)
+    n = sim.n_oar_states
+    got = sim.derivative(0.1, y)[STATE_SIZE + n]
+    lock = eight.rig.seats[sim._seats[0]].oarlocks[0]
+    torque = sim._torque(0, angle, state, 0.1)
+    expected = float(sim._oars[0].acceleration(
+        angle, rate, -torque, sim._lock_speed_on_normal(state, lock, angle)))
+    assert got == expected
+
+
+def test_a_sculler_is_one_body_with_two_oars(single):
+    """``(I_crew + 2 I_oar) phi_ddot = -2 tau + sum blade - (1/2) I' w^2``.
+
+    Not the mean of two oars each carrying the whole rower, which counted
+    the body twice.
+    """
+    sim = DynamicOarSimulator(single, peak_torque=400.0)
+    y, state, angle, rate = _mid_drive(sim)
+    n = sim.n_oar_states
+    got = sim.derivative(0.1, y)[STATE_SIZE + n]
+
+    oar = sim._oars[0]
+    locks = single.rig.seats[0].oarlocks
+    torque = sim._torque(0, angle, state, 0.1)
+    moment, slope = oar.inertia_at(angle)
+    speeds = [sim._lock_speed_on_normal(state, lock, angle) for lock in locks]
+    blade = sum(float(oar.blade_torque(angle, rate, v)) for v in speeds)
+    one_body = ((-2 * torque + blade - 0.5 * slope * rate ** 2)
+                / (moment + oar.inertia.oar_inertia))
+    assert got == pytest.approx(one_body, rel=1e-12)
+
+    per_oar_mean = float(np.mean([oar.acceleration(angle, rate, -torque, v)
+                                  for v in speeds]))
+    assert abs(got - per_oar_mean) > 0.01 * abs(per_oar_mean)
+
+
+def test_a_scullers_drive_closes_its_energy_books(single):
+    """Handle work = work against the water + the seat's kinetic energy.
+
+    Integrated over one drive at a fixed 4 m/s with the seat balance. The
+    per-oar form this replaced left 2.2% of the handle work unaccounted for.
+    """
+    sim = DynamicOarSimulator(single, peak_torque=368.0)
+    oar = sim._oars[0]
+    locks = single.rig.seats[0].oarlocks
+    state = _straight(4.0)
+    n_locks = len(locks)
+
+    angle, rate, dt = float(oar.catch_angle), 0.0, 0.0005
+    handle = water = 0.0
+    while angle > oar.finish_angle:
+        torque = sim._torque(0, angle, state, 0.0)
+        acc = sim._seat_acceleration(oar, angle, rate, torque, state, locks)
+        blade = sum(float(oar.blade_torque(
+            angle, rate, sim._lock_speed_on_normal(state, lock, angle)))
+            for lock in locks)
+        handle += n_locks * abs(torque * rate) * dt
+        water += blade * rate * dt
+        angle += dt * rate
+        rate += dt * acc
+    inertia = oar.inertia_at(angle)[0] + (n_locks - 1) * oar.inertia.oar_inertia
+    kinetic = 0.5 * inertia * rate ** 2
+    residual = handle + water - kinetic
+    assert abs(residual) < 0.002 * handle, (handle, water, kinetic, residual)

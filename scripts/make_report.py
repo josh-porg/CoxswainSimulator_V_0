@@ -641,6 +641,28 @@ def _pace_reason(profile) -> str:
             "the field is the arbiter.")
 
 
+def _steering_caption() -> str:
+    """The steering table's caption, with nothing transcribed into it.
+
+    It used to quote one shipped run as prose -- "29 m for the eight",
+    "12.88 m rms", "0.80 m, better than the eight" -- and on a research page
+    that has no eight, and whose four reads differently, the caption
+    contradicted the table beside it. The one number worth stating is the
+    look-ahead the controller actually uses, and that is read from the
+    controller rather than typed.
+    """
+    from coxswain.sim.mpc import PREVIEW_DISTANCE
+
+    return ("Each boat down its OWN optimised line, at its own cruising "
+            "speed, measured after the opening transient. The predictive "
+            "controller looks a fixed %.0f m ahead rather than a fixed time, "
+            "because a fixed time horizon is a much shorter look-ahead on a "
+            "slow boat and a slow boat cannot steer on it; the measurement "
+            "behind that is recorded in coxswain.sim.mpc.horizon_for. The "
+            "pursuit controller has no such fix: see the finding above."
+            % PREVIEW_DISTANCE)
+
+
 def _fallback_caveat(control_rows) -> str:
     """What the MPC's solver actually did, from its own counters.
 
@@ -1108,15 +1130,7 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
         Table("Steering the real boat",  ["boat", "controller", "elapsed (s)",
                                          "cross-track rms (m)", "worst (m)",
                                          "solver fallbacks"], control_rows,
-              "Each boat down its OWN optimised line, at its own cruising "
-              "speed, measured after the opening transient. The "
-              "predictive controller looks a fixed DISTANCE ahead rather "
-              "than a fixed time: six seconds is 29 m for the eight and "
-              "16 m for the four, and on 16 m the four cannot steer at "
-              "all (12.88 m rms, never reaching the finish). Given the "
-              "same 28 m it holds the line to 0.80 m, better than the "
-              "eight. The pursuit controller has no such fix: see the "
-              "finding above.",
+              _steering_caption(),
               group="The line"),
     ]
 

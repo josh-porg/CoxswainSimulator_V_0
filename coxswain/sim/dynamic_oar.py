@@ -91,6 +91,11 @@ class DynamicRun:
     #: swing costs can be measured without integrating again.
     last_time: Optional[np.ndarray] = None
     last_speed: Optional[np.ndarray] = None
+    #: The full augmented state over the LAST stroke, ``(12 + 2n, samples)``:
+    #: hull states, then oar angles, then oar rates.  Kept so a figure of the
+    #: blade's path through the water can be drawn from what the boat
+    #: actually did, not from the prescribed sweep.
+    last_states: Optional[np.ndarray] = None
 
     def settled_speed(self, last: int = 4) -> float:
         return float(np.mean([s.mean_speed for s in self.strokes[-last:]]))
@@ -314,14 +319,44 @@ class DynamicOarSimulator(RowingSimulator):
                 continue                          # held until the catch
             torque = self._torque(slot, angle, state, t)
             locks = self.boat.rig.seats[seat].oarlocks
-            accelerations = [
-                float(oar.acceleration(angle, rate, -torque,
-                                       self._lock_speed_on_normal(
-                                           state, lock, angle)))
-                for lock in locks]
             angle_rate[slot] = rate
-            rate_rate[slot] = float(np.mean(accelerations))
+            if len(locks) == 1:
+                # A sweep seat: one rower, one oar -- exactly the balance the
+                # unit was validated on, arithmetic unchanged.
+                rate_rate[slot] = float(oar.acceleration(
+                    angle, rate, -torque,
+                    self._lock_speed_on_normal(state, locks[0], angle)))
+            else:
+                rate_rate[slot] = self._seat_acceleration(
+                    oar, angle, rate, torque, state, locks)
         return np.concatenate([hull_rate, angle_rate, rate_rate])
+
+    def _seat_acceleration(self, oar, angle, rate, torque, state,
+                           locks) -> float:
+        """``phi_ddot`` for a seat whose one rower swings several oars.
+
+        One body, one balance::
+
+            (I_crew + n I_oar) phi_ddot + (1/2)(dI/dphi) phi_dot^2
+                = -n tau + sum_i l F_n,i
+
+        It used to be the MEAN of each oar's own balance, and each of those
+        carried the rower's whole reflected inertia -- so a sculler's body
+        was counted once per oar.  Measured on a single over one drive, the
+        per-oar form left 2.2% of the handle work unaccounted for, 16.5 J of
+        760; this closes the books to 0.2 J.  It shortens the drive by about
+        8%, not by half: blade resistance goes as slip squared, so a faster
+        sweep brakes itself and the drive length is set by the blade, not
+        the inertia.
+        """
+        moment, slope = oar.inertia_at(angle)
+        oar_inertia = float(getattr(oar.inertia, "oar_inertia", 0.0))
+        seat_inertia = moment + (len(locks) - 1) * oar_inertia
+        blade = sum(float(oar.blade_torque(
+            angle, rate, self._lock_speed_on_normal(state, lock, angle)))
+            for lock in locks)
+        return float((-len(locks) * torque + blade
+                      - 0.5 * slope * rate ** 2) / seat_inertia)
 
     # -- measurement ---------------------------------------------------------
     def _stroke_blade_efficiency(self, times, states) -> Optional[float]:
@@ -485,7 +520,8 @@ class DynamicOarSimulator(RowingSimulator):
 
         return DynamicRun(strokes=records, period=period,
                           last_time=np.asarray(times, dtype=float).copy(),
-                          last_speed=np.asarray(speed, dtype=float).copy())
+                          last_speed=np.asarray(speed, dtype=float).copy(),
+                          last_states=np.asarray(states, dtype=float).copy())
 
 
 def simulator_for(boat, **kwargs):
