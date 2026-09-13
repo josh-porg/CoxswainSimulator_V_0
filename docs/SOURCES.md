@@ -657,9 +657,29 @@ Every change is under 1% and in the direction 3% less wave drag should move
 it. No target changes status: blade-efficiency level still fails, everything
 implemented still passes.
 
-*Not converted:* `river/route.py`'s depth-to-speed table, `crew/pacing.py`'s
-factors, and `river/hydro_casadi.py`'s symbolic factor still use `shallow.py`
-whatever the profile.
+*The optimisers*, 2026-09-13. `RouteEvaluator`'s depth-to-speed table solves
+the boat's own power balance with the depth-aware table; `CoursePacing` takes
+`wave_table=` and adds `W_h − W_deep` to the deep resistance; the CasADi models
+take a `WaveSurface`, the table fitted with cubic B-splines in speed and log
+depth below `Fr_h` 0.8 and in `R/U²` against `Fr_h` and log depth above, blended
+(worst 1.00% against the table). Any boat without a depth-aware table keeps the
+old paths exactly.
+
+Pacing speed at the power for 5.2 m/s in deep water, split (m/s; A the shipped
+factor on total resistance, B the factor on the wave term as `hull_resistance`
+applies it, C Sretenskii):
+
+| depth | A: factor × total | B: factor × wave | C: Sretenskii | A → B | B → C |
+|---|---|---|---|---|---|
+| 1.5 m | 3.752 | 5.103 | 5.149 | +1.351 | +0.046 |
+| 2.0 m | 4.193 | 5.006 | 5.141 | +0.813 | +0.135 |
+| 2.5 m | 4.538 | 4.981 | 5.115 | +0.444 | +0.134 |
+| 3.0 m | 4.762 | 5.106 | 5.108 | +0.344 | +0.001 |
+| 4.0 m | 5.006 | 5.178 | 5.175 | +0.172 | −0.003 |
+| 5.0 m | 5.111 | 5.192 | 5.191 | +0.080 | −0.001 |
+
+The shipped optimisers' own simplification (A → B) is most of the change;
+the wave model (B → C) adds at most 0.16 m/s at this speed (TRACKING).
 
 Still assumed: thin ship, linear free surface, flat bed, no banks, no sinkage or
 trim, and steady resistance at the instantaneous speed, which [D11] found to

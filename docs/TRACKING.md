@@ -11,6 +11,57 @@ the file is also a record of what kind of thing goes wrong here.
 
 ## Open — correctness
 
+### The shipped route and pacing optimisers charge depth to the whole resistance
+**Impact: high for published pacing targets and optimised lines on shallow
+water; frozen, so not changed.**
+
+`RouteEvaluator._build_speed_table` solves `F(v, h) v³ = v_ref³` and
+`CoursePacing.speed_for_power` multiplies the whole deep resistance by
+`F(v, h)`. The simulator's `hull_resistance`, and `shallow.py`'s own docstring,
+apply the factor to the wave term only: Day et al. note the viscous terms are
+"less likely to be sensitive to water depth". So the optimisers and the
+simulator disagree about the same boat on the same water.
+
+Measured on the eight at the power for 5.2 m/s in deep water, same resistance
+throughout (m/s; A shipped, B factor on the wave term, C research):
+
+| depth | A: factor × total | B: factor × wave | C: Sretenskii | A → B | B → C |
+|---|---|---|---|---|---|
+| 1.5 m | 3.752 | 5.103 | 5.149 | +1.351 | +0.046 |
+| 2.0 m | 4.193 | 5.006 | 5.141 | +0.813 | +0.135 |
+| 2.5 m | 4.538 | 4.981 | 5.115 | +0.444 | +0.134 |
+| 3.0 m | 4.762 | 5.106 | 5.108 | +0.344 | +0.001 |
+| 4.0 m | 5.006 | 5.178 | 5.175 | +0.172 | −0.003 |
+| 5.0 m | 5.111 | 5.192 | 5.191 | +0.080 | −0.001 |
+
+At 3.0 m the shipped pacing model has the eight 0.34 m/s slower than the
+simulator's own treatment would; at 2.0 m, 0.81 m/s. `scripts/course_pacing.py`
+sets the published targets through it.
+
+*Not changed:* the game and the report are frozen on `shipped`. Research boats
+carry a depth-aware wave table, which takes both optimisers past this branch
+(shallow-water item). Fixing it for `shipped` would move published targets and
+needs a decision.
+
+### The shipped Michell table is too coarse below 4 m/s
+**Impact: low -- race speed is unaffected; warm-up, paddling and low-power
+pieces are not.**
+
+`MichellWave.tabulate()` samples 64 speeds from 0.5 to 8 m/s (0.119 m/s apart)
+and interpolates linearly. Against the direct integral on the eight's
+production grid (641 × 81), worst and mean error by speed band:
+
+| samples | 2–3 m/s | 3–4 m/s | 4–5 m/s | 5–6 m/s | 6–7.5 m/s |
+|---|---|---|---|---|---|
+| 64 (shipped) | 14.3%, 2.7% | 1.7%, 0.5% | 0.5%, 0.1% | 0.1%, 0.03% | 0.03%, 0.01% |
+| 151 | 4.3%, 0.7% | 0.3%, 0.1% | 0.09%, 0.02% | 0.02%, 0.01% | 0.01%, 0.00% |
+| 301 | 1.05%, 0.19% | 0.08%, 0.02% | 0.02%, 0.01% | 0.01%, 0.00% | 0.00%, 0.00% |
+
+The eight's Michell humps fall between samples at low speed. Uniform and
+trapezoid weights behave the same. `FiniteDepthWaveTable`, which research
+boats carry, samples 301 (about 10 s once per hull in place of 2 s);
+`shipped` keeps 64.
+
 ### Michell's sum reads about 3% high, and the shipped trainer uses it
 **Impact: low on speed, and a decision for the shipped default.**
 
@@ -439,10 +490,44 @@ The validation scorecard (deep water, so the trapezoid correction only) moves by
 under 1% everywhere, speed per watt +0.10 to +0.13%, and no target changes
 status (SOURCES §6).
 
-**Still open.** `river/route.py`'s depth-to-speed table, `crew/pacing.py` and
-`river/hydro_casadi.py` still use the chosen factor for every profile, so route
-and pacing optimisation does not see this yet. And it is steady resistance at
-the instantaneous speed, which [D11] found is the larger error near critical.
+*The optimisers too, 2026-09-13.* A boat whose wave table knows depth now
+takes it everywhere depth enters:
+
+- `RouteEvaluator` solves the boat's own power balance
+  `(R_deep(v) + W_h(v) − W_deep(v)) v = R_deep(v_ref) v_ref` for its depth-to-speed
+  table, keeping the never-faster-in-shallower-water guard;
+- `CoursePacing(wave_table=...)` adds `W_h − W_deep` to the deep resistance
+  instead of multiplying it by the factor; the pacing scripts now pass
+  `boat.wave_table`, which a shipped boat's plain table leaves without effect;
+- the CasADi models (`SixDofModel`, `StrokeResolvedModel`) get a
+  `WaveSurface`: the table sampled onto cubic B-splines, one in speed and log
+  depth below `Fr_h` 0.8 and one in `R/U²` against `Fr_h` and log depth through
+  critical, blended. Worst error against the table 1.00% (0.58 N at `Fr_h`
+  1.00 in 1.5 m); a speed-only surface had missed the peak by 17–26%. In deep
+  water this replaces the constant wave coefficient with Michell's integral.
+
+*What moved, and why.* Pacing speed for the eight at the power that holds
+5.2 m/s in deep water, split into the two changes (m/s):
+
+| depth | A: factor × total | B: factor × wave | C: Sretenskii | A → B | B → C |
+|---|---|---|---|---|---|
+| 1.5 m | 3.752 | 5.103 | 5.149 | +1.351 | +0.046 |
+| 2.0 m | 4.193 | 5.006 | 5.141 | +0.813 | +0.135 |
+| 2.5 m | 4.538 | 4.981 | 5.115 | +0.444 | +0.134 |
+| 3.0 m | 4.762 | 5.106 | 5.108 | +0.344 | +0.001 |
+| 4.0 m | 5.006 | 5.178 | 5.175 | +0.172 | −0.003 |
+| 5.0 m | 5.111 | 5.192 | 5.191 | +0.080 | −0.001 |
+
+**Most of it was not the wave model.** The shipped optimisers scale the whole
+resistance by the shallow factor, where the simulator scales only the wave term
+(A → B); Sretenskii then adds at most 0.16 m/s at these speeds (B → C), and its
+large effect is supercritical. See "The shipped route and pacing optimisers
+charge depth to the whole resistance".
+
+**Still open.** Steady resistance at the instantaneous speed, which [D11] found is
+the larger error near critical. The first research table for a hull takes about
+two minutes to build on the production grid (124 s for a 5.2 m/s route table),
+cached for the process after that.
 
 ### The dynamic oar's drive is started by the water, not the rower
 **Impact: high — it is in every `research` stroke, and it blocks [CR06]'s release rule.**
