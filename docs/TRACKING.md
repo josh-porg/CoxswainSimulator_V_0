@@ -754,6 +754,13 @@ spent on measurement before any physics was touched.
 | the following crew's velocity jumps at the finish and catch handed to the hull as impulses that conserve the momentum of hull plus crew; the finish detected on the step it happens | `DynamicOarSimulator._hand_jump_to_hull`, `_integrate_stroke` | `tests/test_crew_follows.py` |
 | the finish searched for a source: a measured oar turns round there, no deceleration law published in what was found | [FE17], [N-FISA] in SOURCES.md | — |
 
+### The offline physics programme — phase 4.3, groundwork
+
+| what | where | pinned by |
+|---|---|---|
+| segment principal moments of inertia from de Leva (1996) Table 4 radii of gyration, `I = m (r l)^2` per axis; lumped forearm+hand and shank+foot by the parallel-axis theorem (offset added to the sagittal and transverse moments, not the longitudinal) | `coxswain/crew/anthropometry.py` | `tests/unit/test_segment_inertia.py` |
+| the radii transcription verified against the columns already in the code: 20 rows, 0 mismatches | [dL96] in SOURCES.md | same |
+
 ### v0.13 — asked for, and done
 
 | what | where | pinned by |

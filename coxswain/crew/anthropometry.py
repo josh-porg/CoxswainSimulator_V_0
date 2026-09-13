@@ -32,7 +32,7 @@ Mass fractions sum to exactly 1.0 for both sexes, which
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Sequence
+from typing import Dict, List, Sequence, Tuple
 
 import numpy as np
 
@@ -136,6 +136,40 @@ DE_LEVA_FEMALE: Dict[str, SegmentSpec] = {
 
 _TABLES = {"male": DE_LEVA_MALE, "female": DE_LEVA_FEMALE}
 
+#: de Leva (1996) Table 4, radii of gyration about the segment CM, as % of
+#: the segment length on the SAME row: ``(sagittal, transverse,
+#: longitudinal)``.  Transcribed from a 400 dpi render of p. 1228; every row
+#: used was checked to print exactly the mass %, length and CM % already in
+#: DE_LEVA_MALE / DE_LEVA_FEMALE above, so each radius belongs to the segment
+#: definition the model uses -- including the upper trunk's alternative
+#: CERV -> XYPH row.
+DE_LEVA_RADII: Dict[str, Dict[str, Tuple[float, float, float]]] = {
+    "male": {
+        "head": (36.2, 37.6, 31.2),
+        "upper_trunk": (50.5, 32.0, 46.5),
+        "mid_trunk": (48.2, 38.3, 46.8),
+        "lower_trunk": (61.5, 55.1, 58.7),
+        "upper_arm": (28.5, 26.9, 15.8),
+        "forearm": (27.6, 26.5, 12.1),
+        "hand": (62.8, 51.3, 40.1),
+        "thigh": (32.9, 32.9, 14.9),
+        "shank": (25.5, 24.9, 10.3),
+        "foot": (25.7, 24.5, 12.4),
+    },
+    "female": {
+        "head": (33.0, 35.9, 31.8),
+        "upper_trunk": (46.6, 31.4, 44.9),
+        "mid_trunk": (43.3, 35.4, 41.5),
+        "lower_trunk": (43.3, 40.2, 44.4),
+        "upper_arm": (27.8, 26.0, 14.8),
+        "forearm": (26.1, 25.7, 9.4),
+        "hand": (53.1, 45.4, 33.5),
+        "thigh": (36.9, 36.4, 16.2),
+        "shank": (27.1, 26.7, 9.3),
+        "foot": (29.9, 27.9, 13.9),
+    },
+}
+
 
 @dataclass(frozen=True)
 class Segment:
@@ -146,6 +180,10 @@ class Segment:
     length: float        # m, proximal joint to distal joint
     com_fraction: float  # of length, from the proximal joint
     side: int            # PORT / STARBOARD / CENTRELINE
+    #: Principal moments of inertia about the segment CM, kg m^2:
+    #: ``(sagittal, transverse, longitudinal)`` -- de Leva's axes.  The
+    #: longitudinal axis runs along the segment.
+    inertia: Tuple[float, float, float] = (0.0, 0.0, 0.0)
 
 
 class RowerAnthropometry:
@@ -179,8 +217,14 @@ class RowerAnthropometry:
                 spec.length_fraction * self.stature,
                 spec.com_fraction)
 
+    def _inertia(self, name: str):
+        """Principal moments about the CM, ``m (r l)^2`` per de Leva axis."""
+        mass, length, _com = self._dimensional(name)
+        return tuple(mass * (percent / 100.0 * length) ** 2
+                     for percent in DE_LEVA_RADII[self.sex][name])
+
     def _lump(self, proximal: str, distal: str):
-        """Join two serial segments into one equivalent point mass."""
+        """Join two serial segments into one equivalent body."""
         m_p, l_p, c_p = self._dimensional(proximal)
         m_d, l_d, c_d = self._dimensional(distal)
 
@@ -192,23 +236,47 @@ class RowerAnthropometry:
         com_distance = (m_p * d_p + m_d * d_d) / total_mass
         return total_mass, total_length, com_distance / total_length
 
+    def _lump_inertia(self, proximal: str, distal: str):
+        """The joined pair's principal moments about ITS combined CM.
+
+        Both CMs lie on the pair's long axis, so the parallel-axis offset adds
+        to the sagittal and transverse moments and not to the longitudinal
+        one.  Treats the pair as collinear, as :meth:`_lump` already does --
+        for the foot, which is not, that is the existing approximation.
+        """
+        m_p, l_p, c_p = self._dimensional(proximal)
+        m_d, l_d, c_d = self._dimensional(distal)
+        i_p, i_d = self._inertia(proximal), self._inertia(distal)
+        d_p = c_p * l_p
+        d_d = l_p + c_d * l_d
+        centre = (m_p * d_p + m_d * d_d) / (m_p + m_d)
+        offset = m_p * (d_p - centre) ** 2 + m_d * (d_d - centre) ** 2
+        return (i_p[0] + i_d[0] + offset,
+                i_p[1] + i_d[1] + offset,
+                i_p[2] + i_d[2])
+
     def _build(self) -> List[Segment]:
         segments: List[Segment] = []
 
         for name in ("head", "upper_trunk", "mid_trunk", "lower_trunk"):
             mass, length, com = self._dimensional(name)
-            segments.append(Segment(name, mass, length, com, CENTRELINE))
+            segments.append(Segment(name, mass, length, com, CENTRELINE,
+                                    self._inertia(name)))
 
         paired = [
-            ("upper_arm", self._dimensional("upper_arm")),
-            ("forearm_hand", self._lump("forearm", "hand")),
-            ("thigh", self._dimensional("thigh")),
-            ("shank_foot", self._lump("shank", "foot")),
+            ("upper_arm", self._dimensional("upper_arm"),
+             self._inertia("upper_arm")),
+            ("forearm_hand", self._lump("forearm", "hand"),
+             self._lump_inertia("forearm", "hand")),
+            ("thigh", self._dimensional("thigh"), self._inertia("thigh")),
+            ("shank_foot", self._lump("shank", "foot"),
+             self._lump_inertia("shank", "foot")),
         ]
-        for name, (mass, length, com) in paired:
+        for name, (mass, length, com), inertia in paired:
             for side, suffix in ((PORT, "port"), (STARBOARD, "starboard")):
                 segments.append(
-                    Segment(f"{name}_{suffix}", mass, length, com, side)
+                    Segment(f"{name}_{suffix}", mass, length, com, side,
+                            inertia)
                 )
 
         if len(segments) != N_SEGMENTS:

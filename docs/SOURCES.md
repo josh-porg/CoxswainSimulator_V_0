@@ -162,7 +162,14 @@ source. Its peak segment velocities (leg 1.15, trunk 1.34, arm 2.29 m/s at
 **J. Biomechanics 29**(9) 1223–1230.
 [PDF](https://ebm.ufabc.edu.br/wp-content/uploads/2013/12/Leva-1996.pdf)
 
-Table 4 verbatim in `coxswain/crew/anthropometry.py`. Reference samples
+Table 4 verbatim in `coxswain/crew/anthropometry.py` — masses, lengths and
+CM positions from the start, and since phase 4.3's groundwork the **radii of
+gyration** too (`DE_LEVA_RADII`: sagittal, transverse, longitudinal, % of the
+segment length on the same row). Those were read from a 400 dpi render of
+p. 1228 in full-resolution crops, and every row used was checked
+programmatically to print exactly the mass %, length and CM % already
+transcribed — 20 rows, 0 mismatches — so each radius belongs to the segment
+definition the model uses. Reference samples
 73.0 kg / 1.741 m (male) and 61.9 kg / 1.735 m (female). Chosen over
 [F09]'s cited NASA-STD-3000 because de Leva's lengths are referenced to
 **joint centres**, which is what a kinematic linkage needs.

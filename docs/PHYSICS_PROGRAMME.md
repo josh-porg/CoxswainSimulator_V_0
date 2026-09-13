@@ -672,7 +672,11 @@ the boat, oars and crew topology exactly — driven by joint torques, not muscle
   handle, `OarAngleSweep.flatness` has nothing left to set, and is deleted from
   this path. *Validated by:* the sweep that results, against a measured oar-angle
   trace when one is obtained.
-- [ ] **4.3 — Joint torques drive the chain.** Recursive Newton–Euler on the
+- [ ] **4.3 — Joint torques drive the chain.** *Groundwork so far:* every
+  segment now carries its principal moments of inertia from de Leva's own
+  Table 4 radii of gyration, lumped segments by the parallel-axis theorem —
+  the chain had masses and lengths but no rotational inertia. Recursive
+  Newton–Euler on the
   free-floating base, with a stroke-tracking controller fitted to the erg data
   as ONE operating point, not as the model. *Validated by:* reproducing that one
   operating point without being tuned past it.
