@@ -20,7 +20,9 @@ The augmented state
 ``[12 hull states, phi_1 .. phi_n, phi_dot_1 .. phi_dot_n]``, one angle per
 seat.  A sculler's two oars share their seat's angle, exactly as the
 reduced model had it, so this reduces to the validated reduced model in
-straight running.
+straight running.  With ``crew="follows"`` one more state per seat is
+appended, ``d_1 .. d_n``: how long the drive has lasted, which stops at the
+finish so the recovery can be retimed from it.
 
 The blade force on each oar is normal to the shaft and opposes the slip, and
 the slip is taken against the **water-relative velocity of the oarlock**, not
@@ -37,10 +39,16 @@ reduced model's level check caught; not repeated.)
 
 Limits, stated before they are measured
 ---------------------------------------
-* **The crew is still prescribed in time**, so the hands follow the old
-  sweep while the oar follows its own dynamics.  The crew's surge reaction is
-  real and present; the hand-on-handle constraint is not enforced.  That is
-  the inconsistency the forward-dynamic rower (phase 4) removes.
+* **By default the crew is still prescribed in time** (``crew="clock"``),
+  so the hands follow the old sweep while the oar follows its own dynamics:
+  up to 0.19 m off the handle on the eight at 380 W, 0.74 m on the single.
+  ``crew="follows"`` is phase 4.1 -- the body slaved to the oar angle through
+  the drive, hands on the handle by construction; see
+  :mod:`coxswain.crew.follow`.  It is a study, and **not yet
+  momentum-consistent**: the body's velocity jumps at the finish and the
+  catch, handing the hull +361 N s a stroke on the eight (TRACKING).  Do not
+  read speeds from it.  It is still kinematic; phase 4.3 replaces it with a
+  torque-driven chain.
 * **Synchronised crews only.**  Oar states are reset to the catch at each
   stroke boundary, and with per-seat phase offsets those boundaries differ by
   seat.  Refused rather than approximated.
@@ -154,12 +162,23 @@ class DynamicOarSimulator(RowingSimulator):
     #: angle of attack, on provisional coefficients.
     BLADE_LAWS = ("slip", "liftdrag")
 
+    #: How the crew moves.  ``"clock"``: prescribed in time, as before --
+    #: the hands follow the old sweep while the oar follows its own
+    #: dynamics.  ``"follows"``: phase 4.1, the body slaved to the oar angle
+    #: through the drive and retimed through the recovery; see
+    #: :mod:`coxswain.crew.follow`.
+    CREW_MODES = ("clock", "follows")
+
     def __init__(self, boat, peak_torque: float, blade_law: str = "slip",
-                 **kwargs):
+                 crew: str = "clock", **kwargs):
         if blade_law not in self.BLADE_LAWS:
             raise ValueError("unknown blade law %r; this simulator runs %s"
                              % (blade_law, ", ".join(self.BLADE_LAWS)))
+        if crew not in self.CREW_MODES:
+            raise ValueError("unknown crew mode %r; this simulator runs %s"
+                             % (crew, ", ".join(self.CREW_MODES)))
         self.blade_law = blade_law
+        self.crew = crew
         super().__init__(boat, **kwargs)
         offsets = np.asarray(boat.phase_offsets, dtype=float)
         if offsets.size and np.ptp(offsets) > 1e-12:
@@ -180,7 +199,7 @@ class DynamicOarSimulator(RowingSimulator):
         # One balance per seat with oars.  The reflected inertia is the
         # expensive part (a joint-chain solve per sample), and seats whose
         # rowers move identically share it.
-        self._seats, self._oars = [], []
+        self._seats, self._oars, self._followers = [], [], []
         shared = {}
         for index, seat in enumerate(boat.rig.seats):
             if not seat.oarlocks:
@@ -188,12 +207,32 @@ class DynamicOarSimulator(RowingSimulator):
             rower = boat.crew[index].rower
             key = rower.kinematics_signature()
             if key not in shared:
-                shared[key] = InertiaProfile.of(boat, seat=index)
+                if crew == "follows":
+                    from ..crew.follow import FollowingCrew
+
+                    # The oar's inertia must be built from the same body
+                    # velocities the hull will feel, or the two halves of
+                    # the model disagree about the body's kinetic energy.
+                    follower = FollowingCrew(boat, seat=index)
+                    shared[key] = (follower.profile(
+                        float(seat.oarlocks[0].oar.inertia_about_lock)),
+                        follower)
+                else:
+                    shared[key] = (InertiaProfile.of(boat, seat=index), None)
             self._seats.append(index)
             self._oars.append(OarDynamics.from_boat(
-                boat, inertia=shared[key], seat=index))
+                boat, inertia=shared[key][0], seat=index))
+            self._followers.append(shared[key][1])
         self.n_oar_states = len(self._seats)
         self._oar_state = None
+        # Following crew only: per oar, the angle, rate and acceleration and
+        # how long the drive has lasted, set for the one hull derivative
+        # that needs them; and the time the current stroke's catch fell at.
+        self._crew_state = None
+        self._stroke_start = 0.0
+        #: Oar states per seat: angle and rate, plus the elapsed drive time
+        #: when the crew follows the oar.
+        self._per_oar = 3 if crew == "follows" else 2
 
         # Tier 2: one lift-drag blade per seat, sized from that seat's own
         # oar -- sweep and sculling blades differ in area, 0.110 m^2 against
@@ -241,7 +280,8 @@ class DynamicOarSimulator(RowingSimulator):
     def augmented_initial_state(self, surge_speed: float = 4.0) -> np.ndarray:
         hull = self.initial_state(surge_speed=surge_speed)
         return np.concatenate([hull, self._catch_angles(),
-                               np.zeros(self.n_oar_states)])
+                               np.zeros((self._per_oar - 1)
+                                        * self.n_oar_states)])
 
     def _catch_angles(self) -> np.ndarray:
         return np.array([oar.catch_angle for oar in self._oars], dtype=float)
@@ -355,13 +395,48 @@ class DynamicOarSimulator(RowingSimulator):
 
     # -- dynamics ------------------------------------------------------------
     def derivative(self, t: float, y: np.ndarray) -> np.ndarray:
-        hull, angles, rates = self._split(np.asarray(y, dtype=float))
+        y = np.asarray(y, dtype=float)
+        hull, angles, rates = self._split(y)
+        if self.crew == "follows":
+            return self._following_derivative(t, y, hull, angles, rates)
         self._oar_state = (angles, rates)
         try:
             hull_rate = super().derivative(t, hull)
         finally:
             self._oar_state = None
 
+        angle_rate, rate_rate = self._oar_rates(t, hull, angles, rates)
+        return np.concatenate([hull_rate, angle_rate, rate_rate])
+
+    def _following_derivative(self, t, y, hull, angles, rates):
+        """Phase 4.1: the oar first, then the hull, whose crew follows it.
+
+        The other way round from the clock crew, and it has to be: the
+        body's acceleration now carries ``phi_ddot``, and ``phi_ddot`` needs
+        only the hull's state, never its acceleration, so there is no
+        algebraic loop.  One consequence, recorded rather than hidden: the
+        coxswain's split is read before the hull's own derivative instead of
+        after, so a steering law that updates its call inside that
+        derivative is heard one evaluation later.
+        """
+        n = self.n_oar_states
+        elapsed = y[STATE_SIZE + 2 * n:STATE_SIZE + 3 * n]
+        angle_rate, rate_rate = self._oar_rates(t, hull, angles, rates)
+        self._oar_state = (angles, rates)
+        self._crew_state = (angles, rates, rate_rate, elapsed, float(t))
+        try:
+            hull_rate = super().derivative(t, hull)
+        finally:
+            self._oar_state = None
+            self._crew_state = None
+        # The drive clock runs while the blade is in and stops at the
+        # finish, so through the recovery it holds how long the drive took.
+        live = np.array([float(angles[k]) > self._oars[k].finish_angle
+                         for k in range(n)], dtype=float)
+        return np.concatenate([hull_rate, angle_rate, rate_rate, live])
+
+    def _oar_rates(self, t: float, hull: np.ndarray, angles, rates):
+        """``(phi_dot, phi_ddot)`` for every seat, from the hull's state."""
         state = State.from_vector(hull)
         angle_rate = np.zeros(self.n_oar_states)
         rate_rate = np.zeros(self.n_oar_states)
@@ -382,7 +457,58 @@ class DynamicOarSimulator(RowingSimulator):
             else:
                 rate_rate[slot] = self._seat_acceleration(
                     oar, angle, rate, torque, state, locks, slot)
-        return np.concatenate([hull_rate, angle_rate, rate_rate])
+        return angle_rate, rate_rate
+
+    # -- the crew ------------------------------------------------------------
+    def crew_field(self, t: float, exact: bool = False):
+        """The crew's masses and motion -- following the oar when asked.
+
+        The clock crew, and any call made outside a derivative (a
+        measurement, a plot), get the base class's prescribed field.
+        """
+        if self.crew != "follows" or self._crew_state is None or exact:
+            return super().crew_field(t, exact=exact)
+        angles, rates, accelerations, elapsed, now = self._crew_state
+        boat = self.boat
+        since_catch = now - self._stroke_start
+        period = float(boat.timing.period)
+        phases = np.asarray(boat.phase_offsets, dtype=float)
+        slot_of = {seat: slot for slot, seat in enumerate(self._seats)}
+
+        masses, positions, velocities, accels = [], [], [], []
+        for member in boat.crew:
+            rower = member.rower
+            slot = slot_of.get(member.seat_index)
+            if slot is None:
+                # a rower with no oar has nothing to follow
+                position, velocity, accel = boat._stroke_table(rower).at(
+                    now - float(phases[member.seat_index]) * period)
+                position = np.array(position, dtype=float)
+            else:
+                follower = self._followers[slot]
+                angle = float(angles[slot])
+                if angle > self._oars[slot].finish_angle:
+                    position, velocity, accel = follower.drive_state(
+                        angle, float(rates[slot]), float(accelerations[slot]))
+                else:
+                    position, velocity, accel = follower.recovery_state(
+                        since_catch, float(elapsed[slot]))
+            position[:, 0] += float(rower.station.x_ankle)
+            masses.append(np.asarray(rower.segment_masses, dtype=float))
+            positions.append(position)
+            velocities.append(velocity)
+            accels.append(accel)
+
+        rig = boat.rig
+        if rig.has_coxswain and rig.coxswain_mass > 0:
+            masses.append(np.array([rig.coxswain_mass]))
+            positions.append(np.asarray(rig.coxswain_position,
+                                        dtype=float).reshape(1, 3))
+            velocities.append(np.zeros((1, 3)))
+            accels.append(np.zeros((1, 3)))
+
+        return (np.concatenate(masses), np.vstack(positions),
+                np.vstack(velocities), np.vstack(accels))
 
     def _seat_acceleration(self, oar, angle, rate, torque, state,
                            locks, slot: Optional[int] = None) -> float:
@@ -516,14 +642,16 @@ class DynamicOarSimulator(RowingSimulator):
             given = np.asarray(initial_state, dtype=float)
             if given.shape == (STATE_SIZE,):
                 hull = given
-            elif given.shape == (STATE_SIZE + 2 * n,):
+            elif given.shape == (STATE_SIZE + self._per_oar * n,):
                 hull = given[:STATE_SIZE]
             else:
                 raise ValueError(
                     "initial state must be the %d hull states or the %d "
                     "augmented ones, got shape %s"
-                    % (STATE_SIZE, STATE_SIZE + 2 * n, given.shape))
-        y = np.concatenate([hull, self._catch_angles(), np.zeros(n)])
+                    % (STATE_SIZE, STATE_SIZE + self._per_oar * n,
+                       given.shape))
+        y = np.concatenate([hull, self._catch_angles(),
+                            np.zeros((self._per_oar - 1) * n)])
 
         pieces_t, pieces_y = [], []
         t0, stroke = 0.0, 0
@@ -533,6 +661,7 @@ class DynamicOarSimulator(RowingSimulator):
             y = np.array(y, dtype=float)
             y[STATE_SIZE:STATE_SIZE + n] = self._catch_angles()
             y[STATE_SIZE + n:] = 0.0
+            self._stroke_start = t0
             t1 = min(t0 + period, float(duration))
             times, states = integrators.rk4(self.derivative, (t0, t1), y, dt)
             keep = slice(0, -1) if t1 < duration else slice(None)
@@ -561,6 +690,7 @@ class DynamicOarSimulator(RowingSimulator):
             y = np.array(y, dtype=float)
             y[STATE_SIZE:STATE_SIZE + n] = self._catch_angles()
             y[STATE_SIZE + n:] = 0.0
+            self._stroke_start = t0
             times, states = integrators.rk4(self.derivative,
                                             (t0, t0 + period), y, dt)
 

@@ -597,7 +597,7 @@ tangential force — needs the time-resolved traces of Grift et al. (2021), and
 the coefficients themselves need their primary source. Both are in Blocked,
 below. Tier 2 stays a study, not a profile, until they arrive.
 
-### Phase 4 — the forward-dynamic rower (planned)
+### Phase 4 — the forward-dynamic rower (4.1 built, its gate failed)
 
 **Why this is next.** The two gaps phase 2 and 3 left open both point at the
 crew, not the blade. The drive runs long at a race power and tier 2 does not
@@ -613,12 +613,39 @@ the boat, oars and crew topology exactly — driven by joint torques, not muscle
 **The steps, in the order each can be validated before the next is built:**
 
 - [ ] **4.1 — The hands follow the oar.** Before any torque-driven chain, make
-  the prescribed crew kinematically consistent with the dynamic oar: the hands
-  on the handle wherever the integrated angle puts it, the rest of the body
-  solving to reach it. `StrokeTable` is bypassed on this path, because it
-  assumes the chain depends on stroke time and nothing else. *Validated by:*
-  the reflected inertia stops diverging at the catch and the finish, and the
-  hand-on-handle residual is zero by construction rather than ignored.
+  the prescribed crew kinematically consistent with the dynamic oar.
+
+  *The baseline, measured first* (settled stroke, 380 W): the clock crew's
+  hands sat up to **0.19 m** off the dynamic handle on the eight and **0.74 m**
+  on the single, whose oar ran 48° behind the body mid-drive. The arms are
+  0.7 m long, so the plan's "rest of the body solving to reach it" could not
+  be an arm solve: the whole body has to follow.
+
+  *Built* (`coxswain/crew/follow.py`, `DynamicOarSimulator(crew="follows")`, a
+  study): through the drive the body's stroke time is the prescribed time at
+  which the sweep had the current angle, read from the stroke table — which is
+  therefore kept, not bypassed — with velocities and accelerations by the chain
+  rule. The oar's inertia is built from exactly those velocities, so the body
+  has one kinetic energy whether the hull or the oar is asked; before this the
+  oar assumed a following body and the hull felt a clock one. The recovery is
+  retimed from the dynamic finish to the next catch.
+
+  *The criterion first written here was wrong.* The reflected inertia cannot
+  stop diverging in 4.1: it diverges because the prescribed sweep's rate is
+  zero at its ends, and that is 4.2's to remove. The criteria are now: hands on
+  the handle (holds, under 2 mm), one kinetic energy (holds, to 1e-9), and
+  **the crew hands the hull no momentum of its own — which fails.**
+
+  *The gate failure.* The hull feels the crew only through Σm·a. On the eight
+  at 380 W that integrates to **+361 N·s per stroke** against a real change in
+  crew momentum of +108; the clock crew closes to 0.005. Nearly all of it is at
+  the finish (−241 N·s), where the dynamic oar is stopped dead at the finish
+  angle and a following body with it; −34 at the catch, where the retimed
+  recovery arrives moving and the drive starts from rest; the rest inside the
+  rate floor. The first settled run — eight 5.62 → 5.06 m/s, drive fraction
+  0.400 → 0.424 — measured that defect, not the physics, and predicted the
+  opposite of what I had stated beforehand. It is void. Pinned as a strict
+  xfail in `tests/test_crew_follows.py`; TRACKING has the fix options.
 - [ ] **4.2 — Sweep shape becomes an output.** With the hands on the dynamic
   handle, `OarAngleSweep.flatness` has nothing left to set, and is deleted from
   this path. *Validated by:* the sweep that results, against a measured oar-angle

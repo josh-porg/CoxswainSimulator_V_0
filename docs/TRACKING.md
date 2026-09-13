@@ -268,6 +268,57 @@ blade-efficiency item above.
 curve applied by angle, and the reflected inertia clamped at the catch, which
 each added about 0.03 of the stroke on the oar alone.
 
+### The following crew hands the hull momentum it never had
+**Impact: high — it voids every number phase 4.1's crew mode produces.**
+
+`DynamicOarSimulator(crew="follows")` slaves the body to the oar angle
+(PHYSICS_PROGRAMME, phase 4.1). The hull feels the crew only through Σm·a, so
+Σm·a integrated over a stroke must equal the change in the crew's momentum.
+Measured on the last of six strokes at 380 W:
+
+| boat | crew | ∫Σm·aₓ dt | Δ(Σm·vₓ) | worst single step |
+|---|---|---|---|---|
+| eight | clock | +0.00 N·s | 0.00 | 0.005 |
+| eight | follows | **+361** | +108 | **−241 at the finish**, −34 at the catch |
+| single | clock | −0.00 | 0.00 | 0.001 |
+| single | follows | **+36** | +14 | **−26 at the finish** |
+
+Three places the acceleration is not the derivative of the velocity:
+
+1. **The finish.** The dynamic oar reaches the finish angle still sweeping
+   and is held there; a body slaved to it stops with it, from a velocity the
+   acceleration never took away. This is the bulk.
+2. **The catch.** The retimed recovery arrives at the prescribed catch pose
+   still moving (the erg-fitted body is not at rest there); the drive starts
+   from rest with the oar.
+3. **The rate floor.** Near both ends the velocity scale is capped so it does
+   not diverge; there the pose and the velocity part company.
+
+The settled run it produced (eight 5.06 m/s against the clock crew's 5.62;
+drive fraction 0.424 against 0.400) is that defect. It is not a result.
+
+**The finish is a defect of `research` too, not only of this study.**
+Measured on settled strokes at 380 W, the dynamic oar reaches the finish
+angle still sweeping at 74% of its peak rate on the eight and 69% on the
+single with the clock crew (87% and 80% following), and is held there. The
+kinetic energy dropped is **4.7% of the stroke's handle work** with the clock
+crew, 3.0–3.1% following. A real oar-angle trace turns round at the finish;
+ours stops dead at nearly full speed, because the pull shape is clipped at
+zero and nothing but the blade slows the handle. The clock crew does not hand
+the hull false momentum for it, but the energy is gone, which bears on every
+speed-per-watt number `research` reports. Needs a source for the handle's
+deceleration into the finish before it is changed.
+
+*Fix options, in the order I'd try them:* (a) end the dynamic drive with the
+oar at rest — a rower decelerates the handle into the finish, and the torque
+shape does not; that removes the finish jump at its cause, and it is a pull
+shape change, so it moves `research` too and must be scored; (b) where a jump
+remains, apply its momentum to the hull as an impulse, which conserves the
+system's momentum and books the lost energy honestly; (c) replace the capped
+floor with the sweep of phase 4.2, whose ends are not singular.
+`tests/test_crew_follows.py` holds the eight to 0.5 N·s as a strict xfail, so
+the fix announces itself.
+
 ### The drive is 18–28% too long, and the cause is the ergometer
 **Impact: high — drive duration sets the time base of the whole stroke.**
 
@@ -666,6 +717,17 @@ none; the optimiser and simulator disagreed about the rudder; and the drive
 is 18–28% too long because it was refitted to ergometer data. All four are
 open items above, and the last two were found only because a phase was
 spent on measurement before any physics was touched.
+
+### The offline physics programme — phase 4.1, built; gate failed
+
+| what | where | pinned by |
+|---|---|---|
+| the baseline, measured before building: the clock crew's hands up to 0.19 m off the dynamic handle on the eight, 0.74 m on the single — too far for any arm solve | probe, recorded in PHYSICS_PROGRAMME | — |
+| the body follows the oar through the drive: stroke time from the angle, pose from the stroke table, velocity and acceleration by the chain rule; hands on the handle to under 2 mm on both boats | `coxswain/crew/follow.py` | `tests/test_crew_follows.py` |
+| the oar's inertia built from the velocities the hull is given — one kinetic energy, to 1e-9; power books close to 2% outside the rate floor | same | same |
+| recovery retimed from the dynamic finish to the next catch, starting from the finish pose and arriving at the catch pose | same | same |
+| `crew="follows"` on the dynamic oar, a study: one elapsed-drive state per seat, the oar computed before the hull, the clock crew's arithmetic and order untouched | `coxswain/sim/dynamic_oar.py` | same, plus the dynamic-oar suites (62 fast, 8 slow) |
+| the momentum books: the clock crew closes to 0.005 N·s a stroke; the following crew does not — open item above | same | same (the latter strict xfail) |
 
 ### v0.13 — asked for, and done
 
