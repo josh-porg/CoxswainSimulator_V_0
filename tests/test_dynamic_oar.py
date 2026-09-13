@@ -511,10 +511,35 @@ def test_tier_two_efficiency_uses_tier_ones_definition(single):
     assert got == pytest.approx(weighted / total, rel=1e-12)
 
 
-def test_the_figure_refuses_to_draw_tier_two_as_tier_one(single):
+def test_the_figure_draws_both_tier_two_load_components(single):
+    """It used to refuse a tier 2 run rather than draw the wrong load. It now
+    draws the simulator own loads: normal and tangential, the tangential one
+    not zero, and a tier 1 trace still carries none."""
+    from coxswain.core.state import State as _State
     from coxswain.viz.bladepath import dynamic_trace
 
     sim = DynamicOarSimulator(single, peak_torque=400.0, blade_law="liftdrag")
     run = sim.run_strokes(1, surge_speed=4.0)
-    with pytest.raises(NotImplementedError, match="slip law"):
-        dynamic_trace(sim, run, "tier 2")
+    trace = dynamic_trace(sim, run, "tier 2")
+    assert trace.has_tangential
+    assert trace.tangential.shape == trace.load.shape
+    assert np.abs(trace.tangential).max() > 1.0
+    assert np.allclose(np.linalg.norm(trace.tangential_direction, axis=1), 1.0)
+
+    # The first drive sample, checked against the simulator itself.
+    n = sim.n_oar_states
+    oar = sim._oars[0]
+    states = run.last_states
+    k = int(np.flatnonzero(states[STATE_SIZE] > oar.finish_angle)[0])
+    lock = single.rig.seats[0].oarlocks[0]
+    f_n, f_t = sim._blade_loads(0, float(states[STATE_SIZE, k]),
+                                float(states[STATE_SIZE + n, k]),
+                                _State.from_vector(states[:STATE_SIZE, k]),
+                                lock)
+    assert trace.load[0] == pytest.approx(f_n, rel=1e-12, abs=1e-9)
+    assert trace.tangential[0] == pytest.approx(f_t, rel=1e-12, abs=1e-9)
+
+    tier_one = DynamicOarSimulator(single, peak_torque=400.0)
+    plain = dynamic_trace(tier_one, tier_one.run_strokes(1, surge_speed=4.0),
+                          "tier 1")
+    assert not plain.has_tangential

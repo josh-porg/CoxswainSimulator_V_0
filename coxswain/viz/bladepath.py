@@ -2,8 +2,8 @@ r"""The blade's path through the water, in the inertial frame.
 
 Top-down, camera fixed to the water rather than to the boat: the water is
 still and the boat runs through it, so the blade traces the characteristic
-loop.  Arrows are the blade's normal load at stations through the drive, and
-four events are marked -- the catch, where the blade starts to slip, where it
+loop.  Arrows are the blade's load at stations through the drive, and four
+events are marked -- the catch, where the blade starts to slip, where it
 re-anchors, and the finish.
 
 Two sources, one picture
@@ -17,12 +17,17 @@ be drawn now that the oar angle is a state.
 :func:`prescribed_trace` draws the old schedule -- the sweep as a function of
 stroke phase at a constant boat speed -- so the two can sit side by side.
 
-What the figure cannot show
----------------------------
-**The tangential component.**  [CR06] Model 1 is a pure normal force, so every
-arrow is normal to the shaft by construction.  Grift et al. (2021) measured the
-tangential part on a real blade and it is not small.  Stated on the figure, not
-left to be discovered: it is exactly what tier 2 adds.
+Both load components
+--------------------
+A tier 1 run -- [CR06] Model 1, the slip law -- has a normal load only, so its
+tangential component is zero by construction and none is drawn.  A tier 2 run
+-- lift and drag on the angle of attack -- has both, and both are drawn: the
+normal load in the dark arrows, the tangential load along the shaft in red, on
+one scale per panel so their relative size is real.  Tier 2 rests on
+provisional coefficients from a secondary source ([CG06a] in SOURCES), and the
+figure says so wherever it draws a tier 2 panel.  Grift et al. (2021) measured
+the tangential load on a real blade; the tier 2 arrows are what to hold against
+those traces once they can be obtained.
 """
 
 from __future__ import annotations
@@ -59,6 +64,11 @@ class BladeTrace:
     #: that runs out of stroke before the finish is drawn to where it got,
     #: and its last point is NOT labelled the finish.
     finished: bool = True
+    #: Tangential load along the shaft, N, and its direction in the inertial
+    #: frame.  ``None`` for a tier 1 trace, whose tangential load is zero by
+    #: construction -- not zero by measurement.
+    tangential: Optional[np.ndarray] = None
+    tangential_direction: Optional[np.ndarray] = None
 
     @property
     def run_back(self) -> float:
@@ -70,10 +80,18 @@ class BladeTrace:
         """Fraction of the drive with the blade not over-driven (slip > 0)."""
         return float(np.mean(self.slip > 0.0)) if self.slip.size else 0.0
 
+    @property
+    def has_tangential(self) -> bool:
+        return self.tangential is not None
+
 
 def _crossings(slip: np.ndarray) -> List[int]:
     signs = np.sign(slip)
     return [int(i) for i in np.flatnonzero(signs[:-1] * signs[1:] < 0)]
+
+
+def _unit(vector: np.ndarray) -> np.ndarray:
+    return vector / max(float(np.linalg.norm(vector)), 1e-12)
 
 
 def dynamic_trace(sim, run, label: str, seat_slot: int = 0,
@@ -82,6 +100,7 @@ def dynamic_trace(sim, run, label: str, seat_slot: int = 0,
 
     ``run`` is the :class:`~coxswain.sim.dynamic_oar.DynamicRun` returned by
     ``sim.run_strokes``; its ``last_states`` carry the hull and oar states.
+    The loads are the simulator's own, by whichever blade law it runs.
     """
     from ..core.frames import hull_to_abs
     from ..core.state import STATE_SIZE, State
@@ -90,13 +109,6 @@ def dynamic_trace(sim, run, label: str, seat_slot: int = 0,
     if states is None:
         raise ValueError("this run did not keep its last stroke's states")
     law = getattr(sim, "blade_law", "slip")
-    if law != "slip":
-        # This draws tier 1's normal-only load.  Drawing it for a tier 2 run
-        # would show the wrong load under the right label -- so refuse until
-        # the figure can draw both components.
-        raise NotImplementedError(
-            "the blade-path figure draws the slip law's normal load only; "
-            "this simulator runs %r" % (law,))
 
     n = sim.n_oar_states
     oar = sim._oars[seat_slot]
@@ -113,6 +125,7 @@ def dynamic_trace(sim, run, label: str, seat_slot: int = 0,
     finished = bool(np.any(angles <= oar.finish_angle))
 
     xs, ys, loads, directions, slips = [], [], [], [], []
+    tangents, tangent_directions = [], []
     for k in drive:
         state = State.from_vector(states[:STATE_SIZE, k])
         angle, rate = float(angles[k]), float(rates[k])
@@ -121,21 +134,34 @@ def dynamic_trace(sim, run, label: str, seat_slot: int = 0,
         normal = np.array([np.cos(angle), -side * np.sin(angle), 0.0])
         blade = np.asarray(state.position, dtype=float) + rotation @ (
             lock_position + oar.outboard * axis)
-        speed = sim._lock_speed_on_normal(state, lock, angle)
-        direction = (rotation @ normal)[:2]
         xs.append(blade[0])
         ys.append(blade[1])
-        loads.append(float(oar.blade.normal_force(angle, rate, speed)))
-        directions.append(direction / max(np.linalg.norm(direction), 1e-12))
-        slips.append(float(oar.blade.slip_velocity(angle, rate, speed)))
+        directions.append(_unit((rotation @ normal)[:2]))
+
+        if law == "slip":
+            speed = sim._lock_speed_on_normal(state, lock, angle)
+            loads.append(float(oar.blade.normal_force(angle, rate, speed)))
+            slips.append(float(oar.blade.slip_velocity(angle, rate, speed)))
+        else:
+            f_n, f_t = sim._blade_loads(seat_slot, angle, rate, state, lock)
+            w_n, _w_a = sim._liftdrag[seat_slot].relative_velocity(
+                angle, rate, sim._lock_velocity(state, lock)[:2], side)
+            loads.append(float(f_n))
+            slips.append(float(w_n))
+            tangents.append(float(f_t))
+            tangent_directions.append(_unit((rotation @ axis)[:2]))
 
     x = np.asarray(xs) - xs[0]
     y = np.asarray(ys) - ys[0]
     slip = np.asarray(slips)
-    return BladeTrace(label=label, x=x, y=y, load=np.asarray(loads),
-                      direction=np.asarray(directions), slip=slip,
-                      speed=float(np.mean(run.last_speed)),
-                      crossings=_crossings(slip), finished=finished)
+    return BladeTrace(
+        label=label, x=x, y=y, load=np.asarray(loads),
+        direction=np.asarray(directions), slip=slip,
+        speed=float(np.mean(run.last_speed)),
+        crossings=_crossings(slip), finished=finished,
+        tangential=np.asarray(tangents) if law != "slip" else None,
+        tangential_direction=(np.asarray(tangent_directions)
+                              if law != "slip" else None))
 
 
 def prescribed_trace(boat, speed: float, label: str,
@@ -170,6 +196,10 @@ def prescribed_trace(boat, speed: float, label: str,
                       crossings=_crossings(slip))
 
 
+NORMAL_COLOUR = "#111827"
+TANGENTIAL_COLOUR = "#DC2626"
+
+
 def plot(traces: Sequence[BladeTrace], path: str,
          title: Optional[str] = None, arrows: int = 8) -> str:
     """Draw one panel per trace and write a PNG to ``path``."""
@@ -184,17 +214,30 @@ def plot(traces: Sequence[BladeTrace], path: str,
     for ax, trace, colour in zip(axes[0], traces, colours * 4):
         ax.plot(trace.x, trace.y, color=colour, lw=3.0, solid_capstyle="round",
                 zorder=3)
-        peak = max(float(np.abs(trace.load).max()), 1e-9)
+        # One scale per panel for BOTH components, so a small tangential load
+        # looks small next to the normal one rather than being blown up to fill
+        # the panel.
+        peak = float(np.abs(trace.load).max())
+        if trace.has_tangential and trace.tangential.size:
+            peak = max(peak, float(np.abs(trace.tangential).max()))
+        peak = max(peak, 1e-9)
         span = max(float(np.ptp(trace.x)), float(np.ptp(trace.y)), 0.5)
         scale = 0.35 * span / peak
         picks = (np.linspace(0.05, 0.95, arrows) * (trace.x.size - 1)).astype(int)
-        for k in picks:
-            dx, dy = scale * trace.load[k] * trace.direction[k]
+
+        def arrow(k, magnitude, direction, colour_):
+            dx, dy = scale * magnitude * direction
             ax.annotate("", xy=(trace.x[k] + dx, trace.y[k] + dy),
                         xytext=(trace.x[k], trace.y[k]),
                         arrowprops=dict(arrowstyle="-|>", lw=1.2,
-                                        color="#111827", alpha=0.85,
+                                        color=colour_, alpha=0.85,
                                         shrinkA=0, shrinkB=0), zorder=5)
+
+        for k in picks:
+            arrow(k, trace.load[k], trace.direction[k], NORMAL_COLOUR)
+            if trace.has_tangential:
+                arrow(k, trace.tangential[k], trace.tangential_direction[k],
+                      TANGENTIAL_COLOUR)
 
         def mark(k, text, offset):
             ax.plot(trace.x[k], trace.y[k], "o", ms=7, mfc="white",
@@ -226,11 +269,21 @@ def plot(traces: Sequence[BladeTrace], path: str,
     axes[0][0].set_ylabel("across the course (m)", fontsize=8.5)
     if title:
         fig.suptitle(title, fontsize=11.5)
-    fig.text(0.5, 0.005, "Arrows: normal blade load, scaled per panel. The "
-             "tangential component is zero by construction under [CR06] "
-             "Model 1; Grift et al. (2021) measure it on a real blade.",
-             ha="center", fontsize=8, color="#4B5563")
+    fig.text(0.5, 0.005, _footnote(traces), ha="center", fontsize=8,
+             color="#4B5563")
     fig.tight_layout(rect=(0, 0.04, 1, 0.95))
     fig.savefig(path, dpi=130)
     plt.close(fig)
     return path
+
+
+def _footnote(traces: Sequence[BladeTrace]) -> str:
+    """What the arrows are, and what the panels without red ones cannot show."""
+    if not any(trace.has_tangential for trace in traces):
+        return ("Arrows: normal blade load, scaled per panel. The tangential "
+                "component is zero by construction under [CR06] Model 1; "
+                "Grift et al. (2021) measure it on a real blade.")
+    return ("Arrows: normal load (dark) and tangential load along the shaft "
+            "(red), one scale per panel. Tier 2 panels rest on provisional "
+            "coefficients from a secondary source; panels without red arrows "
+            "are tier 1, whose tangential load is zero by construction.")

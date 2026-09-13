@@ -140,3 +140,24 @@ def test_the_prescribed_trace_is_drawn_on_the_oars_own_side():
     lock_side = int(four.rig.seats[0].oarlocks[0].side)
     default = prescribed_trace(four, 4.0, "d")
     assert np.allclose(default.y, (port if lock_side > 0 else starboard).y)
+
+
+def test_a_mixed_tier_figure_plots_and_says_which_is_which(tmp_path, single):
+    """Tier 1 and tier 2 panels side by side: an image, and a footnote that
+    names the provisional coefficients and what the plain panels cannot show."""
+    from coxswain.sim.dynamic_oar import DynamicOarSimulator
+    from coxswain.viz import bladepath
+
+    torque = DynamicOarSimulator.peak_torque_for_power(single, 380.0)
+    traces = []
+    for law in ("slip", "liftdrag"):
+        sim = DynamicOarSimulator(single, peak_torque=torque, blade_law=law)
+        traces.append(dynamic_trace(sim, sim.run_strokes(2, surge_speed=4.0),
+                                    law))
+    path = plot(traces, str(tmp_path / "mixed.png"))
+    assert os.path.getsize(path) > 10_000
+
+    footnote = bladepath._footnote(traces)
+    assert "tangential" in footnote and "provisional" in footnote
+    assert "tier 1" in footnote
+    assert "provisional" not in bladepath._footnote(traces[:1])

@@ -168,7 +168,7 @@ blade resists, the angle follows.
 - [ ] `StrokeTable` bypassed on the `research` profile (it assumes the chain depends on stroke time and nothing else)
 - [ ] Hands follow the dynamic angle, so the crew kinematics solve online
 - [ ] `flatness` deleted as a free parameter — it becomes an output
-- [ ] Blade-path figure in the inertial frame at three speeds, key events labelled
+- [x] Blade-path figure in the inertial frame, key events labelled (`coxswain/viz/bladepath.py`): drawn from the dynamic run, on the offline report under its own tab, and drawing BOTH load components when the simulator runs tier 2. Under the TIER 1 blade it showed the second flow reversal belongs to the prescribed schedule, not to rowing. **Under tier 2 that does not hold**: the eight at rate 28 and 380 W shows three slip reversals, one of them a re-anchor near the finish, with the blade anchored 11% of the drive. Tier 2 normal load peaks at 2231 N against 720 N for tier 1 at the same power, and the tangential load at 188 N, 8% of the normal. So whether a real blade re-anchors near the finish is a question for measured traces, not a settled finding of either tier
 - [ ] Immersion curve — **blocked on data**, see below
 - [ ] Entrainment term in place of a constant added mass — **blocked on the same data**
 
