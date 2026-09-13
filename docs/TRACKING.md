@@ -11,6 +11,45 @@ the file is also a record of what kind of thing goes wrong here.
 
 ## Open — correctness
 
+### Michell's sum reads about 3% high, and the shipped trainer uses it
+**Impact: low on speed, and a decision for the shipped default.**
+
+Found checking `coxswain/hydro/michell.py` against a printed curve:
+Lazauskas (2009) [LV09] Fig. 7.1, the inviscid wave resistance of the Wigley
+hull (L/B 10, L/T 16, `S = 0.1487 L²`), which is also the 1979 Workshop's
+value of 0.89 at `Fr = 0.2`. The formula is right: the thesis's eq. 5.17,
+with `λ = sec θ`, reduces exactly to the `4ρg²/(πU²)` form the module uses.
+The quadrature is not. `resistance()` puts `dx dz` on every grid point,
+ends included, so the waterline row, where the depth decay is 1, and the bow
+and stern stations count at full weight rather than half. It is first order.
+
+*Measured, 1000 C_W on the Wigley* (figure read by eye, ±0.05):
+
+| Fr | figure | uniform, default 81×41 | uniform, production 641×81 | trapezoid, default 81×41 |
+|---|---|---|---|---|
+| 0.20 | 0.89 | 0.939 | 0.919 (+3.3%) | 0.865 |
+| 0.30 (hump) | 2.14 | 2.352 | 2.215 (+3.5%) | 2.128 |
+| 0.345 (hollow) | 1.24 | 1.377 | 1.283 (+3.5%) | 1.229 |
+| 0.50 (peak) | 4.52 | 4.880 | 4.646 (+2.8%) | 4.513 |
+| 1.00 | 1.82 | 2.034 | 1.903 (+4.5%) | 1.835 |
+
+Trapezoid weights converge by 321×81 to within −0.6% and +0.9% of the figure.
+
+*What it costs the boats.* `Boat` builds every hull's wave table on the
+production grid, 641 stations × 81 levels. On the rate-32 eight the shipped sum
+overstates wave drag by **3.0–3.4%** between 4.23 and 6.0 m/s. Wave drag is
+8–11% of the total there, so at the same power the boat is **0.09–0.13% slow**,
+about 0.4 s over 2000 m.
+
+*Done.* `MichellWave(quadrature="trapezoid")`, off by default; `"uniform"`
+keeps the shipped sum bit for bit, pinned by a test. Tests pin the trapezoid
+sum to Fig. 7.1 at five Froude numbers, and the uniform excess at the peak
+(`tests/test_michell_quadrature.py`).
+
+*Open.* Switching `Boat`'s default changes every shipped speed by about 0.1%
+and the Holt comparison's numbers with it, so it is left for a decision rather
+than made here.
+
 ### No model of a blade squared and immersed before the catch
 **Impact: medium.** The model has two clean regimes — a feathered skim
 on the recovery, and a normal drive — and names the third explicitly as
@@ -361,8 +400,9 @@ root that replaces `k₀ sec²θ`, the group-velocity denominator, the Heaviside
 cut-offs and the critical speed `√(gh)`. **Missing: the finite-depth Havelock
 source**, which sets the hull's depth weight and the spectrum's prefactor
 once a bed is present. Candidates: Wehausen & Laitone (1960), Srettensky
-(1936), Scragg & Nelson (1993). **Not implemented.** First step, which needs
-nothing new: check `michell.py` against [LV09] eq. 5.17 on the Wigley hull.
+(1936), Scragg & Nelson (1993). **Not implemented.** That first check is done:
+the formula agrees analytically and the shipped quadrature reads about 3%
+high ("Michell's sum reads about 3% high", above).
 
 ### The dynamic oar's drive is started by the water, not the rower
 **Impact: high — it is in every `research` stroke, and it blocks [CR06]'s release rule.**

@@ -512,8 +512,13 @@ text extraction drops the symbols. §5.1 states its assumption plainly: water
 
 This is the same integral `coxswain/hydro/michell.py` implements in Tuck's
 `λ = sec θ` form: its weight `e^{λ²gz/U²}` is `e^{k₂z}`. The thesis's form is
-an independent printed statement of it, so the prefactors can be checked
-against each other numerically before anything is extended.
+an independent printed statement of it. **Checked, 2026-09-13.** With
+`k₂ = k₀λ²` and `k₁ = k₀λ`, `|A|² = (4/π²) k₀² λ⁶ (I² + J²)`, and
+`dθ = dλ / (λ√(λ²−1))`, eq. 5.17 becomes exactly `michell.py`'s
+`(4ρg²/πU²) ∫₁^∞ λ²/√(λ²−1) (I² + J²) dλ`. Against the thesis's Fig. 7.1
+(Wigley, L/B 10, L/T 16, `S = 0.1487 L²`), the module's uniform-weight sum
+reads 2.8–4.5% high on the production grid; trapezoid weights match the figure
+within its reading error (TRACKING, "Michell's sum reads about 3% high").
 
 The rest of chapter 5 adds a viscous free-surface condition (eq. 5.18–5.25);
 not needed here.
@@ -556,8 +561,8 @@ thin-ship theory to an eight. A Tuck & Lazauskas preprint, *Drag on a ship and
 Michell's integral*, was refused (HTTP 403). Tuck, Scullen & Lazauskas (2000)
 is infinite depth only.
 
-**Status: not implemented.** Before any extension: (a) check `michell.py`
-against [LV09] eq. 5.17 numerically on the Wigley hull. Then, with a printed
+**Status: not implemented.** (a) Done: `michell.py` agrees with [LV09]
+eq. 5.17 analytically, and with trapezoid weights matches its Fig. 7.1. Then, with a printed
 finite-depth source or a derivation from one, (b) the deep limit `h → ∞` must
 reproduce (a), (c) `Fr_h ≤ 0.5` must match deep water [D11], and (d)
 resistance must peak just below `Fr_h = 1` (Havelock 1922). (b)–(d) are

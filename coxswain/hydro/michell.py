@@ -75,6 +75,8 @@ __all__ = ["MichellWave", "wigley_offsets"]
 
 GRAVITY = 9.80665
 WATER_DENSITY = 1000.0
+#: Weightings :class:`MichellWave` accepts for its station and level sums.
+QUADRATURES = ("uniform", "trapezoid")
 
 
 def wigley_offsets(length: float = 1.0, beam: float = 0.1,
@@ -140,6 +142,15 @@ class MichellWave:
     #: ``exp(-decay_cutoff)``.  Beyond that the hull's own draft has
     #: removed the contribution and everything further is quadrature noise.
     decay_cutoff: float = 25.0
+    #: How the station and level sums are weighted.  ``"uniform"`` puts
+    #: ``dx dz`` on every grid point, the ends included -- the shipped sum,
+    #: kept exactly.  It is first-order: the waterline row, where the decay
+    #: is 1, and the bow and stern stations are counted at full weight
+    #: rather than half.  On the Wigley hull (L/B 10, L/T 16) it reads
+    #: 5-12% above Lazauskas (2009) Fig. 7.1 on the default grid and still
+    #: 1.5-3% above on 641 x 161.  ``"trapezoid"`` halves the end weights
+    #: and matches that figure within its reading error on the default grid.
+    quadrature: str = "uniform"
 
     @classmethod
     def from_offsets(cls, offsets, **kwargs):
@@ -159,6 +170,14 @@ class MichellWave:
         self.slope = np.gradient(self.half_beam, self.station, axis=0)
         self._dx = float(np.mean(np.diff(self.station)))
         self._dz = float(np.mean(np.diff(self.level)))
+        if self.quadrature not in QUADRATURES:
+            raise ValueError("quadrature must be one of %s, not %r"
+                             % (QUADRATURES, self.quadrature))
+        self._station_weight = np.full(len(self.station), self._dx)
+        self._level_weight = np.full(len(self.level), self._dz)
+        if self.quadrature == "trapezoid":
+            self._station_weight[[0, -1]] *= 0.5
+            self._level_weight[[0, -1]] *= 0.5
 
     def resistance(self, speed) -> np.ndarray:
         """Wave resistance at each speed, N.
@@ -211,10 +230,20 @@ class MichellWave:
             decay = np.exp(np.clip(
                 k0 * lam[:, None] ** 2 * self.level[None, :], -700.0, 0.0))
             phase = k0 * lam[:, None] * self.station[None, :]
-            weighted = np.einsum("lz,xz->lx", decay, self.slope)
-            cosine = np.einsum("lx,lx->l", weighted, np.cos(phase))
-            sine = np.einsum("lx,lx->l", weighted, np.sin(phase))
-            integral = (cosine ** 2 + sine ** 2) * (self._dx * self._dz) ** 2
+            if self.quadrature == "uniform":
+                weighted = np.einsum("lz,xz->lx", decay, self.slope)
+                cosine = np.einsum("lx,lx->l", weighted, np.cos(phase))
+                sine = np.einsum("lx,lx->l", weighted, np.sin(phase))
+                integral = ((cosine ** 2 + sine ** 2)
+                            * (self._dx * self._dz) ** 2)
+            else:
+                weighted = np.einsum("lz,xz,z->lx", decay, self.slope,
+                                     self._level_weight)
+                cosine = np.einsum("lx,lx,x->l", weighted, np.cos(phase),
+                                   self._station_weight)
+                sine = np.einsum("lx,lx,x->l", weighted, np.sin(phase),
+                                 self._station_weight)
+                integral = cosine ** 2 + sine ** 2
             out[index] = (4.0 * self.density * GRAVITY ** 2
                           / (np.pi * speed_value ** 2)
                           * float(np.sum(integral * weight)))
