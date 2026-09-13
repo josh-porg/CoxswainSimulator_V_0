@@ -730,6 +730,56 @@ Changing it is a substantive change to the crew kinematics that would
 re-pin the regression suite, and it should be made on the strength of a
 measured oar-angle trace rather than on one indirect constraint.
 
+### [RK11] Rongère, Khalil & Kobus — the robotics formalism, *read in full*
+F. Rongère, W. Khalil & J.-M. Kobus (2011), *Dynamic modeling and simulation
+of rowing with a robotics formalism*, 16th Int. Conf. on Methods and Models in
+Automation and Robotics (MMAR), IEEE, pp. 260–265. Open on HAL, hal-00657103
+(which refuses automated fetches); full text supplied by the project owner.
+
+- **Formalism:** modified Denavit–Hartenberg parameters; recursive
+  Newton–Euler with a free-floating base (the boat) for tree structures with
+  kinematic loops, each loop cut at a passive joint.
+- **Loop closure is kinematic:** passive and cut joint velocities from
+  `q̇_pc = −J_pc⁺ J_a q̇_a` (eq. 8), accelerations from
+  `q̈_pc = −J_pc⁺ (J̇q̇ + J_a q̈_a)` (eq. 15) — a projection, not constraint
+  forces. Torques inside a loop are *not* corrected in the paper.
+- **Inverse dynamics throughout:** active joints — knee, trunk and both oar
+  angles — are prescribed as periodic cubic B-splines, continuous to the
+  second derivative, because "discontinuity of joint accelerations are to be
+  absolutely avoided because they induce unwanted and unrealistic
+  oscillations of the hull". The boat's acceleration comes from the backward
+  recursion (eq. 28).
+- **The rower:** 2-D, one loop (boat, two leg links, a buttock link, sliding
+  seat), no arms; "interaction between oars and rowers are not considered";
+  de Leva segment parameters; a measured single scull.
+- **Hull:** linear hydrostatics; radiation by the Cummins impulse-response
+  form in state space with AQUAPLUS coefficients; ITTC'57 friction with
+  `k = 1`, `C_w = 0.1 C_f`. Surge, heave and pitch only.
+- **Blade:** `F_n = ½ ρ S C_n v_n |v_n|`, `C_n = 2` after Wellicome (1967),
+  applied at the blade centre and cancelled once the normal flow speed turns
+  positive.
+- **Result:** single at 27 spm, drive ratios 40% and 50% give 4.28 and
+  4.03 m/s; on-water measurement 4.29 m/s at about 40%. Propulsive work per
+  stroke 99 J and 102 J.
+- **Their conclusion:** "a total inverse dynamics approach is not so
+  realistic … the oar motion and then the oar force can not be controlled
+  correctly. A better approach may be an hybrid approach composed of inverse
+  and direct dynamics."
+
+*What it settles:* the recursion and loop bookkeeping to follow, and that the
+prescribed-motion route was tried and judged insufficient by its authors.
+*What it does not:* a torque-driven or hybrid rower, a hand-on-handle
+constraint force, or arms — none is in the paper.
+
+### [WA18] Warmenhoven, Cobley, Draper & Smith — force-profile review
+J. Warmenhoven, S. Cobley, C. Draper & R. Smith (2018), *Over 50 years of
+researching force profiles in rowing: what do we know?*, Sports Med. 48,
+2703–2714. A review. Its example pin-force profiles for international and
+national scullers (Fig. 2, from Warmenhoven et al.) show the propulsive force
+falling to about zero at the finish angle, catch near −60° and finish near
++45°. Qualitative for the finish: no deceleration law, so it does not unblock
+the `research` finish defect.
+
 ### [FE17] Feigean et al. — oar angle and angular velocity, coxless pair
 M. Feigean, M. R'Kiouak, R. J. Bootsma & J. Bourbousson (2017), *Effects of
 intensive crew training on individual and collective characteristics of oar

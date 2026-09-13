@@ -74,7 +74,7 @@ shipped its crash.
 | 1 | ~~Tier 1 blade as an efficiency factor~~ | **failed its gate — merged into phase 2** | **closed** |
 | 2 | Tier 1 blade: slip-quadratic **force**, oar angle a dynamic state | η against v — is the line through the origin gone, and does net propulsive impulse survive at race pace? | **gate passed on the full 6-DOF hull; `research` repointed, PARTIAL** |
 | 3 | Tier 2 blade: lift and drag on angle of attack | reproduces the sign and timing of Grift's measured tangential force | **wired and measured; the gate needs Grift's traces** |
-| 4 | Forward-dynamic rower (Rongère's formalism, torque-driven) | predicted CoM excursion lands in the measured band **without being fitted to it** | **planned in steps — 4.1, hands follow the oar, first** |
+| 4 | Forward-dynamic rower (Rongère's recursion, driven by joint torques — the torque drive is ours, not theirs) | predicted CoM excursion lands in the measured band **without being fitted to it** | **4.1 closed on a finding; 4.3 next, segment inertias in** |
 | 5 | Tier 3 infrastructure: vectorised env, delay channels, BC dataset | throughput, measured, against the 10⁶–10⁷ steps training needs | planned |
 | 6 | Tier 3 training: BC then constrained PPO | the five acceptance tests, none of them trained on | planned |
 | 7 | Uncertainty, and the coupled-oscillator replication | — | planned |
@@ -606,9 +606,24 @@ catch and the finish, because the prescribed body does not stop when the oar
 does. Both are symptoms of a crew whose motion is prescribed in time, from an
 ergometer, while its oar is not.
 
-**The formalism** stays as decided: Rongère, Khalil & Kobus (2011), recursive
-Newton–Euler on a free-floating base, tree-structured with kinematic loops —
-the boat, oars and crew topology exactly — driven by joint torques, not muscles.
+**The formalism** stays as decided — recursive Newton–Euler on a
+free-floating base, tree-structured with kinematic loops, the boat, oars and
+crew topology exactly — driven by joint torques, not muscles.
+
+*Corrected on reading the paper* ([RK11], SOURCES.md). This page used to
+credit the torque-driven part to Rongère, Khalil & Kobus (2011). It is not
+theirs. Their model is **inverse dynamics**: every active joint, the oar angle
+included, follows a prescribed periodic B-spline, and the boat's motion and
+the joint torques are what the recursion returns — a clock crew, as ours was.
+Their one kinematic loop (legs, buttock, sliding seat) is closed by projection
+through a pseudo-inverse of the loop Jacobian, not by constraint forces; the
+rower has no arms, and the oars are driven independently of the body. And
+they conclude what 4.1 found: a total inverse-dynamics approach "is not so
+realistic", because the oar motion and force cannot be controlled correctly,
+and "a better approach may be an hybrid approach composed of inverse and
+direct dynamics". Step 4.3 is that hybrid. The recursion and the loop
+bookkeeping are theirs to follow; the torque drive and the handle held by a
+force are not in the paper and have to be built and validated here.
 
 **The steps, in the order each can be validated before the next is built:**
 

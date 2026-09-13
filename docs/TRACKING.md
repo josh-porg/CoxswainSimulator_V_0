@@ -760,6 +760,7 @@ spent on measurement before any physics was touched.
 |---|---|---|
 | segment principal moments of inertia from de Leva (1996) Table 4 radii of gyration, `I = m (r l)^2` per axis; lumped forearm+hand and shank+foot by the parallel-axis theorem (offset added to the sagittal and transverse moments, not the longitudinal) | `coxswain/crew/anthropometry.py` | `tests/unit/test_segment_inertia.py` |
 | the radii transcription verified against the columns already in the code: 20 rows, 0 mismatches | [dL96] in SOURCES.md | same |
+| Rongère, Khalil & Kobus (2011) read in full: inverse dynamics with prescribed joints and loops closed by projection, no arms, oars driven independently — and its authors conclude a hybrid inverse/direct approach is needed. PHYSICS_PROGRAMME had credited the torque drive to them; corrected | [RK11] in SOURCES.md | — |
 
 ### v0.13 — asked for, and done
 
