@@ -709,6 +709,16 @@ force are not in the paper and have to be built and validated here.
   63 N·s per blade on the eight, swamps what added mass does through the
   drive (TRACKING).
 
+  *4.3a, the catch, done as a study (2026-09-13).* That requirement did not
+  need the torque-driven chain. `catch="sweep"` hands the oar in by [CR06]'s
+  own entry rule: on the prescribed sweep, blade out, until the blade's normal
+  velocity is zero (their eq. 16), then torque-driven with the sweep's angle and
+  rate. The kinetic energy the sweep carries in (8.9% of handle power on the
+  eight) is counted as rower work. At equal power the eight at rate 28 goes
+  5.53 → 5.87 m/s and blade efficiency 0.56 → 0.71; the release rule now runs
+  and never bites (TRACKING). Next: the scorecard on it, then the `research`
+  profile, then blade added mass and the following crew on top of it.
+
   *Qualified on reading [CR06] in full:* the direction of slaving decides
   it. [CR06] slaves the **oar to the body** — smooth prescribed leg, back and
   arm motions, the oar angle given by the hand-on-handle relation, arms free —

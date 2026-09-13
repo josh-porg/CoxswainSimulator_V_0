@@ -122,7 +122,9 @@ def test_under_the_release_rule_nothing_starts_the_oar_at_the_catch():
     (-829 N on the eight at 380 W, with the handle torque at 0.0).  [CR06]'s
     rule removes that load, and nothing is left to move the oar -- it sits at
     the catch for the whole stroke.  A real oar enters the drive already
-    moving; handing it in that way needs the rower (phase 4.3).
+    moving.  ``catch="sweep"`` hands it in that way, by [CR06]'s own entry
+    rule, and under it this drive runs (``tests/test_sweep_catch.py``); this
+    test pins the default rest catch only.
     """
     from coxswain.boats import catalog
     from coxswain.sim.oarloop import torque_shape

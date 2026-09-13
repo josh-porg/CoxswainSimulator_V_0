@@ -561,6 +561,49 @@ drive already moving, as a real oar does and as [CR06]'s prescribed body
 guarantees. That needs the rower to carry it through the recovery (phase
 4.3); a non-zero pull at the catch would be an unsourced number.
 
+*Addressed as a study, 2026-09-13: `catch="sweep"`.* [CR06] section 2.5 starts
+the drive when the blade's normal velocity through the water is zero (their
+eq. 16), and their oar follows the body until then. The sweep catch does the
+same with the prescribed sweep: the oar is put exactly on it after every step
+with its blade out, and is handed to the torque drive on the step eq. 16
+holds, carrying the sweep's angle and rate. No number is chosen. The rest
+catch stays the default and the stuck-oar finding stays pinned for it.
+
+Two things found before the numbers could be read:
+
+- **The release rule never bites.** With the blade entering already moving, 0
+  blade-in samples had non-driving slip on a settled stroke of any boat, so
+  `release="slip"` and `"angle"` give identical runs. The finish braking the
+  rule was built to remove came from the parked catch.
+- **The sweep carries energy the torque never did.** At entry the oar and the
+  rower's reflected inertia hold `½ I φ̇²`: 71 J a seat on the eight at rate
+  28, 33 W a rower, 8.9% of the handle power (11.1% at rate 32, 8.3% on the
+  four, 3.6% on the single). It is the rower's work, as [CR06]'s body supplies
+  it, and `run_strokes` now counts it (`StrokeRecord.entry_work`). The first
+  comparison left it out, and read the eight at 6.01 m/s: an unequal-power
+  number, withdrawn.
+
+*At equal power*, peak torque rescaled until handle power including entry work
+is 380 W, 12 strokes, last 4:
+
+| boat, rate | speed, rest → sweep | drive fraction | blade efficiency | surge swing | entry work | entry |
+|---|---|---|---|---|---|---|
+| eight, 28 | 5.533 → **5.866** m/s (+6.0%) | 0.376 → 0.344 | 0.559 → **0.712** | 46.4 → 40.6% | 31.9 W | 6.0° past catch, −1.29 rad/s |
+| eight, 32 | 5.464 → **5.871** (+7.4%) | 0.440 → 0.393 | 0.558 → **0.727** | 51.4 → 44.9% | 38.8 W | 4.9°, −1.27 rad/s |
+| coxed four, 32 | 4.831 → **5.152** (+6.6%) | 0.480 → 0.423 | 0.566 → **0.699** | 54.5 → 48.4% | 30.2 W | 3.6°, −1.10 rad/s |
+| single, 30 | 4.172 → **4.379** (+5.0%) | 0.525 → 0.456 | 0.614 → **0.680** | 64.7 → 59.4% | 13.5 W | 2.1°, −0.91 rad/s |
+
+The parked blade's braking at the catch was costing 5–7% of boat speed and
+most of the blade-efficiency shortfall: the level target (0.754–0.816,
+Kleshnev) still fails, but 0.56 has become 0.70–0.73. Surge swing falls and
+stays in its band.
+
+*Still open.* Not in the `research` profile, which keeps the rest catch until
+the scorecard has been run on it. The entry angle, 2–6° past the catch, has no
+measured target yet (the digitised [CR06] Fig. 3 carries release markers only).
+Refused with the following crew and with blade added mass, both of which were
+waiting on exactly this. The recovery still holds the oar at the finish.
+
 ### The following crew hands the hull momentum it never had
 **Impact: high — it voids every number phase 4.1's crew mode produces.**
 
