@@ -429,6 +429,9 @@ class SixDofModel:
             form_factor=coefficients.form_factor,
             cross_flow_lateral=coefficients.cross_flow_lateral,
             cross_flow_vertical=coefficients.cross_flow_vertical,
+            # Research boats: Michell and Sretenskii instead of the
+            # constant coefficient and the smoothed factor; None otherwise.
+            wave_function=hydro_casadi.wave_function_for(self.boat),
         )
         appendage_force, appendage_moment = hydro_casadi.appendage_loads(
             self.boat.appendages, u, v, omega_hull[2], rudder, water.density)

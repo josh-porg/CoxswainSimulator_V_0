@@ -74,6 +74,24 @@ def test_low_depth_froude_matches_deep_water():
     assert wigley(depth).resistance(speed)[0] == pytest.approx(deep, rel=5e-3)
 
 
+def test_the_tables_deep_lookup_is_the_integral_off_its_samples():
+    """The deep table samples 301 speeds, because 64 read up to 14% off the
+    integral at 2-3 m/s and 1.7% at 3-4 on the eight."""
+    from coxswain.boats import catalog
+    from coxswain.hydro.finite_depth_michell import FiniteDepthWaveTable
+    from coxswain.hydro.michell import elliptical_offsets
+
+    boat = catalog.build("8+", rate=32.0)
+    x, z, half = elliptical_offsets(boat.offsets, stations=161, levels=21)
+    table = FiniteDepthWaveTable(station=x, level=z, half_beam=half)
+    direct = MichellWave(station=x, level=z, half_beam=half,
+                         quadrature="trapezoid")
+    speeds = np.arange(3.0071, 7.5, 0.0313)
+    exact = direct.resistance(speeds)
+    looked_up = np.array([float(table(s)) for s in speeds])
+    assert np.max(np.abs(looked_up - exact) / exact) < 2.5e-3
+
+
 def test_resistance_peaks_just_below_the_critical_speed():
     """Havelock (1922): the peak sits just below ``sqrt(g h)`` and resistance
     falls past it, as the transverse waves drop out."""

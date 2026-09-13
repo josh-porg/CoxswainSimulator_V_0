@@ -27,8 +27,9 @@ def coarse(eight):
     """A cheap depth-aware table and the plain deep one it wraps."""
     x, z, half = elliptical_offsets(eight.offsets, stations=161, levels=21)
     table = FiniteDepthWaveTable(station=x, level=z, half_beam=half)
+    # Sampled as the research table samples its deep curve (301 speeds).
     plain = MichellWave(station=x, level=z, half_beam=half,
-                        quadrature="trapezoid").tabulate()
+                        quadrature="trapezoid").tabulate(points=301)
     return table, plain
 
 

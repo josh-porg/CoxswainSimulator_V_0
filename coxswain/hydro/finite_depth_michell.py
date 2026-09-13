@@ -205,7 +205,12 @@ class FiniteDepthWaveTable:
         self._arguments = dict(station=station, level=level,
                                half_beam=half_beam, quadrature=quadrature,
                                **kwargs)
-        deep = MichellWave(**self._arguments).tabulate()
+        # 301 samples, not tabulate()'s 64.  Linear interpolation between
+        # 64 samples (0.119 m/s apart) reads up to 14% off the integral at
+        # 2-3 m/s and 1.7% at 3-4, where the hull's humps fall between
+        # samples; 301 (0.025 m/s) holds it to 1.05% and 0.08% on the eight.
+        # Race speed was never the problem: 0.5% and under above 4 m/s.
+        deep = MichellWave(**self._arguments).tabulate(points=301)
         self._deep = deep
         self.speeds = deep.speeds
         self.values = deep.values

@@ -103,6 +103,128 @@ def shallow_water_factor(speed, depth, gravity: float = 9.80665,
     return 1.0 + peak / (1.0 + ((froude - 1.0) / width) ** 2)
 
 
+class WaveSurface:
+    """A depth-aware wave table as a differentiable CasADi function.
+
+    Research profiles give boats a
+    :class:`~coxswain.hydro.finite_depth_michell.FiniteDepthWaveTable`:
+    Michell's integral in deep water and Sretenskii's in finite depth.  An
+    optimiser cannot call a Python table inside a CasADi graph, so the
+    table is sampled once onto a grid in speed and log depth and fitted
+    with a cubic B-spline, which CasADi differentiates.  Deep water is a
+    one-dimensional B-spline in speed.
+
+    Two surfaces, for the same reason the table interpolates two ways.
+    Below ``Fr_h`` 0.8 the hull's humps sit at fixed speed, so resistance is
+    fitted against speed and log depth.  Through and above critical the
+    peak sits at fixed ``Fr_h``, so ``R / U^2`` is fitted against ``Fr_h``
+    and log depth on nodes dense through 1.  A surface in speed alone
+    missed the peak by 17-26% in 1.5 m of water.  The two are blended
+    smoothly over ``Fr_h`` 0.8-0.9.
+
+    Inputs outside the grids are clamped to them: slower than the first
+    speed node reads that node's value scaled by ``u^2``, deeper than the
+    last depth node reads the last row, and ``Fr_h`` above the last node
+    reads the last node's coefficient.
+    """
+
+    #: ``Fr_h`` nodes for the critical surface; dense where the peak is.
+    FROUDE = np.unique(np.concatenate([
+        np.linspace(0.30, 0.80, 21),
+        np.linspace(0.80, 1.20, 81),
+        np.linspace(1.20, 3.00, 37),
+    ]))
+
+    def __init__(self, speeds, depths, shallow_values, deep_values,
+                 froude=None, froude_values=None):
+        import casadi as ca
+
+        self.speeds = np.asarray(speeds, dtype=float)
+        self.depths = np.asarray(depths, dtype=float)
+        self._shallow = ca.interpolant(
+            "wave_depth", "bspline",
+            [self.speeds, np.log(self.depths)],
+            np.asarray(shallow_values, dtype=float).ravel(order="F"))
+        self._deep = ca.interpolant(
+            "wave_deep", "bspline", [self.speeds],
+            np.asarray(deep_values, dtype=float))
+        self.froude = None
+        if froude is not None:
+            self.froude = np.asarray(froude, dtype=float)
+            self._critical = ca.interpolant(
+                "wave_froude", "bspline",
+                [self.froude, np.log(self.depths)],
+                np.asarray(froude_values, dtype=float).ravel(order="F"))
+
+    @classmethod
+    def from_table(cls, table, speeds=None, depths=None, froude=None):
+        """Sample a table carrying ``at_depth`` onto the grids."""
+        if speeds is None:
+            speeds = np.arange(0.5, 8.0 + 1e-9, 0.025)
+        if depths is None:
+            depths = np.geomspace(0.3, 45.0, 80)
+        if froude is None:
+            froude = cls.FROUDE
+        speeds = np.asarray(speeds, dtype=float)
+        depths = np.asarray(depths, dtype=float)
+        froude = np.asarray(froude, dtype=float)
+        shallow = np.array([[float(table.at_depth(u, h)) for h in depths]
+                            for u in speeds])
+        deep = np.array([float(table(u)) for u in speeds])
+        critical = np.empty((len(froude), len(depths)))
+        for j, h in enumerate(depths):
+            wave_speed2 = 9.80665 * h
+            for i, fr in enumerate(froude):
+                u = fr * np.sqrt(wave_speed2)
+                critical[i, j] = (float(table.at_depth(u, h))
+                                  / (fr * fr * wave_speed2))
+        return cls(speeds, depths, shallow, deep, froude, critical)
+
+    def __call__(self, speed, depth=None):
+        """Wave resistance, N, as a CasADi expression."""
+        import casadi as ca
+
+        low, high = float(self.speeds[0]), float(self.speeds[-1])
+        clamped = ca.fmin(ca.fmax(speed, low), high)
+        # below the grid, resistance goes as u^2 from the first node
+        scale = ca.if_else(speed < low, (speed / low) ** 2, 1.0)
+        if depth is None:
+            return self._deep(clamped) * scale
+        bounded = ca.fmin(ca.fmax(depth, float(self.depths[0])),
+                          float(self.depths[-1]))
+        log_depth = ca.log(bounded)
+        by_speed = self._shallow(ca.vertcat(clamped, log_depth)) * scale
+        if self.froude is None:
+            return by_speed
+        froude = speed / ca.sqrt(9.80665 * bounded)
+        weight = ca.fmin(ca.fmax((froude - 0.8) / 0.1, 0.0), 1.0)
+        weight = weight * weight * (3.0 - 2.0 * weight)
+        coefficient = self._critical(ca.vertcat(
+            ca.fmin(ca.fmax(froude, float(self.froude[0])),
+                    float(self.froude[-1])), log_depth))
+        by_froude = coefficient * speed * speed
+        return (1.0 - weight) * by_speed + weight * by_froude
+
+
+def wave_function_for(boat):
+    """The boat's :class:`WaveSurface`, or ``None`` if its table is plain.
+
+    A boat whose wave table knows depth -- which research profiles give it
+    -- gets a surface built once and kept on the table, so every model and
+    every solve on that hull shares it.  Any other boat gets ``None``, and
+    :func:`hull_resistance` keeps its constant wave coefficient and smoothed
+    shallow-water factor exactly as before.
+    """
+    table = getattr(boat, "wave_table", None)
+    if getattr(table, "at_depth", None) is None:
+        return None
+    surface = getattr(table, "_casadi_surface", None)
+    if surface is None:
+        surface = WaveSurface.from_table(table)
+        table._casadi_surface = surface
+    return surface
+
+
 def hull_resistance(u, v, w, wetted_area, transverse_area, plan_area,
                     lateral_area, mean_wetted_length, depth=None,
                     density: float = 1000.0,
@@ -110,11 +232,17 @@ def hull_resistance(u, v, w, wetted_area, transverse_area, plan_area,
                     shape: float = 0.01, wave: float = 0.02,
                     friction_zero: float = 0.075, form_factor: float = 1.0,
                     cross_flow_lateral: float = 1.0,
-                    cross_flow_vertical: float = 1.0):
+                    cross_flow_vertical: float = 1.0,
+                    wave_function: WaveSurface = None):
     """Hull resistance in the hull frame, as a CasADi expression.
 
     Mirrors :func:`coxswain.hydro.resistance.hull_resistance` term for
     term.  ``depth`` of ``None`` is deep water.
+
+    ``wave_function``, when given, is the boat's own wave resistance
+    against speed and depth (:class:`WaveSurface`, which research profiles
+    use) and replaces the constant wave coefficient and the smoothed
+    shallow-water factor together.  Without it nothing changes.
     """
     import casadi as ca
 
@@ -126,8 +254,12 @@ def hull_resistance(u, v, w, wetted_area, transverse_area, plan_area,
 
     shape_drag = dynamic_pressure * transverse_area * shape
     viscous_drag = dynamic_pressure * wetted_area * c_f * form_factor
-    factor = 1.0 if depth is None else shallow_water_factor(speed_x, depth)
-    wave_drag = dynamic_pressure * plan_area * wave * factor
+    if wave_function is not None:
+        wave_drag = wave_function(speed_x, depth)
+    else:
+        factor = (1.0 if depth is None
+                  else shallow_water_factor(speed_x, depth))
+        wave_drag = dynamic_pressure * plan_area * wave * factor
 
     longitudinal = shape_drag + viscous_drag + wave_drag
     # tanh gives the sign of u without a branch, and is exact away from
