@@ -60,9 +60,11 @@ import numpy as np
 
 from ..core import integrators
 from ..core.state import STATE_SIZE, State
+from .results import SimulationResult
 from .simulator import RowingSimulator
 
-__all__ = ["DynamicOarSimulator", "StrokeRecord", "DynamicRun"]
+__all__ = ["DynamicOarSimulator", "StrokeRecord", "DynamicRun",
+           "simulator_for"]
 
 
 @dataclass(frozen=True)
@@ -248,10 +250,18 @@ class DynamicOarSimulator(RowingSimulator):
             np.asarray(lock.position, dtype=float))
         return float(velocity @ normal) / max(float(np.cos(angle)), 1e-6)
 
-    def _torque(self, seat_slot: int, angle: float, state: State) -> float:
+    def _torque(self, seat_slot: int, angle: float, state: State,
+                t: float) -> float:
+        """Handle torque for one seat at time ``t``.
+
+        ``t`` is required.  It used to be absent and the coxswain's split
+        was read at t = 0 -- harmless while every split was a constant,
+        wrong the moment a cox changes the call mid-piece, which is what a
+        steering controller does.
+        """
         seat = self._seats[seat_slot]
         gain = float(np.asarray(self.boat.power_scales, dtype=float)[seat])
-        split = self.coxswain.split(0.0, state)
+        split = self.coxswain.split(t, state)
         locks = self.boat.rig.seats[seat].oarlocks
         if split != 0.0:
             gain *= float(np.mean([self.coxswain.side_gain(split, int(k.side))
@@ -302,7 +312,7 @@ class DynamicOarSimulator(RowingSimulator):
                 float(rates[slot])
             if angle <= oar.finish_angle:
                 continue                          # held until the catch
-            torque = self._torque(slot, angle, state)
+            torque = self._torque(slot, angle, state, t)
             locks = self.boat.rig.seats[seat].oarlocks
             accelerations = [
                 float(oar.acceleration(angle, rate, -torque,
@@ -358,6 +368,68 @@ class DynamicOarSimulator(RowingSimulator):
         return weighted / total if total > 0.0 else None
 
     # -- running ---------------------------------------------------------------
+    def run(self, duration: float, initial_state: np.ndarray = None,
+            dt: float = None, method: str = "rk4",
+            surge_speed: float = 4.5, on_stroke=None) -> SimulationResult:
+        """Integrate for ``duration`` seconds, as the base class does.
+
+        The contract every consumer already uses -- ``steer``,
+        ``fit_reduced_model``, the report's settles -- so none of them has
+        to know the oar is a state.  ``initial_state`` may be the twelve
+        hull states (a boat placed on a path and pointed down it) or the
+        full augmented state; the oars are reset to the catch at the start
+        of every stroke either way.  Returns an ordinary
+        :class:`~coxswain.sim.results.SimulationResult` of the hull states.
+
+        Fixed-step only: the oar resets at every catch and the blade
+        switches out at the finish angle, and an adaptive step would step
+        across both without knowing.
+        """
+        if method != "rk4":
+            raise ValueError(
+                "the dynamic oar needs the fixed-step integrator: it resets "
+                "at every catch and switches at the finish angle; got %r"
+                % (method,))
+        period = float(self.boat.timing.period)
+        if dt is None:
+            dt = integrators.estimate_step(period)
+        n = self.n_oar_states
+
+        if initial_state is None:
+            hull = self.initial_state(surge_speed=surge_speed)
+        else:
+            given = np.asarray(initial_state, dtype=float)
+            if given.shape == (STATE_SIZE,):
+                hull = given
+            elif given.shape == (STATE_SIZE + 2 * n,):
+                hull = given[:STATE_SIZE]
+            else:
+                raise ValueError(
+                    "initial state must be the %d hull states or the %d "
+                    "augmented ones, got shape %s"
+                    % (STATE_SIZE, STATE_SIZE + 2 * n, given.shape))
+        y = np.concatenate([hull, self._catch_angles(), np.zeros(n)])
+
+        pieces_t, pieces_y = [], []
+        t0, stroke = 0.0, 0
+        while t0 < duration - 1e-9:
+            if on_stroke is not None:
+                on_stroke(stroke, self.boat)
+            y = np.array(y, dtype=float)
+            y[STATE_SIZE:STATE_SIZE + n] = self._catch_angles()
+            y[STATE_SIZE + n:] = 0.0
+            t1 = min(t0 + period, float(duration))
+            times, states = integrators.rk4(self.derivative, (t0, t1), y, dt)
+            keep = slice(0, -1) if t1 < duration else slice(None)
+            pieces_t.append(times[keep])
+            pieces_y.append(states[:STATE_SIZE, keep])
+            t0, y = float(times[-1]), states[:, -1]
+            stroke += 1
+
+        return SimulationResult(time=np.concatenate(pieces_t),
+                                states=np.concatenate(pieces_y, axis=1),
+                                boat=self.boat)
+
     def run_strokes(self, strokes: int, surge_speed: float = 4.0,
                     dt: Optional[float] = None) -> DynamicRun:
         """Integrate stroke by stroke, resetting every oar at each catch."""
@@ -396,7 +468,8 @@ class DynamicOarSimulator(RowingSimulator):
                         continue
                     torque = self._torque(slot, angle,
                                           State.from_vector(
-                                              states[:STATE_SIZE, k]))
+                                              states[:STATE_SIZE, k]),
+                                          float(times[k]))
                     power[k] += n_locks * abs(torque * float(rates[slot, k]))
             per_rower = float(np.trapezoid(power, times)) / period / rowers
 
@@ -413,3 +486,32 @@ class DynamicOarSimulator(RowingSimulator):
         return DynamicRun(strokes=records, period=period,
                           last_time=np.asarray(times, dtype=float).copy(),
                           last_speed=np.asarray(speed, dtype=float).copy())
+
+
+def simulator_for(boat, **kwargs):
+    """The simulator a boat's physics needs.
+
+    A boat stamped with a profile whose oar angle is a dynamic state gets a
+    :class:`DynamicOarSimulator`; anything else gets the ordinary
+    :class:`~coxswain.sim.simulator.RowingSimulator`, unchanged.  ``kwargs``
+    go to the constructor either way.
+
+    A dynamic-oar boat must say how hard its crew pulls, as
+    ``boat.handle_watts`` -- handle power per rower, the analogue of
+    ``power_scales`` -- and is refused without it.  There is deliberately no
+    default: a default wattage would be a number nobody chose, and every
+    speed downstream of it would inherit that.
+    """
+    from .. import physics
+
+    stamp = getattr(boat, "physics_profile", None)
+    if stamp is None or not physics.resolve(stamp).uses_dynamic_oar:
+        return RowingSimulator(boat, **kwargs)
+    watts = getattr(boat, "handle_watts", None)
+    if watts is None:
+        raise ValueError(
+            "boat is stamped %r, whose oar angle is a dynamic state, and "
+            "states no crew power: set boat.handle_watts (W per rower) "
+            "first -- there is no default" % (stamp,))
+    torque = DynamicOarSimulator.peak_torque_for_power(boat, float(watts))
+    return DynamicOarSimulator(boat, peak_torque=torque, **kwargs)

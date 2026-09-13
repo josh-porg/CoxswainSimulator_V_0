@@ -276,7 +276,11 @@ def fit_reduced_model(boat=None, reference_speed: float = 5.2,
     if boat is None:
         return ReducedModel(reference_speed=reference_speed, **overrides)
 
-    from ..sim.simulator import RowingSimulator
+    # The simulator the boat's physics needs, not RowingSimulator by name:
+    # a research-stamped boat is refused by the prescribed oar block, and
+    # fitting steering authority from the shipped oar under a research
+    # label would be exactly the mislabel that refusal exists to stop.
+    from ..sim.dynamic_oar import simulator_for
 
     # Yaw inertia must be hull PLUS crew.  In the 6-DOF model the crew is a
     # separate moving-mass field and `hull_inertia` is the bare shell --
@@ -299,7 +303,7 @@ def fit_reduced_model(boat=None, reference_speed: float = 5.2,
     def steady_rate(rudder=0.0, split=0.0):
         cox = Coxswain(rudder_override=lambda t, s: rudder,
                        pressure_split=split)
-        result = RowingSimulator(boat, coxswain=cox).run(
+        result = simulator_for(boat, coxswain=cox).run(
             duration=duration, dt=dt, surge_speed=reference_speed)
         # omega is the absolute-frame angular velocity; its vertical
         # component is the yaw rate for the small roll and pitch a shell
