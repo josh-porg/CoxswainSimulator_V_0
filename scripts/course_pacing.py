@@ -165,7 +165,8 @@ def main(argv=None):
     segments = build_segments(course, args.segments, boat, wind)
     model = CoursePacing(segments, hull_drag(boat),
                          rowers=boat.n_seats,
-                         shallow_model=boat.shallow)
+                         shallow_model=boat.shallow,
+                         wave_table=getattr(boat, "wave_table", None))
 
     flat = model.flat_power()
     flat_plan = model.evaluate(np.full(len(segments), flat))

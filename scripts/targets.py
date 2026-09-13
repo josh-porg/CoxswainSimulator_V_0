@@ -179,7 +179,8 @@ def main(argv=None):
                            drag_factor=s.drag_factor, label=s.label)
              for s in segments]
     model = CoursePacing(raced, drag, rowers=boat.n_seats,
-                         shallow_model=boat.shallow)
+                         shallow_model=boat.shallow,
+                         wave_table=getattr(boat, "wave_table", None))
     per = HOCR_COURSE_LENGTH / 500.0
 
     print("   %-22s %11s %13s %11s %13s"

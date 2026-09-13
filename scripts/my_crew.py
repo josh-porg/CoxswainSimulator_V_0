@@ -76,7 +76,8 @@ def build(rate: float = 30.0):
                            drag_factor=s.drag_factor, label=s.label)
              for s in segments]
     return boat, CoursePacing(raced, hull_drag(boat), rowers=boat.n_seats,
-                              shallow_model=boat.shallow)
+                              shallow_model=boat.shallow,
+                              wave_table=getattr(boat, "wave_table", None))
 
 
 def time_for(model, power: float) -> float:

@@ -230,7 +230,38 @@ class CoursePacing:
     #: depth is replaced per segment.  ``None`` uses the default, which
     #: carries the calibration of SOURCES sec. 6.
     shallow_model: object = None
+    #: The boat's wave table.  A depth-aware one
+    #: (:class:`~coxswain.hydro.finite_depth_michell.FiniteDepthWaveTable`,
+    #: which research profiles carry) replaces the shallow-water factor:
+    #: depth then changes only the wave term, by Sretenskii's integral,
+    #: instead of multiplying the whole resistance.  A plain table, or
+    #: ``None``, leaves the factor in charge exactly as before.
+    wave_table: object = None
     _cache: dict = field(default_factory=dict, repr=False)
+
+    def _depth_wave_for(self, segment: CourseSegment):
+        """``speed -> extra wave drag at this depth, N``, or ``None``.
+
+        ``None`` when the segment is deep or the wave table does not know
+        depth, and the shallow-water factor applies instead.  Tabulated on
+        the same speed grid as :meth:`_shallow_for`, for the same reason.
+        """
+        depth = float(segment.depth)
+        at_depth = getattr(self.wave_table, "at_depth", None)
+        if at_depth is None or not np.isfinite(depth):
+            return None
+        key = ("wave", round(depth, 3))
+        if key not in self._cache:
+            depth = max(depth, 0.30)
+            speeds = np.arange(0.0, 12.0 + 1e-9, 0.05)
+            extra = np.array([float(at_depth(v, depth))
+                              - float(self.wave_table(v)) for v in speeds])
+
+            def interpolate(speed, _s=speeds, _e=extra):
+                return float(np.interp(abs(float(speed)), _s, _e))
+
+            self._cache[key] = interpolate
+        return self._cache[key]
 
     def _shallow_for(self, segment: CourseSegment):
         """``speed -> factor`` at this segment's depth, or ``None`` if deep.
@@ -280,16 +311,25 @@ class CoursePacing:
         if key in self._cache:
             return self._cache[key]
         delivered = self.efficiency * float(power) * self.rowers
-        shallow = self._shallow_for(segment)
+        wave_extra = self._depth_wave_for(segment)
+        shallow = None if wave_extra is not None \
+            else self._shallow_for(segment)
 
         def excess(speed):
             # The shallow factor is evaluated at the TRIAL speed, not at a
             # reference one.  Freezing it would make depth a constant
             # multiplier and throw away the Froude-number dependence that
             # is the entire reason it matters here.
-            hull = (self.resistance(speed) * segment.drag_factor
-                    * (1.0 if shallow is None
-                       else shallow(speed)))
+            if wave_extra is not None:
+                # Research profiles: depth adds Sretenskii's wave drag at
+                # this depth less the deep-water wave drag already inside
+                # ``resistance``, and touches nothing else.
+                hull = ((self.resistance(speed) + wave_extra(speed))
+                        * segment.drag_factor)
+            else:
+                hull = (self.resistance(speed) * segment.drag_factor
+                        * (1.0 if shallow is None
+                           else shallow(speed)))
             apparent = speed + segment.headwind
             air = (0.5 * self.air_density * self.drag_area
                    * apparent * abs(apparent))

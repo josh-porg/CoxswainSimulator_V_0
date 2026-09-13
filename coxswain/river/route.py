@@ -487,6 +487,9 @@ class RouteEvaluator:
             np.linspace(0.2, 6.0, n // 2, endpoint=False),
             np.geomspace(6.0, max_depth, n - n // 2),
         ])
+        table = getattr(self.boat, "wave_table", None)
+        if getattr(table, "at_depth", None) is not None:
+            return grid, self._depth_aware_speeds(grid, table)
         speed = np.empty_like(grid)
         template = self.boat.shallow if self.boat is not None \
             else ShallowWaterModel()
@@ -529,6 +532,63 @@ class RouteEvaluator:
         # already have excluded from any route worth considering.
         speed = np.minimum.accumulate(speed[::-1])[::-1]
         return grid, speed
+
+    def _depth_aware_speeds(self, grid, table) -> np.ndarray:
+        """The same table for a boat whose wave table knows depth.
+
+        Research profiles carry one
+        (:class:`~coxswain.hydro.finite_depth_michell.FiniteDepthWaveTable`).
+        Instead of ``F(v, h) v^3 = v_ref^3`` -- every newton of resistance
+        scaled by a wave factor -- this solves the boat's own power balance
+
+            (R_deep(v) + W_h(v) - W_deep(v)) v = R_deep(v_ref) v_ref
+
+        with ``R_deep`` from :func:`~coxswain.hydro.resistance.hull_resistance`
+        and ``W_h`` from Sretenskii's integral, so depth moves the wave
+        term and nothing else.
+
+        The first call for a hull solves Sretenskii rows for every depth
+        node the grid reaches below ``Fr_h`` 0.4, a few seconds each; the
+        table caches them for the rest of the process.
+        """
+        from scipy.optimize import brentq
+
+        from ..hydro.resistance import hull_resistance
+
+        boat = self.boat
+        submerged = boat.mesh.submerged(
+            np.array([0.0, 0.0, boat.equilibrium_heave()]), np.zeros(3),
+            rho=boat.water.density, gravity=9.80665, water_level=0.0)
+
+        def deep(v):
+            force, _ = hull_resistance(
+                np.array([float(v), 0.0, 0.0]), submerged,
+                mean_wetted_length=boat.length, water=boat.water,
+                coefficients=boat.resistance, wave_table=table)
+            return abs(float(force[0]))
+
+        reference = self.reference_speed
+        target = deep(reference) * reference
+        speed = np.empty_like(grid)
+        for index, h in enumerate(grid):
+            if not np.isfinite(h) or h <= 0:
+                speed[index] = reference
+                continue
+
+            def excess(v, _h=float(h)):
+                return ((deep(v) + table.at_depth(v, _h) - float(table(v)))
+                        * v - target)
+
+            if excess(reference) <= 0.0:
+                # depth costs nothing at the reference speed: it stands
+                speed[index] = reference
+                continue
+            speed[index] = brentq(excess, 1e-3, reference,
+                                  xtol=1e-9, rtol=1e-12)
+        # The same guard as the factor path: never faster in shallower
+        # water.  Sretenskii's supercritical wave drag can dip below deep
+        # water's, but not at a depth this evaluator would route through.
+        return np.minimum.accumulate(speed[::-1])[::-1]
 
     def current_along_path(self, station: np.ndarray,
                            offset: np.ndarray) -> np.ndarray:

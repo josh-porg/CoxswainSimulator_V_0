@@ -119,9 +119,11 @@ def evaluate(course, boat, drag, offsets, leader_offset, interval,
                  for s, f in zip(segments, np.atleast_1d(factor))]
 
         clean_model = CoursePacing(segments, drag, rowers=boat.n_seats,
-                                   shallow_model=boat.shallow)
+                                   shallow_model=boat.shallow,
+                                   wave_table=getattr(boat, "wave_table", None))
         dirty_model = CoursePacing(dirty, drag, rowers=boat.n_seats,
-                                   shallow_model=boat.shallow)
+                                   shallow_model=boat.shallow,
+                                   wave_table=getattr(boat, "wave_table", None))
         clean, _a = clean_model.optimise(span=200.0, samples=41)
         fouled, _b = dirty_model.optimise(span=200.0, samples=41)
         rows.append({

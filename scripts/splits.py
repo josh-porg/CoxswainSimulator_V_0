@@ -166,7 +166,8 @@ def main(argv=None):
                            drag_factor=s.drag_factor, label=s.label)
              for s in segments]
     model = CoursePacing(raced, drag, rowers=boat.n_seats,
-                         shallow_model=boat.shallow)
+                         shallow_model=boat.shallow,
+                         wave_table=getattr(boat, "wave_table", None))
 
     power = power_for_time(model, target)
     plan = model.evaluate(np.full(len(raced), power))

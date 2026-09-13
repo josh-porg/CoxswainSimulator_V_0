@@ -72,7 +72,8 @@ def speed_field(course, boat, power, stations=41, offsets=9,
     taught in sec. 66.
     """
     model = CoursePacing([CourseSegment(100.0)], hull_drag(boat),
-                         rowers=boat.n_seats, shallow_model=boat.shallow)
+                         rowers=boat.n_seats, shallow_model=boat.shallow,
+                                              wave_table=getattr(boat, "wave_table", None))
     station_grid = np.linspace(0.0, RACE_LENGTH, stations)
     offset_grid = np.linspace(-half_width, half_width, offsets)
     table = np.zeros((stations, offsets))
