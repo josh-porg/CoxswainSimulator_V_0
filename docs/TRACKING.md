@@ -268,6 +268,45 @@ blade-efficiency item above.
 curve applied by angle, and the reflected inertia clamped at the catch, which
 each added about 0.03 of the stroke on the oar alone.
 
+### Shallow water: three chosen numbers price most of the Charles, and the quasi-steady use is the bigger error
+**Impact: high for the Charles — it is the regime the course is rowed in.**
+
+Wave resistance is Michell's integral for **deep** water, multiplied by a
+depth factor (`coxswain/hydro/shallow.py`): Schlichting's matched-speed
+construction up to depth Froude 0.92, then a **chosen** smooth blend to a
+**chosen** cap of 3.0 at `Fr_h = 1`, then a **chosen** relaxation back to 1 by
+`Fr_h = 1.6`. None of the three is measured for a shell; the module says so.
+
+*Measured on the surveyed channel* (2016–17 isobaths, 63,637 rowable cells of
+36 m²; depth median 3.80 m, quartiles 2.60 and 5.01 m, 5th percentile 1.64 m):
+
+| boat speed | median `Fr_h` | Schlichting (0.5–0.92) | chosen blend to cap (0.92–1.0) | chosen relaxation (1.0–1.6) |
+|---|---|---|---|---|
+| 4.0 m/s | 0.66 | 81.8% | 4.3% | 4.9% |
+| 5.0 m/s | 0.82 | 65.1% | 10.9% | 23.8% |
+| 5.5 m/s | 0.90 | 52.9% | 10.3% | 36.7% |
+| 6.0 m/s | 0.98 | 37.4% | 14.6% | 45.5% |
+
+So at race speed 35–60% of the rowable water is priced by the three chosen
+numbers rather than by any calculation. **A finite-depth Michell integral is
+worth doing**: it replaces all three with the hull's offsets and the depth.
+
+*But it is not the largest error there.* Day et al. (2011) [D11], full text read:
+an unsteady inviscid thin-ship code for any depth (Doctors, Day & Clelland
+2010, J. Ship Res. 54(2)) matched a towing tank on an oscillating Wigley hull
+at `Fr_h = 1.0` for low oscillation frequency, `τ = Uω/g ≤ 0.3`, while the
+**quasi-steady** approach — steady wave resistance at the instantaneous speed,
+which is what this model does — was "extremely poor", dramatically
+underestimating the peaks. At `τ > 0.7` measured resistance exceeded even the
+unsteady prediction, attributed to unsteady viscous effects (transition
+triggered at peak deceleration, confirmed with hot films on a real single).
+A boat at 5 m/s rating about 32 has `τ ≈ 1.7`, past both.
+
+*In order of what it removes:* (1) steady finite-depth Michell — removes the
+three chosen numbers; (2) unsteady wave resistance with memory — what [D11]
+validated at low frequency; (3) unsteady viscous resistance — no validated
+model yet, flagged. The ledger records the same.
+
 ### The dynamic oar's drive is started by the water, not the rower
 **Impact: high — it is in every `research` stroke, and it blocks [CR06]'s release rule.**
 
