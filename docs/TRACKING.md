@@ -268,6 +268,49 @@ blade-efficiency item above.
 curve applied by angle, and the reflected inertia clamped at the catch, which
 each added about 0.03 of the stroke on the oar alone.
 
+### Blade added mass is large, and the catch decides what it does
+**Impact: medium now, high later — its size is established; its effect on speed is not readable yet.**
+
+Built as a study, `DynamicOarSimulator(blade_added_mass="patton")`, off by
+default. A blade accelerating normal to its face drags water with it:
+Patton's aspect-ratio-2 plate in unbounded fluid, quoted by [G19],
+`m_h = 0.84 (πρ/4) l_a l_b²` — **21.4 kg** on a sweep Big Blade (0.52 × 0.25 m),
+**13.1 kg** on a scull (0.43 × 0.215 m). An upper bound: no free surface, no
+entrainment growth, a rectangular blade. Because the blade's normal
+acceleration contains the hull's own acceleration at the blade, hull and oars
+are solved together — the generalised mass matrix augmented with the oar
+angles, still symmetric positive definite. Entry and exit take design choice
+(ii): added mass on while the blade is in, with no impulse at the switch, and
+the momentum that leaves out measured.
+
+*Measured at 380 W* (blade-centre baseline → with added mass):
+
+| boat, rate | speed (m/s) | drive fraction | blade efficiency |
+|---|---|---|---|
+| eight, 28 | 5.530 → 5.612 | 0.376 → 0.426 | 0.559 → 0.449 |
+| eight, 32 | 5.461 → 5.518 | 0.440 → 0.503 | 0.558 → 0.428 |
+| coxed four, 32 | 4.829 → 4.879 | 0.481 → 0.550 | 0.566 → 0.462 |
+| single, 30 | 4.171 → 4.096 | 0.525 → 0.616 | 0.614 → 0.553 |
+
+**The speeds are not results.** The largest added-mass force is at the catch,
+t = 0: +426 N on the eight, against the parked blade's water-driven load at
+that instant. And the momentum the no-impulse choice leaves out is large:
+**63 N·s per blade at entry** on the eight (≈ 510 N·s across the crew every
+stroke) and −25 N·s at exit; 56 and −23 on the four, 21 and −13 on the single.
+That is the order of a blade's whole drive impulse, so the sweep boats running
+*faster* with a much less efficient blade is most likely the hull not paying
+for the water set moving at entry.
+
+*What stands:* the force is hundreds of newtons, comparable to drag; the
+heavier oar-plus-water sweeps more slowly, lengthening the drive by 0.05–0.09
+of the stroke; and the entry momentum is sized.
+
+*Blocked on the same thing as [CR06]'s release rule:* a physical catch. A real
+blade enters with its normal velocity near zero ([CR06] eq. 16), so almost no
+water momentum is created at entry; ours enters parked in a moving boat at
+`w_n ≈ 3 m/s`. It needs the rower carrying the oar into the drive (phase 4.3),
+or `m_h` ramped in with immersion, which needs a vertical oar-angle trace.
+
 ### Shallow water: three chosen numbers price most of the Charles, and the quasi-steady use is the bigger error
 **Impact: high for the Charles — it is the regime the course is rowed in.**
 

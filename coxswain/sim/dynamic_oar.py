@@ -82,6 +82,8 @@ from typing import List, Optional
 import numpy as np
 
 from ..core import integrators
+from ..core.frames import euler_rates
+from ..core.rigid_body import solve_accelerations
 from ..core.state import STATE_SIZE, State
 from .results import SimulationResult
 from .simulator import RowingSimulator
@@ -184,6 +186,12 @@ class DynamicOarSimulator(RowingSimulator):
     #: is held at the finish angle under both.
     RELEASE_RULES = ("angle", "slip")
 
+    #: Blade added mass.  ``"none"``: as before.  ``"patton"``: a constant
+    #: added mass per blade, Patton's AR-2 plate in unbounded fluid -- an
+    #: upper bound -- solved together with the hull; see
+    #: :mod:`coxswain.crew.blade_added_mass`.  A study.
+    ADDED_MASS_MODELS = ("none", "patton")
+
     #: How the crew moves.  ``"clock"``: prescribed in time, as before --
     #: the hands follow the old sweep while the oar follows its own
     #: dynamics.  ``"follows"``: phase 4.1, the body slaved to the oar angle
@@ -192,7 +200,8 @@ class DynamicOarSimulator(RowingSimulator):
     CREW_MODES = ("clock", "follows")
 
     def __init__(self, boat, peak_torque: float, blade_law: str = "slip",
-                 crew: str = "clock", release: str = "angle", **kwargs):
+                 crew: str = "clock", release: str = "angle",
+                 blade_added_mass: str = "none", **kwargs):
         if blade_law not in self.BLADE_LAWS:
             raise ValueError("unknown blade law %r; this simulator runs %s"
                              % (blade_law, ", ".join(self.BLADE_LAWS)))
@@ -202,6 +211,16 @@ class DynamicOarSimulator(RowingSimulator):
         if release not in self.RELEASE_RULES:
             raise ValueError("unknown release rule %r; this simulator runs %s"
                              % (release, ", ".join(self.RELEASE_RULES)))
+        if blade_added_mass not in self.ADDED_MASS_MODELS:
+            raise ValueError("unknown blade added mass %r; this simulator runs %s"
+                             % (blade_added_mass,
+                                ", ".join(self.ADDED_MASS_MODELS)))
+        if blade_added_mass != "none" and (crew != "clock"
+                                           or release != "angle"):
+            raise ValueError(
+                "blade added mass is solved with the clock crew and the finish-"
+                "angle release only; crew=%r, release=%r" % (crew, release))
+        self.blade_added_mass = blade_added_mass
         self.blade_law = blade_law
         self.crew = crew
         self.release = release
@@ -263,6 +282,22 @@ class DynamicOarSimulator(RowingSimulator):
         #: Oar states per seat: angle and rate, plus the elapsed drive time
         #: when the crew follows the oar.
         self._per_oar = 3 if crew == "follows" else 2
+        #: Added mass per blade, kg, per seat slot; zero unless studied.
+        self._blade_mass = [0.0] * self.n_oar_states
+        if blade_added_mass == "patton":
+            from ..crew.blade_added_mass import (BIG_BLADE_WIDTH,
+                                                 patton_added_mass)
+
+            kind = "sweep" if bool(boat.rig.is_sweep) else "scull"
+            for slot, seat in enumerate(self._seats):
+                oar = boat.rig.seats[seat].oarlocks[0].oar
+                if float(oar.blade_length) <= 0.0:
+                    raise ValueError(
+                        "blade added mass needs the oar's blade_length; "
+                        "this oar has none")
+                self._blade_mass[slot] = patton_added_mass(
+                    oar.blade_length, BIG_BLADE_WIDTH[kind],
+                    boat.water.density)
 
         # Tier 2: one lift-drag blade per seat, sized from that seat's own
         # oar -- sweep and sculling blades differ in area, 0.110 m^2 against
@@ -437,6 +472,8 @@ class DynamicOarSimulator(RowingSimulator):
         hull, angles, rates = self._split(y)
         if self.crew == "follows":
             return self._following_derivative(t, y, hull, angles, rates)
+        if self.blade_added_mass != "none":
+            return self._coupled_derivative(t, hull, angles, rates)
         self._oar_state = (angles, rates)
         try:
             hull_rate = super().derivative(t, hull)
@@ -650,6 +687,12 @@ class DynamicOarSimulator(RowingSimulator):
 
     def _seat_acceleration(self, oar, angle, rate, torque, state,
                            locks, slot: Optional[int] = None) -> float:
+        inertia, rhs = self._seat_balance(oar, angle, rate, torque, state,
+                                          locks, slot)
+        return float(rhs / inertia)
+
+    def _seat_balance(self, oar, angle, rate, torque, state,
+                      locks, slot: Optional[int] = None):
         """``phi_ddot`` for a seat whose one rower swings several oars.
 
         One body, one balance::
@@ -680,8 +723,94 @@ class DynamicOarSimulator(RowingSimulator):
             # along the shaft, through the pin.
             blade = sum(oar.outboard * self._blade_loads(
                 slot, angle, rate, state, lock)[0] for lock in locks)
-        return float((-len(locks) * torque + blade
-                      - 0.5 * slope * rate ** 2) / seat_inertia)
+        return seat_inertia, (-len(locks) * torque + blade
+                              - 0.5 * slope * rate ** 2)
+
+    # -- blade added mass: hull and oars solved together -----------------------
+    def _coupled_system(self, t: float, state: State, angles, rates):
+        """``(A, b)`` for ``A [G_ddot; omega_dot; phi_ddot] = b``, absolute frame.
+
+        Per blade in the water, with normal ``n``, centre ``r`` and added mass
+        ``m``, the blade's normal acceleration is ``g . X_h + l phi_ddot + c``
+        with ``g = [n; r x n]``, and its added-mass force is
+        ``-m (w_n_dot n + w_n n_dot)`` -- the rate of change of the entrained
+        momentum ``m w_n n``.  Moving the acceleration terms to the left::
+
+            (M + m g g^T) X_h + m l g phi_ddot          = f - m (c g + w_n h)
+            m l g^T X_h + (I_seat + m l^2) phi_ddot     = rhs - m l c
+
+        ``h = [n_dot; r x n_dot]``.  The matrix is the old diagonal plus a sum
+        of ``m v v^T``, so it stays symmetric positive definite.  A held oar
+        (past its finish) keeps ``phi_ddot = 0`` through an identity row.
+        """
+        n = self.n_oar_states
+        self._oar_state = (angles, rates)
+        try:
+            matrix = self.mass_matrix(t, state)
+            forces = self.breakdown(t, state)
+        finally:
+            self._oar_state = None
+
+        system = np.zeros((6 + n, 6 + n))
+        rhs = np.zeros(6 + n)
+        system[:6, :6] = matrix
+        rhs[:6] = forces.generalised()
+        rot = state.rot_hull_to_abs
+        omega_abs = np.asarray(state.omega, dtype=float)
+        omega_hull = np.asarray(state.omega_hull, dtype=float)
+
+        for slot, seat in enumerate(self._seats):
+            row = 6 + slot
+            oar, angle, rate = self._oars[slot], float(angles[slot]), \
+                float(rates[slot])
+            if angle <= oar.finish_angle:
+                system[row, row] = 1.0            # held until the catch
+                continue
+            torque = self._torque(slot, angle, state, t)
+            locks = self.boat.rig.seats[seat].oarlocks
+            inertia, balance = self._seat_balance(oar, angle, rate, torque,
+                                                  state, locks, slot)
+            system[row, row] += inertia
+            rhs[row] += balance
+
+            mass, arm = float(self._blade_mass[slot]), float(oar.outboard)
+            for lock in locks:
+                side = int(lock.side)
+                normal = np.array([np.cos(angle), -side * np.sin(angle), 0.0])
+                axis = np.array([np.sin(angle), side * np.cos(angle), 0.0])
+                point = np.asarray(lock.position, dtype=float) + arm * axis
+                normal_abs, point_abs = rot @ normal, rot @ point
+                g = np.concatenate([normal_abs, np.cross(point_abs, normal_abs)])
+
+                water = self._lock_velocity(state, lock) + arm * rate * normal
+                w_n = float(water @ normal)
+                normal_dot = -rate * axis + np.cross(omega_hull, normal)
+                c = (float(normal_abs @ np.cross(omega_abs, np.cross(
+                    omega_abs, point_abs))) + float(water @ normal_dot))
+                normal_dot_abs = rot @ normal_dot
+                h = np.concatenate([normal_dot_abs,
+                                    np.cross(point_abs, normal_dot_abs)])
+
+                system[:6, :6] += mass * np.outer(g, g)
+                system[:6, row] += mass * arm * g
+                system[row, :6] += mass * arm * g
+                system[row, row] += mass * arm * arm
+                rhs[:6] -= mass * (c * g + w_n * h)
+                rhs[row] -= mass * arm * c
+        return system, rhs
+
+    def _coupled_derivative(self, t: float, hull, angles, rates):
+        state = State.from_vector(hull)
+        system, rhs = self._coupled_system(t, state, angles, rates)
+        accel = solve_accelerations(system, rhs)
+        n = self.n_oar_states
+        angle_rate = np.array([float(rates[k]) if float(angles[k])
+                               > self._oars[k].finish_angle else 0.0
+                               for k in range(n)])
+        return np.concatenate([state.velocity,
+                               euler_rates(state.attitude, state.omega),
+                               accel[0:3], accel[3:6], angle_rate,
+                               accel[6:6 + n]])
 
     # -- measurement ---------------------------------------------------------
     def _stroke_blade_efficiency(self, times, states) -> Optional[float]:

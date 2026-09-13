@@ -703,7 +703,11 @@ force are not in the paper and have to be built and validated here.
   handed into the drive **already moving**. Wired in as a study, the rule
   froze the oar at the catch, because today the drive is started by the water
   loading a blade parked at rest under a zero pull (TRACKING). The rower that
-  carries the oar through the recovery is what removes that.
+  carries the oar through the recovery is what removes that. Blade added
+  mass, wired in as a second study, needs the same: parked in a moving boat
+  the blade enters at `w_n ≈ 3 m/s`, and the water it sets moving at entry,
+  63 N·s per blade on the eight, swamps what added mass does through the
+  drive (TRACKING).
 
   *Qualified on reading [CR06] in full:* the direction of slaving decides
   it. [CR06] slaves the **oar to the body** — smooth prescribed leg, back and
