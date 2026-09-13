@@ -75,6 +75,10 @@ class StrokeRecord:
     finished: bool
     handle_power: float        # W per rower, mean over the stroke
     surge_swing: float         # (max - min) / mean hull speed over the stroke
+    #: Force-weighted blade efficiency over the drive, MEASURED on the run:
+    #: see :meth:`DynamicOarSimulator._stroke_blade_efficiency`.  ``None``
+    #: when no blade carried load in the stroke.
+    blade_efficiency: Optional[float] = None
 
 
 @dataclass(frozen=True)
@@ -91,6 +95,12 @@ class DynamicRun:
 
     def settled_power(self, last: int = 4) -> float:
         return float(np.mean([s.handle_power for s in self.strokes[-last:]]))
+
+    def settled_blade_efficiency(self, last: int = 4) -> Optional[float]:
+        """Mean measured blade efficiency over the last strokes, or ``None``."""
+        values = [s.blade_efficiency for s in self.strokes[-last:]
+                  if s.blade_efficiency is not None]
+        return float(np.mean(values)) if values else None
 
     def drift(self, last: int = 4) -> float:
         """Relative change in stroke speed across the last strokes."""
@@ -303,6 +313,50 @@ class DynamicOarSimulator(RowingSimulator):
             rate_rate[slot] = float(np.mean(accelerations))
         return np.concatenate([hull_rate, angle_rate, rate_rate])
 
+    # -- measurement ---------------------------------------------------------
+    def _stroke_blade_efficiency(self, times, states) -> Optional[float]:
+        """Force-weighted blade efficiency over one stroke, from the run.
+
+        The same quantity the scorecard's level target has always scored
+        -- ``1 - |slip| / |blade speed|``, weighted by blade load, from
+        :meth:`~coxswain.crew.oarlock.BladeModel.efficiency` -- but fed the
+        states the boat actually had, not a schedule.
+
+        The prescribed version evaluates a PRESCRIBED sweep at ONE speed and
+        weights by the prescribed force curve.  Every one of those three is
+        replaced here: the oar angle and rate are the integrated states, the
+        water speed is the oarlock's instantaneous water-relative speed on
+        the blade normal -- so the crew's surge swing is inside it -- and
+        the weight is the blade force the water actually put on the blade.
+        That is what makes it a measurement of this physics and not a
+        restatement of the old one.
+
+        Uniform weights in time, which is what a fixed-step run gives.  An
+        oar past its finish angle has its blade out and is excluded, as it
+        is from the loads.
+        """
+        n = self.n_oar_states
+        angles = states[STATE_SIZE:STATE_SIZE + n]
+        rates = states[STATE_SIZE + n:STATE_SIZE + 2 * n]
+        weighted, total = 0.0, 0.0
+        for k in range(np.asarray(times).size):
+            state = State.from_vector(states[:STATE_SIZE, k])
+            for slot, seat in enumerate(self._seats):
+                oar = self._oars[slot]
+                angle, rate = float(angles[slot, k]), float(rates[slot, k])
+                if angle <= oar.finish_angle:
+                    continue
+                for lock in self.boat.rig.seats[seat].oarlocks:
+                    speed = self._lock_speed_on_normal(state, lock, angle)
+                    load = abs(float(oar.blade.normal_force(angle, rate,
+                                                            speed)))
+                    if load <= 0.0:
+                        continue
+                    weighted += load * float(oar.blade.efficiency(
+                        angle, rate, speed))
+                    total += load
+        return weighted / total if total > 0.0 else None
+
     # -- running ---------------------------------------------------------------
     def run_strokes(self, strokes: int, surge_speed: float = 4.0,
                     dt: Optional[float] = None) -> DynamicRun:
@@ -350,7 +404,9 @@ class DynamicOarSimulator(RowingSimulator):
             records.append(StrokeRecord(
                 index=index, mean_speed=mean, drive_duration=drive,
                 finished=finished, handle_power=per_rower,
-                surge_swing=float(np.ptp(speed)) / max(mean, 1e-9)))
+                surge_swing=float(np.ptp(speed)) / max(mean, 1e-9),
+                blade_efficiency=self._stroke_blade_efficiency(times,
+                                                               states)))
             t0 = float(times[-1])
             y = states[:, -1]
 

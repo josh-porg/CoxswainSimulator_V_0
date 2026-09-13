@@ -88,6 +88,9 @@ class Settled:
     crew_power: float
     #: Hull resistance power at the settled speed, W.
     drag_power: float
+    #: Force-weighted blade efficiency MEASURED on a dynamic-oar run; ``None``
+    #: for a prescribed-oar run, whose level is computed from the schedule.
+    blade_efficiency: Optional[float] = None
 
     @property
     def efficiency(self) -> float:
@@ -221,7 +224,8 @@ def settle_dynamic(boat, watts: float, start: float,
     crew = run.settled_power() * rowers
     drag = _drag_at(sim, boat, mean_speed)
     return Settled(scale=float(watts), speed=mean_speed, surge_swing=swing,
-                   crew_power=crew, drag_power=drag * mean_speed)
+                   crew_power=crew, drag_power=drag * mean_speed,
+                   blade_efficiency=run.settled_blade_efficiency())
 
 
 def efficiency_at(boat, scale: float, start: float):
@@ -335,7 +339,13 @@ def measure(boat, name: str, profile, runs=None):
         "blade_efficiency_linearity": spread,
         "speed_per_watt": middle.speed_per_watt,
         "surge_swing": 100.0 * middle.surge_swing,
-        "blade_efficiency_level": _blade_efficiency_level(boat, middle.speed),
+        # A dynamic-oar boat carries no ``blade_model`` to read the level
+        # from, and should not: its efficiency is a property of the run, not
+        # of a schedule.  So it is MEASURED there, on the states the boat
+        # actually had, and scored against the same band.
+        "blade_efficiency_level": (
+            middle.blade_efficiency if _uses_dynamic_oar(boat)
+            else _blade_efficiency_level(boat, middle.speed)),
     }
     details = {
         "blade_efficiency_zero_crossing":
@@ -351,8 +361,10 @@ def measure(boat, name: str, profile, runs=None):
             % (middle.speed, middle.crew_power / boat.n_seats),
         "surge_swing": "at %.2f m/s, rate %.1f" % (middle.speed,
                                                    boat.timing.rate),
-        "blade_efficiency_level": "force-weighted, at %.2f m/s"
-                                  % middle.speed,
+        "blade_efficiency_level": (
+            "force-weighted over the drive, measured on the run, at %.2f m/s"
+            if _uses_dynamic_oar(boat)
+            else "force-weighted, at %.2f m/s") % middle.speed,
     }
 
     scores = []

@@ -135,6 +135,54 @@ It is the slip-quadratic **force**, which needs the oar angle as a dynamic
 state. The two phases are not separable and have been merged. Pinned by
 `tests/test_blade_tier1.py`.
 
+### The dynamic oar's blade is a quarter less efficient than a real one
+**Impact: high — it is the one scorecard target `research` fails.**
+
+Measured on the run (2026-09-13), force-weighted over the drive at the
+integrated oar states and the oarlock's instantaneous water speed:
+
+| boat | watts per rower | speed | measured | band [K07] |
+|---|---|---|---|---|
+| eight | 360 | 5.51 m/s | **0.586** | 0.754–0.816 |
+| four | 360 | 4.78 m/s | **0.590** | 0.754–0.816 |
+
+The shape is right and the level is not. Evaluated on the old prescribed
+schedule the level rose with speed (0.49 → 0.81 on the eight), which is η ∝ v
+at the blade; measured on the dynamic run it is flat and falls slightly with
+power. So the defect is gone, and what is left is a level gap.
+
+**An open tension.** The eight and four reach published race pace at 380 W
+per rower *with* these blades. A blade a quarter less efficient than a real
+one should not do that, so something else is generous, 380 W is high, or the
+comparison is not like-for-like.
+
+Candidates, in the order they are being checked:
+
+1. ~~**Definition.**~~ **Checked and ruled out** (2026-09-13). The scored
+   figure is the instantaneous `1 − |slip|/|blade speed|`, force-weighted;
+   Kleshnev's may be energetic — propulsive power over the power put into the
+   blade. Both measured on the same settled runs:
+
+   | run | instantaneous | energetic |
+   |---|---|---|
+   | eight, 360 W, 5.51 m/s | 0.586 | 0.622 |
+   | four, 360 W, 4.84 m/s | 0.590 | 0.624 |
+   | eight, 80 W, 2.96 m/s | 0.615 | 0.690 |
+
+   The definition is worth about +0.035 at race pace — a sixth of the gap —
+   and leaves the level well below 0.754 either way. So the gap is physics,
+   and the next candidate is the first one that is.
+2. **No lift.** [CR06] Model 1 is a pure normal force. Sliasas & Tullis find
+   propulsion lift-dominated in the first half of the drive, exactly where
+   this model's blade is least efficient. That is tier 2.
+3. **The pull shape.** Kleshnev's handle-force curve against drive progress,
+   applied here as a function of oar angle.
+4. **The reflected inertia**, derived from the ergometer kinematics and
+   clamped at both ends where it diverges.
+
+Pinned by `test_research_passes_the_defect_targets_shipped_fails`, which
+asserts the fail and the value, so a fix announces itself.
+
 ### The drive is 18–28% too long, and the cause is the ergometer
 **Impact: high — drive duration sets the time base of the whole stroke.**
 

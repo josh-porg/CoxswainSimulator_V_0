@@ -159,7 +159,7 @@ blade resists, the angle follows.
 - [x] The scorecard settles dynamic-oar boats at **stated watts**, not power scales -- the only scale-to-watts conversion in the project is the questionable `mean_handle_power`
 - [x] The report refuses `--physics research` at argument parsing, before any expensive stage
 - [x] `scorecard.run("research")` end to end: both defect targets pass on the eight and the four, where `shipped` fails both
-- [ ] Score `blade_efficiency_level` on the dynamic oar — n/a today, because the level is read from `boat.blade_model`, which a dynamic-oar boat does not carry
+- [x] Score `blade_efficiency_level` on the dynamic oar, **measured on the run** — and it **fails**: 0.586 on the eight and 0.590 on the four at race pace, against 0.754–0.816
 - [ ] Port the report to the dynamic oar
 - [ ] `StrokeTable` bypassed on the `research` profile (it assumes the chain depends on stroke time and nothing else)
 - [ ] Hands follow the dynamic angle, so the crew kinematics solve online
@@ -360,16 +360,43 @@ stated watts per rower (80–360), not power scales.
 | η zero crossing | ≥ 0.15 | 0.020 **fail** | 1.462 pass | 1.592 pass |
 | η/v spread | ≥ 0.08 | 0.027 **fail** | 0.380 pass | 0.389 pass |
 | surge swing | 30–60% | — | 46.1% pass | 49.6% pass |
-| blade efficiency level | 0.754–0.816 | n/a | **n/a** | **n/a** |
+| blade efficiency level | 0.754–0.816 | n/a | 0.586 **fail** | 0.590 **fail** |
 
 Both defect targets that `shipped` fails, `research` passes, on both boats.
 (The crossing reads 1.46 here against 1.81 from the torque sweep above: the
 operating points differ, and the scorecard's is the canonical number.)
 
-**The level target is a gap, not a pass.** `_blade_efficiency_level` reads
-`boat.blade_model` and the prescribed sweep, and a dynamic-oar boat carries
-neither by design. Measuring it properly means weighting blade efficiency by
-force over the dynamic run itself.
+**The level target fails, and it is measured, not inferred.** A dynamic-oar
+boat carries no `blade_model` and no sweep to read a level from, so it is now
+measured on the run itself: `1 − |slip|/|blade speed|` from the blade model's
+own definition, weighted by the blade force the water actually applied, at
+the integrated oar angle and rate and the oarlock's instantaneous water
+speed — so the crew's surge swing is inside it.
+
+| boat | watts per rower | speed | measured on the run | the schedule-based level at that speed |
+|---|---|---|---|---|
+| eight | 80 | 2.96 | 0.615 | 0.491 |
+| eight | 360 | 5.51 | **0.586** | 0.811 |
+| four | 80 | 2.58 | 0.636 | 0.431 |
+| four | 360 | 4.78 | **0.590** | 0.738 |
+
+Two things, and they pull in different directions:
+
+- **The defect's signature is gone from the level too.** Evaluated on the
+  prescribed schedule, the level rises with speed — 0.49 to 0.81 on the eight —
+  which is η ∝ v restated at the blade. Measured on the dynamic run it is
+  flat, and falls slightly with power.
+- **But it sits a quarter below Kleshnev's 0.785 ± 0.031.** A real miss, kept
+  on the page and pinned in `test_research_passes_the_defect_targets_shipped_fails`.
+
+It also sets up a tension recorded in [TRACKING.md](TRACKING.md): the eight
+and four reach published race pace at 380 W per rower **with** blades a
+quarter less efficient than measured ones. Either something upstream is
+generous, or 380 W is high. **It is not the efficiency definition:** measured
+energetically on the same runs — propulsive power over the power put into the
+blade — the level is 0.622 on the eight and 0.624 on the four at race pace,
+about +0.035 on the instantaneous figure and still well below 0.754. The gap
+is physics; the next candidate is the missing lift, which is tier 2.
 
 **Published race pace at 380 W per rower, full hull:**
 

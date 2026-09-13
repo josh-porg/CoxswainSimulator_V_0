@@ -153,6 +153,43 @@ def test_power_is_the_closed_form_work(single):
         1, surge_speed=4.3)
     assert run.strokes[0].finished
     assert run.strokes[0].handle_power == pytest.approx(380.0, rel=0.01)
+    # And the stroke carries a measured blade efficiency, not a placeholder.
+    level = run.strokes[0].blade_efficiency
+    assert level is not None and 0.0 < level < 1.0, level
+
+
+def test_blade_efficiency_is_measured_on_the_states_the_boat_had(single):
+    """Hand-checked against the blade model's own definition.
+
+    Two samples: one mid-drive, one with the oar past its finish. The first
+    must contribute ``1 - |slip|/|blade speed|`` weighted by its blade load;
+    the second must contribute nothing, because its blade is out.
+    """
+    sim = DynamicOarSimulator(single, peak_torque=400.0)
+    n = sim.n_oar_states
+    oar = sim._oars[0]
+    states = np.zeros((STATE_SIZE + 2 * n, 2))
+    states[6, :] = 4.3
+    angle, rate = np.radians(10.0), -2.2
+    states[STATE_SIZE:STATE_SIZE + n, 0] = angle
+    states[STATE_SIZE + n:, 0] = rate
+    states[STATE_SIZE:STATE_SIZE + n, 1] = oar.finish_angle - 1e-3
+    states[STATE_SIZE + n:, 1] = -9.0
+
+    got = sim._stroke_blade_efficiency(np.array([0.0, 0.01]), states)
+    # Straight running: both locks see the surge, so both have the same
+    # efficiency and the force weighting cannot move it.
+    expected = float(oar.blade.efficiency(angle, rate, 4.3))
+    assert got == pytest.approx(expected, rel=1e-12)
+    assert 0.0 < got < 1.0
+
+
+def test_no_loaded_blade_means_no_measurement(single):
+    sim = DynamicOarSimulator(single, peak_torque=400.0)
+    n = sim.n_oar_states
+    states = np.zeros((STATE_SIZE + 2 * n, 1))
+    states[STATE_SIZE:STATE_SIZE + n, 0] = sim._oars[0].finish_angle - 1e-3
+    assert sim._stroke_blade_efficiency(np.array([0.0]), states) is None
 
 
 # ---------------------------------------------------------------------------

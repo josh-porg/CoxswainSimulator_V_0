@@ -103,10 +103,13 @@ def test_research_passes_the_defect_targets_shipped_fails():
     eta/v is from constant -- fail on ``shipped`` (0.020 and 0.027) and
     passed on the eight at 1.462 and 0.380 when this was written.
 
-    The blade-efficiency LEVEL is asserted to be n/a, and on purpose: it is
-    read from ``boat.blade_model``, which a dynamic-oar boat does not
-    carry. If that ever reads "pass" without the measurement having been
-    built, this test is the thing that notices.
+    The blade-efficiency LEVEL used to be n/a here, because it was read from
+    ``boat.blade_model``, which a dynamic-oar boat does not carry. It is now
+    measured on the run itself -- force-weighted over the drive, at the
+    integrated oar states and the oarlock's instantaneous water speed -- so
+    it must come back as a real score, never n/a and never a placeholder.
+    It comes back a FAIL, about a quarter below the measured band, and that
+    is pinned rather than loosened.
     """
     from coxswain.validation import scorecard
 
@@ -117,4 +120,13 @@ def test_research_passes_the_defect_targets_shipped_fails():
         assert scores[key].status == "pass", (key, scores[key].value,
                                               scores[key].detail)
     assert scores["blade_efficiency_zero_crossing"].value > 1.0
-    assert scores["blade_efficiency_level"].status == "n/a"
+    level = scores["blade_efficiency_level"]
+    assert level.value is not None, level.detail
+    assert "measured on the run" in level.detail, level.detail
+    # Measured 2026-09-13: 0.586 at 5.51 m/s, against Kleshnev's measured
+    # 0.754-0.816. A real FAIL, recorded in docs/TRACKING.md rather than
+    # tuned away. Pinned here so the day it moves -- tier 2's lift, a better
+    # pull shape, a forward-dynamic rower -- announces itself in this test
+    # instead of being noticed in a table.
+    assert level.status == "fail", (level.value, level.detail)
+    assert 0.5 < level.value < 0.7, level.value
