@@ -140,7 +140,10 @@ def dynamic_trace(sim, run, label: str, seat_slot: int = 0,
 
         if law == "slip":
             speed = sim._lock_speed_on_normal(state, lock, angle)
-            loads.append(float(oar.blade.normal_force(angle, rate, speed)))
+            # the load the run APPLIED -- zero where a release rule had the
+            # blade out -- identical to normal_force under the default rule
+            loads.append(float(sim._blade_loads(seat_slot, angle, rate,
+                                                state, lock)[0]))
             slips.append(float(oar.blade.slip_velocity(angle, rate, speed)))
         else:
             f_n, f_t = sim._blade_loads(seat_slot, angle, rate, state, lock)

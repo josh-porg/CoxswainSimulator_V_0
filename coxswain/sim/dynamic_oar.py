@@ -56,6 +56,20 @@ Limits, stated before they are measured
 * **Recovery holds the oar.**  Once an oar reaches the finish angle its blade
   is out: no force, and the state is held until the next catch resets it.
   The switch is not smooth; RK4 steps across it with a small local error.
+  A measured oar is still sweeping at about half its peak rate at release
+  and turns round in the air ([CR06] Fig. 3); moving it there needs the
+  rower, which is phase 4.3.
+* **The release rule** is ``release="angle"`` by default: the blade is in
+  until the finish angle, and the tier 1 law brakes whenever slip turns
+  non-driving before then.  ``release="slip"`` is [CR06]'s rule -- load only
+  while the normal velocity is driving -- as a study.  It has no memory, so
+  a blade that stops driving mid-drive can grip again; [CR06] closes the
+  drive at the first return to zero.  **It cannot run yet:** the oar is
+  reset to rest at the catch and the pull shape is zero there, so under the
+  default rule the drive is started by the water loading the parked blade
+  (-829 N on the eight at 380 W, handle torque 0.0) -- and under this rule
+  nothing starts it at all; the oar sits at the catch and the boat coasts.
+  A real oar enters the drive already moving, which needs the rower.
 * ``blade_contact`` (the lost stroke length of an unset boat) is not wired
   here, and is refused rather than silently ignored.
 """
@@ -163,6 +177,13 @@ class DynamicOarSimulator(RowingSimulator):
     #: angle of attack, on provisional coefficients.
     BLADE_LAWS = ("slip", "liftdrag")
 
+    #: When the blade leaves the water.  ``"angle"``: at the finish angle,
+    #: as before -- and until then the tier 1 law brakes whenever the slip
+    #: turns non-driving.  ``"slip"``: [CR06]'s rule, the blade carries load
+    #: only while its normal velocity is driving, so it never brakes.  The oar
+    #: is held at the finish angle under both.
+    RELEASE_RULES = ("angle", "slip")
+
     #: How the crew moves.  ``"clock"``: prescribed in time, as before --
     #: the hands follow the old sweep while the oar follows its own
     #: dynamics.  ``"follows"``: phase 4.1, the body slaved to the oar angle
@@ -171,15 +192,19 @@ class DynamicOarSimulator(RowingSimulator):
     CREW_MODES = ("clock", "follows")
 
     def __init__(self, boat, peak_torque: float, blade_law: str = "slip",
-                 crew: str = "clock", **kwargs):
+                 crew: str = "clock", release: str = "angle", **kwargs):
         if blade_law not in self.BLADE_LAWS:
             raise ValueError("unknown blade law %r; this simulator runs %s"
                              % (blade_law, ", ".join(self.BLADE_LAWS)))
         if crew not in self.CREW_MODES:
             raise ValueError("unknown crew mode %r; this simulator runs %s"
                              % (crew, ", ".join(self.CREW_MODES)))
+        if release not in self.RELEASE_RULES:
+            raise ValueError("unknown release rule %r; this simulator runs %s"
+                             % (release, ", ".join(self.RELEASE_RULES)))
         self.blade_law = blade_law
         self.crew = crew
+        self.release = release
         super().__init__(boat, **kwargs)
         offsets = np.asarray(boat.phase_offsets, dtype=float)
         if offsets.size and np.ptp(offsets) > 1e-12:
@@ -340,11 +365,19 @@ class DynamicOarSimulator(RowingSimulator):
         """
         if self.blade_law == "slip":
             speed = self._lock_speed_on_normal(state, lock, angle)
-            return (float(self._oars[slot].blade.normal_force(angle, rate,
-                                                              speed)), 0.0)
+            blade = self._oars[slot].blade
+            if self.release == "slip" and float(
+                    blade.slip_velocity(angle, rate, speed)) >= 0.0:
+                return 0.0, 0.0                   # not driving: out, [CR06]
+            return (float(blade.normal_force(angle, rate, speed)), 0.0)
         velocity = self._lock_velocity(state, lock)
-        return self._liftdrag[slot].loads(angle, rate, velocity[:2],
-                                          int(lock.side))
+        blade = self._liftdrag[slot]
+        if self.release == "slip":
+            w_n, _w_a = blade.relative_velocity(angle, rate, velocity[:2],
+                                                int(lock.side))
+            if w_n >= 0.0:
+                return 0.0, 0.0                   # not driving: out, [CR06]
+        return blade.loads(angle, rate, velocity[:2], int(lock.side))
 
     def _torque(self, seat_slot: int, angle: float, state: State,
                 t: float) -> float:
@@ -381,7 +414,7 @@ class DynamicOarSimulator(RowingSimulator):
                 side = int(lock.side)
                 normal = np.array([np.cos(angle), -side * np.sin(angle), 0.0])
                 axis = np.array([np.sin(angle), side * np.cos(angle), 0.0])
-                if self.blade_law == "slip":
+                if self.blade_law == "slip" and self.release == "angle":
                     speed = self._lock_speed_on_normal(state, lock, angle)
                     normal_force = float(oar.blade.normal_force(angle, rate,
                                                                 speed))
@@ -453,7 +486,8 @@ class DynamicOarSimulator(RowingSimulator):
             torque = self._torque(slot, angle, state, t)
             locks = self.boat.rig.seats[seat].oarlocks
             angle_rate[slot] = rate
-            if len(locks) == 1 and self.blade_law == "slip":
+            if (len(locks) == 1 and self.blade_law == "slip"
+                    and self.release == "angle"):
                 # A sweep seat: one rower, one oar -- exactly the balance the
                 # unit was validated on, arithmetic unchanged.
                 rate_rate[slot] = float(oar.acceleration(
@@ -635,7 +669,7 @@ class DynamicOarSimulator(RowingSimulator):
         moment, slope = oar.inertia_at(angle)
         oar_inertia = float(getattr(oar.inertia, "oar_inertia", 0.0))
         seat_inertia = moment + (len(locks) - 1) * oar_inertia
-        if self.blade_law == "slip":
+        if self.blade_law == "slip" and self.release == "angle":
             blade = sum(float(oar.blade_torque(
                 angle, rate, self._lock_speed_on_normal(state, lock, angle)))
                 for lock in locks)
@@ -687,6 +721,10 @@ class DynamicOarSimulator(RowingSimulator):
                         speed = self._lock_speed_on_normal(state, lock, angle)
                         load = abs(float(oar.blade.normal_force(angle, rate,
                                                                 speed)))
+                        if self.release == "slip" and float(
+                                oar.blade.slip_velocity(angle, rate,
+                                                        speed)) >= 0.0:
+                            load = 0.0            # released: carries nothing
                         if load <= 0.0:
                             continue
                         efficiency = float(oar.blade.efficiency(
@@ -697,8 +735,8 @@ class DynamicOarSimulator(RowingSimulator):
                         # weighted by the normal load.
                         blade = self._liftdrag[slot]
                         velocity = self._lock_velocity(state, lock)[:2]
-                        f_n, _f_t = blade.loads(angle, rate, velocity,
-                                                int(lock.side))
+                        f_n, _f_t = self._blade_loads(slot, angle, rate,
+                                                      state, lock)
                         load = abs(float(f_n))
                         if load <= 0.0:
                             continue

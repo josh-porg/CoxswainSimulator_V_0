@@ -674,6 +674,12 @@ force are not in the paper and have to be built and validated here.
   5.36 m/s against the clock crew's 5.62, single 4.20 against 4.22 — still
   carry that leak and are not results.
 
+  *A requirement 4.3 inherits from [CR06]'s release rule:* the oar must be
+  handed into the drive **already moving**. Wired in as a study, the rule
+  froze the oar at the catch, because today the drive is started by the water
+  loading a blade parked at rest under a zero pull (TRACKING). The rower that
+  carries the oar through the recovery is what removes that.
+
   *Qualified on reading [CR06] in full:* the direction of slaving decides
   it. [CR06] slaves the **oar to the body** — smooth prescribed leg, back and
   arm motions, the oar angle given by the hand-on-handle relation, arms free —

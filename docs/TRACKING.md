@@ -268,6 +268,38 @@ blade-efficiency item above.
 curve applied by angle, and the reflected inertia clamped at the catch, which
 each added about 0.03 of the stroke on the oar alone.
 
+### The dynamic oar's drive is started by the water, not the rower
+**Impact: high — it is in every `research` stroke, and it blocks [CR06]'s release rule.**
+
+Found by wiring [CR06]'s release rule in as a study (`release="slip"`: the
+blade carries load only while its normal velocity is driving, so it never
+brakes). Every settled run collapsed — the eight to 1.69 m/s, the single to
+0.84 — with the drive never finishing.
+
+The cause, traced on one stroke of the eight at 380 W:
+
+- the oar is **reset to rest at the catch**, and the rower's pull shape is
+  **exactly zero there** (it reaches 0.41 an eighth of the way through the
+  sweep and peaks at 0.995);
+- so under the default rule **the drive is started by the water**: the boat
+  carries the parked blade, the non-driving slip loads it towards the finish
+  at **−829 N with the handle torque at 0.0**, and the rower's torque is
+  still only 21 N·m at 0.06 s. The single: −185 N at the catch;
+- under [CR06]'s rule that load is gone and nothing moves the oar: it sits at
+  56° (eight) or 65° (single) for the whole stroke and the boat coasts.
+
+The same measurement showed the default rule **braking at the finish**:
++75 N on the eight and +109 N on the single as the stroke ends, with 35 and
+43 drive samples carrying a braking load.
+
+The switch itself is correct and unit-tested — a released blade loads
+neither the hull nor the oar, and a driving blade is loaded exactly as
+before — and the stuck oar is pinned as a finding in
+`tests/test_release_rule.py`. It is not usable until the oar enters the
+drive already moving, as a real oar does and as [CR06]'s prescribed body
+guarantees. That needs the rower to carry it through the recovery (phase
+4.3); a non-zero pull at the catch would be an unsourced number.
+
 ### The following crew hands the hull momentum it never had
 **Impact: high — it voids every number phase 4.1's crew mode produces.**
 
