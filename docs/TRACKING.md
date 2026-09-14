@@ -777,8 +777,36 @@ also records that skilled pairs **balance by timing asymmetry**, stroke
 peaking earlier and bow loading the finish. A single shared shape cannot do
 that, which fits the steered sweep pair's leftover 5–6° sideslip above.
 
+*The time-domain descriptors agree* (`holt_force_curve.py`; singles at
+Holt's conditions; gate force per scull, normal to the shaft; drive from the
+catch to the oar's finish):
+
+| | M1x model (Holt) | W1x model (Holt) |
+|---|---|---|
+| catch to peak force | **0.54 s** (0.43) | **0.62 s** (0.39) |
+| rate of force development, catch to peak | 842 N/s (960) | 516 N/s (760) |
+| peak / mean force | **2.29** (1.90) | **2.23** (1.87) |
+| catch to minimum boat speed | 0.24 s (0.14) | 0.26 s (0.12) |
+| mean / peak gate force | 199 / 458 N (261 / 497) | 144 / 319 N (199 / 371) |
+| drive duration | 0.96 s | 1.07 s |
+
+At equal power the model pulls **24–28% less mean force over a longer
+drive**. The drive is 0.555 and 0.585 of the stroke, where Holt report no drive
+time and TRACKING's drive-fraction check already fails. Its curve is **too
+peaked** (peak/mean 2.2–2.3 against 1.9) and **reaches its peak too late**.
+Holt's peak/mean ratio is exactly the curve-width measure §68 says this shape
+family cannot vary. Widening the Beta curve is the same two-exponent refit
+above, and that failed, so the family is the limit. It needs end slopes set
+independently of its peak and width, and a measured curve to fit them.
+
+The pull shape and the drive's length are coupled: a pull that comes on
+sooner would also shorten the drive. So the drive-fraction item and this one
+should be refit together, not one after the other.
+
 *Next, and needs data:* a measured gate force–angle curve including its
-ends, per class, to fit a shape with a width parameter. No change to
+ends, per class, to fit a shape with independent end slopes. Warmenhoven's
+2017 thesis on single-sculling force–angle profiles is the candidate; the
+Sydney repository returns 403 to automated requests. No change to
 `DRIVE_SHAPE`, and no research-profile number changes, until one is in hand.
 
 *Still open.* The entry angle, 2–6° past the catch, has no measured target
