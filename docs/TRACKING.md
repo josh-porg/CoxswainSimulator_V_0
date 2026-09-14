@@ -1140,7 +1140,12 @@ candidates, none measured yet:
 
 Holt's stated Peach definition is taken at its word. Peach's own
 documentation has not been obtained, and it would settle whether the force
-really is resolved along the boat axis.
+really is resolved along the boat axis. **Two measurements disagree on the
+sign** (SOURCES, "What Peach power actually is"). [H21], the same group on a
+mechanical rig, found Peach 8–17% *low*. [BR25], on the water in an eight,
+found Peach 6–11% *high* against an oar-shaft sensor, and blames the oar's
+axial force at non-perpendicular angles. Both tested sweep oars only. So the
+cos θ column is what Holt's words imply, not an established correction.
 
 ### Surge swing is 10–31% too large
 Model against Holt: ratios 1.31, 1.31, 1.10, 1.18. `scripts/unsteady.py`

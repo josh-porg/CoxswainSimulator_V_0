@@ -1253,6 +1253,35 @@ women's singles, 3 men's and 6 women's pairs.
   force × cos θ, so the wider sculling arc is read lower relative to the full
   moment than the sweep arc.
 
+### What Peach power actually is: two measurements that disagree
+[H20]'s long-axis description is the only definition of Peach power found so
+far; Peach's own documentation has not been obtained. Two measurements of
+Peach against something else point in opposite directions.
+
+- **[H21] Holt, Hopkins, Aughey, Siegel, Rouillard & Ball (2021)**, *Concurrent
+  validity of power from three on-water rowing instrumentation systems and a
+  Concept2 ergometer*, **Front. Physiol. 12:758015** (PMC8633434; read via
+  summary, not in full). Same group as [H20]. The test was a sweep oar on a
+  mechanical reference rig, not rowing on water. Peach power read **−7.9% to
+  −16.9%** against the rig's work ÷ time. Weba was −7.9 to −15.5%, EmPower −32
+  to −48%, and the ergometer −11 to −15%. Error grew in proportion at high
+  power. No sculling test and no angle dependence were reported.
+- **[BR25] Kleshnev, BioRow**: *Data comparison between BioRow and Peach
+  systems* (biorow.com, 7 Nov 2025; full analysis for members only), and
+  *Specifics of rowing telemetry systems* (25 Dec 2025). On a junior women's
+  eight, Peach read force **5.2% higher** and power **6.2% higher** (raw) and
+  **11.1% higher** (per-stroke means) than BioRow's oar-shaft sensor. Its
+  angles were about 3% longer because of gate backlash. Kleshnev writes that
+  at a pin sensor "the axial force … affects the measured pin force at
+  non-perpendicular oar angles". Torque then has to come from the pin force
+  through "uncertain inboard lever and the actual outboard lever". He puts
+  oar-based power error below 1%.
+
+So the size, and even the sign, of Peach's power error on the water is
+unsettled. Both measurements are of sweep oars. The cos θ conversion in
+TRACKING's Holt singles item stays a **diagnosis of what Holt's stated
+definition would imply**, not a correction.
+
 ### [HLBS18] Hofmijster, Lintmeijer, Beek & van Soest (2018)
 *Mechanical power output in rowing should not be determined from oar forces
 and oar motion alone.* **J. Sports Sci. 36(18) 2147–2153**, PMID 29737945;
