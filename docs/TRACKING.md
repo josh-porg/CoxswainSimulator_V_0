@@ -1412,6 +1412,46 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
     with her body and force time-laws at her own rate, and scoring the
     predicted boat *velocity* against her measured one, removes both the
     cross-athlete assumption and differentiation noise.
+  - **Result: the model predicts her boat** (`cr06/self_consistent_cr06.py`).
+    Setup:
+    - **Rig:** [CR06] Table 1 (75 kg rower, 19.7 kg boat, 1.2 kg scull,
+      s 0.83, ℓ 1.805 m) with her measured arc (60.49 / −44.35°).
+    - **Rate:** T = 1.94 s. The model's own drive-fraction law gives 0.462
+      against her 0.461, so it is left alone.
+    - **Handle torque:** her measured `F_hand(t)` × s. Fig. 3's force is
+      both hands summed (SOURCES, [CR06]: power 260 against 251 W of drag,
+      and the elite-women magnitude from [LE26]), so each oar takes half.
+    - **Stature:** 1.787 m. [CR06] gives none, but at that stature the
+      model's leg travel is 0.582 m against her measured 0.581.
+    - **Nothing fitted:** force scale 1, oar-only balance, half the default
+      step.
+
+    | build | mean speed | error | v min / max | velocity rms | power |
+    |---|---|---|---|---|---|
+    | [CR06] measured | 4.191 | — | 3.06 / 5.13 | — | 260 W implied |
+    | summed, smooth body | 4.087 | −2.5% | 2.59 / 4.87 | 0.203 | 275 W |
+    | **summed, her measured leg** | **4.101** | **−2.2%** | 2.79 / 5.21 | **0.143** | 277 W |
+    | per oar, her measured leg | 5.674 | +35.4% | 4.13 / 6.72 | 0.307 | 530 W |
+
+    - **Speed:** predicted to 2.2% from her force and body alone. This
+      validates the hull, blade and oar dynamics together at one operating
+      point. The summed reading was chosen on the power and magnitude checks
+      before this run finished; per oar, the model refuses it independently
+      (+35%).
+    - **Oar angle is predicted too.** It is a dynamic state, driven by the
+      imposed torque against blade slip. It follows her measured angle
+      within a few degrees through the drive and reaches the finish at
+      0.455 of the cycle, against her release at 0.461. Per oar, the drive
+      is over by 0.36.
+    - **Her leg time-law is worth 30% of the velocity-trace error** (0.203 to
+      0.143 m/s), mostly on the catch dip and the recovery peak.
+    - **The catch dip is still too deep**, 2.79 against 3.06 m/s, with every
+      input from one athlete, one stroke, at her own rate. So
+      mixing athletes was not the main cause of the [LE26] overshoot. What is
+      left: the trunk (model back travel 0.513 against her 0.398 m, and not
+      on her time-law), the catalog hull shape, and the catch transition.
+    - Two small ripples in mid-recovery (0.50, 0.63) come from the leg warp,
+      not from the data.
   - **Found while building it: the scull weighs as much as a sweep oar.**
     `SCULLING_OAR` (coxswain/boats/rig.py) sets no mass, so it inherits the
     `Oar` default of 2.7 kg, which is documented as a *composite sweep oar*
