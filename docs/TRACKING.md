@@ -735,6 +735,23 @@ slowly load comes on after entry. Two candidates, not yet separated:
 The pairs row a sculling arc (110° against 82°), so their slips are not like
 for like. The singles are.
 
+*Separated on the singles (`holt_slips_split.py`): it is the pull shape.*
+Force normal to the shaft, per scull:
+
+| | handle force first > 196 N | blade force alone | pull shape at Holt's catch slip | shape reaches half peak | peak handle / blade / sum |
+|---|---|---|---|---|---|
+| M1x | 20.9° past the catch | never (peak 154 N) | **0.20** of peak at 7.7° | 16.3° | 305 / 154 / 458 N |
+| W1x | 32.7° | never (peak 106 N) | **0.27** of peak at 9.7° | 16.3° | 214 / 106 / 319 N |
+
+The blade carries about a third of the pin load throughout, as the lever
+requires, so it cannot pass the threshold alone and does not delay the sum.
+The pull shape u^1.4852 (1 − u)^2.2278 is what is slow: at Holt's measured
+catch slip it gives a fifth to a quarter of peak pull. The peak gate force
+(458 N against Holt's 497) and the peak position (40% of the drive against
+Holt's −20.1° peak-force angle, 39.8% of the arc) both agree. **The fit is
+right in the middle and wrong at both ends**, which is where its two Kleshnev
+points gave it nothing.
+
 *Still open.* The entry angle, 2–6° past the catch, has no measured target
 (the digitised [CR06] Fig. 3 carries release markers only). Refused with the
 following crew and with blade added mass, both of which were waiting on
