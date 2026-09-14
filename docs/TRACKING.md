@@ -1540,6 +1540,42 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
       the remaining catch gap. It matters for anything that reads segment
       masses directly, which is what step 4.3's joint torques will do, so
       her runs use the female table from here on.
+  - **Step 4.3, first rung: the stretcher force** (2026-09-14). The body's
+    momentum balance along the boat, with the seat frictionless:
+    stretcher force = rower mass × absolute centre-of-mass acceleration +
+    handle pull along the axis.
+    - **From her own data, no model** (`cr06/stretcher_from_her_data_cr06.py`;
+      [CR06] eq. 1, and eq. 5 with r = 0.4; smoothing weight 3×10⁻⁶ to
+      3×10⁻⁵):
+      - **Catch landmark:** [LE26]'s landmark, minimum boat acceleration, is
+        −8.2 to −8.8 m/s² at +0.009 to +0.021 s after her maximum oar angle.
+      - **At the landmark:** stretcher **408–448 N**, summed gate force
+        34–36 N. Her absolute acceleration is +5.2 to +5.7 m/s² (boat −8.8,
+        legs +12.0, back 0.4 × 4.5).
+      - **Lead:** the stretcher reaches 300 N 0.02 s *before* the landmark,
+        the gate force at 0.21 s after it, a lead of **0.23 s**.
+      - **Peaks:** stretcher 675–726 N against gate 792 N, a ratio of
+        0.85–0.92.
+    - **That is [LE26]'s structure.** Their world-class women have 335 N
+      stretcher against 154 N gate at the catch, stretcher leading (men:
+      0.11 s), and a peak ratio of 0.94. One athlete agrees with a
+      different cohort on all three, so the target is real, not a quirk of
+      either dataset.
+    - **The model fails it.** On her validated stroke
+      (`cr06/stretcher_from_balance_cr06.py`: female table, whole measured
+      body, T/320):
+      - **Catch (t = 0):** stretcher **33 N** against 34 N gate, ratio 0.98.
+      - **Timing:** the stretcher reaches 300 N 0.017 s *after* the gate.
+      - **Peak:** ratio 0.89, which does agree.
+
+      The model's rower has almost no absolute acceleration at the catch,
+      where hers has +5 m/s². The hull velocity trace still matches hers to
+      0.032 m/s rms.
+    - *Being split:* whether the shortfall is the model's hull decelerating
+      harder at the catch (the known 0.13 m/s-too-deep dip) or its
+      12-segment body accelerating differently relative to the hull. The
+      model's own landmark and the momentum books, which closed only to
+      −3.96 N·s over the stroke, are being rechecked.
     - The shipped game is frozen, so any correction is research-side, and it
       needs a sex carried from the lineup or roster.
   - **Found while building it: the scull weighs as much as a sweep oar.**
