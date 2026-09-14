@@ -1172,6 +1172,34 @@ candidates:
   real means of balance, which the rig does not have: rigging asymmetry such
   as oarlock span, oar length or inboard per side, and hull shape. These rows
   are not pursued further; the spread's other two candidates are next.
+
+- The swing, too large everywhere and most on the singles. *Priced
+  (`holt_swing_cost.py`):* the model's last-stroke speed trace was rescaled
+  about its mean to Holt's measured peak-to-peak and priced with the hull's own
+  resistance curve. The speed cost follows from the local exponent of
+  R(v)·v, measured at 2.84–3.02.
+
+  | class | swing, model (Holt) | η_velocity, model / at Holt's swing | power wasted | speed cost |
+  |---|---|---|---|---|
+  | M1x | 69% (49%) | 1.128 / 1.065 | +5.9% | **−2.0%** |
+  | W1x | 72% (51%) | 1.171 / 1.094 | +7.1% | **−2.2%** |
+  | M2- | 63% (55%) | 1.104 / 1.076 | +2.6% | **−0.9%** |
+  | W2- | 66% (53%) | 1.132 / 1.089 | +3.9% | **−1.3%** |
+
+  The excess swing costs the singles about **1 point more** than the pairs, a
+  small part of the spread. It is also partly circular: the singles are
+  slow, and the relative swing grows as speed falls. The shape is the
+  model's, so a Holt waveform could differ.
+
+**The spread, accounted for so far** (Holt's power as printed, 26 °C): the
+rig ≤ 2 points and the swing about 1 point, leaving **at least 4–7 points
+unexplained**. What remains lies in the power figure, not the boat. Holt's
+long-axis definition would account for 3.6–3.8 points on the singles against
+2.2–2.3 on the pairs, and the scullers read 0.73–0.77 of [K00] against
+0.89–0.98 for the sweepers. Neither can be settled without Peach's own
+definition or a sculling Peach-versus-oar-shaft comparison. **The singles
+item is parked here as a measurement question, not a model defect.** No
+research-profile number changes.
 - Holt's scullers and sweepers are different cohorts; see the [K00] ratios
   above.
 - The swing is too large everywhere, and most on the singles, where the crew
