@@ -1452,6 +1452,20 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
       on her time-law), the catalog hull shape, and the catch transition.
     - Two small ripples in mid-recovery (0.50, 0.63) come from the leg warp,
       not from the data.
+    - **Settled, and the dip's timing is right.** The last eight strokes agree
+      to 1 mm/s (4.1015 to 4.1005). The minimum falls at 0.147 of the cycle
+      against her 0.143. Only its depth is wrong.
+    - **Her back travel, one-athlete version** (`self_consistent_back_cr06.py`;
+      upper body relative to the lower trunk ×0.776 = 0.398 / 0.513 m):
+      4.103 m/s (−2.1%). The recovery peak comes to 5.10 against her 5.13,
+      and the velocity rms falls a further 20%, 0.143 to **0.115 m/s**. The
+      catch minimum moves 2.79 to 2.82 against 3.06. So as with [LE26], the
+      trunk's excess travel shapes the recovery, not the catch.
+    - *Next:* the body on her clock. The leg warp put her leg minimum at the
+      model's time (0.993 of the cycle), not hers (0.004), so the body
+      reversed about 21 ms before the force. And the trunk is not on her
+      back time-law: it comes forward 32 ms late and opens 62 ms early
+      (`alignment_cr06.py`).
   - **Found while building it: the scull weighs as much as a sweep oar.**
     `SCULLING_OAR` (coxswain/boats/rig.py) sets no mass, so it inherits the
     `Oar` default of 2.7 kg, which is documented as a *composite sweep oar*
