@@ -1083,6 +1083,38 @@ Holt's power is gate power, used as `handle_watts` directly. The first
 candidate is sculling-specific: [CR06]'s scull `C₂` = 58.7 is their computed
 nominal value, and their own best fit to data was 2.4× that.
 
+*Diagnosed 2026-09-13: this is not a hull or blade defect.* Scratch scripts and
+outputs are in the session's `phase4/`. Nothing below changes the model.
+
+| candidate | test | result |
+|---|---|---|
+| Blade `C₂` too low | `C₂` × 2.4, [CR06]'s own singles fit | M1x −6.0%, W1x −9.7%. Blade efficiency rises 0.71 → 0.79; swing barely moves. Closes 3–4 points, not 10–13. |
+| Hull priced too dear | R(v)·v / P at Holt's measured speed, no simulation | Needs 0.97 (M1x) and 1.06 (W1x) of the measured power. The doubles need 0.78. A steady boat can only reach η_blade·η_velocity ≈ 0.63–0.76. |
+| Catalogue single too big | Rebuilt at [L9701]'s Empacher (7.925 × 0.274 × 0.101) and King 1X (8.077 × 0.273 × 0.114) | Wetted area only 1% smaller. M1x −8.3% / −8.7%, W1x −11.2% / −11.6%. Closes 1–1.6 points. |
+| Our drag differs from real-hull predictions | [L9701]'s own C_t curves, read at Holt's Fnv | Empacher at 4.609 m/s is **69.6 N**; the model gives 67.0 (Empacher dimensions) and 70.5 (catalogue hull). King 2X at Holt's M2- speed gives 124.3 N against the model double's 119.7. The model agrees with Lazauskas within 1–4%. |
+
+So Lazauskas's real-hull prediction says the same as the model: an M1x at
+4.609 m/s needs **96% of Holt's 334 W** at the mean speed, before any blade or
+surge loss. For the pairs it is 81–85%. The singles gap follows **Holt's
+sculling power figure**, and three things in [H20] and around it bear on it:
+
+- **Definition.** Peach power uses the gate force *along the boat's long axis*.
+  That is the normal force × cos θ. The model's handle power is the full moment
+  × ω. Over Holt's own measured arcs and peak-force angles, the power-weighted
+  cos θ is **0.89–0.92 for singles (arc 105°) against 0.94–0.95 for pairs
+  (82°)**.
+- **Cross-check.** At Holt's own rates, [K00]'s regressions give handle power
+  that Holt's scullers reach only **0.73 (M1x) and 0.77 (W1x)** of. The
+  sweepers reach **0.89 and 0.98**. The cohorts differ, but the sculling-only
+  shortfall matches the definition.
+- **Conditions.** The water was **26 °C** ([ITTC11]: ν 0.873 × 10⁻⁶ against
+  the catalogue's 1.139 × 10⁻⁶ at 15 °C). The wind was 1.4 m/s
+  cross-tail. Both favour every class.
+
+[HLBS18] adds that any moment × ω power is ≥ 10% below true mechanical power.
+The model's prescribed body shares that omission, so no factor is applied for
+it.
+
 ### Surge swing is 10–31% too large
 Model against Holt: ratios 1.31, 1.31, 1.10, 1.18. `scripts/unsteady.py`
 squares this quantity, so the error is four times worse there.
@@ -1447,6 +1479,8 @@ to.
 
 | what it was | how it was found |
 |---|---|
+| **Two hulls with the same name shared one matched torque.** `DynamicOarSimulator._match_key` covered mass, timing, rig, profile, wave model and depth, but not the hull's offsets. So a boat rebuilt with a different hull under the same name would be handed the first hull's cached sweep-catch torque, at the wrong power, without complaint. The key now includes the offsets' station, beam and depth arrays. `tests/test_torque_for_power.py::test_a_different_hull_shape_is_a_different_cache_entry` fails without it. | Planning the [L9701] hull study, which rebuilds the single at other dimensions. The study's boats carry distinct names, so its numbers were never affected. |
+| **`BladeModel`'s docstring said [CR06] fitted `C₂`.** They computed it, as ½ρC₀A₀ with C₀ ≈ 1.3 from Hoerner and measured blade areas. The value that best fitted their singles was about 2.4× that. Docstring corrected; no number changed. | The ledger's audit question on whether `C₂` is a fit. |
 | **The research blade acted at the oar's tip, not its centre.** Concept2 measure an oar's overall length "from the end of the grip … to the edge of the blade", and the rig's 3.70 m and 2.88 m are those overall lengths — but `Oar` documented `length` as blade centre to handle end, and the dynamic oar took `length − inboard` as the blade lever arm: 2.56 m sweep and 2.00 m scull, half a blade too far out. [CR06], whose `C₂` the research blade uses, applies its force at `outboard − blade_length/2`; its Table 1 implies 0.52 m and 0.43 m blades, matching Concept2's Big Blade. Now `Oar.blade_centre_outboard` (2.30 m sweep, 1.785 m scull), read by `OarDynamics.from_boat` and so by the reduced model, the dynamic oar and the figure; the shipped trainer never reads it. **What it moved, at 380 W:** eight rate 28 5.619 → 5.530 m/s, drive fraction 0.400 → 0.376, blade efficiency 0.586 → 0.559; eight rate 32 5.56 → 5.461, 0.467 → 0.440; coxed four rate 32 4.900 → 4.829, 0.510 → 0.481, 0.592 → 0.566; single rate 30 4.217 → 4.171, 0.559 → 0.525, 0.636 → 0.614. Every boat stays in its published pace band; the drive shortens toward on-water timing; blade efficiency falls further below Kleshnev's band. Reduced-model gate 8.9 → 6.4, full-hull gate 1.81 → 1.57, both passing. A prescribed sweep's impulse now crosses zero at 4.36 m/s on the eight at rate 28 (it was ~4.85). | Answering the ledger's audit question on where ℓ is measured, against Concept2's published definitions and the USRowing rules. |
 | **A sculler's body was counted once per oar.** The dynamic oar averaged each oar's own balance, and each carried the rower's whole reflected inertia, so a sculler's two oars did not balance as one body: 2.2% of the handle work over a drive went unaccounted for. Now one seat balance, `(I_crew + n I_oar) φ̈ = −n τ + Σ blade`, in both the dynamic simulator and the reduced model; sweep seats are bit-identical. The single at 380 W went from 3.99 m/s — the recorded 2.6% miss below its published band — to **4.22, inside 4.1–4.7**, and its drive from 0.628 of the stroke to 0.559. | Drawing the blade-path figure: the single's drive filled most of the stroke, and closing the energy books over one drive showed the residual. |
 | **The optimiser and the simulator disagreed about the rudder.** `hydro_casadi.surface_load` used `lift_curve_slope * angle` where the numpy path uses Whicker–Fehlner — dropping both the `cos` that stalls the surface and the cross-flow term. Up to **6.5% low at 15°**, and unbounded growth past stall, which is exactly the sort of thing an optimiser exploits. The CasADi path is what `PathMPC`, `ReducedModel` and the route optimiser run on, and `SOURCES.md` §10 says steering is already marginal against the tightest bends. | Investigating why 14 CasADi tests had been failing. The comparison against numpy was there and had been **unable to run since 26 August**, so nothing was checking. Now agrees to 0.0 across every appendage, deflection and sideslip tried, and `tests/unit/test_hydro_casadi.py` sweeps the lift curve degree by degree from −45° to +45° instead of sampling it, carries a planted-failure test so the guard can fail, and checks the surface stalls instead of growing without limit. |

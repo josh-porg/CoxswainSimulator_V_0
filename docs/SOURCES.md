@@ -379,10 +379,11 @@ anatomical heights regardless of where the link ends.
 
 ## 5. Hull hydrodynamics
 
-### A better hull source, not yet obtained
+### [L9701] A better hull source — principal dimensions obtained, offsets not
 
-**L. Lazauskas**, *Rowing shell drag comparisons* (Dept. Applied
-Mathematics, University of Adelaide) compares the calm-water resistance of
+**L. Lazauskas**, *Rowing shell drag comparisons*, Tech. Rep. L9701 (Dept.
+Applied Mathematics, University of Adelaide; commenced 25 Nov 1997, this
+version 17 Jan 1998) compares the calm-water resistance of
 real racing shells using Michell's integral for wave resistance, the ITTC
 1957 line for skin friction and an empirical form-drag term — the same
 decomposition [F09] uses, applied to actual hull forms rather than a
@@ -390,8 +391,28 @@ parametric approximation. Indexed at
 [IAT Leipzig](https://iat.uni-leipzig.de/datenbanken/iks/sponet/Record/4000726).
 
 The hull offsets behind it would replace this model's parametric hull with
-measured geometry. `cyberiad.net`, which hosted the data, currently returns
-403 to automated requests, so it has **not** been obtained.
+measured geometry. `cyberiad.net`, which hosted the data, returns 403 to
+automated requests. The report's summary page was recovered on 2026-09-13
+from the Internet Archive,
+`web.archive.org/web/20040411084023id_/http://www.cyberiad.net:80/library/rowing/real/realrow.htm`.
+Its table gives D, displacement volume; L, waterline length; B, waterline beam;
+and T, maximum draft:
+
+| hull | D (m³) | L (m) | B (m) | T (m) | L9701's comment |
+|---|---|---|---|---|---|
+| Empacher | 0.104 | 7.925 | 0.274 | 0.101 | popular racing single |
+| King 1X | 0.104 | 8.077 | 0.273 | 0.114 | Graeme King's No 6 1X |
+| Van Dusen | 0.103 | 7.986 | 0.257 | 0.114 | small transom stern |
+| PE 0.45 | 0.104 | 7.996 | 0.268 | 0.109 | mathematical hull |
+| GODZILLA 1 | 0.100 | 8.489 | 0.227 | 0.124 | optimum PEP hull |
+| King 2X/2- | 0.211 | 10.250 | 0.351 | 0.132 | Graeme King's 2X/2- |
+| PE 0.70 | 0.211 | 10.250 | 0.351 | 0.132 | mathematical hull |
+
+The catalogue single, Formaggia's validation hull (nominal 8.20 × 0.285 ×
+0.125), is longer, beamier and deeper than every real single here. The
+catalogue double (10.4 × 0.345 × 0.135) is close to King 2X. The offsets
+tables themselves were not in the archived copy, so they are still **not**
+obtained. Only these principal dimensions are sourced.
 
 ### [F09] §6.1 — the resistance decomposition in use
 
@@ -1210,6 +1231,42 @@ does not say whether its power is total or handle power. Elite men, for
 example: **M8+ 464 W, rate 40, 5:18.6** (6.28 m/s); M4− 464 W, rate 39,
 5:41.0 (5.87 m/s); M1x 548 W, rate 38, 6:32.5 (5.10 m/s); W8+ 319 W, rate 40,
 5:53.1.
+
+### [H20] Holt, Aughey, Ball, Hopkins & Siegel (2020), *Technical determinants of on-water rowing performance*
+**Front. Sports Act. Living 2:589013**, open access, full text read
+(frontiersin.org). Corrigendum **3:681766 (2021)**: Table 1 as first
+published gave power in log units. The corrected table's watts, 334, 223,
+760 and 481 W, are the ones used here. 47 races over 2000 m: 10 men's and 8
+women's singles, 3 men's and 6 women's pairs.
+
+- **Power** is Peach PowerLine's, "from gate angle velocity, gate force in
+  the direction of the boat's long axis, and the ratio of the oar outboard
+  (distance from the collar to blade tip) to total length", at 50 Hz. It is
+  summed over the crew's oars. Holt call it "a proxy measure of the true
+  mechanical power output", citing [HLBS18].
+- **Speed** is from Catapult OptimEye S5 GPS at 10 Hz. Mean speed here is
+  distance per stroke × rate.
+- **Conditions**: water 26.0 ± 1.3 °C, air 22.8 ± 2.1 °C, wind 1.4 ± 0.6 m/s
+  "predominantly cross-tail direction on stroke side".
+- **Angles** (0 = oar perpendicular): catch −62.0°, finish +43.5°, arc 105.4°
+  for M1x; −48.8°, +33.2°, 82.0° for M2-. A long-axis gate force is the normal
+  force × cos θ, so the wider sculling arc is read lower relative to the full
+  moment than the sweep arc.
+
+### [HLBS18] Hofmijster, Lintmeijer, Beek & van Soest (2018)
+*Mechanical power output in rowing should not be determined from oar forces
+and oar motion alone.* **J. Sports Sci. 36(18) 2147–2153**, PMID 29737945;
+abstract read. Using a forward dynamic model driven by recorded kinematics,
+they compare the common proxy, handle-force moment × oar angular velocity,
+with true power. It reads low by **27.4 W (14.3%) at rate 20 and 44.3 W
+(14.2%) at rate 32**: "at least 10% of the true power output". [K00]'s
+16.8% handle-versus-total gap is the same effect, measured.
+
+### [ITTC11] ITTC Recommended Procedure 7.5-02-01-03, *Fresh water and seawater properties* (2011)
+Table 1, fresh water at 1 °C steps (pdf read from ittc.info). Used at 26 °C
+for [H20]'s races: **density 996.7864 kg/m³, kinematic viscosity
+8.7291 × 10⁻⁷ m²/s**, against `FRESH_WATER`'s 15 °C values (999.1,
+1.139 × 10⁻⁶).
 
 ### Other
 - **Millward (1987)**, *A study of the forces exerted by an oarsman and the

@@ -357,9 +357,14 @@ class BladeModel:
 
         C2 = 0.5 rho C0 A0
 
-    for blade face area ``A0`` and a shape constant ``C0``.  [CR06] fit
-    ``C2`` to on-water force and kinematic data: **58.7** for a single
-    scull and **84.5** for sweep.  Their sensitivity analysis found the fit
+    for blade face area ``A0`` and a shape constant ``C0``.  [CR06]
+    **computed** ``C2`` this way, not by fitting: blade areas measured at
+    0.0903 m^2 (scull) and 0.13 m^2 (sweep) and ``C0`` about 1.3 read from
+    Hoerner's flat-plate plot, giving **58.7** for a single scull and
+    **84.5** for sweep.  Fitted to their singles data, the value that
+    minimised the net error was about **2.4 times** that nominal one, and
+    it halved their oar-angle error (their Fig. 7).  This docstring used to
+    say the nominal values were the fit.  Their sensitivity analysis found the fit
     quality more sensitive to the blade and hull drag coefficients than to
     any other parameter, and that allowing slip at all was a *necessary*
     ingredient -- a non-slipping blade (their C_D = 1) does not reproduce

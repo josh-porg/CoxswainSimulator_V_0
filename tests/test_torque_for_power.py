@@ -54,6 +54,21 @@ def test_the_sweep_catch_needs_the_dynamic_oar():
                                rower="prescribed", catch="sweep")
 
 
+def test_a_different_hull_shape_is_a_different_cache_entry():
+    """Two boats identical but for their offsets row different strokes, so
+    they must not share a matched torque."""
+    from coxswain.hydro.hull import parametric_offsets
+
+    a = _research()
+    b = _research()
+    b.offsets = parametric_offsets(7.925, 0.274, 0.101, fullness=2.4,
+                                   freeboard=0.20)
+    assert _match_key(a, 300.0, "sweep", "slip") != \
+        _match_key(b, 300.0, "sweep", "slip")
+    assert _match_key(a, 300.0, "sweep", "slip") == \
+        _match_key(_research(), 300.0, "sweep", "slip")
+
+
 def test_the_rest_catch_torque_is_the_closed_form_exactly():
     boat = _research("8+", rate=28.0, watts=380.0)
     assert DynamicOarSimulator.torque_for_power(boat, 380.0) == \

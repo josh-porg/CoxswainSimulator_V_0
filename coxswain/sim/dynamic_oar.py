@@ -1257,9 +1257,17 @@ def _match_key(boat, watts, catch, blade_law) -> tuple:
     """Everything a matched sweep-catch torque depends on, as a cache key.
 
     Two boats share a torque only if they would row the same stroke: same
-    hull and crew mass, timing, per-seat power, rig geometry, physics stamp,
-    wave model and water depth.
+    hull shape, hull and crew mass, timing, per-seat power, rig geometry,
+    physics stamp, wave model and water depth.  The hull shape was missing
+    until 2026-09-13, so two boats differing only in their offsets -- a hull
+    study -- shared one matched torque.
     """
+    offsets = getattr(boat, "offsets", None)
+    hull = ()
+    if offsets is not None:
+        hull = tuple(np.asarray(getattr(offsets, field), dtype=float).tobytes()
+                     for field in ("station", "beam", "depth")
+                     if getattr(offsets, field, None) is not None)
     rig = []
     for seat in boat.rig.seats:
         for lock in seat.oarlocks:
@@ -1269,7 +1277,7 @@ def _match_key(boat, watts, catch, blade_law) -> tuple:
                         float(oar.inboard), float(oar.outboard),
                         float(getattr(oar, "blade_length", 0.0))))
     shallow = getattr(boat, "shallow", None)
-    return (str(boat.name), float(boat.timing.period),
+    return (str(boat.name), hull, float(boat.timing.period),
             float(boat.timing.drive_fraction), round(float(boat.total_mass), 9),
             tuple(np.round(np.asarray(boat.power_scales, float), 12)),
             tuple(rig), getattr(boat, "physics_profile", None),
