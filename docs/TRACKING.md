@@ -618,12 +618,29 @@ gone: the fitted line now reaches zero at twelve times the mean speed. Blade
 efficiency falls gently with power instead, on the eight from **0.770 at 80 W,
 inside Kleshnev's band**, to 0.714 at 360 W, where the level target is scored.
 
-*Still open.* Not yet the `research` profile. The profile's simulator is built
-by `simulator_for` from the closed-form `peak_torque_for_power`, which cannot
-count entry work -- that depends on the speed the blade enters at, so matching
-power needs either the iterated settle used here or a closed form that carries
-the entry speed. Until that exists, switching the profile would under-power
-every research crew by the entry work, about 9% on the eight. The entry angle, 2–6° past the catch, has no
+*Power matching, 2026-09-13.* `PhysicsProfile.catch` names a profile's catch,
+`"rest"` for every profile. `DynamicOarSimulator.torque_for_power` turns a
+wattage into peak torque for either rule:
+
+- **rest catch:** the closed form `peak_torque_for_power`, exactly; the pull is
+  a function of angle over a fixed arc, so its work does not depend on the run;
+- **sweep catch:** matched on a straight settle -- start from the closed form,
+  12 strokes, rescale by `watts / measured handle power` three times -- and
+  cached per boat configuration (name, timing, mass, power scales, rig
+  geometry, stamp, wave model, depth, watts, blade law), because a trajectory
+  fit builds many simulators on one boat. On the single at 300 W the matched
+  torque settles within 1.5% of the stated watts, and it is below the closed
+  form: the rower pays for the energy carried in.
+
+`simulator_for` and the scorecard's `settle_dynamic` both take the profile's
+catch and this torque, so a sweep-catch profile builds its crews at matched
+power (`tests/test_torque_for_power.py`). With every profile on `"rest"`,
+nothing that runs a profile has changed.
+
+*Still open.* Switching `research` to the sweep catch, which moves every
+research number: the report's settled speeds, the scorecard, and the test that
+pins the research simulator's torque to the closed form. The first settle on a
+new boat configuration costs about 36 strokes. The entry angle, 2–6° past the catch, has no
 measured target yet (the digitised [CR06] Fig. 3 carries release markers only).
 Refused with the following crew and with blade added mass, both of which were
 waiting on exactly this. The recovery still holds the oar at the finish.

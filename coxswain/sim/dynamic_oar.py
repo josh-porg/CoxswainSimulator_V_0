@@ -381,6 +381,53 @@ class DynamicOarSimulator(RowingSimulator):
         return (float(watts) * float(boat.timing.period) * rowers
                 / (locks * per_radian))
 
+    #: Matched torques for the sweep catch, keyed by :func:`_match_key`.
+    _MATCHED = {}
+
+    @classmethod
+    def torque_for_power(cls, boat, watts: float, catch: str = "rest",
+                         blade_law: str = "slip", start: float = None,
+                         strokes: int = 12, iterations: int = 3) -> float:
+        """The peak handle torque at which each rower does ``watts``.
+
+        Under the rest catch this is :meth:`peak_torque_for_power`, exactly:
+        the pull is a function of angle over a fixed arc, so its work does
+        not depend on the run.
+
+        Under the sweep catch it cannot be closed-form.  The rower's work
+        includes the kinetic energy the sweep carries into the water
+        (:meth:`_entry_energy`) -- 8.9% of handle power on the eight at rate
+        28 -- and that goes as the square of the speed the blade enters at,
+        which the run decides.  So the torque is found by settling the boat,
+        driven straight: start from the closed form, settle, rescale by
+        ``watts / measured handle power``, ``iterations`` times.  The result
+        is cached for the boat's configuration, because a trajectory fit
+        builds many simulators on one boat.
+        """
+        closed = cls.peak_torque_for_power(boat, watts)
+        if catch not in cls.CATCH_RULES:
+            raise ValueError("unknown catch rule %r; this simulator runs %s"
+                             % (catch, ", ".join(cls.CATCH_RULES)))
+        if catch == "rest":
+            return closed
+        key = _match_key(boat, watts, catch, blade_law)
+        if key in cls._MATCHED:
+            return cls._MATCHED[key]
+        from .control import Coxswain
+
+        speed = 4.5 if start is None else float(start)
+        torque = closed
+        for _ in range(int(iterations)):
+            sim = cls(boat, peak_torque=torque, catch=catch,
+                      blade_law=blade_law,
+                      coxswain=Coxswain(rudder_override=lambda t, s: 0.0),
+                      fast=True)
+            run = sim.run_strokes(int(strokes), surge_speed=speed)
+            speed = run.settled_speed()
+            torque *= float(watts) / run.settled_power()
+        cls._MATCHED[key] = torque
+        return torque
+
     # -- state -----------------------------------------------------------
     def augmented_initial_state(self, surge_speed: float = 4.0) -> np.ndarray:
         hull = self.initial_state(surge_speed=surge_speed)
@@ -1192,5 +1239,35 @@ def simulator_for(boat, **kwargs):
             "boat is stamped %r, whose oar angle is a dynamic state, and "
             "states no crew power: set boat.handle_watts (W per rower) "
             "first -- there is no default" % (stamp,))
-    torque = DynamicOarSimulator.peak_torque_for_power(boat, float(watts))
-    return DynamicOarSimulator(boat, peak_torque=torque, **kwargs)
+    # The profile names the catch; an explicit argument overrides it.
+    catch = kwargs.pop("catch", physics.resolve(stamp).catch)
+    torque = DynamicOarSimulator.torque_for_power(
+        boat, float(watts), catch=catch,
+        blade_law=kwargs.get("blade_law", "slip"))
+    return DynamicOarSimulator(boat, peak_torque=torque, catch=catch,
+                               **kwargs)
+
+
+def _match_key(boat, watts, catch, blade_law) -> tuple:
+    """Everything a matched sweep-catch torque depends on, as a cache key.
+
+    Two boats share a torque only if they would row the same stroke: same
+    hull and crew mass, timing, per-seat power, rig geometry, physics stamp,
+    wave model and water depth.
+    """
+    rig = []
+    for seat in boat.rig.seats:
+        for lock in seat.oarlocks:
+            oar = lock.oar
+            rig.append((int(lock.side),
+                        tuple(np.round(np.asarray(lock.position, float), 9)),
+                        float(oar.inboard), float(oar.outboard),
+                        float(getattr(oar, "blade_length", 0.0))))
+    shallow = getattr(boat, "shallow", None)
+    return (str(boat.name), float(boat.timing.period),
+            float(boat.timing.drive_fraction), round(float(boat.total_mass), 9),
+            tuple(np.round(np.asarray(boat.power_scales, float), 12)),
+            tuple(rig), getattr(boat, "physics_profile", None),
+            type(getattr(boat, "wave_table", None)).__name__,
+            float(getattr(shallow, "depth", float("inf"))),
+            float(watts), str(catch), str(blade_law))

@@ -718,10 +718,12 @@ force are not in the paper and have to be built and validated here.
   5.53 → 5.87 m/s and blade efficiency 0.56 → 0.71; the release rule now runs
   and never bites (TRACKING). The scorecard on it keeps every target's status
   and moves the failing blade-efficiency level from 0.56 to 0.71 on the eight;
-  the efficiency-proportional-to-speed signature is gone (TRACKING). Next:
-  power matching that counts entry work, so `simulator_for` and the scorecard
-  can build a research crew on it; then the `research` profile; then blade
-  added mass and the following crew on top of it.
+  the efficiency-proportional-to-speed signature is gone (TRACKING). Power
+  matching that counts entry work is in: profiles name their catch, and
+  `torque_for_power` matches a sweep-catch crew's wattage on a cached settle,
+  used by `simulator_for` and the scorecard. Next: the `research` profile on
+  the sweep catch, re-measured; then blade added mass and the following crew
+  on top of it.
 
   *Qualified on reading [CR06] in full:* the direction of slaving decides
   it. [CR06] slaves the **oar to the body** — smooth prescribed leg, back and

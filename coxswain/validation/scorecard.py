@@ -202,20 +202,25 @@ def settle_dynamic(boat, watts: float, start: float,
     """Settle a dynamic-oar boat at a stated handle power per rower.
 
     Driven dead straight, as :func:`settle` is.  ``power_scales`` is set to
-    ones so the stated wattage is not silently rescaled per seat, and the
-    torque that delivers it is the closed form -- work per drive is
-    ``peak * integral(shape dphi)`` whatever the speed.  Crew power is the
-    measured handle power of the run itself, not the stated figure, so a
-    mismatch between the two would show in the table rather than be
-    assumed away.
+    ones so the stated wattage is not silently rescaled per seat.  The
+    catch is the profile's own.  The torque that delivers the wattage is
+    :meth:`~coxswain.sim.dynamic_oar.DynamicOarSimulator.torque_for_power`:
+    the closed form under the rest catch -- work per drive is
+    ``peak * integral(shape dphi)`` whatever the speed -- and matched on a
+    settle under the sweep catch, whose rower work includes the energy the
+    sweep carries in.  Crew power is the measured handle power of the run
+    itself, not the stated figure, so a mismatch between the two would show
+    in the table rather than be assumed away.
     """
     from ..sim.control import Coxswain
     from ..sim.dynamic_oar import DynamicOarSimulator
 
     boat.power_scales = np.ones(boat.n_seats)
-    torque = DynamicOarSimulator.peak_torque_for_power(boat, float(watts))
+    catch = physics.resolve(getattr(boat, "physics_profile", None)).catch
+    torque = DynamicOarSimulator.torque_for_power(
+        boat, float(watts), catch=catch, blade_law=blade_law, start=start)
     sim = DynamicOarSimulator(
-        boat, peak_torque=torque, blade_law=blade_law,
+        boat, peak_torque=torque, blade_law=blade_law, catch=catch,
         coxswain=Coxswain(rudder_override=lambda t, s: 0.0), fast=True)
     run = sim.run_strokes(int(strokes), surge_speed=float(start))
 

@@ -100,6 +100,12 @@ class PhysicsProfile:
     #: Lazauskas's printed Wigley curve, and Sretenskii's finite-depth
     #: integral in place of the shallow-water factor (SOURCES sec. 6).
     wave: str = "michell"
+    #: How the dynamic oar's blade enters the water; see
+    #: :attr:`~coxswain.sim.dynamic_oar.DynamicOarSimulator.CATCH_RULES`.
+    #: ``"rest"``: parked at the catch, loaded at once -- what every profile
+    #: has run so far.  ``"sweep"``: [CR06]'s entry at zero normal velocity,
+    #: with rower power matched to include the energy the sweep carries in.
+    catch: str = "rest"
     #: Frozen profiles may not be altered, and the game may resolve only
     #: a frozen one.
     frozen: bool = False
@@ -115,6 +121,12 @@ class PhysicsProfile:
             raise ValueError(f"unknown oar driver {self.oar!r}")
         if self.wave not in ("michell", "sretenskii"):
             raise ValueError(f"unknown wave model {self.wave!r}")
+        if self.catch not in ("rest", "sweep"):
+            raise ValueError(f"unknown catch rule {self.catch!r}")
+        if self.catch != "rest" and self.oar != "dynamic":
+            raise ValueError(
+                f"catch rule {self.catch!r} belongs to the dynamic oar; "
+                f"this profile's oar is {self.oar!r}")
         # A blade model and a prescribed oar are a contradiction in either
         # direction: tier 0 has no blade to be dynamic, and a tier above 0
         # whose oar ignores the blade is tier 0 wearing a label.
