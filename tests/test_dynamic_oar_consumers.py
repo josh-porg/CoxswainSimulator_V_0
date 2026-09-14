@@ -81,7 +81,8 @@ def test_the_four_is_driven_at_its_own_erg_watts(monkeypatch):
     import numpy as np
 
     from coxswain.crew import exertion
-    from coxswain.sim.dynamic_oar import DynamicOarSimulator, simulator_for
+    from coxswain.sim.dynamic_oar import (DynamicOarSimulator, _match_key,
+                                          simulator_for)
 
     def forbidden(*_args, **_kwargs):
         raise AssertionError("mean_handle_power ran on a dynamic-oar four")
@@ -94,6 +95,10 @@ def test_the_four_is_driven_at_its_own_erg_watts(monkeypatch):
     assert target == np.mean(watts)
     assert boat.handle_watts == target
     assert float(np.mean(boat.power_scales)) == pytest.approx(1.0, abs=1e-12)
+    # The research catch matches torque on a settle (84 s here); this test is
+    # about routing, so a planted torque stands in for it and is removed after.
+    monkeypatch.setitem(DynamicOarSimulator._MATCHED,
+                        _match_key(boat, float(target), "sweep", "slip"), 150.0)
     assert isinstance(simulator_for(boat), DynamicOarSimulator)
 
 
@@ -200,12 +205,17 @@ def test_research_passes_the_defect_targets_shipped_fails():
     assert level.value is not None, level.detail
     assert "measured on the run" in level.detail, level.detail
     # Measured 2026-09-13: 0.586 at 5.51 m/s, against Kleshnev's measured
-    # 0.754-0.816. A real FAIL, recorded in docs/TRACKING.md rather than
-    # tuned away. Pinned here so the day it moves -- tier 2's lift, a better
-    # pull shape, a forward-dynamic rower -- announces itself in this test
-    # instead of being noticed in a table.
+    # 0.754-0.816 (0.559 once the blade force moved to the blade centre). A
+    # real FAIL, recorded in docs/TRACKING.md rather than tuned away. Pinned
+    # here so the day it moves announces itself in this test instead of being
+    # noticed in a table.
+    #
+    # It moved the same day: the research profile took [CR06]'s catch (the
+    # blade enters at zero normal velocity instead of parked and loaded), and
+    # at matched power the level is 0.714. Still a FAIL, now below the band
+    # by less than half as much; re-pinned to that, not loosened.
     assert level.status == "fail", (level.value, level.detail)
-    assert 0.5 < level.value < 0.7, level.value
+    assert 0.65 < level.value < 0.754, level.value
 
 
 def test_the_steering_caption_transcribes_nothing():

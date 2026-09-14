@@ -264,6 +264,10 @@ PROFILES: Dict[str, PhysicsProfile] = {
         rower="prescribed",
         oar="dynamic",
         wave="sretenskii",
+        # [CR06]'s entry, since 2026-09-13: the rest catch let the water
+        # start the drive and cost 5-7% of boat speed at equal power; the
+        # scorecard kept every target's status (TRACKING).
+        catch="sweep",
     ),
     # Declared so the shape of the programme is visible in the code and not
     # only in the plan.  NOTHING behind it exists yet: there is no tier 2
@@ -280,6 +284,7 @@ PROFILES: Dict[str, PhysicsProfile] = {
         rower="learned",
         oar="dynamic",
         wave="sretenskii",
+        catch="sweep",
     ),
 }
 

@@ -721,9 +721,13 @@ force are not in the paper and have to be built and validated here.
   the efficiency-proportional-to-speed signature is gone (TRACKING). Power
   matching that counts entry work is in: profiles name their catch, and
   `torque_for_power` matches a sweep-catch crew's wattage on a cached settle,
-  used by `simulator_for` and the scorecard. Next: the `research` profile on
-  the sweep catch, re-measured; then blade added mass and the following crew
-  on top of it.
+  used by `simulator_for` and the scorecard. Since 2026-09-13 the `research`
+  and `learned` profiles catch by the sweep: tier 1 blade efficiency 0.714 on
+  the eight and 0.681 on the four, still short of the band; tier 2 on the four,
+  0.795, the first pass of that target; and at the stated 380 W the eight and
+  four now outrun their race-pace bands, which sharpens the unsourced-power
+  tension (TRACKING). Next: blade added mass and the following crew on top of
+  the sweep catch.
 
   *Qualified on reading [CR06] in full:* the direction of slaving decides
   it. [CR06] slaves the **oar to the body** — smooth prescribed leg, back and

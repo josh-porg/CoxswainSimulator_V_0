@@ -637,13 +637,37 @@ catch and this torque, so a sweep-catch profile builds its crews at matched
 power (`tests/test_torque_for_power.py`). With every profile on `"rest"`,
 nothing that runs a profile has changed.
 
-*Still open.* Switching `research` to the sweep catch, which moves every
-research number: the report's settled speeds, the scorecard, and the test that
-pins the research simulator's torque to the closed form. The first settle on a
-new boat configuration costs about 36 strokes. The entry angle, 2–6° past the catch, has no
-measured target yet (the digitised [CR06] Fig. 3 carries release markers only).
-Refused with the following crew and with blade added mass, both of which were
-waiting on exactly this. The recovery still holds the oar at the finish.
+*Switched, 2026-09-13: `research` and `learned` catch by the sweep.* Every
+research crew is now built at matched power. Scorecard, research profile, rate
+28, the scorecard's own settles (rest → sweep):
+
+| target | tier 1 eight | tier 1 four | tier 2 eight | tier 2 four |
+|---|---|---|---|---|
+| zero crossing (× mean speed) | 1.22 → 9.51 | 1.29 → 15.75 | 2.10 → 6.12 | 2.35 → 6.66 |
+| speed per watt | 0.18846 → 0.20008 | 0.32912 → 0.34510 | 0.20160 → 0.21055 | 0.35175 → 0.36354 |
+| surge swing | 47.2 → 41.3% | 50.3 → 44.9% | 42.8 → 38.9% | 46.4 → 42.3% |
+| blade efficiency level | 0.559 → **0.714** fail | 0.566 → **0.681** fail | 0.630 → **0.826** fail (above) | 0.639 → **0.795 pass** |
+
+The first pass of the blade-efficiency level target on any boat: tier 2 on the
+four, inside Kleshnev's 0.754–0.816. Tier 2 on the eight overshoots the band,
+tier 1 still falls short on both, and tier 2 rests on provisional coefficients.
+
+*What moved with it.* The report's research four at its own roster watts
+(131.2 W a rower) settles at 3.638 m/s against 3.448 under the rest catch
+(+5.5%), swing 52.4 → 47.4%. **At the stated 380 W the eight and the four now
+run faster than their published race-pace bands** -- eight 5.87 m/s at rate 32
+(band 5.0–5.6), four 5.15 (band 4.5–5.1) -- where the single, 4.38, stays in its
+4.1–4.7. That is the recorded tension sharpened, not a new defect: 380 W a rower
+is a stated operating point with no source, and a more efficient blade needs
+less of it for the same pace. It stays open until race power per boat class is
+sourced. Tests that pinned the rest-catch torque or blade-efficiency level were
+re-pinned with dated notes, not loosened.
+
+*Still open.* The entry angle, 2–6° past the catch, has no measured target
+(the digitised [CR06] Fig. 3 carries release markers only). Refused with the
+following crew and with blade added mass, both of which were waiting on
+exactly this. The recovery still holds the oar at the finish. The first settle
+on a new boat configuration costs about 36 strokes.
 
 ### The following crew hands the hull momentum it never had
 **Impact: high — it voids every number phase 4.1's crew mode produces.**

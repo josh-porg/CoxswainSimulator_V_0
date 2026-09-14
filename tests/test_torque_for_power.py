@@ -24,9 +24,21 @@ def _research(name="1x", rate=30.0, watts=300.0):
     return boat
 
 
-@pytest.mark.parametrize("name", physics.names())
-def test_every_profile_still_catches_at_rest(name):
-    assert physics.resolve(name).catch == "rest"
+def test_the_research_profiles_catch_by_the_sweep_and_shipped_does_not():
+    """``research`` and ``learned`` moved to [CR06]'s catch on 2026-09-13;
+    ``shipped`` has no dynamic oar and keeps the rest default."""
+    assert physics.resolve(physics.SHIPPED).catch == "rest"
+    assert physics.resolve("research").catch == "sweep"
+    assert physics.resolve("learned").catch == "sweep"
+
+
+def _rest_profile(monkeypatch):
+    rest = dataclasses.replace(physics.resolve("research"),
+                               name="research-rest", catch="rest")
+    monkeypatch.setitem(physics.PROFILES, "research-rest", rest)
+    boat = rest.apply(catalog.build("1x", rate=30.0))
+    boat.handle_watts = 300.0
+    return boat
 
 
 def test_an_unknown_catch_rule_is_refused():
@@ -48,21 +60,30 @@ def test_the_rest_catch_torque_is_the_closed_form_exactly():
         DynamicOarSimulator.peak_torque_for_power(boat, 380.0)
 
 
-def test_the_factory_passes_the_profiles_catch_through():
-    sim = simulator_for(_research())
+def test_the_factory_passes_a_rest_profiles_catch_through(monkeypatch):
+    boat = _rest_profile(monkeypatch)
+    sim = simulator_for(boat)
     assert sim.catch == "rest"
     assert sim.peak_torque == DynamicOarSimulator.peak_torque_for_power(
-        _research(), 300.0)
+        boat, 300.0)
 
 
-def test_the_factory_lets_an_explicit_catch_override_the_profile(monkeypatch):
+def test_the_factory_passes_the_research_profiles_sweep_catch_through(
+        monkeypatch):
     """A planted cache entry stands in for the settle, which is slow; it is
     removed again after the test so no later test can be handed it."""
     boat = _research()
     monkeypatch.setitem(DynamicOarSimulator._MATCHED,
                         _match_key(boat, 300.0, "sweep", "slip"), 123.0)
-    sim = simulator_for(boat, catch="sweep")
+    sim = simulator_for(boat)
     assert sim.catch == "sweep" and sim.peak_torque == 123.0
+
+
+def test_the_factory_lets_an_explicit_catch_override_the_profile():
+    sim = simulator_for(_research(), catch="rest")
+    assert sim.catch == "rest"
+    assert sim.peak_torque == DynamicOarSimulator.peak_torque_for_power(
+        _research(), 300.0)
 
 
 @pytest.mark.slow

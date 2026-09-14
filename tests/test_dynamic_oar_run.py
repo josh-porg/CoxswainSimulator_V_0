@@ -26,7 +26,8 @@ import pytest
 from coxswain import physics
 from coxswain.boats import catalog
 from coxswain.core.state import STATE_SIZE, State
-from coxswain.sim.dynamic_oar import DynamicOarSimulator, simulator_for
+from coxswain.sim.dynamic_oar import (DynamicOarSimulator, _match_key,
+                                      simulator_for)
 from coxswain.sim.simulator import RowingSimulator
 
 
@@ -35,6 +36,28 @@ def _research(name="1x", rate=30.0, watts=380.0):
     if watts is not None:
         boat.handle_watts = float(watts)
     return boat
+
+
+@pytest.fixture(autouse=True)
+def _torque_without_the_settle(request, monkeypatch):
+    """Plant a torque for the research boats this module builds.
+
+    Since 2026-09-13 the research profile catches by the sweep, and
+    ``simulator_for`` matches its torque on a settle -- 55 s for the single,
+    paid by whichever test here builds a simulator first.  These tests are
+    about how the simulator is built and run, not about the torque, so the
+    closed form is planted for each boat, which is the torque this module ran
+    at before the switch.  The planted entries are removed after each test.
+    The settle itself is tested in ``tests/test_torque_for_power.py``.
+    """
+    if request.node.get_closest_marker("slow"):
+        return
+    for name, rate, watts in (("1x", 30.0, 380.0), ("4+", 32.0, 380.0)):
+        boat = _research(name=name, rate=rate, watts=watts)
+        monkeypatch.setitem(
+            DynamicOarSimulator._MATCHED,
+            _match_key(boat, watts, "sweep", "slip"),
+            DynamicOarSimulator.peak_torque_for_power(boat, watts))
 
 
 # ---------------------------------------------------------------------------
@@ -48,8 +71,13 @@ def test_the_factory_builds_what_the_boats_physics_needs():
     research = _research()
     sim = simulator_for(research)
     assert isinstance(sim, DynamicOarSimulator)
+    # Since 2026-09-13 the research profile catches by the sweep, whose rower
+    # work includes the energy carried into the water, so its torque is
+    # matched on a settle rather than the closed form (tests/
+    # test_torque_for_power.py).
+    assert sim.catch == "sweep"
     assert sim.peak_torque == pytest.approx(
-        DynamicOarSimulator.peak_torque_for_power(research, 380.0))
+        DynamicOarSimulator.torque_for_power(research, 380.0, catch="sweep"))
 
 
 def test_a_dynamic_boat_without_stated_watts_is_refused():
