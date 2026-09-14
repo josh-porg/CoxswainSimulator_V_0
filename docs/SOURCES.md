@@ -1277,6 +1277,19 @@ Peach against something else point in opposite directions.
   through "uncertain inboard lever and the actual outboard lever". He puts
   oar-based power error below 1%.
 
+**Slip thresholds, and which force they apply to.** [H20] defines catch and
+finish slip as the gate angle rowed while gate force is below **196 N**
+(catch) and **98 N** (finish), citing Coker (2010), which has not been read.
+Legge et al. (2024), *On-water rowing biomechanical assessment: a systematic
+scoping review*, Sports Med. Open (PMC11436553, read via summary), repeats the
+thresholds for sculling (giving 96 N at the finish). It does not say which
+force component they apply to. Nielsen-Kellerman's EmPower FAQ
+(nksports.com, "Wash and Slip") uses **100 N sculling, 200 N sweep**, "adopted
+from Valery Kleshnev of BioRow". BioRow measures handle force from oar-shaft
+bend, which is normal to the shaft. So the convention most likely began as a
+*normal-force* threshold. That is an inference; neither Peach nor [H20] says
+so.
+
 So the size, and even the sign, of Peach's power error on the water is
 unsettled. Both measurements are of sweep oars. The cos θ conversion in
 TRACKING's Holt singles item stays a **diagnosis of what Holt's stated

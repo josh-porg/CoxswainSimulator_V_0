@@ -703,6 +703,38 @@ against the model's coxed four at 5.15; a single 4.51 against 4.38. Their rates
 match, and neither source is a measured race. Holt et al.'s measured races
 [H20] are the like-for-like check for singles and pairs.
 
+*A measured target, found 2026-09-13, and the model misses it.* [H20]
+Table 1 gives catch and finish slip, the gate angle rowed while gate force is
+below 196 N at the catch and 98 N at the finish (Coker 2010; SOURCES). Values:
+M1x 7.7 / 14.1°, W1x 9.7 / 18.1°, M2- 3.7 / 8.5°, W2- 5.6 / 8.5°. The model's
+gate force was taken per oarlock as handle force (|τ| / inboard) plus blade
+force, over a settled stroke at Holt's conditions (`holt_slips.py`). The
+research profile, pairs on the double:
+
+| class | catch slip, normal / axis force (Holt) | finish slip, normal / axis (Holt) | arc (Holt) | peak gate force, normal |
+|---|---|---|---|---|
+| M1x | **17.0 / 22.1°** (7.7°) | **20.3 / 21.3°** (14.1°) | 110° (105.4°) | 458 N |
+| W1x | **22.5 / 27.9°** (9.7°) | **24.7 / 25.6°** (18.1°) | 110° (106.0°) | 319 N |
+| M2- | **17.5 / 22.0°** (3.7°) | **20.2 / 21.3°** (8.5°) | 110° (82.0°) | 468 N |
+| W2- | **23.1 / 28.5°** (5.6°) | **25.2 / 25.2°** (8.5°) | 110° (80.4°) | 318 N |
+
+Which force the thresholds apply to is unsettled: normal to the shaft
+(likely, via Kleshnev's convention) or along the boat's axis (Holt's power
+description). Under either, **the model's catch slip is 2–4× Holt's on every
+class and its finish slip 1.4–3×**, as a share of the arc too. Force builds
+too slowly after the catch and fades too early before the finish. The blade
+enters 1.4–2.1° past the catch, so the slip is not the entry angle. It is how
+slowly load comes on after entry. Two candidates, not yet separated:
+
+- The fitted pull shape u^1.4852 (1 − u)^2.2278. It is zero at both ends
+  and was fitted to two Kleshnev points in the middle of the drive, not to
+  its ends.
+- The blade entering at zero normal velocity, and so at zero load, by
+  [CR06]'s rule.
+
+The pairs row a sculling arc (110° against 82°), so their slips are not like
+for like. The singles are.
+
 *Still open.* The entry angle, 2–6° past the catch, has no measured target
 (the digitised [CR06] Fig. 3 carries release markers only). Refused with the
 following crew and with blade added mass, both of which were waiting on
