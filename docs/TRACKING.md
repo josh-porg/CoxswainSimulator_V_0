@@ -1544,9 +1544,12 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
     momentum balance along the boat, with the seat frictionless:
     stretcher force = rower mass × absolute centre-of-mass acceleration +
     handle pull along the axis.
-    - **From her own data, no model** (`cr06/stretcher_from_her_data_cr06.py`;
-      [CR06] eq. 1, and eq. 5 with r = 0.4; smoothing weight 3×10⁻⁶ to
-      3×10⁻⁵):
+    - **From her data through [CR06]'s own body model**
+      (`cr06/stretcher_from_her_data_cr06.py`; [CR06] eq. 1, and eq. 5 with
+      r = 0.4, i.e. all 75 kg at the seat plus 0.4 × back; smoothing weight
+      3×10⁻⁶ to 3×10⁻⁵). *Correction 2026-09-14: first recorded as "no
+      model". Eq. 5 is a model, and it overstates the acceleration of her
+      centre of mass (below).*
       - **Catch landmark:** [LE26]'s landmark, minimum boat acceleration, is
         −8.2 to −8.8 m/s² at +0.009 to +0.021 s after her maximum oar angle.
       - **At the landmark:** stretcher **408–448 N**, summed gate force
@@ -1571,11 +1574,33 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
       The model's rower has almost no absolute acceleration at the catch,
       where hers has +5 m/s². The hull velocity trace still matches hers to
       0.032 m/s rms.
-    - *Being split:* whether the shortfall is the model's hull decelerating
-      harder at the catch (the known 0.13 m/s-too-deep dip) or its
-      12-segment body accelerating differently relative to the hull. The
-      model's own landmark and the momentum books, which closed only to
-      −3.96 N·s over the stroke, are being rechecked.
+    - **Split, part 1: the body model** (`cr06/catch_relative_acc_cr06.py`,
+      body field only).
+      - **Relative acceleration:** at the landmark, the 12-segment body's
+        centre of mass accelerates at **12.40 m/s²** relative to the hull,
+        against 14.20 from eq. 5 on her data. It lies below eq. 5 at every
+        instant from −0.10 to +0.10 s.
+      - **Contributions:** legs 4.03, trunk and head 7.36, arms 1.00.
+      - **Not timing:** the model's lower trunk tracks her leg acceleration
+        to within 0.5 m/s².
+      - **Cause:** mass distribution. The shanks, part of each thigh and the
+        arms do not move with the seat, which eq. 5's point mass assumes.
+    - **That worth:** about 135 N of the gap. The segmental body is the more
+      faithful centre of mass, so her stretcher at the catch is better
+      estimated as 75 × (−8.55 + 12.40) + 24 ≈ **310 N**. That is still
+      ~9× the gate force, and close to [LE26]'s *directly measured* 335 N
+      for world-class women. **The target stands.**
+    - **Part 2, inferred, to be confirmed by the rerun.** The model's 33 N
+      with 12.6 m/s² relative acceleration at t = 0 implies hull
+      deceleration near −12.5 m/s², against her −8.5.
+      - So most of the shortfall, about 300 N, would be the model's hull
+        braking about 4 m/s² harder through the catch.
+      - That is the same fact as the 0.13 m/s-too-deep dip: an
+        external-force deficit, not a body-representation error.
+      - The crew's smaller relative acceleration should make the hull
+        brake *less*, so the extra braking has to come from blade and drag.
+      - The model's own landmark, and the momentum books (−3.96 N·s over
+        the stroke), are being rechecked.
     - The shipped game is frozen, so any correction is research-side, and it
       needs a sex carried from the lineup or roster.
   - **Found while building it: the scull weighs as much as a sweep oar.**
