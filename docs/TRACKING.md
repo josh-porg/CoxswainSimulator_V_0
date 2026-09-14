@@ -1358,6 +1358,37 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
     [LE26]'s measured time curve from the catch. The two measured inputs
     together should reproduce the dip, the return and the first peak if
     nothing else is missing.
+
+  *Both measured inputs (`legge26/measured_inputs_vs_legge.py`).* The handle
+  torque was imposed as a function of time, following [LE26]'s per-gate force
+  curve from the catch. Handle force = gate / (1 + r_h/ℓ), clipped at zero,
+  scaled to reach [LE26]'s speed. It was run with the smooth body and with the
+  body on [CR06]'s measured leg time-law, oar-only balance in both:
+
+  | | accel. zero after catch | first peak | catch dip | accel. rms | gate shape rms | force scale |
+  |---|---|---|---|---|---|---|
+  | men, [LE26] | 0.069 | +4.14 | −14.2 | — | — | — |
+  | men, measured force | **0.131** | **+2.19** | −11.5 | **2.85** | **0.070** | 0.87 |
+  | men, measured force + body | 0.160 | −0.81 | −19.1 | 3.13 | 0.094 | 0.87 |
+  | women, [LE26] | 0.069 | +3.49 | −11.0 | — | — | — |
+  | women, measured force | **0.129** | **+1.97** | −9.3 | **2.22** | **0.058** | 0.92 |
+  | women, measured force + body | 0.155 | −0.35 | −14.8 | 2.48 | 0.058 | 0.91 |
+
+  - **The measured force time-law is the best build so far.** First peak
+    +2.0–2.2 m/s² (against 1.4–1.6 for oar only) and acceleration rms
+    2.2–2.9. It reaches [LE26]'s speed with 87–92% of their force.
+  - **Part of the return is lost at the blade's entry.** The sweep catch holds
+    the blade out until about 0.04 of the cycle, where the force steps in,
+    whereas [LE26]'s gates carry about 100 N at the catch itself.
+  - **Adding the measured leg time-law makes it worse.** The sharp reversal
+    pushes the hull back harder after the catch than the measured blade load
+    offsets. The dip is 34% too deep, and there is no positive first peak.
+  - **If the two inputs were consistent, the hull could not miss**: blade,
+    drag and crew momentum are all this model has. The candidate: the model
+    body's moving mass is too great. Its legs agree with [CR06] to
+    millimetres, but its trunk travels 30% further (0.516 against 0.398 m;
+    ratio 0.77), about the size of the 34% overshoot. *Test in progress:* the
+    upper body's motion relative to the hip, scaled by that measured 0.77.
   - The men's oar-only run shows two notches in gate force and acceleration,
     at 0.24 and 0.37 of the cycle, most likely the light oar chattering near
     release. Its shape error is somewhat pessimistic for that.
