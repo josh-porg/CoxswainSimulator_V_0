@@ -1570,9 +1570,11 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
         - at T/640, books 2.8 J against 2.8 J and handle work 397.1 J;
         - the −147 rad/s² entry transient is real and resolved.
 
-        So the lighter scull does about 0.7% *more* handle work than the
-        2.7 kg oar (394.3 J), not 13% less. The [LE26] comparison is being
-        rerun at T/320.
+        The 2.7 kg control at T/640 does 394.7 J, against 394.3 J at T/160,
+        with books 6.4 against 6.4 J. So the heavy oar was already resolved
+        at T/160, and every earlier 2.7 kg result stands. At equal resolution
+        the lighter scull does 0.6% *more* handle work (397.1 J), not 13%
+        less. The [LE26] comparison is being rerun at T/320.
       - **[CR06] one-athlete test, T/160** (summed force, smooth body): books
         3.2 J against ΔKE 1.8 J, with φ̈ only to −79 rad/s² at her lower
         load. Speed 4.0866 and power 275.2 W match the recorded run.
