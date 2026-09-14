@@ -179,7 +179,7 @@ class at 32.8.
 |---|---|
 | rower mass | 75 kg |
 | boat mass | 19.7 kg: 15.8 kg rigged, plus 3.9 kg of telemetry |
-| oar mass | 1.2 kg |
+| oar mass | 1.2 kg (the research profile's `scull_mass`) |
 | inboard | actual 0.89 m; force point `s` 0.83 m (calibrated 0.06 m from the handle top) |
 | outboard | actual 2.02 m; blade centre `ℓ` 1.805 m (blade 0.43 m) |
 | oar inertia about its centre | 0.85 kg m², uniform rod; 1.233 kg m² about the lock |

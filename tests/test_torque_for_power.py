@@ -82,6 +82,20 @@ def test_a_different_pull_shape_is_a_different_cache_entry():
         _match_key(study, 300.0, "sweep", "slip")
 
 
+def test_a_different_oar_mass_is_a_different_cache_entry():
+    """Oar mass sets the inertia the sweep and the drive carry, and the
+    boat's total mass leaves it out, so the key must carry it."""
+    heavy = _research()
+    heavy.rig = dataclasses.replace(heavy.rig, seats=tuple(
+        dataclasses.replace(seat, oarlocks=tuple(
+            dataclasses.replace(lock, oar=dataclasses.replace(
+                lock.oar, mass=lock.oar.mass + 1.5))
+            for lock in seat.oarlocks))
+        for seat in heavy.rig.seats))
+    assert _match_key(heavy, 300.0, "sweep", "slip") != \
+        _match_key(_research(), 300.0, "sweep", "slip")
+
+
 def test_the_rest_catch_torque_is_the_closed_form_exactly():
     boat = _research("8+", rate=28.0, watts=380.0)
     assert DynamicOarSimulator.torque_for_power(boat, 380.0) == \

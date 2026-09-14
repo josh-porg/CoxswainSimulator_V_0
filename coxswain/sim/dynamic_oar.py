@@ -1276,6 +1276,10 @@ def _match_key(boat, watts, catch, blade_law) -> tuple:
         hull = tuple(np.asarray(getattr(offsets, field), dtype=float).tobytes()
                      for field in ("station", "beam", "depth")
                      if getattr(offsets, field, None) is not None)
+    # Oar mass sets the oar's inertia about the lock, which the sweep and the
+    # drive both carry, and ``total_mass`` does not include it.  Missing
+    # until 2026-09-14, when the scull was found to inherit the sweep oar's
+    # 2.7 kg against [CR06]'s measured 1.2 kg (TRACKING).
     rig = []
     for seat in boat.rig.seats:
         for lock in seat.oarlocks:
@@ -1283,7 +1287,8 @@ def _match_key(boat, watts, catch, blade_law) -> tuple:
             rig.append((int(lock.side),
                         tuple(np.round(np.asarray(lock.position, float), 9)),
                         float(oar.inboard), float(oar.outboard),
-                        float(getattr(oar, "blade_length", 0.0))))
+                        float(getattr(oar, "blade_length", 0.0)),
+                        float(getattr(oar, "mass", 0.0))))
     shallow = getattr(boat, "shallow", None)
     return (str(boat.name), hull, pull, float(boat.timing.period),
             float(boat.timing.drive_fraction), round(float(boat.total_mass), 9),

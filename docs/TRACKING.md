@@ -1525,7 +1525,26 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
     [LE26] catch comparisons with the oar-only balance, carried twice the
     oar inertia. It matters most where the rower's torque is balanced
     against oar inertia alone.
-    - *Not fixed yet.* The shipped game uses this oar for recovery roll
+    - **Fixed in the research profile (2026-09-14).** `PhysicsProfile.scull_mass`,
+      1.2 kg on `research` and `learned`, `None` on `shipped`. `apply()` sets
+      it on sculling rigs only, mass alone, geometry untouched
+      (`tests/test_research_scull_mass.py`). The shipped game keeps 2.7 kg
+      for its recovery roll authority. On the full research balance, where
+      the reflected crew inertia sits on the oar, a 1.2 kg scull runs at the
+      default step: 3.868 against 3.850 m/s at equal torque (+0.5%). The
+      finer step below is needed only by the oar-only probe.
+    - **Consequence for the probes.** Every study that builds its single
+      through `research.apply` and then puts the oar-only balance on it
+      (the [LE26] measured-force and measured-body scripts, the catch
+      probe) now gets the 1.2 kg scull. Rerun at the default step it will
+      diverge; pass `dt = estimate_step(T) / 2`. Their recorded results
+      carried the 2.7 kg oar. Rerunning the [LE26] catch comparison with the
+      measured scull is open.
+    - **Cache key fixed with it.** `_match_key` recorded oar geometry but not
+      mass, and `total_mass` leaves the oars out. A 1.2 kg boat would have
+      been handed a 2.7 kg boat's matched torque
+      (`test_a_different_oar_mass_is_a_different_cache_entry`).
+    - *History.* The shipped game uses this oar for recovery roll
       authority, so a correction belongs in the research profile. And at the
       default fixed step (T/80, capped at 0.5/80 s) a 1.2 kg oar under the
       oar-only balance diverges in the first stroke. A catalog-geometry oar

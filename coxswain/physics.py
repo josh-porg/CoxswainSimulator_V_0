@@ -55,7 +55,7 @@ profile asserts that it is a no-op against a freshly built boat.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict
+from typing import Dict, Optional
 
 __all__ = [
     "PhysicsProfile", "PROFILES", "SHIPPED", "resolve", "names",
@@ -106,6 +106,12 @@ class PhysicsProfile:
     #: has run so far.  ``"sweep"``: [CR06]'s entry at zero normal velocity,
     #: with rower power matched to include the energy the sweep carries in.
     catch: str = "rest"
+    #: Mass of a sculling oar, kg, or ``None`` to keep the rig's own.  The
+    #: catalogue scull sets no mass and so inherits ``Oar``'s 2.7 kg, which
+    #: is documented as a composite *sweep* oar; [CR06] Table 1 measured a
+    #: scull at 1.2 kg.  The shipped game reads oar mass for recovery roll
+    #: authority, so the correction lives here and not in the catalogue.
+    scull_mass: Optional[float] = None
     #: Frozen profiles may not be altered, and the game may resolve only
     #: a frozen one.
     frozen: bool = False
@@ -123,6 +129,10 @@ class PhysicsProfile:
             raise ValueError(f"unknown wave model {self.wave!r}")
         if self.catch not in ("rest", "sweep"):
             raise ValueError(f"unknown catch rule {self.catch!r}")
+        if self.scull_mass is not None and not self.scull_mass > 0.0:
+            raise ValueError(
+                f"scull_mass must be a positive mass in kg; got "
+                f"{self.scull_mass!r}")
         if self.catch != "rest" and self.oar != "dynamic":
             raise ValueError(
                 f"catch rule {self.catch!r} belongs to the dynamic oar; "
@@ -200,6 +210,8 @@ class PhysicsProfile:
                                                None) is not None:
                 from .hydro.finite_depth_michell import wave_table_for
                 boat.wave_table = wave_table_for(offsets)
+        if self.scull_mass is not None:
+            _set_scull_mass(boat, float(self.scull_mass))
         boat.physics_profile = self.name
         return boat
 
@@ -209,6 +221,25 @@ class PhysicsProfile:
     def __str__(self) -> str:  # pragma: no cover - display only
         return "%s (blade tier %d, %s rower)" % (
             self.name, self.blade_tier, self.rower)
+
+
+def _set_scull_mass(boat, mass):
+    """Give every sculling oar on ``boat`` this mass; sweep rigs untouched.
+
+    Only the mass moves.  Geometry, and so the hands' reach and the blade's
+    lever arm, stays as the rig built it.
+    """
+    import dataclasses
+
+    rig = getattr(boat, "rig", None)
+    if rig is None or bool(getattr(rig, "is_sweep", True)):
+        return
+    boat.rig = dataclasses.replace(rig, seats=tuple(
+        dataclasses.replace(seat, oarlocks=tuple(
+            dataclasses.replace(lock, oar=dataclasses.replace(lock.oar,
+                                                              mass=mass))
+            for lock in seat.oarlocks))
+        for seat in rig.seats))
 
 
 def _outboard_of(boat):
@@ -268,6 +299,10 @@ PROFILES: Dict[str, PhysicsProfile] = {
         # start the drive and cost 5-7% of boat speed at equal power; the
         # scorecard kept every target's status (TRACKING).
         catch="sweep",
+        # [CR06] Table 1's measured scull, since 2026-09-14; the catalogue
+        # scull inherits the sweep oar's 2.7 kg.  +0.5% speed on the 1x at
+        # equal torque, stable at the default step.
+        scull_mass=1.2,
     ),
     # Declared so the shape of the programme is visible in the code and not
     # only in the plan.  NOTHING behind it exists yet: there is no tier 2
@@ -285,6 +320,7 @@ PROFILES: Dict[str, PhysicsProfile] = {
         oar="dynamic",
         wave="sretenskii",
         catch="sweep",
+        scull_mass=1.2,
     ),
 }
 
