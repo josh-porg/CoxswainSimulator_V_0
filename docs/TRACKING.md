@@ -1387,8 +1387,31 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
     drag and crew momentum are all this model has. The candidate: the model
     body's moving mass is too great. Its legs agree with [CR06] to
     millimetres, but its trunk travels 30% further (0.516 against 0.398 m;
-    ratio 0.77), about the size of the 34% overshoot. *Test in progress:* the
-    upper body's motion relative to the hip, scaled by that measured 0.77.
+    ratio 0.77), about the size of the 34% overshoot.
+  - **Tested and rejected** (`measured_inputs_vs_legge.py 0.77`). The head,
+    upper and mid trunk and arms had their velocity and acceleration relative
+    to the lower trunk scaled by 0.77, with the legs untouched:
+
+    | | accel. zero after catch | first peak | catch dip | accel. rms |
+    |---|---|---|---|---|
+    | men, force + body | 0.160 → **0.157** | −0.81 → −0.56 | −19.1 → **−18.8** | 3.13 → 2.74 |
+    | men, force only | 0.131 → 0.129 | +2.19 → +2.44 | −11.5 → −11.3 | 2.85 → 2.74 |
+    | women, force + body | 0.155 → 0.152 | −0.35 → −0.15 | −14.8 → −14.5 | 2.48 → 2.16 |
+    | women, force only | 0.129 → 0.127 | +1.97 → +2.18 | −9.3 → −9.2 | 2.22 → 2.14 |
+
+    - **The dip and the return barely move.** The catch reversal is carried
+      by the legs, hips and lower trunk, not the upper body. The rms error
+      falls 12–13%, mostly from a smaller recovery surge: real but secondary.
+    - **The likelier cause is mixing athletes.** The body law is one women's
+      single at 30.9 spm ([CR06]), and the force and hull are 25 elite
+      scullers at 34–37 ([LE26]). Scaling one athlete's leg reversal by
+      (1.94/P)² to a faster rate is an assumption, and the probable source of
+      the over-deep dip.
+  - *Next: a self-consistent test.* [CR06] Fig. 3 carries one athlete's body,
+    handle force and boat velocity from the same stroke. Driving the model
+    with her body and force time-laws at her own rate, and scoring the
+    predicted boat *velocity* against her measured one, removes both the
+    cross-athlete assumption and differentiation noise.
   - The men's oar-only run shows two notches in gate force and acceleration,
     at 0.24 and 0.37 of the cycle, most likely the light oar chattering near
     release. Its shape error is somewhat pessimistic for that.
