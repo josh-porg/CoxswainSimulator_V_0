@@ -1115,6 +1115,33 @@ sculling power figure**, and three things in [H20] and around it bear on it:
 The model's prescribed body shares that omission, so no factor is applied for
 it.
 
+*Measured under Holt's conditions* (`holt_conditions.py`): research profile,
+catalogue hulls, torque matched, water at 26 °C from [ITTC11]. The long-axis
+share is estimated from Holt's own angles.
+
+| class | 15 °C, Holt P | 26 °C, Holt P | 26 °C, Holt P / share | share | swing (Holt) |
+|---|---|---|---|---|---|
+| M1x | −9.8% | −8.5% | **−4.9%** (367 W) | 0.910 | 67% (49%) |
+| W1x | −12.8% | −11.5% | **−7.7%** (250 W) | 0.894 | 70% (51%) |
+| M2- (double hull) | −1.3% | +0.0% | **+2.3%** (404 W) | 0.941 | 62% (55%) |
+| W2- (double hull) | −2.6% | −0.4% | **+1.9%** (256 W) | 0.939 | 65% (53%) |
+
+Warm water is worth 1.3–2.2 points on every class. The power definition is
+worth 3.6–3.8 points on the singles and 2.2–2.3 on the pairs. Together they
+take the singles from −10/−13% to −5/−8%, and the pairs from −1/−3% to +2%.
+**A singles-versus-pairs spread of about 7–10 points remains.** Its
+candidates, none measured yet:
+
+- The pairs row a double's sculling rig, not a sweep pair.
+- Holt's scullers and sweepers are different cohorts; see the [K00] ratios
+  above.
+- The swing is too large everywhere, and most on the singles, where the crew
+  is the largest share of moving mass.
+
+Holt's stated Peach definition is taken at its word. Peach's own
+documentation has not been obtained, and it would settle whether the force
+really is resolved along the boat axis.
+
 ### Surge swing is 10–31% too large
 Model against Holt: ratios 1.31, 1.31, 1.10, 1.18. `scripts/unsteady.py`
 squares this quantity, so the error is four times worse there.
