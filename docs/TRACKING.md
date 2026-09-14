@@ -1130,9 +1130,21 @@ Warm water is worth 1.3–2.2 points on every class. The power definition is
 worth 3.6–3.8 points on the singles and 2.2–2.3 on the pairs. Together they
 take the singles from −10/−13% to −5/−8%, and the pairs from −1/−3% to +2%.
 **A singles-versus-pairs spread of about 7–10 points remains.** Its
-candidates, none measured yet:
+candidates:
 
-- The pairs row a double's sculling rig, not a sweep pair.
+- The pairs row a double's sculling rig, not a sweep pair. *Measured
+  (`holt_pairs_sweep.py`):* the same double hull rebuilt with a two-seat sweep
+  rig, using the catalogue's `SWEEP_OAR`, `SWEEP_ARC` and the four's 0.83 m
+  span, with no rudder:
+
+  | class | 26 °C, Holt P | 26 °C, Holt P / share | double stand-in | swing (Holt) | blade eff. |
+  |---|---|---|---|---|---|
+  | M2- | **−3.4%** | **−1.3%** | +0.0% / +2.3% | 66% (55%) | 0.699 |
+  | W2- | **−4.3%** | **−2.1%** | −0.4% / +1.9% | 69% (53%) | 0.710 |
+
+  The sculling stand-in flattered the pairs by 3.4–4.0 points. Rowed as sweep
+  pairs, the spread from the singles is **5.1–7.2 points** at Holt's power as
+  printed and **3.6–5.6** after the cos θ conversion, down from 7–10.
 - Holt's scullers and sweepers are different cohorts; see the [K00] ratios
   above.
 - The swing is too large everywhere, and most on the singles, where the crew
