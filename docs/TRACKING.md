@@ -1168,6 +1168,12 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
   | women, oar only | 0.135 | 1.38 | 17 / **109 N** | 0.482 s | **0.222** | 335 W |
   | women, oar + mass | 0.137 | 1.14 | 23 / 86 N | 0.544 s | 0.299 | 320 W |
 
+  *Checked 2026-09-14 against the air-mask artefact* (`probe_vs_legge_airmask.py`,
+  2.7 kg oar as recorded). Every number in this table is unchanged. Only the
+  catch minimum, not tabulated here, moves: standard and oar only
+  −11.5 → −9.9 m/s² (men) and −9.3 → −7.8 (women); oar + mass
+  −10.0 → −9.9 and −7.9 → −7.8.
+
   - **Taking the body off the oar fixes much of the force curve.** Shape
     error falls about 40%, the force at 0.10 of the cycle quadruples, and the
     peak comes 0.04 s earlier. The power needed for the same speed falls
@@ -1287,17 +1293,23 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
     | | accel. zero after catch | first peak | accel. rms | gate shape rms | power |
     |---|---|---|---|---|---|
     | men, [LE26] | 0.069 | 4.14 m/s² | — | — | — |
-    | men, standard | 0.143 | 0.76 | 3.01 | 0.366 | 523 W |
-    | men, trunk retimed | 0.146 | 0.37 | **2.87** | 0.344 | 534 W |
-    | men, oar only | 0.137 | 1.59 | 3.00 | 0.208 | 436 W |
-    | men, retimed + oar only | 0.139 | 1.13 | 2.91 | **0.203** | 432 W |
+    | men, standard | 0.143 | 0.76 | ~~3.01~~ 3.04 | 0.366 | 523 W |
+    | men, trunk retimed | 0.146 | 0.37 | ~~2.87~~ **2.91** | 0.344 | 534 W |
+    | men, oar only | 0.137 | 1.59 | ~~3.00~~ 3.03 | 0.208 | 436 W |
+    | men, retimed + oar only | 0.139 | 1.13 | ~~2.91~~ 2.94 | **0.203** | 432 W |
     | women, [LE26] | 0.069 | 3.49 | — | — | — |
-    | women, standard | 0.141 | 0.79 | 2.38 | 0.345 | 363 W |
-    | women, trunk retimed | 0.144 | 0.46 | **2.22** | 0.326 | 367 W |
-    | women, oar only | 0.135 | 1.38 | 2.33 | 0.222 | 335 W |
-    | women, retimed + oar only | 0.137 | 0.98 | **2.18** | **0.218** | 330 W |
+    | women, standard | 0.141 | 0.79 | ~~2.38~~ 2.40 | 0.345 | 363 W |
+    | women, trunk retimed | 0.144 | 0.46 | ~~2.22~~ **2.24** | 0.326 | 367 W |
+    | women, oar only | 0.135 | 1.38 | ~~2.33~~ 2.35 | 0.222 | 335 W |
+    | women, retimed + oar only | 0.137 | 0.98 | ~~2.18~~ **2.20** | **0.218** | 330 W |
 
-    - **Trunk timing trims the hull error 5–7% and moves no landmark.** The
+    *Corrected 2026-09-14* (`retimed_body_vs_legge_airmask.py 0 -0.15`, 2.7 kg
+    oar as recorded, true blade air mask). Only accel. rms moves (struck
+    values were evaluated with the blade forced into the water before
+    entry). The catch minima become −9.9 / −10.3 m/s² men and −7.8 / −8.2
+    women, standard / retimed.
+
+    - **Trunk timing trims the hull error ~~5–7%~~ 4–7% and moves no landmark.** The
       catch zero stays at 0.14–0.15 of the cycle, and the first peak shrinks.
     - **It trades one mismatch for another.** It flattens the recovery hump
       the synchronous body had in the wrong place. But it adds a late-drive
@@ -1335,17 +1347,23 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
   | | accel. zero after catch | first peak | catch dip | accel. rms | gate shape rms |
   |---|---|---|---|---|---|
   | men, [LE26] | 0.069 | +4.14 | −14.2 | — | — |
-  | men, oar only (smooth body) | 0.137 | +1.59 | −11.5 | 3.00 | 0.208 |
-  | men, leg-warped | **0.165** | **−1.35** | **−19.1** | 3.18 | 0.202 |
-  | men, leg-warped + trunk | 0.168 | −1.40 | −19.3 | 3.63 | 0.200 |
+  | men, oar only (smooth body) | 0.137 | +1.59 | ~~−11.5~~ −9.9 | ~~3.00~~ 3.03 | 0.208 |
+  | men, leg-warped | **0.165** | **−1.35** | ~~−19.1~~ **−17.8** | ~~3.18~~ 3.17 | 0.202 |
+  | men, leg-warped + trunk | 0.168 | −1.40 | ~~−19.3~~ −18.6 | ~~3.63~~ 3.62 | 0.200 |
   | women, [LE26] | 0.069 | +3.49 | −11.0 | — | — |
-  | women, oar only | 0.135 | +1.38 | −9.3 | 2.33 | 0.222 |
-  | women, leg-warped | **0.162** | **−0.90** | **−14.7** | 2.65 | 0.217 |
+  | women, oar only | 0.135 | +1.38 | ~~−9.3~~ −7.8 | ~~2.33~~ 2.35 | 0.222 |
+  | women, leg-warped | **0.162** | **−0.90** | ~~−14.7~~ **−14.1** | ~~2.65~~ 2.64 | 0.217 |
   | women, leg-warped + trunk | 0.165 | −0.97 | −14.8 | 2.99 | 0.213 |
 
+  *Corrected 2026-09-14* (`warped_body_vs_legge_airmask.py`, 2.7 kg oar as
+  recorded, true blade air mask). Struck values were evaluated with the blade
+  forced into the water before entry. The zero after the catch, the first
+  peak and the gate shape are unchanged.
+
   - **The measured leg reversal fixes the dip's sharpness and overshoots its
-    depth.** The broad −9 m/s² plateau becomes a narrow spike at the catch,
-    like [LE26]'s, but 34% too deep.
+    depth.** The broad smooth-body plateau (now −9.9 / −7.8 m/s² at its
+    lowest) becomes a narrow spike at the catch, like [LE26]'s, but
+    ~~34%~~ **25–28%** too deep.
   - **It does not fix the return; it delays it.** After the dip the boat
     stalls near −3 m/s² from 0.05 to about 0.12 of the cycle, crosses zero at
     0.162–0.168 (the smooth body: 0.14) and never has a positive first peak.

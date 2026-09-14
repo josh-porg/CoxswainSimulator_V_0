@@ -820,7 +820,8 @@ force are not in the paper and have to be built and validated here.
     - **The two targets are coupled, not separable** (TRACKING, measured
       leg time-law).
       - Driving the body on [CR06]'s measured leg motion makes the hull's
-        catch dip sharp, as measured, though 34% too deep.
+        catch dip sharp, as measured, though ~~34%~~ 25–28% too deep
+        (corrected for the air-mask artefact, 2026-09-14).
       - It delays the return to positive acceleration (zero at 0.165 of the
         cycle against 0.069), with no first peak.
       - The return needs the blade loaded fast: [LE26] measures about 208 and
