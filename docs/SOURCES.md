@@ -125,6 +125,26 @@ the paper's measured 4.18.
 *Caveat:* the release time is the model's (its open-circle marker), plotted on
 the data; the data carry no independent blade-exit event. One athlete.
 
+**The measured body motion in the same figure** (extracted 2026-09-14,
+`cr06/traces_fig3_body.py`). Leg displacement x_B/F (seat relative to foot)
+and back displacement x_S/B (shoulder relative to hip) were read from the
+vector paths with the same grid calibration: time residual ≤ 4 × 10⁻⁴ s, value
+≤ 2 × 10⁻⁴ m.
+- **Leg displacement:** 154 points, range 0 to 0.582 m.
+- **Back displacement:** 51 points, −0.011 to 0.398 m.
+- **Timing:** both carry the release marker at 0.895 s. The back panel's
+  vertical grid is not a single dotted path, so it was found by geometry.
+
+Leg acceleration at the catch comes from a periodic smoothing spline.
+- **At the catch:** 12.0–15.4 m/s², across smoothing weights 1 × 10⁻⁶ to
+  3 × 10⁻⁵.
+- **Leg velocity:** reaches half its drive peak 0.075–0.078 s after the catch;
+  the peak is 1.24 m/s at 0.32 s.
+- **Back swing:** reaches 25%, 50% and 75% of its drive range at 0.39, 0.585
+  and 0.662 s.
+
+One athlete, and on the water.
+
 **The measured force–angle curve over the drive** (added 2026-09-13).
 `F_hand_θ` is the handle force perpendicular to the oar, the same component
 as the dynamic oar's torque over inboard. It was interpolated against the

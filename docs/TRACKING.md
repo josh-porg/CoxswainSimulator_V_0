@@ -1205,6 +1205,37 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
   - The split is undefined for an instant where the total acceleration
     crosses zero (men, 0.14), because the effective mass blows up; nothing
     else is affected.
+
+  *The body itself, against a measured on-water body (`cr06/traces_fig3_body.py`,
+  `model_body_vs_cr06.py`).* [CR06] Fig. 3 carries measured leg displacement
+  (seat relative to foot) and back displacement (shoulder relative to hip) for
+  their women's single, T = 1.94 s. Both were read exactly from the figure's
+  vector paths (grid residual ≤ 4 × 10⁻⁴ s, 2 × 10⁻⁴ m). The model's chain,
+  catalogue single at the same period, gives hip − ankle and shoulder − hip,
+  aligned at the leg minimum (the catch):
+
+  | | [CR06], measured | model |
+  |---|---|---|
+  | leg acceleration at the catch | **12.0–15.4 m/s²**, over a 30× range of spline smoothing; down to about 4 by 0.05 of the cycle | **6.9 m/s²**, analytic; flat through 0.05, 5.9 at 0.08 |
+  | leg velocity, 0 to half its drive peak | 0.075–0.078 s | 0.102 s |
+  | leg displacement at 0.05 / 0.10 / 0.15 of the cycle (no smoothing) | 0.039 / 0.122 / 0.229 m | 0.033 / 0.128 / 0.262 m |
+  | back: 25% / 50% / 75% of its drive range reached at | 0.39 / 0.585 / 0.662 s | **0.287 / 0.459** / 0.637 s |
+  | back range over the drive | 0.398 m | **0.516 m** |
+
+  - **The legs reverse 1.7–2.2× more sharply than the model's.** The measured
+    body has a short acceleration spike at the catch; the model has a broad,
+    gentle plateau. That is the same pattern as the hull: a measured
+    −14.2 m/s² dip against the model's −9 m/s² plateau. The leg travel itself
+    agrees to millimetres; it is the shape of the reversal that is wrong.
+  - **The trunk opens too early and too far.** It is 0.10–0.13 s early at 25%
+    and 50% of its swing and travels 30% further. The measured rower swings
+    the back in the late drive; the ergometer-fitted chain swings it through
+    mid-drive. That is a sequencing defect in the prescribed kinematics, and it
+    shapes the model's mid-to-late drive surge too.
+  - This is one athlete, a women's single, but consistent in size and
+    sharpness with [LE26]'s hull dips for 25 world-class scullers. With the
+    split above, it closes the chain from hull to body: the model hull's slow
+    catch is the prescribed body's gentle leg reversal.
   - The men's oar-only run shows two notches in gate force and acceleration,
     at 0.24 and 0.37 of the cycle, most likely the light oar chattering near
     release. Its shape error is somewhat pessimistic for that.

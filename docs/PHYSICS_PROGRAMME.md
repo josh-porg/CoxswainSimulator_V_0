@@ -786,6 +786,16 @@ force are not in the paper and have to be built and validated here.
       as the stretcher and legs drive it.
     - **A target to check that against:** a measured on-water body motion,
       such as [CR06]'s seat and back traces.
+    - **Checked against those traces.** [CR06]'s measured legs reverse
+      at the catch with an acceleration of 12.0–15.4 m/s², robust to
+      smoothing. The model's legs manage 6.9 m/s², a broad plateau. Measured
+      leg velocity reaches half its drive peak in 0.075–0.078 s, the model's
+      in 0.102 s. The measured trunk swings late in the drive; the model's
+      opens 0.10–0.13 s early and travels 30% further. Leg travel agrees to
+      millimetres. So 4.3's body targets, for one athlete:
+      - leg acceleration at the catch above about 12 m/s²;
+      - half drive leg velocity within about 0.08 s of the catch;
+      - back 50% swing no earlier than about 0.58 s into a 1.94 s stroke.
 
   *Qualified on reading [CR06] in full:* the direction of slaving decides
   it. [CR06] slaves the **oar to the body** — smooth prescribed leg, back and
