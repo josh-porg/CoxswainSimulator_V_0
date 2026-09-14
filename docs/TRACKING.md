@@ -752,6 +752,35 @@ Holt's −20.1° peak-force angle, 39.8% of the arc) both agree. **The fit is
 right in the middle and wrong at both ends**, which is where its two Kleshnev
 points gave it nothing.
 
+*Can the two exponents simply be refit to Holt? No* (no simulation; the
+shape evaluated on Holt's own arcs). The slip thresholds were taken as a
+share of Holt's peak gate force: per gate for singles, and pairs' forces
+halved on the reading that they are summed over the two rowers, which is
+flagged.
+
+| class | current shape's slips on Holt's arc (Holt) | refit: peak position + catch slip pinned | finish slip that refit predicts (Holt) |
+|---|---|---|---|
+| M1x | 12.7 / 18.9° (7.7 / 14.1°) | a = 0.894, b = 1.357 | 11.3° (14.1°) |
+| W1x | 16.5 / 22.2° (9.7 / 18.1°) | a = 1.030, b = 2.248 | 27.1° (18.1°) |
+| M2- | 10.1 / 14.9° (3.7 / 8.5°) | a = 0.588, b = 0.818 | 3.7° (8.5°) |
+| W2- | 13.4 / 17.5° (5.6 / 8.5°) | a = 0.573, b = 0.988 | 8.4° (8.5°) |
+
+1. **The current shape is too slow at both ends on every class, even on
+   Holt's own arcs.** This is independent of the simulator.
+2. **A two-exponent refit is not consistent.** Pinning the peak and the
+   catch leaves the finish off by 0.1–9°, and the exponents fall below 1, an
+   infinitely steep catch.
+
+§68 already names what the family lacks: **curve width**, the degree of
+freedom Warmenhoven et al.'s review ties to elite mean-to-peak ratios. It
+also records that skilled pairs **balance by timing asymmetry**, stroke
+peaking earlier and bow loading the finish. A single shared shape cannot do
+that, which fits the steered sweep pair's leftover 5–6° sideslip above.
+
+*Next, and needs data:* a measured gate force–angle curve including its
+ends, per class, to fit a shape with a width parameter. No change to
+`DRIVE_SHAPE`, and no research-profile number changes, until one is in hand.
+
 *Still open.* The entry angle, 2–6° past the catch, has no measured target
 (the digitised [CR06] Fig. 3 carries release markers only). Refused with the
 following crew and with blade added mass, both of which were waiting on
