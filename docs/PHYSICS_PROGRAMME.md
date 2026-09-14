@@ -762,6 +762,18 @@ force are not in the paper and have to be built and validated here.
     rest. The standard build also charges the rower for body energy that the
     dead-stop finish throws away, whereas Holt's handle power excludes it.
     4.3 must account for where that energy goes.
+  - *Time-resolved targets for 4.3's gate, from Legge et al. (2026)*
+    ([LE26], world-class scullers, digitised; TRACKING's Holt singles item).
+    The model at their speeds misses every one of these, so none can be
+    fitted to:
+    - boat acceleration back above zero **0.07 of the cycle** after the catch,
+      with a first peak of about 4 m/s² near 0.09 (model: 0.14, no first peak);
+    - gate force of about **100 N per gate already at the catch** turning
+      point, and a peak 0.38–0.41 s after it (model: zero, 0.48–0.52 s);
+    - stretcher force **ahead of gate force into the catch**, 426 against
+      203 N (both gates) at the catch and 0.11 s earlier to 300 N. The body is
+      driven through the feet, which a torque-driven chain with a stretcher
+      contact can represent and the present oar balance cannot.
 
   *Qualified on reading [CR06] in full:* the direction of slaving decides
   it. [CR06] slaves the **oar to the body** — smooth prescribed leg, back and

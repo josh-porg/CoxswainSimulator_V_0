@@ -1100,8 +1100,45 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
 - **The measured drive is 0.49 of the cycle.** At similar rates the model's is
   0.555–0.585 (TRACKING's drive-fraction item), and its catch to peak is
   0.56–0.63 s against 0.38–0.41 measured.
-- *Model at [LE26]'s speeds* (`legge26/model_vs_legge.py`, torque matched to
-  the measured speed, since no power is published): being measured.
+- *Model at [LE26]'s speeds* (`legge26/model_vs_legge.py`,
+  `compare_shapes.py`). No power is published, so torque was matched to the
+  measured speed. Research profile, the rower's mass and stature set to each
+  cohort's, 20 °C water from [ITTC11]. Per-gate force comes from the signed
+  balances; [LE26]'s summed curve is halved. One time base from the catch:
+
+  | | power needed | peak per gate | at the catch | catch to peak | shape rms | min boat accel. | accel. zero after catch | accel. rms |
+  |---|---|---|---|---|---|---|---|---|
+  | men, [LE26] | ([K00] 489 W) | 597 N | 101 N | 0.379 s | — | −14.2 m/s² | 0.069 of cycle | — |
+  | men, model default | 523 W | 715 N | 0 | 0.481 s | 0.366 | −11.2 | **0.143** | 3.0 m/s² |
+  | men, model cr06 | 519 W | 641 N | 0 | 0.476 s | 0.335 | −11.2 | 0.142 | 3.0 m/s² |
+  | women, [LE26] | ([K00] 302 W) | 458 N | 77 N | 0.406 s | — | −11.0 | 0.069 | — |
+  | women, model default | 363 W | 522 N | 0 | 0.524 s | 0.345 | −9.0 | **0.141** | 2.4 m/s² |
+  | women, model cr06 | 360 W | 468 N | 0 | 0.519 s | 0.317 | −9.0 | 0.139 | 2.4 m/s² |
+
+  - **The slow load-on shows up in the hull itself.** The measured boat is
+    back to accelerating 0.069 of the cycle after the catch, with a sharp
+    first peak of about 4 m/s² at 0.09. The model's stays decelerating twice
+    as long, to 0.14, has no first peak, and its catch dip is 20% shallower.
+  - **The force comes on late and runs long.** The measured force reaches
+    about 450 N (men) per gate by 0.10 of the cycle. The model's is near zero
+    until the blade enters at about 0.04, is about 200 N at 0.13, and peaks
+    0.10–0.12 s late and 7–20% high. It is still pulling near the finish,
+    where the measured boat's acceleration has fallen to zero. Normalised
+    shape error over the drive is 0.32–0.37 of peak, most of it timing. The
+    cr06 shape trims the peak and the error slightly, but it does not move
+    the start.
+  - **Three independent measures now agree on the same defect:** [H20]'s
+    slips, [LE26]'s force curve, and [LE26]'s boat acceleration. Together with
+    the stretcher lead, it points at phase 4.3.
+  - **Recovery.** The model's recovery acceleration also differs: a dip at
+    −0.33 of the cycle and a peak at −0.20, against [LE26]'s single broad peak
+    at −0.26. That is the prescribed, ergometer-derived crew timing, TRACKING's
+    kinematics defect.
+  - **Power.** At these speeds the model needs 519–523 W (men) and 360–363 W
+    (women), against [K00]'s handle power at the same rates of 489 and 302 W:
+    7% and 20% more.
+  - Small steps at the catch and the finish in the model's curves are the
+    oar's reset and held finish, not digitisation.
 
 *Still open.* The entry angle, 2–6° past the catch, has no measured target
 (the digitised [CR06] Fig. 3 carries release markers only). Refused with the
