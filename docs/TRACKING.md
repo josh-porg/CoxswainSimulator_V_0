@@ -663,6 +663,19 @@ less of it for the same pace. It stays open until race power per boat class is
 sourced. Tests that pinned the rest-catch torque or blade-efficiency level were
 re-pinned with dated notes, not loosened.
 
+*Race power, sourced in part, 2026-09-14.* Kleshnev's measured power–rate
+regressions [K00] put elite men sweep at **about 358 W at the handle at rate
+32** -- total power 418 W, less the 16.8% that goes through the footstretcher,
+which `handle_watts` does not count. So 380 W is close to elite men's sweep
+power, not club power, and the club race-pace bands the eight and four now
+exceed were the mismatch. BioRow's modelled targets [BR26], scaled to 380 W by
+the cube-root law, give the eight 5.87 m/s if their power is handle power and
+6.19 if it is total, against the research model's 5.87; a coxless four 5.49
+against the model's coxed four at 5.15; a single 4.51 against 4.38. Their rates
+(38–40) and masses are not the model's (30–32), so this is a range check, not a
+match, and neither source is a measured race. Holt et al.'s measured races
+[H20] are the like-for-like check for singles and pairs.
+
 *Still open.* The entry angle, 2–6° past the catch, has no measured target
 (the digitised [CR06] Fig. 3 carries release markers only). Refused with the
 following crew and with blade added mass, both of which were waiting on

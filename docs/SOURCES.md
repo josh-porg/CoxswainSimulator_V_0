@@ -1182,6 +1182,35 @@ Reports that improving **blade** efficiency offers 3–5% performance gain
 against 0.5–0.8% for boat-velocity efficiency — i.e. the blade model
 matters more than the fluctuation this document opens with.
 
+### [K00] Kleshnev, *Power in rowing* -- measured power against stroke rate
+**V. Kleshnev**, Australian Institute of Sport; ISBS Proceedings Archive
+(ojs.ub.uni-konstanz.de/cpa; BioRow's copy is filed as `2000Power.pdf`).
+Full text read. 88 elite athletes (28 men sweep, 20 men scull, 24 women sweep,
+16 women scull), four to six one-minute trials per crew at rates 16–40, on
+instrumented boats.
+
+- **Total power counts the footstretcher.** Power applied at the handle alone
+  -- handle force times handle velocity, the "traditional" method and the
+  quantity the dynamic oar's `handle_watts` means -- reads **16.8 ± 7.0%
+  lower**, independent of boat type, sex or rate. 52.8% of total power goes
+  through the handle, 47.2% through the footstretcher.
+- **Power is linear in rate** (R² 0.71–0.82), total power in W:
+  men sweep `15.3633 r − 73.5170`; men scull `18.6887 r − 98.6895`;
+  women sweep `8.4722 r − 2.6322`; women scull `11.9570 r − 45.1272`.
+- So elite men sweep at rate 32: **418 W total, about 358 W at the handle**;
+  at rate 28, 357 W total, about 306 W at the handle. These are one-minute
+  trials, not races.
+
+### [BR26] BioRow, *Target characteristics for various rowers' categories*
+**V. Kleshnev**, biorow.com, 2 August 2026. Target 2000 m times, rates and
+power per rower by boat type for elite, U23 (−4.3% power) and U19 (−8.9%).
+**Modelled, not measured:** "biomechanical modelling was applied to calculate
+rowing power ... from the known target speed and stroke rate", and the page
+does not say whether its power is total or handle power. Elite men, for
+example: **M8+ 464 W, rate 40, 5:18.6** (6.28 m/s); M4− 464 W, rate 39,
+5:41.0 (5.87 m/s); M1x 548 W, rate 38, 6:32.5 (5.10 m/s); W8+ 319 W, rate 40,
+5:53.1.
+
 ### Other
 - **Millward (1987)**, *A study of the forces exerted by an oarsman and the
   effect on boat speed*, J. Sports Sci. 5 93–103 — [F09]'s air-resistance
