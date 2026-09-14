@@ -172,6 +172,43 @@ Saved as `cr06_force_angle_drive.csv` in the session's `phase4/cr06/`. One
 athlete, a women's single at rate 30.9 (T = 1.94 s), close to [H20]'s W1x
 class at 32.8.
 
+**The measured single's rig, and what Fig. 3's handle force is** (added
+2026-09-14). Table 1 and App. A.5, singles:
+
+| quantity | value |
+|---|---|
+| rower mass | 75 kg |
+| boat mass | 19.7 kg: 15.8 kg rigged, plus 3.9 kg of telemetry |
+| oar mass | 1.2 kg |
+| inboard | actual 0.89 m; force point `s` 0.83 m (calibrated 0.06 m from the handle top) |
+| outboard | actual 2.02 m; blade centre `ℓ` 1.805 m (blade 0.43 m) |
+| oar inertia about its centre | 0.85 kg m², uniform rod; 1.233 kg m² about the lock |
+| blade area | 0.0903 m² |
+| sampling | 51.9 Hz telemetry; cycles time-normalised, 50 intervals, start where the right oar crosses zero angle in the recovery |
+
+Not given: stature, water temperature, hull shape.
+
+**Fig. 3's `F_hand` is both hands summed, not per oar.** The paper says
+sculling is modelled by "multiplying the oar force and mass by 2", which
+invites the per-oar reading, and the text never settles it. Two independent
+checks refuse it:
+
+- **Power.** Her measured force times handle speed, `s |θ̇|` from her
+  measured oar angle, is 260 W. Read per oar it doubles to 521 W. The
+  paper's own hull drag `C₁ v²` over her measured velocity trace takes
+  251 W. Per oar would mean half the rower's work is lost; summed leaves 4%
+  for blade slip and body motion.
+- **Magnitude.** [LE26]'s elite women, at a faster 4.40 m/s and 34.1 spm,
+  peak at about 310 N per handle (a 459 N gate over `1 + r_h/ℓ`). The summed
+  reading gives her 279 N per handle; the per-oar reading 557 N, 1.8× the
+  elite figure at a lower speed.
+
+The power check is also why their fit with `C₁ = 3.16` can reach 4.19 m/s at
+all, so that is the same argument, not a third one.
+
+Checked with `cr06/power_from_measured_cr06.py`; insensitive to the
+angle-smoothing weight (1 × 10⁻⁵ to 1 × 10⁻⁴).
+
 ### [S10] Serveto, Barré, Kobus & Mariot (2010)
 *A three-dimensional model of the boat–oars–rower system using ADAMS and
 LifeMOD commercial software.* **Proc. IMechE Part P 224**(1) 75–83.
