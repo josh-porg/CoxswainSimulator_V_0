@@ -1582,8 +1582,25 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
         (+0.05%), power 275.5 W (+0.1%), finish at 0.455. Her lower load
         leaves T/160 within 0.1%, so the one-athlete results stand as
         recorded (`cr06/cr06_energy_books_step.py`).
-      - The [LE26] rows with the 1.2 kg scull at T/160 are void. They are
-        being rerun at T/320.
+      - The [LE26] rows with the 1.2 kg scull at T/160 are void. **Rerun at
+        T/320** (`measured_inputs_vs_legge.py`, `_scull1.2` outputs):
+
+        | build | 2.7 kg, T/160 | 1.2 kg, T/320 |
+        |---|---|---|
+        | men, measured force | 484 W · zero 0.131 · min −11.5 · rms 2.85 · shape 0.070 | 479 W · 0.131 · −11.5 · 2.84 · **0.062** |
+        | men, force + body | 474 W · 0.160 · −19.1 · 3.13 · 0.094 | 475 W · 0.160 · −19.1 · 3.20 · **0.060** |
+        | women, measured force | 343 W · 0.129 · −9.3 · 2.22 · 0.058 | 340 W · 0.129 · −9.3 · 2.22 · 0.058 |
+        | women, force + body | 339 W · 0.155 · −14.8 · 2.48 · 0.058 | 339 W · 0.155 · −14.8 · 2.49 · 0.057 |
+
+        - **The hull does not notice the oar's mass.** Catch minimum, return
+          to positive acceleration and rms are unchanged. Every [LE26]
+          catch conclusion above stands.
+        - **Power stays within 1%**, confirming the 13% drop as integration
+          error.
+        - **The gate force notices.** The men's gate-force shape error falls
+          11% with measured force and 36% with the measured body
+          (0.094 → 0.060): 1.5 kg less oar inertia is less for the
+          handle-to-gate balance to carry through the catch.
     - **Consequence for the probes.** Every study that builds its single
       through `research.apply` and then puts the oar-only balance on it
       (the [LE26] measured-force and measured-body scripts, the catch
