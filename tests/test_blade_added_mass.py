@@ -98,6 +98,58 @@ def test_a_held_oar_does_not_move(eight):
     assert np.all(rates == 0.0)
 
 
+def _in_air(sim, tau=0.05, surge=5.0):
+    """A state with every oar on the sweep, blade out, ``tau`` into the stroke."""
+    n = sim.n_oar_states
+    angle, rate = sim._sweep_pose(tau)
+    y = sim.augmented_initial_state(surge)
+    y[STATE_SIZE:STATE_SIZE + n] = angle
+    y[STATE_SIZE + n:STATE_SIZE + 2 * n] = rate
+    sim._in_air = np.ones(n, dtype=bool)
+    sim._stroke_start = 0.0
+    return y
+
+
+def test_on_the_sweep_catch_an_oar_in_the_air_follows_the_sweep(eight):
+    """No balance and no added mass before entry: an identity row carrying the
+    sweep's own acceleration, and nothing added to the hull block."""
+    sim = DynamicOarSimulator(eight, peak_torque=600.0, catch="sweep",
+                              blade_added_mass="patton")
+    tau = 0.05
+    y = _in_air(sim, tau)
+    n = sim.n_oar_states
+    state = State.from_vector(y[:STATE_SIZE])
+    system, rhs = sim._coupled_system(tau, state, y[STATE_SIZE:STATE_SIZE + n],
+                                      y[STATE_SIZE + n:STATE_SIZE + 2 * n])
+    np.testing.assert_array_equal(system[6:, 6:], np.eye(n))
+    np.testing.assert_array_equal(system[:6, 6:], 0.0)
+    expected = sim._sweep_motion(tau)[1]
+    np.testing.assert_allclose(rhs[6:], expected, rtol=0, atol=1e-12)
+    rates = sim.derivative(tau, y)[STATE_SIZE + n:STATE_SIZE + 2 * n]
+    np.testing.assert_allclose(rates, expected, rtol=1e-12)
+
+
+def test_on_the_sweep_catch_the_coupled_solve_reduces_to_the_default(eight):
+    """With the added mass zeroed, the coupled solve is the sweep catch's own
+    derivative, in the air and in the water."""
+    default = DynamicOarSimulator(eight, peak_torque=600.0, catch="sweep")
+    coupled = DynamicOarSimulator(eight, peak_torque=600.0, catch="sweep",
+                                  blade_added_mass="patton")
+    coupled._blade_mass = [0.0] * coupled.n_oar_states
+    y = _in_air(default)
+    _in_air(coupled)
+    np.testing.assert_allclose(coupled.derivative(0.05, y),
+                               default.derivative(0.05, y),
+                               rtol=1e-9, atol=1e-9)
+    n = default.n_oar_states
+    default._in_air = np.zeros(n, dtype=bool)
+    coupled._in_air = np.zeros(n, dtype=bool)
+    y = _driving(default)
+    np.testing.assert_allclose(coupled.derivative(0.1, y),
+                               default.derivative(0.1, y),
+                               rtol=1e-9, atol=1e-9)
+
+
 def test_added_mass_changes_the_oar_mid_drive(eight):
     """Present, not a rounding error: the blade's water is a large inertia."""
     default = DynamicOarSimulator(eight, peak_torque=600.0)

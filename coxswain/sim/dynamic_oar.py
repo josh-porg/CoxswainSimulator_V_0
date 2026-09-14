@@ -246,12 +246,10 @@ class DynamicOarSimulator(RowingSimulator):
         if catch not in self.CATCH_RULES:
             raise ValueError("unknown catch rule %r; this simulator runs %s"
                              % (catch, ", ".join(self.CATCH_RULES)))
-        if catch != "rest" and (crew != "clock"
-                                or blade_added_mass != "none"):
+        if catch != "rest" and crew != "clock":
             raise ValueError(
-                "the sweep catch is built for the clock crew without blade "
-                "added mass; crew=%r, blade_added_mass=%r"
-                % (crew, blade_added_mass))
+                "the sweep catch is built for the clock crew; crew=%r"
+                % (crew,))
         self.catch = catch
         self.blade_added_mass = blade_added_mass
         self.blade_law = blade_law
@@ -964,6 +962,13 @@ class DynamicOarSimulator(RowingSimulator):
                 float(rates[slot])
             if angle <= oar.finish_angle:
                 system[row, row] = 1.0            # held until the catch
+                continue
+            if self._in_air is not None and self._in_air[slot]:
+                # Sweep catch, blade out: the oar follows the prescribed
+                # sweep and sets no water moving, so no balance and no added
+                # mass -- only the sweep's own acceleration.
+                system[row, row] = 1.0
+                rhs[row] = self._sweep_motion(t - self._stroke_start)[1]
                 continue
             torque = self._torque(slot, angle, state, t)
             locks = self.boat.rig.seats[seat].oarlocks

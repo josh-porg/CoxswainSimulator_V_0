@@ -39,13 +39,18 @@ def test_an_unknown_catch_rule_is_refused(eight, torque):
         DynamicOarSimulator(eight, peak_torque=torque, catch="early")
 
 
-@pytest.mark.parametrize("kwargs", [dict(crew="follows"),
-                                    dict(blade_added_mass="patton")])
-def test_the_sweep_catch_refuses_what_it_was_not_built_for(eight, torque,
-                                                           kwargs):
+def test_the_sweep_catch_refuses_the_following_crew(eight, torque):
     with pytest.raises(ValueError, match="sweep catch"):
         DynamicOarSimulator(eight, peak_torque=torque, catch="sweep",
-                            **kwargs)
+                            crew="follows")
+
+
+def test_the_sweep_catch_takes_blade_added_mass(eight, torque):
+    """Refused until 2026-09-14: the parked catch set 63 N s of water moving
+    per blade at entry, which the sweep catch removes by construction."""
+    sim = DynamicOarSimulator(eight, peak_torque=torque, catch="sweep",
+                              blade_added_mass="patton")
+    assert sim.catch == "sweep" and sim.blade_added_mass == "patton"
 
 
 def _on_the_sweep(sim, tau, surge=5.0):
