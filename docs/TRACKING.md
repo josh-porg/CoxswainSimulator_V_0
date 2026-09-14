@@ -1140,6 +1140,41 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
   - Small steps at the catch and the finish in the model's curves are the
     oar's reset and held finish, not digitisation.
 
+  *The two candidate fixes against the same curves (`legge26/probe_vs_legge.py`).*
+  Three builds at [LE26]'s speeds, torque matched to speed:
+  - **standard**, the research model as it is;
+  - **oar only**, the body's reflected inertia off the oar balance, so the
+    pull acts as handle force and the clock crew carries the body on the hull;
+  - **oar + mass**, oar only plus Patton blade added mass.
+
+  | | accel. zero after catch | first peak | gate force at 0.05 / 0.10 cycle | catch to peak | shape rms | power |
+  |---|---|---|---|---|---|---|
+  | men, [LE26] | 0.069 | 4.14 m/s² | 208 / 416 N | 0.379 s | — | — |
+  | men, standard | 0.143 | 0.76 | 5 / 35 N | 0.481 s | 0.366 | 523 W |
+  | men, oar only | 0.137 | 1.59 | 22 / **145 N** | 0.443 s | **0.208** | 436 W |
+  | men, oar + mass | 0.138 | 1.32 | 29 / 115 N | 0.494 s | 0.280 | 455 W |
+  | women, [LE26] | 0.069 | 3.49 | 157 / 315 N | 0.406 s | — | — |
+  | women, standard | 0.141 | 0.79 | 6 / 37 N | 0.524 s | 0.345 | 363 W |
+  | women, oar only | 0.135 | 1.38 | 17 / **109 N** | 0.482 s | **0.222** | 335 W |
+  | women, oar + mass | 0.137 | 1.14 | 23 / 86 N | 0.544 s | 0.299 | 320 W |
+
+  - **Taking the body off the oar fixes much of the force curve.** Shape
+    error falls about 40%, the force at 0.10 of the cycle quadruples, and the
+    peak comes 0.04 s earlier. The power needed for the same speed falls
+    8–17%, which is the body energy the standard build charges and discards.
+  - **Added mass makes the force curve worse**, later and flatter.
+  - **Neither moves the boat's acceleration.** It still returns above zero at
+    0.135–0.138 of the cycle against a measured 0.069, with a first peak a
+    third to two fifths of the measured one. So the hull's slow catch is *not*
+    mainly the oar balance. Near the catch the hull feels the crew's own
+    reversal most, and that is prescribed from ergometer kinematics
+    (TRACKING's kinematics defect). The mismatched recovery shape points the
+    same way. *Being checked:* the hull acceleration around the catch, split
+    into crew reaction, blade and drag.
+  - The men's oar-only run shows two notches in gate force and acceleration,
+    at 0.24 and 0.37 of the cycle, most likely the light oar chattering near
+    release. Its shape error is somewhat pessimistic for that.
+
 *Still open.* The entry angle, 2–6° past the catch, has no measured target
 (the digitised [CR06] Fig. 3 carries release markers only). Refused with the
 following crew and with blade added mass, both of which were waiting on
