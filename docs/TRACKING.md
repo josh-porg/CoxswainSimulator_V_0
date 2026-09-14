@@ -865,6 +865,35 @@ The `"cr06"` shape stays a **study**: it improves two of Holt's descriptors
 and harms none, but it rests on one athlete and leaves the catch
 unexplained, so no profile adopts it yet.
 
+*The catch, decomposed (`holt_catch_balance.py`, M1x at 334 W).* The seat
+balance was split over the first 30° of the settled drive. Residual under
+9 N·m throughout.
+
+| past the catch | n·τ | blade moment | I_seat·θ̈ | ½ I′ θ̇² | I_seat | oar rate |
+|---|---|---|---|---|---|---|
+| 2.8° | −25.8 N·m | 1.4 | −68.1 | 34.9 | 62.5 kg·m² | 50 °/s |
+| 7.7° | −107.6 | 29.8 | −104.6 | 26.8 | 56.9 | 57 °/s |
+| 12.8° | −203.0 | 80.3 | −173.2 | 50.5 | 51.6 | 69 °/s |
+| 20.3° | −336.6 | 192.3 | −241.2 | 98.7 | 41.9 | 93 °/s |
+| 30.6° | −471.9 | 404.1 | −192.3 | 123.5 | 30.6 | 127 °/s |
+
+Over the first 10° the blade takes only 5–35% of the rower's torque. The
+rest accelerates the oar and the body's reflected inertia, 54–62 kg·m²
+there. The blade enters at zero slip with the oar sweeping at about 50 °/s,
+and its load grows with slip squared. The `"cr06"` shape nearly doubles the
+torque at 2.8° (−47.9 N·m), but most of the extra also goes into
+acceleration: blade moment 1.7 against 1.4. That is why its catch slip does
+not move.
+
+**It also shows the slip measure above was wrong.** It took gate force as
+|τ| / inboard + |F_n|, but τ is the rower's muscle torque. The part that
+accelerates the body never reaches the handle. The force at the handle is
+what the oar's own balance needs, (|ℓ F_n| + I_oar |θ̈|) / r_h. On these
+numbers the M1x then passes 196 N only about 22–23° past the catch, not at
+17°. **The slip tables above understate the model's catch miss.** Corrected
+values, both definitions side by side, are being measured
+(`holt_slips_oarside.py`).
+
 *Still open.* The entry angle, 2–6° past the catch, has no measured target
 (the digitised [CR06] Fig. 3 carries release markers only). Refused with the
 following crew and with blade added mass, both of which were waiting on
