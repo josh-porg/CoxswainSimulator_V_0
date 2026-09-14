@@ -1142,9 +1142,15 @@ candidates:
   | M2- | **−3.4%** | **−1.3%** | +0.0% / +2.3% | 66% (55%) | 0.699 |
   | W2- | **−4.3%** | **−2.1%** | −0.4% / +1.9% | 69% (53%) | 0.710 |
 
-  The sculling stand-in flattered the pairs by 3.4–4.0 points. Rowed as sweep
-  pairs, the spread from the singles is **5.1–7.2 points** at Holt's power as
-  printed and **3.6–5.6** after the cos θ conversion, down from 7–10.
+  **Withdrawn the same day: these pair rows are not a propulsion result.**
+  `pair_yaw_check.py` found the rudderless M2- pair, driven with no helm,
+  **turning 5.4° per stroke**. Its mean sideslip was 6.6°, and it was heading
+  78.6° off after 16 strokes. So part of its deficit is cross-flow drag from
+  going round in a circle. A real pair holds its line by the two rowers pulling
+  unevenly. The comparison needs the pair balanced straight, for example by
+  trimming stroke against bow power until the mean yaw rate is zero, before it
+  can say whether the stand-in flattered the pairs. Until then the spread is
+  **not** known to be smaller than 7–10 points.
 - Holt's scullers and sweepers are different cohorts; see the [K00] ratios
   above.
 - The swing is too large everywhere, and most on the singles, where the crew
