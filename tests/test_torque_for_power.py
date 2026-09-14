@@ -69,6 +69,19 @@ def test_a_different_hull_shape_is_a_different_cache_entry():
         _match_key(_research(), 300.0, "sweep", "slip")
 
 
+def test_a_different_pull_shape_is_a_different_cache_entry():
+    """The shape decides how much work a peak torque does; a study shape
+    must not be handed the default shape's matched torque."""
+    from coxswain.crew.oarlock import OarForceProfile
+
+    default = _research()
+    study = physics.resolve("research").apply(catalog.build(
+        "1x", rate=30.0, force_profile=OarForceProfile(shape="cr06")))
+    study.handle_watts = 300.0
+    assert _match_key(default, 300.0, "sweep", "slip") != \
+        _match_key(study, 300.0, "sweep", "slip")
+
+
 def test_the_rest_catch_torque_is_the_closed_form_exactly():
     boat = _research("8+", rate=28.0, watts=380.0)
     assert DynamicOarSimulator.torque_for_power(boat, 380.0) == \

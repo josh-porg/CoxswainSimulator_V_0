@@ -1262,6 +1262,14 @@ def _match_key(boat, watts, catch, blade_law) -> tuple:
     until 2026-09-13, so two boats differing only in their offsets -- a hull
     study -- shared one matched torque.
     """
+    # The pull's shape sets how much work a given peak torque does, so two
+    # boats that differ only in it need different torques.  Missing until
+    # 2026-09-13: a "cr06" study boat was handed the default shape's torque
+    # and rowed 11% above its stated power.
+    force = getattr(boat, "force_profile", None)
+    pull = tuple(repr(getattr(force, field, None))
+                 for field in ("shape", "peak_shift", "shift_per_spm",
+                               "reference_rate"))
     offsets = getattr(boat, "offsets", None)
     hull = ()
     if offsets is not None:
@@ -1277,7 +1285,7 @@ def _match_key(boat, watts, catch, blade_law) -> tuple:
                         float(oar.inboard), float(oar.outboard),
                         float(getattr(oar, "blade_length", 0.0))))
     shallow = getattr(boat, "shallow", None)
-    return (str(boat.name), hull, float(boat.timing.period),
+    return (str(boat.name), hull, pull, float(boat.timing.period),
             float(boat.timing.drive_fraction), round(float(boat.total_mass), 9),
             tuple(np.round(np.asarray(boat.power_scales, float), 12)),
             tuple(rig), getattr(boat, "physics_profile", None),

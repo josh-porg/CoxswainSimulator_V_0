@@ -829,10 +829,41 @@ scatter between two measurements, and both sit well inside the model's miss.
 - **The pairs' remaining catch miss** (8.1 against 3.7°) is on a sweep arc
   the scull curve does not describe.
 
-This supersedes "the family is the limit" above. *Next:* the refit built as
-a study, `OarForceProfile(shape="cr06")`, with the `"kleshnev"` default
-unchanged. Then measure slips, force timing and speed against Holt before any
-profile adopts it.
+This supersedes "the family is the limit" above.
+
+*Built as a study and measured (`holt_cr06_shape.py`).* `OarForceProfile(shape="cr06")`
+takes `CR06_DRIVE_SHAPE = (1.1218, 1.6350)`; the `"kleshnev"` default is
+unchanged bit for bit, and an unknown shape name is refused. Research profile
+at Holt's conditions, torque matched at equal power under each shape (a
+first run was invalid; see Fixed):
+
+| class | speed error | catch slip (Holt) | finish slip (Holt) | peak / mean (Holt) | catch to peak (Holt) | blade eff. |
+|---|---|---|---|---|---|---|
+| M1x | −8.5 → −8.2% | 17.0 → 16.2° (7.7) | **20.3 → 16.2°** (14.1) | **2.29 → 2.03** (1.90) | 0.54 → 0.55 s (0.43) | 0.710 → 0.714 |
+| W1x | −11.5 → −11.3% | 22.5 → 22.9° (9.7) | **24.7 → 21.0°** (18.1) | **2.23 → 1.97** (1.87) | 0.62 → 0.62 s (0.39) | 0.721 → 0.725 |
+| M2- | +0.0 → +0.3% | 17.5 → 16.3° (3.7) | **20.2 → 16.1°** (8.5) | **2.31 → 2.05** (1.88) | 0.49 → 0.48 s (0.36) | 0.740 → 0.745 |
+| W2- | −0.4 → −0.3% | 23.1 → 23.8° (5.6) | **25.2 → 20.5°** (8.5) | **2.23 → 1.98** (1.89) | 0.55 → 0.55 s (0.36) | 0.751 → 0.755 |
+
+- **The finish and the curve's width are fixed or much closer.** Finish slip
+  is down 3.7–4.7°, and peak/mean is now within 0.1–0.2 of Holt.
+- **Speed and swing barely move** (≤ 0.3 points, ≤ 2% swing), so the shape
+  was not what made the singles slow.
+- **The catch slip and the time to peak force do not move** (±1°, ±0.01 s).
+  That contradicts the shape-only evaluation, which predicted a 2–3° catch
+  gain. So at the catch it is **not only the shape**. The dynamics absorb the
+  faster rise.
+  - Early in the drive the gate force is almost all handle force.
+  - The blade builds load from zero slip (∝ slip²).
+  - The oar's balance carries the body's reflected inertia, about 93 kg·m²
+    at the catch.
+
+  Both hold blade load far below the quasi-static lever share, where
+  handle + blade = handle × (1 + r_h / ℓ). *Next diagnosis:* the torque split
+  over the first 20° of the drive, into I θ̈, blade moment and handle.
+
+The `"cr06"` shape stays a **study**: it improves two of Holt's descriptors
+and harms none, but it rests on one athlete and leaves the catch
+unexplained, so no profile adopts it yet.
 
 *Still open.* The entry angle, 2–6° past the catch, has no measured target
 (the digitised [CR06] Fig. 3 carries release markers only). Refused with the
@@ -1709,6 +1740,7 @@ to.
 
 | what it was | how it was found |
 |---|---|
+| **Two pull shapes shared one matched torque.** `_match_key` still omitted the force profile, so a boat built with `OarForceProfile(shape="cr06")` was handed the default shape's cached sweep-catch torque. That shape's mean is 1.108× the default's, so the boat rowed **11–12% above its stated power** on every Holt class. The key now includes the profile's shape, peak shift, shift per spm and reference rate. `tests/test_torque_for_power.py::test_a_different_pull_shape_is_a_different_cache_entry` fails without it. The first `holt_cr06_shape.py` rows were measured at that wrong power and are discarded. | The study's settled power read 371.5 W against a 334 W target, and its matches finished in 15–21 s against 55–69 s: a cache hit, not a settle. The hull-shape omission fixed hours earlier was the same class of bug. |
 | **Two hulls with the same name shared one matched torque.** `DynamicOarSimulator._match_key` covered mass, timing, rig, profile, wave model and depth, but not the hull's offsets. So a boat rebuilt with a different hull under the same name would be handed the first hull's cached sweep-catch torque, at the wrong power, without complaint. The key now includes the offsets' station, beam and depth arrays. `tests/test_torque_for_power.py::test_a_different_hull_shape_is_a_different_cache_entry` fails without it. | Planning the [L9701] hull study, which rebuilds the single at other dimensions. The study's boats carry distinct names, so its numbers were never affected. |
 | **`BladeModel`'s docstring said [CR06] fitted `C₂`.** They computed it, as ½ρC₀A₀ with C₀ ≈ 1.3 from Hoerner and measured blade areas. The value that best fitted their singles was about 2.4× that. Docstring corrected; no number changed. | The ledger's audit question on whether `C₂` is a fit. |
 | **The research blade acted at the oar's tip, not its centre.** Concept2 measure an oar's overall length "from the end of the grip … to the edge of the blade", and the rig's 3.70 m and 2.88 m are those overall lengths — but `Oar` documented `length` as blade centre to handle end, and the dynamic oar took `length − inboard` as the blade lever arm: 2.56 m sweep and 2.00 m scull, half a blade too far out. [CR06], whose `C₂` the research blade uses, applies its force at `outboard − blade_length/2`; its Table 1 implies 0.52 m and 0.43 m blades, matching Concept2's Big Blade. Now `Oar.blade_centre_outboard` (2.30 m sweep, 1.785 m scull), read by `OarDynamics.from_boat` and so by the reduced model, the dynamic oar and the figure; the shipped trainer never reads it. **What it moved, at 380 W:** eight rate 28 5.619 → 5.530 m/s, drive fraction 0.400 → 0.376, blade efficiency 0.586 → 0.559; eight rate 32 5.56 → 5.461, 0.467 → 0.440; coxed four rate 32 4.900 → 4.829, 0.510 → 0.481, 0.592 → 0.566; single rate 30 4.217 → 4.171, 0.559 → 0.525, 0.636 → 0.614. Every boat stays in its published pace band; the drive shortens toward on-water timing; blade efficiency falls further below Kleshnev's band. Reduced-model gate 8.9 → 6.4, full-hull gate 1.81 → 1.57, both passing. A prescribed sweep's impulse now crosses zero at 4.36 m/s on the eight at rate 28 (it was ~4.85). | Answering the ledger's audit question on where ℓ is measured, against Concept2's published definitions and the USRowing rules. |

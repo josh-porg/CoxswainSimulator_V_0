@@ -11,6 +11,8 @@ import numpy as np
 import pytest
 
 from coxswain.crew.oarlock import (
+    CR06_DRIVE_SHAPE,
+    CR06_DRIVE_SHAPE_MEAN,
     DRIVE_SHAPE,
     DRIVE_SHAPE_MEAN,
     MCBRIDE_SHIFT_PER_SPM,
@@ -58,6 +60,62 @@ def test_default_mean_to_peak_matches_the_recorded_constant():
     """``DRIVE_SHAPE_MEAN`` is the MPFR of the default curve."""
     assert OarForceProfile().mean_to_peak(StrokeTiming(32.0)) == \
         pytest.approx(DRIVE_SHAPE_MEAN, rel=1e-3)
+
+
+# --------------------------------------------------------------------------
+# the CR06 study shape: the same family, fitted to a measured drive
+# --------------------------------------------------------------------------
+#: [CR06] Fig. 3, perpendicular handle force as a share of its peak against
+#: angle progress through the drive (SOURCES, [CR06]).
+CR06_MEASURED = ((0.02, 0.14), (0.05, 0.28), (0.10, 0.47), (0.20, 0.67),
+                 (0.30, 0.86), (0.40, 0.97), (0.50, 0.97), (0.60, 0.77),
+                 (0.70, 0.57), (0.80, 0.38), (0.90, 0.15), (0.95, 0.00))
+
+
+def _share(profile, timing, u):
+    return float(profile.magnitude(u * timing.drive_duration, timing))
+
+
+def test_the_default_shape_is_still_kleshnev():
+    assert OarForceProfile().shape == "kleshnev"
+
+
+def test_the_cr06_shape_peaks_where_its_fit_puts_it():
+    a, b = CR06_DRIVE_SHAPE
+    assert OarForceProfile(shape="cr06").peak_position(StrokeTiming(30.9)) \
+        == pytest.approx(a / (a + b), rel=1e-9)
+
+
+def test_the_cr06_mean_to_peak_matches_its_recorded_constant():
+    assert OarForceProfile(shape="cr06").mean_to_peak(StrokeTiming(30.9)) \
+        == pytest.approx(CR06_DRIVE_SHAPE_MEAN, rel=1e-3)
+
+
+def test_the_cr06_shape_is_closer_to_the_measured_drive_than_the_default():
+    """The reason the study shape exists: at the tabulated points it is
+    within 0.06 rms of [CR06]'s measured curve, and the default is not."""
+    timing = StrokeTiming(30.9)
+    errors = {}
+    for shape in ("kleshnev", "cr06"):
+        profile = OarForceProfile(shape=shape)
+        errors[shape] = np.sqrt(np.mean(
+            [(_share(profile, timing, u) - value) ** 2
+             for u, value in CR06_MEASURED]))
+    assert errors["cr06"] < 0.06 < errors["kleshnev"]
+
+
+def test_the_cr06_shape_comes_on_faster_at_the_catch():
+    """What Holt et al.'s catch slip asks for: a larger share of peak pull
+    early in the drive."""
+    timing = StrokeTiming(30.9)
+    for u in (0.02, 0.05, 0.10):
+        assert _share(OarForceProfile(shape="cr06"), timing, u) > \
+            _share(OarForceProfile(), timing, u)
+
+
+def test_an_unknown_shape_is_refused():
+    with pytest.raises(ValueError, match="unknown force shape"):
+        OarForceProfile(shape="made_up")
 
 
 def test_default_profile_is_rate_independent_within_the_drive():

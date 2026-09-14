@@ -66,6 +66,23 @@ DRIVE_SHAPE = (1.4852, 2.2278)
 #: switching between them.
 DRIVE_SHAPE_MEAN = 0.53853
 
+#: The same ``u**a (1-u)**b`` fitted instead to a **measured** drive,
+#: both ends included: [CR06] Fig. 3, the women's single's perpendicular
+#: handle force against her measured oar angle, extracted from the paper's
+#: vector figure (SOURCES, [CR06]).  Least squares over angle progress,
+#: rms 0.045 of peak against 0.082 for :data:`DRIVE_SHAPE`, peak at 0.407.
+#: Kleshnev's two points sit mid-drive and say nothing about the ends,
+#: which is where DRIVE_SHAPE is wrong: at Holt et al.'s measured catch
+#: slip it gives a fifth of peak pull.  One athlete; a study shape, not the
+#: default.
+CR06_DRIVE_SHAPE = (1.1218, 1.6350)
+
+#: Mean of that shape over the drive, as :data:`DRIVE_SHAPE_MEAN`.
+CR06_DRIVE_SHAPE_MEAN = 0.59722
+
+#: Beta exponents by ``OarForceProfile.shape`` name.
+DRIVE_SHAPES = {"kleshnev": DRIVE_SHAPE, "cr06": CR06_DRIVE_SHAPE}
+
 #: ``shift_per_spm`` that reproduces McBride's measurement: peak oar force
 #: arrives **3.4% of the stroke cycle (3 degrees of oar angle) earlier** at
 #: race pace than at 20 spm [W18]_.
@@ -115,6 +132,8 @@ class OarForceProfile:
     #: ``"kleshnev"`` for the fitted front-loaded curve, ``"half_sine"``
     #: for the previous symmetric one.  Kept switchable because every
     #: speed calibration in the catalogue predates the change.
+    #: ``"cr06"``: the same family fitted to [CR06]'s measured drive,
+    #: :data:`CR06_DRIVE_SHAPE` -- a study, off by default.
     shape: str = "kleshnev"
     #: Extra front-loading, as a shift of the peak within the drive.
     #: Positive moves the peak EARLIER.  Zero reproduces the fitted
@@ -137,12 +156,17 @@ class OarForceProfile:
     #: shift is not simply this times the drive.
     shift_per_spm: float = 0.0
 
+    def __post_init__(self) -> None:
+        if self.shape != "half_sine" and self.shape not in DRIVE_SHAPES:
+            raise ValueError("unknown force shape %r; known: half_sine, %s"
+                             % (self.shape, ", ".join(DRIVE_SHAPES)))
+
     def peak_position(self, timing: StrokeTiming = None) -> float:
         """Where the peak sits within the drive, as a fraction in (0, 1)."""
         if self.shape == "half_sine":
             base = 0.5
         else:
-            a, b = DRIVE_SHAPE
+            a, b = DRIVE_SHAPES[self.shape]
             base = a / (a + b)
         shift = float(self.peak_shift)
         if timing is not None and self.shift_per_spm:
@@ -171,7 +195,7 @@ class OarForceProfile:
                                               or self.shift_per_spm):
             curve = np.sin(np.pi * u)
         else:
-            base_a, base_b = DRIVE_SHAPE
+            base_a, base_b = DRIVE_SHAPES.get(self.shape, DRIVE_SHAPE)
             peak = self.peak_position(timing)
             a, b = self._exponents(peak, base_a + base_b)
             norm = peak ** a * (1.0 - peak) ** b
