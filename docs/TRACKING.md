@@ -1466,6 +1466,17 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
       reversed about 21 ms before the force. And the trunk is not on her
       back time-law: it comes forward 32 ms late and opens 62 ms early
       (`alignment_cr06.py`).
+    - **Leg on her clock** (`self_consistent_body_cr06.py`): 4.105 m/s
+      (−2.1%), velocity rms 0.143 → **0.118 m/s**. The alignment alone is
+      worth 17%. The minimum is still 2.81 m/s, now at 0.155.
+    - **Ruled out: hull added mass.** Strip-theory surge added mass on this
+      hull is 0.64 kg, which is [CR06]'s own 0.0065 of displacement.
+    - **Partly: blade entry.** Under the sweep catch the blade enters at
+      0.084 s (58.2°, 0.044 of the cycle). Her force before that, 5.5 of
+      282 N·s over the drive (2%), is never applied, and it falls exactly
+      where the dip forms. Over about 97 kg of boat, rower and oars that is
+      worth roughly 0.06 m/s, about a fifth of the dip's excess
+      (`catch_entry_cr06.py`). Bounding it with the rest catch is running.
   - **Found while building it: the scull weighs as much as a sweep oar.**
     `SCULLING_OAR` (coxswain/boats/rig.py) sets no mass, so it inherits the
     `Oar` default of 2.7 kg, which is documented as a *composite sweep oar*
