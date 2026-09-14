@@ -933,10 +933,53 @@ the double's sculls (not comparable to Holt's sweep pairs):
   0.3 m/s, worth a few newtons of C₂ slip².
 - **Candidate: blade added mass,** absent from the research profile. Patton's
   estimate is about 13 kg per scull blade, and at the catch's large normal
-  acceleration that is hundreds of newtons. *Being measured*
-  (`holt_catch_added_mass.py`): gate force from the body and oar balances,
-  which include any added-mass force, with power matched with added mass in
-  the loop.
+  acceleration that is hundreds of newtons.
+
+*Measured, and a sign error in the correction above
+(`holt_catch_added_mass.py`).* The gate force was taken from the balances,
+which need no blade model and include any added-mass force. With signs,
+H = I_crew θ̈ + n τ + ½ I′ θ̇² on the hands and blade torque = H + n I_oar θ̈,
+and θ̈ from the simulator's own derivative. A first run used `np.gradient`,
+which spikes at the sweep-to-torque hand-over; that run was stopped. Singles
+at Holt's conditions, default shape, power matched with the same simulator in
+the loop:
+
+| | catch slip (Holt) | finish slip (Holt) | gate at 5° / 10° | peak gate (Holt) | speed error | blade eff. |
+|---|---|---|---|---|---|---|
+| M1x, no added mass | 21.5° (7.7) | **19.3°** (14.1) | 12 / 51 N | 478 N (497) | −8.5% | 0.710 |
+| M1x, Patton added mass | 20.6° | 20.0° | 59 / 83 N | 452 N | −7.1% | 0.753 |
+| W1x, no added mass | 26.0° (9.7) | **23.8°** (18.1) | 19 / 51 N | 331 N (371) | −11.5% | 0.721 |
+| W1x, Patton added mass | 25.6° | 23.9° | 48 / 56 N | 317 N | −10.7% | 0.768 |
+
+[CR06]'s measured athlete: roughly 110 / 190 N per scull at 5° / 10°.
+
+- **Added mass is not the catch.** It lifts the load at 5° about fourfold
+  but moves the catch slip by under 1°. At equal power it adds 0.8–1.4
+  points of speed and 0.04–0.05 of blade efficiency. That is a real effect,
+  but not this one.
+- **The oar-side formula above had a sign error.** It added I_oar |θ̈|
+  unconditionally. Near the finish the oar decelerates and its inertia
+  helps the blade, so the handle carries less. The catch agrees between the
+  two methods (21.5, 26.0°); the finish does not.
+  - **The singles' finish slip is 19.3 and 23.8°, 5–6° long against Holt.**
+    The withdrawal of "force fades too early" above was itself wrong; the
+    original finding stands in substance.
+  - The `"cr06"` finish and the oar-side force-timing values used the same
+    formula and are being re-measured with the signed balance
+    (`holt_force_signed.py`).
+- **The leading explanation is structural.** Every force curve used is
+  *measured handle or gate force*: Kleshnev's points, [CR06]'s F_hand and
+  Holt's descriptors. The model applies the curve as the rower's **muscle
+  torque** τ on a balance that also carries the body's reflected inertia.
+  - Early in the drive most of τ accelerates the body, so the handle force
+    lags the measured curve: a long catch.
+  - Late in the drive the decelerating body hands energy back, so force
+    lingers: a long finish.
+  - Applied as handle force, the measured [CR06] curve gives 8.4° at Holt's
+    M1x thresholds (7.7°), from the shape-only evaluation above.
+  - Changing it means changing how the dynamic oar and the body share a
+    balance, which is phase 4.3's job. Recorded as the hypothesis to test
+    there, not changed here.
 
 *Still open.* The entry angle, 2–6° past the catch, has no measured target
 (the digitised [CR06] Fig. 3 carries release markers only). Refused with the
