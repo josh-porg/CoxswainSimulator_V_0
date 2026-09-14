@@ -1533,6 +1533,33 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
       the reflected crew inertia sits on the oar, a 1.2 kg scull runs at the
       default step: 3.868 against 3.850 m/s at equal torque (+0.5%). The
       finer step below is needed only by the oar-only probe.
+    - **Correction (2026-09-14): half the step is NOT enough for the
+      oar-only probe, and mean speed was the wrong convergence test.**
+      Rerunning [LE26]'s men with the 1.2 kg scull at T/160 reported 13% less
+      power (423 against 484 W) at the same torque law, scale and speed. The
+      gap is all in the water: entry work, torque in the air and torque past
+      the finish are the same for both oars. The oar's energy books show why
+      (`legge26/scull_mass_energy_books*.py`; per oar, over the in-water
+      drive):
+
+      | cohort, oar | ∫ I φ̈ φ̇ | ΔKE | φ̈ range, rad/s² | handle work |
+      |---|---|---|---|---|
+      | men, 2.7 kg | 6.6 J | 6.4 J | −66 to +8 | 394 J |
+      | men, 1.2 kg | **370 J** | 2.6 J | **−459** to +9 | 346 J |
+      | women, 2.7 kg | 5.3 J | 5.1 J | −50 to +6 | 300 J |
+      | women, 1.2 kg | **−18 J** | 2.2 J | −113 to **+58** | 303 J |
+
+      - **The light oar's books do not close at T/160**, badly under the
+        men's load and mildly under the women's. Its oar mode is not
+        resolved, so the men's power drop is integration error, not physics.
+      - **The mean speed hid it.** It converged in the [CR06] check
+        (0.6 mm/s), but speed averages over the drive.
+      - **Rechecks running:** the men's books at T/320 and T/640; the [CR06]
+        one-athlete runs' books at T/160 and T/640; and the committed claim
+        that the full research balance is resolved at the default step,
+        now on power and φ̈ rather than speed.
+      - Until those return, the [LE26] rows with the 1.2 kg scull are void,
+        and the [CR06] one-athlete results are provisional.
     - **Consequence for the probes.** Every study that builds its single
       through `research.apply` and then puts the oar-only balance on it
       (the [LE26] measured-force and measured-body scripts, the catch
