@@ -965,8 +965,22 @@ the loop:
     The withdrawal of "force fades too early" above was itself wrong; the
     original finding stands in substance.
   - The `"cr06"` finish and the oar-side force-timing values used the same
-    formula and are being re-measured with the signed balance
-    (`holt_force_signed.py`).
+    formula. They were re-measured with the signed balance
+    (`holt_force_signed.py`, one consistent measure; these rows supersede
+    every earlier slip and force-timing table in this item):
+
+    | single | catch / finish slip (Holt) | gate at 5° / 10° | catch to peak (Holt) | RFD (Holt) | peak / mean (Holt) | mean / peak gate (Holt) | drive |
+    |---|---|---|---|---|---|---|---|
+    | M1x default | 21.5 / 19.3° (7.7 / 14.1) | 12 / 51 N | 0.56 s (0.43) | 860 N/s (960) | 2.54 (1.90) | 188 / 478 N (261 / 497) | 0.96 s |
+    | M1x cr06 | 20.6 / **15.2°** | 17 / 67 N | 0.55 s | 787 N/s | **2.26** | 192 / 433 N | 0.95 s |
+    | W1x default | 26.0 / 23.7° (9.7 / 18.1) | 19 / 51 N | 0.63 s (0.39) | 530 N/s (760) | 2.42 (1.87) | 137 / 331 N (199 / 371) | 1.07 s |
+    | W1x cr06 | 26.4 / **20.1°** | 23 / 64 N | 0.61 s | 488 N/s | **2.14** | 140 / 299 N | 1.06 s |
+
+    **The cr06 claim stands on the correct measure.** It brings the finish
+    to within 1.1–2.0° of Holt, 3.6–4.1° shorter than the default, and
+    peak/mean closer. It lowers peak gate force by 9–10%, moves speed by
+    ≤ 0.3 points, and leaves the catch (13–16° long) and time to peak
+    (0.12–0.24 s late) untouched. A trade-off; it stays an unadopted study.
 - **The leading explanation is structural.** Every force curve used is
   *measured handle or gate force*: Kleshnev's points, [CR06]'s F_hand and
   Holt's descriptors. The model applies the curve as the rower's **muscle

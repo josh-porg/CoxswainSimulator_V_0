@@ -732,6 +732,27 @@ force are not in the paper and have to be built and validated here.
   1.1–2.0% faster with blade efficiency 0.726–0.769 (TRACKING). Next: the
   following crew on the sweep catch, and the finish, which is blocked on data.
 
+  *A hypothesis for 4.3 to test, from Holt's measured force descriptors
+  (2026-09-14, TRACKING's Holt singles item).* Gate force was derived from the
+  signed body and oar balances. At equal power the research singles' catch
+  slip is 21.5° and 26.0° against Holt's 7.7° and 9.7°, and the finish slip
+  19.3° and 23.8° against 14.1° and 18.1°. The oar sweeps as fast as
+  [CR06]'s measured oar after the catch but carries about a fifth of the
+  measured gate force. Neither a pull shape fitted to [CR06]'s measured curve,
+  the inertia clamp (`RATE_FLOOR` 0.25 → 0.60) nor Patton blade added mass
+  moves the catch by more than 1°.
+  - **Every force curve in use is measured handle or gate force** (Kleshnev,
+    [CR06]'s F_hand, Holt). The dynamic oar applies it as **muscle torque**
+    on a balance that also carries the body's reflected inertia.
+  - Early in the drive most of that torque accelerates the body, so the
+    handle lags: a long catch. Late in the drive the body returns it, so
+    force lingers: a long finish.
+  - Applied as handle force, the [CR06] curve gives 8.4° at Holt's M1x
+    thresholds.
+  - 4.3's torque-driven chain decides how muscle torque splits between body
+    and handle. **Its gate: reproduce the measured handle-force curve's ends,
+    not only its middle.**
+
   *Qualified on reading [CR06] in full:* the direction of slaving decides
   it. [CR06] slaves the **oar to the body** — smooth prescribed leg, back and
   arm motions, the oar angle given by the hand-on-handle relation, arms free —
