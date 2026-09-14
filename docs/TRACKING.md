@@ -1239,6 +1239,27 @@ spent on measurement before any physics was touched.
 | the radii transcription verified against the columns already in the code: 20 rows, 0 mismatches | [dL96] in SOURCES.md | same |
 | Rongère, Khalil & Kobus (2011) read in full: inverse dynamics with prescribed joints and loops closed by projection, no arms, oars driven independently — and its authors conclude a hybrid inverse/direct approach is needed. PHYSICS_PROGRAMME had credited the torque drive to them; corrected | [RK11] in SOURCES.md | — |
 
+### The research wave model — Michell checked, Sretenskii in, the optimisers on it
+
+| what | where | pinned by |
+|---|---|---|
+| Michell's integral checked against Lazauskas (2009) Fig. 7.1 on the Wigley hull: the formula agrees analytically; the uniform-weight sum reads 2.8–4.5% high on the production grid; trapezoid weights match within the figure's reading error. `quadrature="uniform"` stays the default for the frozen game (724bb35) | `coxswain/hydro/michell.py` | `tests/test_michell_quadrature.py` |
+| Sretenskii's finite-depth thin-ship integral, Wehausen & Laitone (1960) eq. 20.69 with its erratum; deep limit 1.00000, `Fr_h ≤ 0.5` within 0.14% of deep water, peak at `Fr_h` 0.98–0.99 (137bf36) | `coxswain/hydro/finite_depth_michell.py` | `tests/test_finite_depth_michell.py` |
+| a depth-aware wave table, within 0.64% of the direct integral between its rows; `PhysicsProfile.wave = "sretenskii"` for `research` and `learned`, applied in `hull_resistance` in place of the chosen shallow factor; shipped keeps the exact old product (137bf36) | `FiniteDepthWaveTable`, `coxswain/physics.py`, `coxswain/hydro/resistance.py` | `tests/test_research_wave_profile.py` |
+| on the Charles at constant power the research eight loses 7–33 s less to depth than under the chosen factor at deep-water speeds 4.5–6.0 m/s; the scorecard moves under 1% | measurement, recorded in SOURCES §6 | — |
+| the route and pacing optimisers and the CasADi trajectory models take a research boat's depth-aware wave drag; the research deep table samples 301 speeds (8c5abc1, 712a660, b489a8c) | `coxswain/river/route.py`, `coxswain/crew/pacing.py`, `coxswain/river/hydro_casadi.py` | `tests/test_research_optimisers.py`, `tests/test_research_casadi_wave.py` |
+| race power sourced in part: Kleshnev's measured power–rate regressions and the 16.8% handle-power gap; 380 W is about elite men's sweep handle power at rate 32 (c769fb7) | [K00], [BR26] in SOURCES.md | — |
+
+### The offline physics programme — phase 4.3a, the catch
+
+| what | where | pinned by |
+|---|---|---|
+| [CR06]'s entry rule on the dynamic oar: the oar follows the prescribed sweep, blade out, until the blade's normal velocity is zero (their eq. 16), then torque-driven with the sweep's angle and rate; the kinetic energy carried in is counted as rower work; the release rule never bites under it (edb3fd4) | `DynamicOarSimulator(catch="sweep")` | `tests/test_sweep_catch.py` |
+| at equal power the parked catch was costing 5–7% of boat speed: eight at rate 28 5.53 → 5.87 m/s, blade efficiency 0.56 → 0.71 | measurement, recorded in the catch item | same |
+| the scorecard on it keeps every target's status; the efficiency-proportional-to-speed signature is gone (1a1e9a6) | `coxswain/validation/scorecard.py` | — |
+| power matching under either catch: profiles name their catch, and `torque_for_power` matches a sweep-catch crew on a cached settle (c78d38f) | `DynamicOarSimulator.torque_for_power`, `simulator_for`, `settle_dynamic` | `tests/test_torque_for_power.py` |
+| `research` and `learned` catch by the sweep: tier 1 blade efficiency 0.714 eight, 0.681 four; tier 2 0.826 eight, **0.795 four, the first pass of the level target** (b923d62) | `coxswain/physics.py` | `tests/test_dynamic_oar_consumers.py`, `tests/test_dynamic_oar_run.py` |
+
 ### v0.13 — asked for, and done
 
 | what | where | pinned by |
