@@ -820,6 +820,28 @@ force are not in the paper and have to be built and validated here.
       - So 4.3's gate cannot be met by the body or the force curve alone. The
         stretcher-driven reversal and the early blade load come from the same
         catch.
+    - **One athlete, every input hers: what is left for 4.3 (2026-09-14;
+      TRACKING, [CR06] self-consistent test).** Driven by [CR06]'s single's
+      own measured handle force (both hands summed), leg and back
+      displacement, rig and rate, with nothing fitted:
+      - **Speed:** 4.109 m/s against her 4.191 (−1.9%). The oar angle, a
+        dynamic state, follows hers and reaches the finish at 0.455
+        against her release at 0.461.
+      - **Boat velocity rms:** 0.035 m/s, against 0.203 for the catalog
+        body. The recovery is reproduced.
+      - **Catch dip:** still 0.13 m/s too deep through 0.05–0.20 of the
+        cycle, at the right time. Blade entry before the turning point is
+        worth about 0.06 of that; about 0.08 remains.
+
+      So the hull, blade and oar dynamics pass. 4.3's work narrows to two
+      things:
+      - a body whose leg and trunk time-laws match on-water motion, which
+        the four-keyframe fit cannot produce;
+      - the catch itself: force on the blade before and during entry, and
+        the stretcher-driven reversal.
+
+      The earlier [LE26] overshoot was not mostly cross-athlete mixing,
+      because it survives with one athlete's own data.
 
   *Qualified on reading [CR06] in full:* the direction of slaving decides
   it. [CR06] slaves the **oar to the body** — smooth prescribed leg, back and

@@ -1490,6 +1490,32 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
       measured-leg build (minimum 2.79, 0.27 m/s too deep), her clock and her
       trunk timing remove 0.13 (0.02 and 0.11). Blade entry is worth about
       0.06 more; about 0.08 is left.
+    - **Her whole measured body: the hull follows her boat.** Leg on her
+      clock, trunk on her back time-law *and* her back travel (×0.776):
+      4.109 m/s (−1.9%), minimum 2.93 at 0.143, recovery peak 5.09 against
+      5.13, velocity rms **0.035 m/s**.
+
+      | body | velocity rms | catch minimum |
+      |---|---|---|
+      | smooth catalog body | 0.203 | 2.59 |
+      | + her leg time-law | 0.143 | 2.79 |
+      | + on her clock | 0.118 | 2.81 |
+      | + her trunk timing | 0.074 | 2.92 |
+      | + her trunk travel | **0.035** | 2.93 |
+      | [CR06] measured | — | 3.06 |
+
+      - **The recovery is solved.** Five-sixths of the velocity-trace error
+        was the body, and the three measured body features remove it: leg
+        time-law, trunk timing, trunk travel. Travel shapes the recovery
+        peak, and timing shapes the catch.
+      - **What remains is the catch: 0.13 m/s too deep, 0.05–0.20 of the
+        cycle, with the right timing.** The blade entry bound covers about
+        0.06 of it. The rest is where 4.3's stretcher-driven catch and early
+        blade load must act.
+      - **For 4.3, the catalog body is a representation problem, not a data
+        problem.** Driven on one athlete's measured leg and back, the model
+        reproduces her hull through the stroke. Its hull, blade and oar
+        dynamics are not the gap.
   - **Found while building it: the scull weighs as much as a sweep oar.**
     `SCULLING_OAR` (coxswain/boats/rig.py) sets no mass, so it inherits the
     `Oar` default of 2.7 kg, which is documented as a *composite sweep oar*
