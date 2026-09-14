@@ -1485,6 +1485,69 @@ is 1.00× and 1.12×. So, **per gate**:
 - The arc and lever arms in the check are approximations, but they cannot
   account for a factor of 2.
 
+### Joint moments in rowing: candidate targets for phase 4.3 (searched 2026-09-14)
+Inverse dynamics of the rowing chain needs published joint moments to be
+checked against. None are recorded here yet. What the search found:
+- **[BBM15] Buckeridge, Bull & McGregor (2015).** *Incremental training
+  intensities increases loads on the lower back of elite female rowers.* J.
+  Sports Sci. 34(4) 369–378, doi:10.1080/02640414.2015.1056821. Twelve elite
+  women on an ergometer. Five-segment recursive Newton–Euler inverse dynamics
+  from handle, seat and foot-stretcher forces. Abstract only: with stroke
+  rate, peak ankle and L5/S1 extensor moments rise, peak knee moments fall,
+  and peak hip moments do not change. **No values in the abstract.**
+- **[BU13] Buckeridge (2013), PhD thesis, Imperial College London**,
+  doi:10.25560/28699. Open-access PDF (354 pp.) on Spiral, downloaded with
+  the project owner's permission 2026-09-14 and read, chapter 7.
+  - **Who:** 18 GB Olympic-squad rowers, March 2012. Twelve heavyweight
+    women: 5 scullers (77.1 ± 2.4 kg) and 7 sweep rowers (74.0 ± 3.8 kg).
+    Six lightweight men (75.1 ± 1.5 kg). A modified Concept2 Model D;
+    three-minute steps at rates 18, 24 and 28, then free rate at 2000 m
+    race pace.
+  - **Method:** bottom-up 3-D inverse dynamics with five rigid segments
+    (foot, shank, thigh, pelvis, lumbar spine).
+    - **Inputs:** right-foot stretcher force and centre of pressure, handle
+      tension and vertical seat force.
+    - **Hip and pelvis:** the right hip's sagittal moments and forces are
+      doubled for symmetry before the pelvis.
+    - **Seat force** is assumed to act through the pelvis centre of mass.
+    - **Inertias:** Zatsiorsky et al. (1990).
+    - **Derivatives:** finite differences with a five-point moving average.
+    - **Normalisation:** moments per kg of body mass.
+  - **Table 7.3, sagittal extension moment, N·m/kg, rate 18 → free rate**
+    (all groups as tabulated):
+
+    | joint | catch | maximum handle force | peak in the drive |
+    |---|---|---|---|
+    | ankle | 0.90 → 1.17 | 1.14 → 1.23 | 1.26 → 1.37 |
+    | knee | 1.41 → 2.45 | 3.74 → 3.79 | 3.99 → 3.98 |
+    | hip | 2.93 → 4.43 | 5.36 → 5.52 | 5.80 → 5.93 |
+    | L5/S1 | 7.82 → 11.87 | 11.92 → 12.17 | 12.99 → 13.67 |
+
+  - **Group differences:** the lightweight men's peaks were significantly
+    larger than the heavyweight women's (§7.3.2). The table does not split
+    groups, and the women-only values are only in Figs. 7.3–7.4, as plots.
+    With rate, the women's knee peak falls and their hip peak holds.
+  - **Caveats before using these as a target:**
+    1. **Ergometer, fixed stretcher**, which is the plan's own named defect.
+    2. **Side is ambiguous.** Ankle and knee are the right leg; whether the
+       reported hip is one side or both after the doubling is not settled
+       by the text read.
+    3. **L5/S1 is large:** 13 N·m/kg is about 1000 N·m at 75 kg.
+    4. **Uncertainty:** the thesis (§7.1.3) quotes 6–232% uncertainty on
+       peak moments from inverse dynamics. That figure is from gait
+       studies (Riemer et al. 2008), not an error estimate for its own
+       rowing data.
+    - *Use for phase 4.3:* order of magnitude and pattern — catch below the
+      maximum-handle-force value, and hip above knee above ankle. Not
+      point values to fit.
+- **[FT25] Fang & Troy (2025).** Bioengineering 12(1) 75,
+  doi:10.3390/bioengineering12010075, Table 2. Twenty able-bodied *novices*
+  (10 women), 70.0 ± 14.8 kg, on an adapted ergometer. Peak knee extension
+  moment 0.29, 0.54 and 0.63 N·m/kg at 25, 35 and 40 spm (70° knee range).
+  Peak foot reaction 0.26, 0.36 and 0.42 body weights. Novices on an adapted
+  machine, so an order-of-magnitude check at most, not a target for elite
+  on-water rowing.
+
 ### [HLBS18] Hofmijster, Lintmeijer, Beek & van Soest (2018)
 *Mechanical power output in rowing should not be determined from oar forces
 and oar motion alone.* **J. Sports Sci. 36(18) 2147–2153**, PMID 29737945;

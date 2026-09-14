@@ -1516,6 +1516,32 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
         problem.** Driven on one athlete's measured leg and back, the model
         reproduces her hull through the stroke. Its hull, blade and oar
         dynamics are not the gap.
+  - **Every rower is built from de Leva's MALE table** (found 2026-09-14).
+    `RowerAnthropometry(sex="male")` is the default, and nothing in `coxswain/`
+    passes a sex: not `catalog`, not `viz/menu.py:449` (the game's lineups),
+    not the roster path. That includes the Women's Veteran 60+ four the
+    project is built around, the women's squad boats, the [LE26] women and
+    [CR06]'s woman. The roster knows its squad is "women" (it uses that for
+    assumed stature), but `Rower`/`Lineup` carry no sex.
+    - **Measured on [CR06]'s woman** (`cr06/female_segments_cr06.py`,
+      T/320). With the female table, stature re-anchored to her leg
+      travel is 1.758 m (was 1.787). Back travel is 0.516 m, ratio 0.771
+      (was 0.775). Each thigh is 11.1 kg, and the thigh's centre of mass
+      sits nearer the hip.
+    - **Smooth body:** 4.088 m/s against 4.087, velocity rms 0.198
+      against 0.203, catch minimum 2.60 against 2.59. The kinematics
+      barely move, because stature is anchored to the measured leg
+      travel.
+    - **Whole measured body:** 4.112 m/s (−1.9%) against 4.109. Catch
+      minimum 2.94 at 0.145 against 2.93, recovery peak 5.05 against 5.09,
+      velocity rms **0.032** against 0.035 m/s. Settled to 0.1 mm/s.
+    - **So the one-athlete conclusions stand, slightly better on the right
+      table.** The catch dip is unchanged, so the male table is not part of
+      the remaining catch gap. It matters for anything that reads segment
+      masses directly, which is what step 4.3's joint torques will do, so
+      her runs use the female table from here on.
+    - The shipped game is frozen, so any correction is research-side, and it
+      needs a sex carried from the lineup or roster.
   - **Found while building it: the scull weighs as much as a sweep oar.**
     `SCULLING_OAR` (coxswain/boats/rig.py) sets no mass, so it inherits the
     `Oar` default of 2.7 kg, which is documented as a *composite sweep oar*
