@@ -809,6 +809,17 @@ force are not in the paper and have to be built and validated here.
       - So 4.3's body must come either from a measured on-water joint
         trajectory or from joint torques whose catch reversal follows from
         the stretcher and blade loads, not from warping the keyframe fit.
+    - **The two targets are coupled, not separable** (TRACKING, measured
+      leg time-law).
+      - Driving the body on [CR06]'s measured leg motion makes the hull's
+        catch dip sharp, as measured, though 34% too deep.
+      - It delays the return to positive acceleration (zero at 0.165 of the
+        cycle against 0.069), with no first peak.
+      - The return needs the blade loaded fast: [LE26] measures about 208 and
+        416 N per gate at 0.05 and 0.10 of the cycle.
+      - So 4.3's gate cannot be met by the body or the force curve alone. The
+        stretcher-driven reversal and the early blade load come from the same
+        catch.
 
   *Qualified on reading [CR06] in full:* the direction of slaving decides
   it. [CR06] slaves the **oar to the body** — smooth prescribed leg, back and

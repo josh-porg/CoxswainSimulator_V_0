@@ -1300,6 +1300,64 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
       but a changed body representation reaches the catch. Not adopted: a
       trunk warp calibrated to one athlete is a fitted number, and it moves
       the error rather than removing it.
+
+  *The decisive test: the body driven on a MEASURED leg time-law
+  (`legge26/warped_body_vs_legge.py`).*
+  - **Method.** The model's own body (geometry and masses kept) was driven
+    along a phase map T(t). T was chosen so its leg displacement follows
+    [CR06]'s measured on-water leg curve as a fraction of the cycle:
+    x = x(T), v = v(T) T′, a = a(T) T′² + v(T) T″. The simulator's
+    `crew_field` was replaced on the instance, which reaches both the mass
+    matrix and the force breakdown. The body is off the oar balance, the
+    torque is matched to [LE26]'s speed, and the variants are with and without
+    the trunk lag.
+  - **A first run is void for magnitudes, and its timing is withdrawn.** It
+    warped raw digitised points with a lightly smoothed map (λ 2 × 10⁻⁷).
+    T″ turned every wiggle into ±15–25 m/s² of hull acceleration and a
+    −32 m/s² catch spike. Its "zero after the catch at 0.070–0.072" (against
+    [LE26]'s 0.069) was noise crossing zero, not the catch. Its outputs are
+    kept as `*_noisy_lam2e-7.*`.
+  - **The clean run's smoothing was chosen by kinematics alone**, before any
+    hull result: λ = 10⁻⁴ gives warped leg acceleration at the catch 19.4
+    and 15.5 m/s², against [CR06]'s 14.1 scaled to [LE26]'s periods, 19.9 and
+    17.1. Roughness falls 30-fold.
+
+  | | accel. zero after catch | first peak | catch dip | accel. rms | gate shape rms |
+  |---|---|---|---|---|---|
+  | men, [LE26] | 0.069 | +4.14 | −14.2 | — | — |
+  | men, oar only (smooth body) | 0.137 | +1.59 | −11.5 | 3.00 | 0.208 |
+  | men, leg-warped | **0.165** | **−1.35** | **−19.1** | 3.18 | 0.202 |
+  | men, leg-warped + trunk | 0.168 | −1.40 | −19.3 | 3.63 | 0.200 |
+  | women, [LE26] | 0.069 | +3.49 | −11.0 | — | — |
+  | women, oar only | 0.135 | +1.38 | −9.3 | 2.33 | 0.222 |
+  | women, leg-warped | **0.162** | **−0.90** | **−14.7** | 2.65 | 0.217 |
+  | women, leg-warped + trunk | 0.165 | −0.97 | −14.8 | 2.99 | 0.213 |
+
+  - **The measured leg reversal fixes the dip's sharpness and overshoots its
+    depth.** The broad −9 m/s² plateau becomes a narrow spike at the catch,
+    like [LE26]'s, but 34% too deep.
+  - **It does not fix the return; it delays it.** After the dip the boat
+    stalls near −3 m/s² from 0.05 to about 0.12 of the cycle, crosses zero at
+    0.162–0.168 (the smooth body: 0.14) and never has a positive first peak.
+    The measured boat is at +4 m/s² by 0.09.
+  - **The return needs blade propulsion.** Once the legs have reversed, the
+    body accelerating toward the bow pushes the hull back. The hull turns
+    positive only when blade force exceeds that. [LE26]'s gate force per side
+    is about 208 N at 0.05 and 416 N at 0.10 of the cycle; the model's, with
+    the body off the oar, is 22 and 145 N.
+  - **Correction to the decomposition above.** Its bullet "no blade or
+    handle-force change can make the measured swing" compared the crew term
+    with the *model's* too-weak blade. The measured swing needs **both**: the
+    sharp body reversal makes the dip, and a fast blade load makes the return
+    and the first peak.
+  - **One athlete's recovery does not transfer.** [CR06]'s recovery,
+    compressed to [LE26]'s period, puts a +8 to +11 m/s² surge near −0.3 of the
+    cycle and a finish spike near 0.5 that [LE26] does not have. So the rms
+    error is worse even where the catch dip is right.
+  - *Next test:* the warped body together with a handle force following
+    [LE26]'s measured time curve from the catch. The two measured inputs
+    together should reproduce the dip, the return and the first peak if
+    nothing else is missing.
   - The men's oar-only run shows two notches in gate force and acceleration,
     at 0.24 and 0.37 of the cycle, most likely the light oar chattering near
     release. Its shape error is somewhat pessimistic for that.
