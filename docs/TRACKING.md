@@ -403,6 +403,33 @@ water momentum is created at entry; ours enters parked in a moving boat at
 `w_n ≈ 3 m/s`. It needs the rower carrying the oar into the drive (phase 4.3),
 or `m_h` ramped in with immersion, which needs a vertical oar-angle trace.
 
+*On the sweep catch, 2026-09-14.* The block was the catch, and the sweep catch
+removes it: the blade enters at zero normal velocity, so the water it sets
+moving at entry is gone by construction. Added mass is now allowed with
+`catch="sweep"`; an oar still in the air carries an identity row with the
+sweep's own acceleration and no added mass. Measured at equal power (380 W
+including entry work, torque rescaled three times, 12 strokes, last 4), sweep
+catch without and with Patton added mass:
+
+| boat, rate | speed, sweep → + added mass | drive fraction | blade efficiency | surge swing | momentum left out per blade, entry / exit |
+|---|---|---|---|---|---|
+| eight, 28 | 5.866 → **5.969** m/s (+1.8%) | 0.344 → 0.347 | 0.712 → **0.754** | 40.6 → 39.2% | -1.1 / -24.5 N·s |
+| eight, 32 | 5.871 → **5.977** m/s (+1.8%) | 0.393 → 0.397 | 0.727 → **0.769** | 44.9 → 43.5% | -2.5 / -23.4 N·s |
+| coxed four, 32 | 5.153 → **5.258** m/s (+2.0%) | 0.423 → 0.427 | 0.699 → **0.743** | 48.4 → 46.8% | -0.6 / -22.7 N·s |
+| single, 30 | 4.379 → **4.425** m/s (+1.1%) | 0.456 → 0.463 | 0.680 → **0.726** | 59.4 → 58.0% | -1.1 / -12.1 N·s |
+
+**Entry momentum left out falls to 2.5 N·s per blade at most**, against 63 on the
+parked catch -- the one-step lag between the entry test and the step. **Exit
+momentum left out is still 12–24 N·s per blade**: release is at the finish
+angle with the blade still driving, so the water set moving there drops out
+with no impulse. With the entry artefact gone the speeds are readable within
+that bound: added mass makes the boats 1.1–2.0% faster and raises blade
+efficiency to 0.726–0.769 -- inside Kleshnev's 0.754–0.816 on eight, 28, eight, 32. Still an upper bound on `m_h` (unbounded fluid, no
+entrainment growth) and a study, off by default and not in any profile.
+
+*Still open.* The exit: it needs the oar to turn round after release, which is
+the recovery defect blocked on a measured deceleration law.
+
 ### Shallow water: three chosen numbers price most of the Charles, and the quasi-steady use is the bigger error
 **Impact: high for the Charles — it is the regime the course is rowed in.**
 
@@ -1259,6 +1286,7 @@ spent on measurement before any physics was touched.
 | the scorecard on it keeps every target's status; the efficiency-proportional-to-speed signature is gone (1a1e9a6) | `coxswain/validation/scorecard.py` | — |
 | power matching under either catch: profiles name their catch, and `torque_for_power` matches a sweep-catch crew on a cached settle (c78d38f) | `DynamicOarSimulator.torque_for_power`, `simulator_for`, `settle_dynamic` | `tests/test_torque_for_power.py` |
 | `research` and `learned` catch by the sweep: tier 1 blade efficiency 0.714 eight, 0.681 four; tier 2 0.826 eight, **0.795 four, the first pass of the level target** (b923d62) | `coxswain/physics.py` | `tests/test_dynamic_oar_consumers.py`, `tests/test_dynamic_oar_run.py` |
+| blade added mass on the sweep catch: an oar in the air follows the sweep with no added mass; entry momentum left out 2.5 N·s per blade at most, against 63 parked; exit 12–24 N·s remains | `DynamicOarSimulator._coupled_system` | `tests/test_blade_added_mass.py`, `tests/test_sweep_catch.py` |
 
 ### v0.13 — asked for, and done
 

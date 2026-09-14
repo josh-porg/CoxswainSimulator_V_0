@@ -726,8 +726,11 @@ force are not in the paper and have to be built and validated here.
   the eight and 0.681 on the four, still short of the band; tier 2 on the four,
   0.795, the first pass of that target; and at the stated 380 W the eight and
   four now outrun their race-pace bands, which sharpens the unsourced-power
-  tension (TRACKING). Next: blade added mass and the following crew on top of
-  the sweep catch.
+  tension (TRACKING). Blade added mass now runs on the sweep catch
+  (2026-09-14): entry momentum left out is gone by construction, exit momentum
+  at the finish angle remains, and at equal power added mass makes the boats
+  1.1–2.0% faster with blade efficiency 0.726–0.769 (TRACKING). Next: the
+  following crew on the sweep catch, and the finish, which is blocked on data.
 
   *Qualified on reading [CR06] in full:* the direction of slaving decides
   it. [CR06] slaves the **oar to the body** — smooth prescribed leg, back and
