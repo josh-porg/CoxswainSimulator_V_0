@@ -125,6 +125,33 @@ the paper's measured 4.18.
 *Caveat:* the release time is the model's (its open-circle marker), plotted on
 the data; the data carry no independent blade-exit event. One athlete.
 
+**The measured force–angle curve over the drive** (added 2026-09-13).
+`F_hand_θ` is the handle force perpendicular to the oar, the same component
+as the dynamic oar's torque over inboard. It was interpolated against the
+measured oar angle from the catch turning point (60.5° at 0 s) to the finish
+turning point (−44.4° at 1.013 s): a drive of **0.522 of the stroke** and an
+arc of 104.9°. Normalised to its 557 N peak, against angle progress u:
+
+| u | 0.02 | 0.05 | 0.10 | 0.20 | 0.30 | 0.40 | 0.50 | 0.60 | 0.70 | 0.80 | 0.90 | 0.95 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| measured | 0.14 | 0.28 | 0.47 | 0.67 | 0.86 | 0.97 | 0.97 | 0.77 | 0.57 | 0.38 | 0.15 | 0.00 |
+| `DRIVE_SHAPE` | 0.03 | 0.13 | 0.31 | 0.68 | 0.92 | 1.00 | 0.93 | 0.74 | 0.49 | 0.24 | 0.06 | 0.01 |
+
+- **Peak** at u = 0.451, 0.506 s after the catch. Peak / mean is 2.03 in time
+  and 1.72 in angle.
+- **Rise:** 0.20 of peak by 3.7° past the catch, 0.39 by 7.9°, 0.50 by
+  12.0°.
+- **Fall:** still 0.50 at 27.6° before the finish, 0.20 at 12.2°, 0.10 at
+  8.8°. Zero near u ≈ 0.93–0.95, so force ends about 5° before the oar turns
+  round, matching the release marker.
+- **Shape error:** the fitted shape's rms error against this curve is 0.082
+  of peak. The best two-exponent Beta (a = 1.122, b = 1.635) gets 0.045 and
+  still cannot make the steep start.
+
+Saved as `cr06_force_angle_drive.csv` in the session's `phase4/cr06/`. One
+athlete, a women's single at rate 30.9 (T = 1.94 s), close to [H20]'s W1x
+class at 32.8.
+
 ### [S10] Serveto, Barré, Kobus & Mariot (2010)
 *A three-dimensional model of the boat–oars–rower system using ADAMS and
 LifeMOD commercial software.* **Proc. IMechE Part P 224**(1) 75–83.

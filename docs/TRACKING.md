@@ -803,11 +803,36 @@ The pull shape and the drive's length are coupled: a pull that comes on
 sooner would also shorten the drive. So the drive-fraction item and this one
 should be refit together, not one after the other.
 
-*Next, and needs data:* a measured gate force–angle curve including its
-ends, per class, to fit a shape with independent end slopes. Warmenhoven's
-2017 thesis on single-sculling force–angle profiles is the candidate; the
-Sydney repository returns 403 to automated requests. No change to
-`DRIVE_SHAPE`, and no research-profile number changes, until one is in hand.
+*A measured curve was already in hand: [CR06] Fig. 3* (SOURCES). Its
+handle force perpendicular to the oar, against the measured oar angle, is a
+women's single's full drive with both ends, at rate 30.9. Each shape family
+was fitted to it by least squares, then evaluated on Holt's arcs at Holt's
+thresholds, a second and independent dataset:
+
+| shape | rms error to [CR06] | peak u | slips on Holt's arcs, catch / finish: M1x · W1x · M2- · W2- |
+|---|---|---|---|
+| `DRIVE_SHAPE` (1.4852, 2.2278) | 0.082 | 0.400 | 12.7/18.9 · 16.5/22.2 · 10.1/14.9 · 13.4/17.5 |
+| Beta refit (1.122, 1.635) | **0.045** | 0.407 | **10.1/13.8 · 14.0/16.9 · 8.1/10.9 · 11.5/13.5** |
+| Beta ending at u = e | 0.045 (e = 0.995) | 0.408 | same as the Beta refit |
+| u^a (1 − u^c)^b, four parameters | 0.041 | 0.423 | 9.5/14.8 · 13.9/17.8 · 7.6/11.7 · 11.5/14.1 |
+| Holt, measured | — | 0.31–0.42 | 7.7/14.1 · 9.7/18.1 · 3.7/8.5 · 5.6/8.5 |
+
+The measured [CR06] curve itself, on a 105° arc, gives 8.4 / 12.6° at the
+M1x thresholds, within 1.5° of Holt. It gives 14.2 / 15.2° at the W1x
+thresholds, a slower catch than Holt's women by 4.5°. That is athlete
+scatter between two measurements, and both sit well inside the model's miss.
+
+- **The refit moves every class 2–6° toward Holt** and halves the error to
+  the measured curve.
+- **The richer families add nothing** that justifies extra parameters. The
+  Beta family was not the limit; its fit to two mid-drive points was.
+- **The pairs' remaining catch miss** (8.1 against 3.7°) is on a sweep arc
+  the scull curve does not describe.
+
+This supersedes "the family is the limit" above. *Next:* the refit built as
+a study, `OarForceProfile(shape="cr06")`, with the `"kleshnev"` default
+unchanged. Then measure slips, force timing and speed against Holt before any
+profile adopts it.
 
 *Still open.* The entry angle, 2–6° past the catch, has no measured target
 (the digitised [CR06] Fig. 3 carries release markers only). Refused with the
