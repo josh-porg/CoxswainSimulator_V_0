@@ -105,6 +105,19 @@ def test_the_catalog_rows_above_what_anyone_can_hold():
     assert WPrimeBalance().endurance(watts) < 180.0
 
 
+def test_mean_handle_power_is_the_unit_scale_reference():
+    """Every caller divides a wattage by it or multiplies it by a scale, so
+    it must not already carry ``power_scales``: that would scale twice."""
+    import numpy as np
+
+    from coxswain.boats import catalog
+
+    boat = catalog.single_scull(rate=30.0)
+    unit = mean_handle_power(boat, samples=90)
+    boat.power_scales = np.full(boat.n_seats, 0.5)
+    assert mean_handle_power(boat, samples=90) == pytest.approx(unit, rel=1e-12)
+
+
 def test_balance_experience_grades_authority_and_learning():
     """More experience is more authority and faster learning, and the
     ideal end lands on the calibrated numbers rather than near them."""

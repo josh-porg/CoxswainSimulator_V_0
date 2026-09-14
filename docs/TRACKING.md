@@ -557,7 +557,11 @@ two minutes to build on the production grid (124 s for a 5.2 m/s route table),
 cached for the process after that.
 
 ### The dynamic oar's drive is started by the water, not the rower
-**Impact: high — it is in every `research` stroke, and it blocks [CR06]'s release rule.**
+**Impact: now low — resolved for `research` and `learned`, which catch by the sweep since 2026-09-13; it remains only in the rest catch, which no profile uses.**
+The item is kept open for that default and for the stuck-oar finding pinned
+in `tests/test_release_rule.py`. The catch's *remaining* miss against measured
+slips is a different defect: the body on the oar balance (the Holt singles
+item under validation gaps).
 
 Found by wiring [CR06]'s release rule in as a study (`release="slip"`: the
 blade carries load only while its normal velocity is driving, so it never
@@ -1383,13 +1387,6 @@ recovery (a crew visibly sits out a lean), and so whether 93 N m is too
 little authority or the missing mechanism is elsewhere, such as more than
 2° of trunk lean.  Neither the learning gain nor the test thresholds
 should be tuned to hide it.
-
-### `mean_handle_power` ignores `power_scales`
-Its docstring says it reports power "at the boat's current scale". It
-does not — it integrates `oar_force` without the scale, so it always
-returns the scale-1.0 figure (486 W for the catalogue four). Callers
-that use it to *calibrate* a scale are fine, since power is linear in
-scale; callers that use it to *check* one silently get the wrong answer.
 
 ## Open — numbers nobody has measured
 

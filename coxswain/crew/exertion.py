@@ -234,7 +234,15 @@ def split_cost(split: float, power_per_rower: float, n_per_side: int = 4,
 
 
 def mean_handle_power(boat, samples: int = 360) -> float:
-    """Mean power per rower at the handle, W, at the boat's current scale.
+    """Mean power per rower at the handle, W, at UNIT force scale.
+
+    ``boat.power_scales`` is deliberately ignored: this is the reference a
+    scale is calibrated against, and every caller uses it that way (the
+    scorecard multiplies it by the scale, the HOCR crew and the trainer
+    divide a target wattage by it).  The simulator applies the scales to the
+    same oar force, and power is linear in them at a fixed rate, so the power
+    at scale ``s`` is ``s`` times this.  Until 2026-09-14 this docstring said
+    "at the boat's current scale", which was never what it computed.
 
     Force times handle velocity, integrated over one cycle -- the actual
     definition of what a rower delivers, rather than what reaches the
