@@ -890,9 +890,53 @@ not move.
 accelerates the body never reaches the handle. The force at the handle is
 what the oar's own balance needs, (|ℓ F_n| + I_oar |θ̈|) / r_h. On these
 numbers the M1x then passes 196 N only about 22–23° past the catch, not at
-17°. **The slip tables above understate the model's catch miss.** Corrected
-values, both definitions side by side, are being measured
-(`holt_slips_oarside.py`).
+17°. **The slip tables above understate the model's catch miss.**
+
+*Corrected (`holt_slips_oarside.py`, `holt_force_curve_oarside.py`), and three
+claims above withdrawn.* Gate force per scull is now what the oar carries,
+(|ℓ F_n| + I_oar |θ̈|) / r_h + |F_n|. Holt's conditions, equal power, pairs on
+the double's sculls (not comparable to Holt's sweep pairs):
+
+| class | catch slip, default / cr06 (Holt) | finish slip, default / cr06 (Holt) | peak gate, default / cr06 (Holt) |
+|---|---|---|---|
+| M1x | **21.5** / 20.6° (7.7) | **15.4** / 10.5° (14.1) | 477 / 432 N (497) |
+| W1x | **26.0** / 26.4° (9.7) | **21.0** / 16.5° (18.1) | 330 / 299 N (371) |
+| M2- | 22.0 / 21.3° (3.7) | 14.8 / 8.8° (8.5) | 497 / 451 N (484) |
+| W2- | 26.4 / 27.2° (5.6) | 21.1 / 16.6° (8.5) | 333 / 302 N (347) |
+
+| singles, oar-side | catch to peak | rate of force development | peak / mean | mean gate |
+|---|---|---|---|---|
+| M1x default / cr06 (Holt) | 0.56 / 0.55 s (0.43) | 858 / 786 N/s (960) | 2.47 / 2.19 (1.90) | 194 / 197 N (261) |
+| W1x default / cr06 (Holt) | 0.63 / 0.62 s (0.39) | 529 / 483 N/s (760) | 2.34 / 2.08 (1.87) | 141 / 144 N (199) |
+
+- **Withdrawn: "force fades too early before the finish."** With the default
+  shape the singles' finish slip is **within 1.3–2.9° of Holt**. The torque
+  measure had overstated it, because near the finish the decelerating body
+  hands its energy to the oar.
+- **Withdrawn: "the cr06 shape fixes the finish."** On the corrected measure
+  it overshoots, finishing 1.6–3.6° short of Holt. It brings peak/mean closer
+  (2.47 → 2.19 against 1.90) but lowers the peak gate force (477 → 432 N
+  against 497). It is a trade-off, not an improvement, and stays an unadopted
+  study.
+- **Stands, and larger: the catch.** Catch slip is 21.5–26° against Holt's
+  7.7–9.7° on the singles, a miss of 13–16°. Neither shape moves it.
+- **Not the inertia clamp** (`catch_rate_floor.py`). Moving `RATE_FLOOR` from
+  0.25 to 0.60 cuts the catch inertia from 62.0 to 49.5 kg·m² and moves the
+  M1x catch slip only from 21.5 to 21.9°.
+- **Not the oar's speed.** [CR06]'s measured oar is 10° past the catch at
+  0.160 s, averaging about 62 °/s, and 30° past at 0.368 s. The model sweeps
+  50–69 °/s over the first 13° and 127 °/s at 30°, comparable.
+- **It is load at a given angle and speed.** [CR06] measures 209 N of handle
+  force at 7.5°, about 104 N per scull and 156 N at the gate. The model
+  carries about 30 N at the gate there. With the boat at about 3.1 m/s and the
+  oar at 1.05 rad/s at 60°, the quasi-steady blade's slip is only about
+  0.3 m/s, worth a few newtons of C₂ slip².
+- **Candidate: blade added mass,** absent from the research profile. Patton's
+  estimate is about 13 kg per scull blade, and at the catch's large normal
+  acceleration that is hundreds of newtons. *Being measured*
+  (`holt_catch_added_mass.py`): gate force from the body and oar balances,
+  which include any added-mass force, with power matched with added mass in
+  the loop.
 
 *Still open.* The entry angle, 2–6° past the catch, has no measured target
 (the digitised [CR06] Fig. 3 carries release markers only). Refused with the
