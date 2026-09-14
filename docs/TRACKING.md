@@ -1476,7 +1476,20 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
       282 N·s over the drive (2%), is never applied, and it falls exactly
       where the dip forms. Over about 97 kg of boat, rower and oars that is
       worth roughly 0.06 m/s, about a fifth of the dip's excess
-      (`catch_entry_cr06.py`). Bounding it with the rest catch is running.
+      (`catch_entry_cr06.py`). **Bounded:** the rest catch, which loads her
+      force from t = 0, lifts the minimum from 2.81 to 2.87 m/s (the
+      0.06 estimated) and the speed to 4.154 (−0.9%). But it ends the drive
+      at 0.430 of the cycle against her release at 0.461, so it is a bound,
+      not a fix (`rest_catch_bound_cr06.py`).
+    - **The trunk's timing is the largest remaining lever.** With the leg on
+      her clock and the upper body following her measured back
+      displacement in time (the model's travel kept): 4.111 m/s (−1.9%),
+      catch minimum **2.92 at 0.143** (hers 3.06 at 0.143), recovery peak
+      5.15 against 5.13. Velocity rms **halves**, 0.118 → **0.074 m/s**,
+      and is 0.203 → 0.074 from the smooth body. Measured from the first
+      measured-leg build (minimum 2.79, 0.27 m/s too deep), her clock and her
+      trunk timing remove 0.13 (0.02 and 0.11). Blade entry is worth about
+      0.06 more; about 0.08 is left.
   - **Found while building it: the scull weighs as much as a sweep oar.**
     `SCULLING_OAR` (coxswain/boats/rig.py) sets no mass, so it inherits the
     `Oar` default of 2.7 kg, which is documented as a *composite sweep oar*
