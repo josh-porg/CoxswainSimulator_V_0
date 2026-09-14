@@ -1074,9 +1074,23 @@ Against Holt it is excellent on doubles (+0.6%, +0.5%) and still low on
 singles (−6.7%, −9.1%). Better than the constant coefficient on all four,
 but the singles gap is real and unexplained.
 
+*The research profile, 2026-09-14* (dynamic oar, tier 1 blade, [CR06]'s catch,
+Sretenskii wave drag), at Holt's measured power and rate with the torque
+matched: M1x **4.159 against 4.609 m/s (−9.8%)**, W1x **3.647 against 4.182
+(−12.8%)**, and the doubles standing in for pairs −1.3% and −2.6%. The singles
+gap persists under the research physics and is wider than the shipped model's.
+Holt's power is gate power, used as `handle_watts` directly. The first
+candidate is sculling-specific: [CR06]'s scull `C₂` = 58.7 is their computed
+nominal value, and their own best fit to data was 2.4× that.
+
 ### Surge swing is 10–31% too large
 Model against Holt: ratios 1.31, 1.31, 1.10, 1.18. `scripts/unsteady.py`
 squares this quantity, so the error is four times worse there.
+
+*The research profile, 2026-09-14:* ratios 1.43, 1.43, 1.16, 1.28 (swing 70, 73,
+64, 68% against Holt's 49, 51, 55, 53%) -- larger than the shipped model's on
+all four. Largest on the singles, where the crew is the largest share of the
+moving mass.
 
 ### The eight is validated only by inference
 Holt measured singles and pairs. The boat this project cares about most
