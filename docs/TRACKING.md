@@ -1027,9 +1027,30 @@ the finish the model holds the oar dead, and that energy is not returned to
 the water. Holt's Peach power is *handle* power, which excludes it. So at "334
 W" the standard build delivers less to the handle than Holt's rower did, most
 of all in a single, where the body is the largest share of the moving mass.
-This is the first candidate for the parked singles-versus-pairs spread that
-lies in the model rather than in the measurement. *Being sized*
-(`finish_energy_loss.py`).
+*Sized (`finish_energy_loss.py`), and one claim withdrawn.* Over the settled
+last stroke, the oar-plus-reflected-body kinetic energy on the last driving
+step, ½ I_seat θ̇², is what the held finish discards. Research profile,
+default shape, Holt's conditions, pairs on the double:
+
+| class | discarded per rower per stroke | as power | share of handle power | I_seat, oar rate at the finish |
+|---|---|---|---|---|
+| M1x | 45.8 J | 26.5 W | **7.9%** | 17.6 kg·m², 131 °/s |
+| W1x | 34.0 J | 18.6 W | **8.3%** | 16.0 kg·m², 118 °/s |
+| M2- | 57.8 J | 36.7 W | **9.7%** | 17.5 kg·m², 147 °/s |
+| W2- | 41.8 J | 24.5 W | **10.2%** | 16.0 kg·m², 131 °/s |
+
+- **Withdrawn: "the first candidate for the singles-versus-pairs spread that
+  lies in the model."** The loss is 8–10% of handle power on every class, and
+  slightly larger on the higher-rating pairs. It is a general gap between the
+  model's rower power and Holt's handle power, not a singles effect. The
+  spread stays parked on the measurement side.
+- **It is most of what the probe gained.** An 8% power sink is worth about
+  2.7% of speed at the drag law's exponent of about 3, against the probe's
+  3.3–3.9 points.
+- **Not all of it is a defect.** A real rower also spends work stopping the
+  body and oar at the finish. What is a defect is comparing the model's τ θ̇
+  power, which includes it, with Holt's handle power, which does not. Phase 4.3's
+  chain decides where that energy goes.
 
 Caveats: the probe's seat balance carries one oar's inertia, not two, a small
 error. And an oar with no body on it is lighter than a real one. This is a
