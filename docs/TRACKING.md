@@ -1109,16 +1109,26 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
   | | power needed | peak per gate | at the catch | catch to peak | shape rms | min boat accel. | accel. zero after catch | accel. rms |
   |---|---|---|---|---|---|---|---|---|
   | men, [LE26] | ([K00] 489 W) | 597 N | 101 N | 0.379 s | — | −14.2 m/s² | 0.069 of cycle | — |
-  | men, model default | 523 W | 715 N | 0 | 0.481 s | 0.366 | −11.2 | **0.143** | 3.0 m/s² |
-  | men, model cr06 | 519 W | 641 N | 0 | 0.476 s | 0.335 | −11.2 | 0.142 | 3.0 m/s² |
+  | men, model default | 523 W | 715 N | 0 | 0.481 s | 0.366 | ~~−11.2~~ **−9.9** | **0.143** | 3.0 m/s² |
+  | men, model cr06 | 519 W | 641 N | 0 | 0.476 s | 0.335 | ~~−11.2~~ −9.9 | 0.142 | 3.0 m/s² |
   | women, [LE26] | ([K00] 302 W) | 458 N | 77 N | 0.406 s | — | −11.0 | 0.069 | — |
-  | women, model default | 363 W | 522 N | 0 | 0.524 s | 0.345 | −9.0 | **0.141** | 2.4 m/s² |
-  | women, model cr06 | 360 W | 468 N | 0 | 0.519 s | 0.317 | −9.0 | 0.139 | 2.4 m/s² |
+  | women, model default | 363 W | 522 N | 0 | 0.524 s | 0.345 | ~~−9.0~~ **−7.8** | **0.141** | 2.4 m/s² |
+  | women, model cr06 | 360 W | 468 N | 0 | 0.519 s | 0.317 | ~~−9.0~~ −7.8 | 0.139 | 2.3 m/s² |
+
+  *Corrected 2026-09-14* (`model_vs_legge_airmask.py`, same build, true
+  per-sample blade air mask). The struck values were evaluated with the
+  blade forced into the water through the sweep catch's pre-entry phase. The
+  same computation on the original CSV reproduces them (−11.2 / −9.0,
+  0.143 / 0.141, rms 2.95 / 2.33). On the corrected CSV only the minimum
+  moves: the zero after the catch is unchanged and rms is 2.97 / 2.35 m/s².
+  Force, power, peak and timing are identical.
 
   - **The slow load-on shows up in the hull itself.** The measured boat is
     back to accelerating 0.069 of the cycle after the catch, with a sharp
     first peak of about 4 m/s² at 0.09. The model's stays decelerating twice
-    as long, to 0.14, has no first peak, and its catch dip is 20% shallower.
+    as long, to 0.14, has no first peak, and its catch dip is ~~20%~~ **29–30%**
+    shallower (corrected for the air-mask artefact; the late return and the
+    missing first peak are unchanged).
   - **The force comes on late and runs long.** The measured force reaches
     about 450 N (men) per gate by 0.10 of the cycle. The model's is near zero
     until the blade enters at about 0.04, is about 200 N at 0.13, and peaks
