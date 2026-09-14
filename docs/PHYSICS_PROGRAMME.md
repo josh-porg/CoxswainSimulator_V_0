@@ -774,6 +774,18 @@ force are not in the paper and have to be built and validated here.
       203 N (both gates) at the catch and 0.11 s earlier to 300 N. The body is
       driven through the feet, which a torque-driven chain with a stretcher
       contact can represent and the present oar balance cannot.
+  - *Two targets, not one (2026-09-14).*
+    - **Force curve.** Taking the body off the oar balance fixes about 40% of
+      the gate-force shape error. It does not move the hull.
+    - **Hull.** Splitting the hull's acceleration around the catch shows why:
+      it is ten times more crew reaction than blade. The prescribed,
+      ergometer-fitted body tracks the approach to the catch within 1 m/s².
+      But it reverses too gently: a −9 m/s² plateau through the catch,
+      against a measured −14 m/s² dip that swings to +4 m/s² within 0.10 of
+      the cycle. So 4.3 must also produce the body's reversal at the catch,
+      as the stretcher and legs drive it.
+    - **A target to check that against:** a measured on-water body motion,
+      such as [CR06]'s seat and back traces.
 
   *Qualified on reading [CR06] in full:* the direction of slaving decides
   it. [CR06] slaves the **oar to the body** — smooth prescribed leg, back and

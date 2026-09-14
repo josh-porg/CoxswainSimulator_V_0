@@ -1169,8 +1169,42 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
     mainly the oar balance. Near the catch the hull feels the crew's own
     reversal most, and that is prescribed from ergometer kinematics
     (TRACKING's kinematics defect). The mismatched recovery shape points the
-    same way. *Being checked:* the hull acceleration around the catch, split
-    into crew reaction, blade and drag.
+    same way.
+
+  *Checked, and it is the crew (`legge26/catch_accel_split.py`).* The
+  model's surge acceleration around the catch was split into contributions from
+  the simulator's own `ForceBreakdown`. Each force along the velocity was divided
+  by the effective surge mass, so the parts sum to the total. Standard build,
+  men (women the same pattern), m/s²:
+
+  | fraction of cycle from catch | crew reaction | blade | drag | model | [LE26] |
+  |---|---|---|---|---|---|
+  | −0.10 | −4.5 | 0.0 | −1.0 | −5.5 | −4.3 |
+  | −0.05 | −8.3 | 0.0 | −0.8 | −9.1 | −8.2 |
+  | 0.00 | −9.2 | 0.0 | −0.7 | −9.8 | **−14.2** |
+  | 0.05 | −8.8 | 0.0 | −0.5 | −9.3 | −6.0 |
+  | 0.07 | −7.7 | 0.02 | −0.4 | −8.1 | **+0.4** |
+  | 0.10 | −4.9 | 0.09 | −0.4 | −5.2 | **+4.0** |
+  | 0.20 | +3.7 | 1.3 | −0.3 | +4.7 | +2.4 |
+
+  - **The approach to the catch is right.** To 0.05 of the cycle before it,
+    the crew term tracks the measured deceleration within about 1 m/s².
+  - **The reversal is wrong.** Measured, the boat dips to −14.2 m/s² at the
+    catch and swings to +4.0 within 0.10 of the cycle, about 0.16 s. The
+    model's crew term holds a broad −9 m/s² plateau through the catch, is
+    still −4.9 at 0.10, and crosses zero only at 0.14 (women 0.141).
+  - **The blade is negligible there.** It is under 0.5 m/s² until 0.14 of the
+    cycle, so no blade or handle-force change can make the measured swing: the
+    crew term is ten times larger.
+  - **The measured catch is sharper, not later.** Model and measurement both
+    have their minimum at the catch; the ergometer-fitted body reverses too
+    gently. So the hull's catch is the kinematics defect ("The drive is
+    18–28% too long, and the cause is the ergometer"), not the oar. It sets a
+    second target for phase 4.3, the body's reversal, alongside the handle-force
+    split.
+  - The split is undefined for an instant where the total acceleration
+    crosses zero (men, 0.14), because the effective mass blows up; nothing
+    else is affected.
   - The men's oar-only run shows two notches in gate force and acceleration,
     at 0.24 and 0.37 of the cycle, most likely the light oar chattering near
     release. Its shape error is somewhat pessimistic for that.
