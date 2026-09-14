@@ -1540,6 +1540,24 @@ checked against. None are recorded here yet. What the search found:
     - *Use for phase 4.3:* order of magnitude and pattern — catch below the
       maximum-handle-force value, and hip above knee above ankle. Not
       point values to fit.
+  - **Chapter 8, foot-force direction.** The only numbers read that split
+    horizontal from resultant foot force.
+    - **Who:** ten heavyweight **male sweep** rowers, GB U23 or equivalent
+      (89.0 ± 9.1 kg; 2000 m ergometer best 6:12.1). The same instrumented
+      Concept2 Model D, with four foot-stretcher heights, P1 lowest.
+    - **Peak resultant foot force**, bilateral: 14.2 ± 1.2, 13.9 ± 1.4,
+      13.7 ± 1.4 and 13.5 ± 1.4 N/kg at P1–P4.
+    - **Peak horizontal foot force:** 11.5 ± 1.0 N/kg at P1, down to
+      10.2 ± 1.5 at P4.
+    - **Ratio:** horizontal over resultant, at the catch and at maximum
+      handle force, is plotted (Fig. 8.5) but not tabulated. It falls at
+      maximum handle force as the stretcher is raised.
+    - *Not a constraint for [CR06]'s woman:* men, sweep, ergometer, and a
+      ratio of peaks that need not coincide in time. Without a foot-force
+      direction for her, the knee and ankle moments of a planar chain are
+      indeterminate: the seat's vertical load and the stretcher's vertical
+      force share one equation. Only the hip moment (trunk on thigh)
+      follows from the handle force alone.
 - **[FT25] Fang & Troy (2025).** Bioengineering 12(1) 75,
   doi:10.3390/bioengineering12010075, Table 2. Twenty able-bodied *novices*
   (10 women), 70.0 ± 14.8 kg, on an adapted ergometer. Peak knee extension
