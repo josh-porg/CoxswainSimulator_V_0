@@ -809,6 +809,14 @@ force are not in the paper and have to be built and validated here.
       - So 4.3's body must come either from a measured on-water joint
         trajectory or from joint torques whose catch reversal follows from
         the stretcher and blade loads, not from warping the keyframe fit.
+    - *Caution, 2026-09-14:* the model-side catch-window **accelerations**
+      quoted in this and the next items were evaluated with the blade forced
+      into the water through the sweep catch's pre-entry phase. That
+      overstated catch deceleration by up to ~2 m/s² on the [CR06] check.
+      They are void until the reruns with the true air mask land (TRACKING,
+      "the same artefact reaches five earlier [LE26] scripts"). The
+      [LE26] measurements themselves, and every [CR06] velocity result, are
+      unaffected.
     - **The two targets are coupled, not separable** (TRACKING, measured
       leg time-law).
       - Driving the body on [CR06]'s measured leg motion makes the hull's

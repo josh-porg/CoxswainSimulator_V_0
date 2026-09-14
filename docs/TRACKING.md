@@ -1590,17 +1590,42 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
       estimated as 75 × (−8.55 + 12.40) + 24 ≈ **310 N**. That is still
       ~9× the gate force, and close to [LE26]'s *directly measured* 335 N
       for world-class women. **The target stands.**
-    - **Part 2, inferred, to be confirmed by the rerun.** The model's 33 N
-      with 12.6 m/s² relative acceleration at t = 0 implies hull
-      deceleration near −12.5 m/s², against her −8.5.
-      - So most of the shortfall, about 300 N, would be the model's hull
-        braking about 4 m/s² harder through the catch.
-      - That is the same fact as the 0.13 m/s-too-deep dip: an
-        external-force deficit, not a body-representation error.
-      - The crew's smaller relative acceleration should make the hull
-        brake *less*, so the extra braking has to come from blade and drag.
-      - The model's own landmark, and the momentum books (−3.96 N·s over
-        the stroke), are being rechecked.
+    - **Part 2: the model's 33 N was an evaluation artefact** (2026-09-14).
+      The script took hull acceleration from `sim.derivative` after setting
+      `sim._in_air` all-False. That puts the blade in the water through the
+      sweep catch's pre-entry phase (0–0.042 of the cycle, 53 samples),
+      adding braking the simulation never applied. The books caught it:
+      ∫M a dt = −3.96 N·s over a stroke whose velocity returns to its start.
+
+      | hull acceleration | minimum | books over the stroke | stretcher at the catch |
+      |---|---|---|---|
+      | blade forced into the water (wrong) | −12.49 at 0.000 | −3.964 N·s | 33 N |
+      | true per-sample air mask | −10.46 at 0.002 | 0.003 N·s | **190 N** |
+      | gradient of the simulated velocity | −10.46 at 0.002 | 0.000 N·s | 190 N |
+
+      - The two correct methods agree to 0.05 m/s² everywhere. The forced
+        one is off by up to 2.07 m/s² at the catch.
+      - **Corrected result:** the model's stretcher at the catch is **190 N**,
+        against her ~310 N (segmental body) and [LE26]'s measured 335 N.
+        Gate force is 34 N, so the stretcher leads. The ~120 N shortfall is
+        the model's hull braking 1.9 m/s² harder than hers (−10.46 against
+        −8.55 m/s²): the same fact as the 0.13 m/s-too-deep dip. It is
+        external force, not body representation, since her 310 N already
+        uses the segmental body.
+    - **The same artefact reaches five earlier [LE26] scripts.**
+      `model_vs_legge`, `probe_vs_legge`, `retimed_body_vs_legge`,
+      `warped_body_vs_legge` and `measured_inputs_vs_legge` built their hull
+      acceleration the same way.
+      - **Void until rerun:** every catch-window acceleration they recorded,
+        above and in PHYSICS_PROGRAMME §4.3 — catch dip depths, the zero
+        crossing after the catch, first peaks, rms.
+      - **Being rerun** as `*_airmask.py` copies with the true mask. The
+        originals and their outputs are kept.
+      - **Unaffected:** `catch_accel_split.py`, which already set the true
+        mask per sample (its "crew reaction dominates the catch" split
+        stands). Also the Holt slip and gate-force scripts and the
+        energy-book and step checks, which evaluate in-water samples only.
+        And every [CR06] velocity comparison, which reads integrated states.
     - The shipped game is frozen, so any correction is research-side, and it
       needs a sex carried from the lineup or roster.
   - **Found while building it: the scull weighs as much as a sweep oar.**
