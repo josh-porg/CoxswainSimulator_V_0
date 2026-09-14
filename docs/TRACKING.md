@@ -1151,6 +1151,27 @@ candidates:
   trimming stroke against bow power until the mean yaw rate is zero, before it
   can say whether the stand-in flattered the pairs. Until then the spread is
   **not** known to be smaller than 7–10 points.
+
+  *Steered by pressure (`holt_pairs_steered.py`).* The Coxswain's own pressure
+  split was driven by a PD loop on heading (gains 2.0 per rad and 1.0 per
+  rad/s, a control choice), with torque matched to power with that coxswain in
+  the loop. The pair stopped circling but **did not run clean**: over the last
+  stroke it still turned 2.7–3.5°, with a mean sideslip of 5.1–5.9°, and it
+  needed a mean |split| of 0.35–0.38, about 118% against 82% pressure.
+
+  | class | 26 °C, Holt P | 26 °C, Holt P / share | yaw per stroke | mean sideslip |
+  |---|---|---|---|---|
+  | M2- | −1.8% | +0.5% | −3.0° | 5.3° |
+  | W2- | −2.1% | +0.1% | −3.5° | 5.9° |
+
+  With sideslip left in, these rows **bound** the pairs rather than measure
+  them. The pairs lie between the steered sweep pair (−2.1 to −1.8% as
+  printed) and the double stand-in, which ran exactly straight (−0.4 to
+  +0.0%). **The rig is worth at most about 2 points.** The spread from the
+  singles stays **6.4–9.4 points** as printed. Running a pair clean needs its
+  real means of balance, which the rig does not have: rigging asymmetry such
+  as oarlock span, oar length or inboard per side, and hull shape. These rows
+  are not pursued further; the spread's other two candidates are next.
 - Holt's scullers and sweepers are different cohorts; see the [K00] ratios
   above.
 - The swing is too large everywhere, and most on the singles, where the crew
