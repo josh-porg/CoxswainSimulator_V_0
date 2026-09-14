@@ -598,8 +598,32 @@ most of the blade-efficiency shortfall: the level target (0.754–0.816,
 Kleshnev) still fails, but 0.56 has become 0.70–0.73. Surge swing falls and
 stays in its band.
 
-*Still open.* Not in the `research` profile, which keeps the rest catch until
-the scorecard has been run on it. The entry angle, 2–6° past the catch, has no
+*The validation scorecard on it, 2026-09-13.* The scorecard's own operating
+points (80–360 W, 16 strokes), its `Settled` records and drag pricing, and its
+own `measure()`; only the settle differs: `catch="sweep"`, and peak torque
+rescaled three times per point so handle power including entry work is the
+stated wattage. Research profile, tier 1, rate 28, rest → sweep:
+
+| target | eight | coxed four | status |
+|---|---|---|---|
+| blade-efficiency zero crossing (× mean speed) | 1.22 → **12.26** | 1.29 → **14.58** | pass |
+| spread of η/v | 0.356 → 0.523 | 0.362 → 0.534 | pass |
+| speed per watt (m/s per 100 W) | 0.18846 → 0.20018 (+6.2%) | 0.32912 → 0.34506 (+4.8%) | pass |
+| surge swing, fastest point | 47.2 → 41.3% | 50.3 → 44.9% | pass (30–60) |
+| blade efficiency level, fastest point | 0.559 → **0.714** | 0.566 → **0.681** | fail (0.754–0.816) |
+
+No target changes status. The signature of the blade defect this programme
+opened on -- efficiency proportional to speed, a line through the origin -- is
+gone: the fitted line now reaches zero at twelve times the mean speed. Blade
+efficiency falls gently with power instead, on the eight from **0.770 at 80 W,
+inside Kleshnev's band**, to 0.714 at 360 W, where the level target is scored.
+
+*Still open.* Not yet the `research` profile. The profile's simulator is built
+by `simulator_for` from the closed-form `peak_torque_for_power`, which cannot
+count entry work -- that depends on the speed the blade enters at, so matching
+power needs either the iterated settle used here or a closed form that carries
+the entry speed. Until that exists, switching the profile would under-power
+every research crew by the entry work, about 9% on the eight. The entry angle, 2–6° past the catch, has no
 measured target yet (the digitised [CR06] Fig. 3 carries release markers only).
 Refused with the following crew and with blade added mass, both of which were
 waiting on exactly this. The recovery still holds the oar at the finish.
