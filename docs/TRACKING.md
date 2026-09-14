@@ -1554,10 +1554,19 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
         resolved, so the men's power drop is integration error, not physics.
       - **The mean speed hid it.** It converged in the [CR06] check
         (0.6 mm/s), but speed averages over the drive.
-      - **Rechecks running:** the men's books at T/320 and T/640; the [CR06]
-        one-athlete runs' books at T/160 and T/640; and the committed claim
-        that the full research balance is resolved at the default step,
-        now on power and φ̈ rather than speed.
+      - **The committed research change stands.** On the full research
+        balance (reflected crew inertia on the oar), a 1.2 kg scull at
+        T/80, T/160 and T/320 gives:
+        - speed: 3.8682, 3.8688 and 3.8691 m/s;
+        - power: 267.91, 267.91 and 267.90 W;
+        - φ̈ in the water: a smooth −5.5 to +4.1 rad/s² with one sign
+          change at every step.
+
+        It is resolved at the default step (`cr06/full_balance_step_check.py`).
+        The problem is confined to the oar-only probe, where a 1.2 kg·m² oar
+        faces the blade slip alone.
+      - **Rechecks running:** the men's books at T/320 and T/640, and the
+        [CR06] one-athlete runs' books at T/160 and T/640.
       - Until those return, the [LE26] rows with the 1.2 kg scull are void,
         and the [CR06] one-athlete results are provisional.
     - **Consequence for the probes.** Every study that builds its single
