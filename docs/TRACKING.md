@@ -1412,6 +1412,32 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
     with her body and force time-laws at her own rate, and scoring the
     predicted boat *velocity* against her measured one, removes both the
     cross-athlete assumption and differentiation noise.
+  - **Found while building it: the scull weighs as much as a sweep oar.**
+    `SCULLING_OAR` (coxswain/boats/rig.py) sets no mass, so it inherits the
+    `Oar` default of 2.7 kg, which is documented as a *composite sweep oar*
+    (SOURCES, roll authority). [CR06] Table 1 measured 1.2 kg for a scull.
+    About the lock that is 2.71 against 1.24 kg m² (uniform rod; [CR06]'s
+    own I_G + m d² gives 1.233). Every scull run so far, including the
+    [LE26] catch comparisons with the oar-only balance, carried twice the
+    oar inertia. It matters most where the rower's torque is balanced
+    against oar inertia alone.
+    - *Not fixed yet.* The shipped game uses this oar for recovery roll
+      authority, so a correction belongs in the research profile. And at the
+      default fixed step (T/80, capped at 0.5/80 s) a 1.2 kg oar under the
+      oar-only balance diverges in the first stroke. A catalog-geometry oar
+      at 1.2 kg fails the same way, and the [CR06] geometry at 2.7 kg runs,
+      so mass alone is the cause. **It is the step, not the physics:** at
+      half the default step it runs, and halving again changes the mean
+      speed by 0.6 mm/s (4.3214 against 4.3219 m/s over four strokes). A
+      lighter oar raises the blade-slip mode's rate beyond what RK4 at T/80
+      resolves. A research-profile oar-mass correction therefore has to bring
+      its own step.
+  - *Diagnostic trap, recorded so it is not repeated.* Chaining
+    `run_strokes(1, surge_speed=v)` with v the previous stroke's *mean*
+    speed ratchets the boat up: each restart sets the catch speed to the
+    mean, above the true catch speed, re-injecting momentum every stroke
+    (4.19 → 5.58 m/s in ten). Continuous multi-stroke runs don't have this
+    problem.
   - The men's oar-only run shows two notches in gate force and acceleration,
     at 0.24 and 0.37 of the cycle, most likely the light oar chattering near
     release. Its shape error is somewhat pessimistic for that.
