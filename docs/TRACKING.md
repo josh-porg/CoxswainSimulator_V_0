@@ -995,6 +995,46 @@ the loop:
     balance, which is phase 4.3's job. Recorded as the hypothesis to test
     there, not changed here.
 
+*The hypothesis probed (`catch_handle_force_probe.py`): about half the catch,
+none of the finish, and a third of the singles' speed gap.*
+`OarDynamics.from_boat` takes a scalar inertia as a study override. Set to the
+oar's own second moment, it removes the body from the oar balance, so the pull
+acts as handle torque, what the measured curves record. The clock crew still
+moves the hull, and power is matched with this build in the loop. Signed
+balance with exact acceleration, Holt's conditions:
+
+| single | catch / finish slip (Holt) | gate at 5° / 10° | catch to peak (Holt) | peak / mean (Holt) | peak gate (Holt) | speed error | oar rate at 10° |
+|---|---|---|---|---|---|---|---|
+| M1x, body on oar, default | 21.5 / 19.3° (7.7 / 14.1) | 12 / 51 N | 0.56 s (0.43) | 2.54 (1.90) | 478 N (497) | −8.5% | 62 °/s |
+| M1x, oar only, default | **14.7** / 20.0° | 48 / 128 N | 0.49 s | 2.17 | 465 N | **−4.9%** | 76 °/s |
+| M1x, oar only, cr06 | **13.3 / 15.9°** | 75 / 155 N | 0.49 s | **1.91** | 420 N | **−4.6%** | 80 °/s |
+| W1x, body on oar, default | 26.0 / 23.8° (9.7 / 18.1) | 19 / 51 N | 0.63 s (0.39) | 2.42 (1.87) | 331 N (371) | −11.5% | 55 °/s |
+| W1x, oar only, default | **19.9** / 24.5° | 35 / 90 N | 0.56 s | 2.15 | 329 N | **−8.2%** | 64 °/s |
+| W1x, oar only, cr06 | **19.8 / 20.6°** | 53 / 110 N | 0.56 s | **1.89** | 296 N | **−7.9%** | 67 °/s |
+
+- **The body on the oar costs 6–8° of catch slip.** It is still 5.6–10°
+  long without it, so the rest is the blade's entry.
+- **The finish does not depend on it at all** (19.3 → 20.0°). The finish is
+  the pull shape's, and cr06 fixes it in either build.
+- **With the body off, cr06's peak/mean equals Holt's,** 1.91 against 1.90
+  and 1.89 against 1.87.
+- **The singles' speed gap closes by 3.3–3.9 points** at Holt's power as
+  printed, with no change to hull, blade or water.
+
+**A power-accounting defect behind that.** In the standard build the rower is
+charged τ θ̇, which includes the energy put into the body through the oar. At
+the finish the model holds the oar dead, and that energy is not returned to
+the water. Holt's Peach power is *handle* power, which excludes it. So at "334
+W" the standard build delivers less to the handle than Holt's rower did, most
+of all in a single, where the body is the largest share of the moving mass.
+This is the first candidate for the parked singles-versus-pairs spread that
+lies in the model rather than in the measurement. *Being sized*
+(`finish_energy_loss.py`).
+
+Caveats: the probe's seat balance carries one oar's inertia, not two, a small
+error. And an oar with no body on it is lighter than a real one. This is a
+diagnosis for phase 4.3, not a candidate change.
+
 *Still open.* The entry angle, 2–6° past the catch, has no measured target
 (the digitised [CR06] Fig. 3 carries release markers only). Refused with the
 following crew and with blade added mass, both of which were waiting on

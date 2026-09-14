@@ -752,6 +752,16 @@ force are not in the paper and have to be built and validated here.
   - 4.3's torque-driven chain decides how muscle torque splits between body
     and handle. **Its gate: reproduce the measured handle-force curve's ends,
     not only its middle.**
+  - *Probed the same day, by removing the body from the oar balance.*
+    - Catch slip falls 6–8° (M1x 21.5 → 14.7°), still 5.6–10° long.
+    - The finish does not move.
+    - Peak/mean with the cr06 shape equals Holt's (1.91 against 1.90).
+    - The singles' speed gap closes 3.3–3.9 points at equal power.
+
+    So the body explains about half the catch, and the blade's entry the
+    rest. The standard build also charges the rower for body energy that the
+    dead-stop finish throws away, whereas Holt's handle power excludes it.
+    4.3 must account for where that energy goes.
 
   *Qualified on reading [CR06] in full:* the direction of slaving decides
   it. [CR06] slaves the **oar to the body** — smooth prescribed leg, back and
