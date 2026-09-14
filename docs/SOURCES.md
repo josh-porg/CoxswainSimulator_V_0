@@ -1322,6 +1322,112 @@ unsettled. Both measurements are of sweep oars. The cos θ conversion in
 TRACKING's Holt singles item stays a **diagnosis of what Holt's stated
 definition would imply**, not a correction.
 
+### [LE26] Legge, Draper, O'Meara, Watsford, Slattery & Warmenhoven (2026)
+*Assessment of rowing biomechanics during single sculling using functional
+clustering.* **J. Sports Sci. 44(7) 920–931**, doi:10.1080/02640414.2026.2623564,
+open access (CC BY-NC-ND). Full text read; PDF supplied by the user.
+
+**Who and how.** 25 world-class scullers at the Australian national training
+centre: 13 men (27 ± 2.8 y, 191.4 ± 3.7 cm, 91.7 ± 3.4 kg) and 12 women
+(25 ± 2.5 y, 178.7 ± 5.7 cm, 76.2 ± 8.5 kg). Each rowed a 500 m open-rate piece
+in a single, and 20 mid-piece strokes were analysed. The instruments were Peach
+PowerLine gates, foot-stretcher sensor, GPS and accelerometer at 50 Hz, set up
+to each rower's own rigging. The gate-angle signal was filtered with a 4th-order
+Butterworth at 20 Hz.
+- **Speed and rate:** men 4.91 ± 0.12 m/s at 36.7 ± 2.6 spm; women
+  4.40 ± 0.09 m/s at 34.1 ± 2.0 spm.
+- **Conditions:** water 20.1 ± 1.7 °C, air 19.1 ± 3.4 °C, wind 0.8 ± 1.0 m/s,
+  calm to a light cross-tail.
+
+**What they measure.**
+- **Gate force** on the stroke side (right hand), along the boat's long axis
+  (their Fig. 1). This is a second statement of the long-axis definition,
+  after [H20].
+- **Stretcher force** along the long axis, and boat acceleration.
+- **Each cycle** runs catch to catch, with the catch at the largest negative
+  gate angle. It is time-normalised to 101 points, fitted with 25 B-splines and
+  landmark-registered at the zero crossing of boat acceleration after the
+  catch.
+- **Clustering** is funHDDC (Bouveyron & Jacques 2011), chosen by BIC.
+
+**Findings that bear on this model.**
+- **Gate force curves** (Fig. 3, cluster means): men's clusters peak near
+  **1200 N per gate**, women's near **900–1000 N**. The early-to-mid drive rise
+  is "the most consistent section of the stroke cycle", where rate of force
+  development is highest.
+  - *Read as printed, this looked 2.4× higher than [H20]'s peaks, but the
+    figure is both gates summed. See "Fig. 3's gate force is almost certainly
+    both gates summed" below.* Per gate, it is about 20% above [H20].
+- **Stretcher force leads gate force into the catch** (Fig. 2, a generic
+  illustration). Stretcher force is already about 400 N at the catch, where
+  gate force is about 200 N, and the two coincide from mid-drive. The authors
+  note "a noticeable momentary delay in the stretcher force application at
+  approximately 50% of the stroke cycle" (the catch and early drive): pushing
+  off the stretcher with a jump-like vertical component. That is the body
+  being driven through the feet, not the handle, which bears on the dynamic
+  oar's body-on-the-oar-balance hypothesis (TRACKING, Holt singles item).
+- **Boat acceleration** (Fig. 5): minimum about −10 to −15 m/s² just before
+  the catch. There is a first drive peak about 4 m/s², a "drive slump", a
+  second peak about 4 m/s² and a "finish slump". It is a time-resolved target
+  the model's surge could be checked against.
+- **Figures** are raster (300 ppi), not vector, so any curve taken from them is
+  a digitisation with pixel uncertainty. No numerical tables of the curves are
+  given. Supplementary material (the sensor validation) was not obtained.
+
+**Digitised (2026-09-14).** The embedded images were extracted with pdfimages.
+Each panel's axes were snapped to its light-grey gridlines (a least-squares
+linear calibration, residual ≤ 0.9 px), and the black group-mean line traced
+column by column. Every cluster panel repeats the same group mean, so repeated
+panels are a consistency check: they agree to ≤ 11 N and ≤ 0.1 m/s². Two
+defects were found and fixed along the way.
+- A band reaching above the top gridline caught the black panel title and gave
+  a false 13 m/s² acceleration maximum.
+- A band clipped at the top tick cut the stretcher peak (above 1000 N) to
+  1045 N.
+
+Several Fig. 3 y-tick labels are misprinted ("100" for 1000), so calibration
+used the gridlines, not the labels. Values, with the catch at minimum boat
+acceleration as their Fig. 2 places it:
+
+| | men | women |
+|---|---|---|
+| peak gate force (stroke side) | 1194 N at 69.8% of the cycle | 916 N at 69.2% |
+| peak stretcher force | 1120 N at 69.5% | 864 N at 68.7% |
+| boat acceleration minimum (the catch) | −14.2 m/s² at 46.5% | −11.0 m/s² at 46.0% |
+| gate / stretcher force at the catch | 203 / 426 N | 154 / 335 N |
+| catch to peak gate force | 0.379 s | 0.406 s |
+| drive, catch to gate force zero | 0.486 of the cycle | 0.490 |
+| peak / mean gate force over the drive | 1.61 | 1.68 |
+
+Curves are saved as CSV in the session's `phase4/legge26/`. The women's stretcher
+clusters 2 and 4 and part of the acceleration figure are cropped in the
+published image, so only complete panels were used.
+
+**Fig. 3's gate force is almost certainly both gates summed, not one.** The
+Methods say the stroke-side gate was analysed, but Fig. 2's legend reads
+"Total Gate Force", and a power check decides it. Take the mean force over the
+drive and [H20]'s measured arcs (105.4°, 106.0°); split pin force into handle
+force through the model's scull levers (inboard 0.88 m, blade centre 1.785 m);
+multiply by handle speed. The implied handle power per rower is:
+
+| reading of Fig. 3 | men, rate 36.7 | women, rate 34.1 |
+|---|---|---|
+| one gate | 982 W | 674 W |
+| both gates summed | **491 W** | **337 W** |
+| [K00] handle power at that rate | 489 W | 302 W |
+
+The per-gate reading is 2.0–2.2× Kleshnev's measured power; the summed reading
+is 1.00× and 1.12×. So, **per gate**:
+- peaks are about **597 N (men) and 458 N (women)**, and the catch values in
+  the table above halve to about 102 N and 77 N.
+- The comparison with [H20] above ("about 2.4× lower") is withdrawn. [H20]'s
+  national-level 497 N and 371 N are about 20% below these world-class
+  per-gate peaks.
+- Stretcher force (Fig. 4) is a single bilateral measurement and is not
+  halved.
+- The arc and lever arms in the check are approximations, but they cannot
+  account for a factor of 2.
+
 ### [HLBS18] Hofmijster, Lintmeijer, Beek & van Soest (2018)
 *Mechanical power output in rowing should not be determined from oar forces
 and oar motion alone.* **J. Sports Sci. 36(18) 2147–2153**, PMID 29737945;

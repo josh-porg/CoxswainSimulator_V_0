@@ -1060,6 +1060,49 @@ Caveats: the probe's seat balance carries one oar's inertia, not two, a small
 error. And an oar with no body on it is lighter than a real one. This is a
 diagnosis for phase 4.3, not a candidate change.
 
+*Time-resolved measurements from world-class scullers ([LE26]; digitised
+2026-09-14).* Legge et al. (2026) publish group-mean curves over the cycle for
+13 men (4.91 m/s, 36.7 spm) and 12 women (4.40 m/s, 34.1 spm). The curves are
+gate force per gate, stretcher force and boat acceleration. They were digitised
+from the raster figures (`legge26/digitise_fig3.py`, `digitise_fig45.py`):
+gridline calibration residual ≤ 0.9 px, and repeated panels of the same mean
+agree to ≤ 11 N and ≤ 0.1 m/s². Following their Fig. 2, the catch is taken at
+minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
+
+| | men | women |
+|---|---|---|
+| boat acceleration: minimum / zero after the catch / second peak | −14.2 m/s² / 53.2% / 4.9 m/s² at 79% | −11.0 m/s² / 52.8% / 3.9 m/s² at 78% |
+| **gate force at the catch**, both gates summed (Fig. 3 is summed; SOURCES [LE26]) | **203 N** (about 102 per gate) | **154 N** (about 77 per gate) |
+| gate force 20% / 10% / 5% of the cycle before the catch | −40 / 47 / 131 N | −24 / 32 / 105 N |
+| time from the catch to 196 N | 0 s | 0.044 s |
+| catch to peak gate force | 0.379 s (1194 N) | 0.406 s (916 N) |
+| drive, catch to gate force back at zero | 0.486 of the cycle, 0.794 s | 0.490, 0.862 s |
+| peak / mean gate force over that drive | 1.61 | 1.68 |
+| **stretcher force at the catch** | **426 N** | **335 N** |
+| stretcher leads gate force to 300 N by | 0.110 s | 0.113 s |
+| stretcher and gate forces converge | by about 52% of the cycle | by about 54% |
+
+- **The gate is loaded before the drive.** Gate force rises from about −40 N a
+  fifth of a cycle before the catch to 150–200 N *at* the turning point. So the
+  model's gate force, zero until the blade enters, cannot be compared with a
+  196 N threshold without that pre-load. By [H20]'s rule these scullers' catch
+  slip is 0 to a few degrees. Part of the model's catch "miss" is what the
+  instrument counts. What the pre-load is (the blade touching the water before
+  the turning point, the hands already loading the handle, the oar's own
+  deceleration) is not separable from these curves. The oar's inertia alone is
+  worth about 30–40 N per scull.
+- **The body is driven through the feet into the catch.** At the catch the
+  stretcher carries 184–229 N more than the gate, and the difference closes by
+  mid-drive. That excess is what accelerates the rower's body, and it does not
+  pass through the handle. It is direct support for the phase 4.3 hypothesis
+  that the dynamic oar wrongly charges the body's acceleration to the handle
+  torque.
+- **The measured drive is 0.49 of the cycle.** At similar rates the model's is
+  0.555–0.585 (TRACKING's drive-fraction item), and its catch to peak is
+  0.56–0.63 s against 0.38–0.41 measured.
+- *Model at [LE26]'s speeds* (`legge26/model_vs_legge.py`, torque matched to
+  the measured speed, since no power is published): being measured.
+
 *Still open.* The entry angle, 2–6° past the catch, has no measured target
 (the digitised [CR06] Fig. 3 carries release markers only). Refused with the
 following crew and with blade added mass, both of which were waiting on
