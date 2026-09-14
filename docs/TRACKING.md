@@ -1236,6 +1236,70 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
     sharpness with [LE26]'s hull dips for 25 world-class scullers. With the
     split above, it closes the chain from hull to body: the model hull's slow
     catch is the prescribed body's gentle leg reversal.
+
+  *Can the existing sequencing warps retime it? The trunk, yes; the catch, no
+  (`cr06/sequencing_grid.py`).* `SegmentSequencing` (shank, thigh, trunk) is the
+  existing within-phase warp. It is `SYNCHRONOUS` (zero) everywhere, and SOURCES
+  §30's calibrated value was never adopted. The rower was rebuilt with legs
+  (shank = thigh) from 0 to 0.25 and trunk from 0 to −0.25, kinematics only,
+  and scored against [CR06]'s measured body:
+
+  | legs | trunk | leg accel. at catch | 0 → half leg velocity | back 50% | leg shape rms | back shape rms |
+  |---|---|---|---|---|---|---|
+  | [CR06] | | 14.1 m/s² | 0.077 s | 0.585 s | — | — |
+  | 0 | 0 (default) | 6.9 | 0.103 s | 0.460 s | 0.053 | 0.138 |
+  | 0 | −0.15 | 6.9 | 0.103 s | **0.583 s** | 0.053 | **0.068** |
+  | 0.05 | −0.15 | 6.4 | 0.092 s | 0.587 s | 0.094 | 0.070 |
+  | 0.10 | −0.15 | 5.7 | 0.089 s | 0.593 s | 0.135 | 0.075 |
+  | 0.15 | −0.15 | 5.0 | 0.087 s | 0.597 s | 0.180 | 0.078 |
+
+  - **A trunk lag of −0.15 fixes the trunk's timing.** Its 50% point lands at
+    0.583 s against 0.585 s, and the back shape error halves, 0.138 → 0.068.
+  - **A leg lead makes the catch gentler, not sharper.** Leg acceleration at
+    the catch falls from 6.9 to 4.7 m/s² as the warp grows, and the leg shape
+    worsens. The warp moves leg motion earlier in the drive without
+    sharpening the reversal itself.
+  - **18 of 36 combinations are unreachable.** Every leg lead without enough
+    trunk lag leaves the hands short of the handle in the early drive
+    (stroke phase 0.13–0.17).
+  - **The gentle leg reversal is structural, not a timing setting.** The body
+    is Caplan & Gardner's four common keyframes fitted with a few Fourier
+    harmonics. A smooth low-harmonic fit through four instants cannot make a
+    14 m/s² spike that is gone by 0.05 of the cycle. It can be retimed, not
+    sharpened.
+  - So phase 4.3's hull target belongs to the body's representation: a
+    measured on-water joint trajectory, or a body driven by joint torques
+    whose catch reversal comes out of the stretcher and blade loads. No warp
+    of the present kinematics reaches it.
+  - *Hull test of the trunk retiming at [LE26]'s speeds* (legs 0, trunk
+    −0.15; `legge26/retimed_body_vs_legge.py`):
+
+    | | accel. zero after catch | first peak | accel. rms | gate shape rms | power |
+    |---|---|---|---|---|---|
+    | men, [LE26] | 0.069 | 4.14 m/s² | — | — | — |
+    | men, standard | 0.143 | 0.76 | 3.01 | 0.366 | 523 W |
+    | men, trunk retimed | 0.146 | 0.37 | **2.87** | 0.344 | 534 W |
+    | men, oar only | 0.137 | 1.59 | 3.00 | 0.208 | 436 W |
+    | men, retimed + oar only | 0.139 | 1.13 | 2.91 | **0.203** | 432 W |
+    | women, [LE26] | 0.069 | 3.49 | — | — | — |
+    | women, standard | 0.141 | 0.79 | 2.38 | 0.345 | 363 W |
+    | women, trunk retimed | 0.144 | 0.46 | **2.22** | 0.326 | 367 W |
+    | women, oar only | 0.135 | 1.38 | 2.33 | 0.222 | 335 W |
+    | women, retimed + oar only | 0.137 | 0.98 | **2.18** | **0.218** | 330 W |
+
+    - **Trunk timing trims the hull error 5–7% and moves no landmark.** The
+      catch zero stays at 0.14–0.15 of the cycle, and the first peak shrinks.
+    - **It trades one mismatch for another.** It flattens the recovery hump
+      the synchronous body had in the wrong place. But it adds a late-drive
+      surge of about 5 m/s² near 0.45 of the cycle, where the measured boat is
+      near zero: the trunk now swings into the finish in one go.
+    - **The two fixes are complementary.** Body off the oar fixes the force
+      curve; trunk retiming trims the hull. Together they give the best of
+      both columns, and the catch is still twice as slow as measured.
+    - This confirms the grid: the timing warps reach the trunk, and nothing
+      but a changed body representation reaches the catch. Not adopted: a
+      trunk warp calibrated to one athlete is a fitted number, and it moves
+      the error rather than removing it.
   - The men's oar-only run shows two notches in gate force and acceleration,
     at 0.24 and 0.37 of the cycle, most likely the light oar chattering near
     release. Its shape error is somewhat pessimistic for that.

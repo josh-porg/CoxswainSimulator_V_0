@@ -796,6 +796,19 @@ force are not in the paper and have to be built and validated here.
       - leg acceleration at the catch above about 12 m/s²;
       - half drive leg velocity within about 0.08 s of the catch;
       - back 50% swing no earlier than about 0.58 s into a 1.94 s stroke.
+    - **What the present kinematics can and cannot reach** (TRACKING,
+      sequencing grid).
+      - A trunk warp of −0.15 in the existing `SegmentSequencing` puts the
+        back's 50% point at 0.583 s and halves its shape error.
+      - No leg warp sharpens the catch. Leading the legs makes the reversal
+        gentler (6.9 → 4.7 m/s²), and most leg leads leave the hands short of
+        the handle.
+      - The limit is the representation: Caplan & Gardner's four common
+        keyframes through a few Fourier harmonics cannot make a sharp,
+        short spike.
+      - So 4.3's body must come either from a measured on-water joint
+        trajectory or from joint torques whose catch reversal follows from
+        the stretcher and blade loads, not from warping the keyframe fit.
 
   *Qualified on reading [CR06] in full:* the direction of slaving decides
   it. [CR06] slaves the **oar to the body** — smooth prescribed leg, back and
