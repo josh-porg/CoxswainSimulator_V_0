@@ -1565,10 +1565,23 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
         It is resolved at the default step (`cr06/full_balance_step_check.py`).
         The problem is confined to the oar-only probe, where a 1.2 kg·m² oar
         faces the blade slip alone.
-      - **Rechecks running:** the men's books at T/320 and T/640, and the
-        [CR06] one-athlete runs' books at T/160 and T/640.
-      - Until those return, the [LE26] rows with the 1.2 kg scull are void,
-        and the [CR06] one-athlete results are provisional.
+      - **The probe converges at T/320.** Men, 1.2 kg:
+        - at T/320, books 2.9 J against ΔKE 2.8 J and handle work 397.2 J;
+        - at T/640, books 2.8 J against 2.8 J and handle work 397.1 J;
+        - the −147 rad/s² entry transient is real and resolved.
+
+        So the lighter scull does about 0.7% *more* handle work than the
+        2.7 kg oar (394.3 J), not 13% less. The [LE26] comparison is being
+        rerun at T/320.
+      - **[CR06] one-athlete test, T/160** (summed force, smooth body): books
+        3.2 J against ΔKE 1.8 J, with φ̈ only to −79 rad/s² at her lower
+        load. Speed 4.0866 and power 275.2 W match the recorded run.
+        **Confirmed at T/640:** books 1.8 J against 1.8 J, speed 4.0887 m/s
+        (+0.05%), power 275.5 W (+0.1%), finish at 0.455. Her lower load
+        leaves T/160 within 0.1%, so the one-athlete results stand as
+        recorded (`cr06/cr06_energy_books_step.py`).
+      - The [LE26] rows with the 1.2 kg scull at T/160 are void. They are
+        being rerun at T/320.
     - **Consequence for the probes.** Every study that builds its single
       through `research.apply` and then puts the oar-only balance on it
       (the [LE26] measured-force and measured-body scripts, the catch
