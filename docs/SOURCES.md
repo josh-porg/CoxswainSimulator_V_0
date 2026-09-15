@@ -1540,6 +1540,27 @@ checked against. None are recorded here yet. What the search found:
     - *Use for phase 4.3:* order of magnitude and pattern — catch below the
       maximum-handle-force value, and hip above knee above ankle. Not
       point values to fit.
+    - **Side, as read (2026-09-14).** Kinematics were one-sided (right).
+      §7.2.3.1 and Fig. 7.2 double the right hip's sagittal moment only as
+      the *input to the pelvis segment*, to derive L5/S1. So the tabulated
+      hip, like ankle and knee, is almost certainly the right side alone.
+      Appendix J (the model) was not found in the text extraction to confirm.
+    - **The magnitudes fail a top-down statics check.**
+      - **Required:** 5.4 N·m/kg per side at maximum handle force is
+        ~405 N·m for a 75 kg rower.
+      - **Available from the handle:** maximum handle force is 8–14 N/kg
+        (Fig. 7.7, plotted only; ch. 8's men 10.6 ± 1.4, Table 8.4). The
+        handle's lever about the hip is the hand's height above it, 0.23 m
+        on [CR06]'s stroke. That gives ~86 N·m per side.
+      - **Available from the rest:** gravity and inertia would have to add
+        ~320 N·m per side, while a 44 kg upper body's weight gives ~130 N·m
+        for both hips at any trunk angle.
+      - **L5/S1:** its values imply a 1.2–1.4 m effective lever.
+      - **Likely cause:** error accumulated bottom-up, from foot centre of
+        pressure, seat force assumed through the pelvis centre of mass,
+        and finite differences with a five-point average.
+      - *So [BU13] gives pattern, not magnitude, for 4.3's hip moment*
+        (TRACKING, second rung).
   - **Chapter 8, foot-force direction.** The only numbers read that split
     horizontal from resultant foot force.
     - **Who:** ten heavyweight **male sweep** rowers, GB U23 or equivalent

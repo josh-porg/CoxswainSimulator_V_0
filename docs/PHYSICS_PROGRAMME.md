@@ -857,6 +857,28 @@ force are not in the paper and have to be built and validated here.
 
       The earlier [LE26] overshoot was not mostly cross-athlete mixing,
       because it survives with one athlete's own data.
+    - **Step 4.3's first two rungs, on her stroke (2026-09-14; TRACKING).**
+      - **Stretcher force** from the body's momentum balance.
+        - *Target:* sourced. About 310 N at the catch from her data on a
+          segmental body, and [LE26] measures 335 N. The stretcher leads the
+          gate into the catch.
+        - *Model:* 190 N, leading the gate force too. It is short because
+          its hull brakes 1.9 m/s² harder through the catch, the known
+          too-deep dip.
+      - **Hip moment** (trunk on thighs), top-down from the handle on a
+        rigid body on her time-laws.
+        - *Checks:* kinematics round trip to machine precision; her hull
+          still followed (0.030 m/s rms); linear and angular momentum books
+          closed.
+        - *Result:* 2.7 N·m/kg (both hips) at the catch, 3.5 at maximum
+          handle force.
+        - *Composition:* at maximum handle force the handle is about half,
+          on a 0.23 m lever. The catch is weight and reversal.
+        - *[BU13]:* its elite-ergometer pattern agrees. Its magnitudes are
+          not reachable by top-down statics and serve only as order of
+          magnitude.
+      - **Knee and ankle:** indeterminate in this plane until a foot-force
+        direction for her is sourced.
 
   *Qualified on reading [CR06] in full:* the direction of slaving decides
   it. [CR06] slaves the **oar to the body** — smooth prescribed leg, back and

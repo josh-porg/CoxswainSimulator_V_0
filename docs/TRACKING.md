@@ -1659,6 +1659,79 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
         −8.55 m/s²): the same fact as the 0.13 m/s-too-deep dip. It is
         external force, not body representation, since her 310 N already
         uses the segmental body.
+  - **Step 4.3, second rung: the hip moment, top-down from the handle**
+    (2026-09-14, `cr06/hip_moment_cr06.py`, `hip_moment_terms_cr06.py`).
+    - **Why only the hip.** In the model's plane the seat's vertical load and
+      the stretcher's vertical force share one equation. Knee and ankle
+      moments are indeterminate until a foot-force direction for her is
+      sourced ([BU13] ch. 8 has only men sweeping on an ergometer). The free
+      body above the hip — trunk, head, arms — needs no foot data.
+    - **A rigid body on her time-laws**, replacing the travel-scaled field,
+      which was not a rigid chain:
+      - **Hip:** from her leg channel.
+      - **Trunk angle:** from her back channel, then remapped rigidly to her
+        back travel: x = L cos a, x′ = x_c + K(x − x_c), a′ = arccos(x′/L),
+        with L = 0.570 m and K = 0.771.
+      - **Trunk masses** at fixed fractions along the link.
+      - **Arms** as point masses carried by the shoulder.
+    - **Checks, all passed before the moment was read:**
+      1. **Kinematics round trip:** with both channels on the leg warp and
+         K = 1, the field reproduces the model's own to 2×10⁻¹⁶ m,
+         9×10⁻¹⁶ m/s and 7×10⁻¹⁵ m/s².
+      2. **Her hull still follows:** 4.115 m/s (−1.8%), velocity rms
+         **0.030 m/s**, slightly better than the non-rigid body's 0.032.
+         Without the travel scaling it is 0.063.
+      3. **Books close:** linear momentum −0.001 N·s over the stroke. About
+         the moving hip, the analytic moment equals dH/dt + v_hip × P to
+         0.4 N·m against a 93 N·m scale (rms 0.02). The stretcher at the
+         catch is 186 N, matching rung 1's corrected 190 N.
+    - **Result, extension moment of both hips** (per kg of 75 kg; per side
+      is half):
+
+      | instant | K = 0.771 (her travel) | K = 1 | [BU13] hip, ergometer | [BU13] L5/S1 |
+      |---|---|---|---|---|
+      | catch (min hull accel., 0.002) | 206 N·m, **2.74** N·m/kg | 2.95 | 2.93–4.43 | 7.82–11.87 |
+      | maximum handle force (0.262) | 258 N·m, **3.45** | 3.54 | 5.36–5.52 | 11.92–12.17 |
+      | peak in the drive (0.243) | 267 N·m, **3.56** | 3.67 | 5.80–5.93 | 12.99–13.67 |
+
+      Flexion minimum −0.80 N·m/kg at 0.573, in the recovery.
+    - **What it is made of** (terms sum exactly to the totals):
+
+      | instant | handle | gravity | inertia (points + spin) |
+      |---|---|---|---|
+      | catch, trunk 127° | +6 N·m (23 N × 0.240 m) | +108 N·m | +89 + 2.7 N·m |
+      | maximum handle force, trunk 110° | +125 N·m (549 N × 0.228 m) | +70 N·m | +61 + 2.5 N·m |
+
+      - **The catch** is carried by the upper body's weight and the
+        reversal of its motion, not by the handle.
+      - **At maximum handle force** the handle is about half the moment.
+        Its lever is only the hand's height above the hip, 0.23 m.
+    - **Against [BU13]: pattern agrees, magnitude does not, and theirs cannot
+      be the target.**
+      - **Pattern:** catch below maximum handle force, and peak just before
+        it.
+      - **Side:** [BU13]'s tabulated hip is almost certainly one side. The
+        right hip is doubled only as the pelvis input (§7.2.3.1, Fig. 7.2).
+        So per side the model is about 3× lower: 1.72 against 5.4 N·m/kg at
+        maximum handle force.
+      - **The magnitude is out of reach.** 5.4 N·m/kg per side is ~405 N·m.
+        At ~10 N/kg of handle force (their Fig. 7.7 range; ch. 8's men
+        10.6), the handle gives ~86 N·m per side with this lever. The other
+        ~320 N·m per side would have to come from gravity and inertia.
+        This 44 kg upper body supplies ~130 N·m for *both* hips from
+        weight at any trunk angle. Their L5/S1 values imply a 1.2–1.4 m
+        effective lever on the handle force.
+      - Bottom-up inverse dynamics accumulates error from foot centre of
+        pressure, seat-force placement and finite differences. Their own
+        text quotes 6–232% on peak moments, from gait.
+      - **Use of [BU13] for 4.3:** pattern and order of magnitude only.
+    - **Status of 4.3's rungs.**
+      - **Stretcher force:** target sourced (~310 N at the catch from her
+        data on a segmental body; [LE26] measures 335 N). The model gives
+        190 N, short because its hull brakes 1.9 m/s² harder at the catch.
+      - **Hip moment:** internally validated, statics-bounded, no
+        quantitative external target yet.
+      - **Knee and ankle:** blocked on a sourced foot-force direction.
     - **The same artefact reaches five earlier [LE26] scripts.**
       `model_vs_legge`, `probe_vs_legge`, `retimed_body_vs_legge`,
       `warped_body_vs_legge` and `measured_inputs_vs_legge` built their hull
