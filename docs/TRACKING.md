@@ -2347,6 +2347,39 @@ carries her handle force through release.
   - *To validate before any code change:* on her stroke, the oar must turn
     round near 1.025 s and −44.3°, with no energy dropped at a hold.
 
+**Building the fix as a study: two attempts that did not engage, and why**
+(2026-09-14, `cr06/finish_fix_cr06.py`). The study subclasses the dynamic oar
+on her stroke (female table, whole measured body, T/320, 8 strokes). It
+releases the blade when its normal velocity returns to zero once the drive is
+under way, keeps the oar dynamic with the blade out after release, and holds
+it at turn-round. No committed code is touched.
+1. **Attempt 1: the fixed finish angle intercepts the release.** No release
+   fired in the drive. The oar reached the finish angle (−44.35°, her turning
+   angle) at 0.870 s, still sweeping at 114 °/s, with its blade still
+   *driving* (normal velocity negative). The existing code froze it there
+   before [CR06]'s condition could be met. The "releases" that did log came at
+   1.52–1.55 s in the recovery, an artefact of the frozen oar's stored rate
+   against the hull.
+2. **Attempt 2: finish angle out of reach, torque clipped at zero until
+   release.** The dynamic oars' finish angle was set to −80° with
+   `dataclasses.replace`; the boat's prescribed sweep, pre-entry path and hand
+   tracks were untouched.
+   - *Result:* **no release and no turn-round in 8 strokes.** The oar swept on
+     past her turning angle with the blade in, up to 21.3° from her (12.2° rms
+     over 0.80–1.10 s). Hull 4.145 m/s, velocity rms 0.0320 m/s.
+   - *Why:* once her pull ends near 0.87 s, the only load on the torque-driven
+     oar is blade drag, ∝ slip². The slip then decays toward zero like 1/t
+     but never crosses it, so the release condition is approached and never
+     met. [CR06]'s own model does not meet this, because its oar is slaved to
+     the moving hands, which carry it through zero slip.
+   - *So the push matters:* her measured handle force goes negative near the
+     finish (−40 N at her release marker). That push is what can drive the
+     slip through zero, and release the blade there before it brakes the
+     boat.
+3. **Attempt 3, running:** her measured handle force *unclipped* throughout,
+   with the same slip release, blade-out phase and hold. The torque differs
+   from the validated drive runs, so it must also reproduce her hull.
+
 ### The drive is 18–28% too long, and the cause is the ergometer
 **Impact: high — drive duration sets the time base of the whole stroke.**
 
