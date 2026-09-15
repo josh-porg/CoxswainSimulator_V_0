@@ -2386,8 +2386,12 @@ it at turn-round. No committed code is touched.
    | her measured | 0.894 s, −39.1°, −80 °/s | **1.025 s**, −44.34° | 0 |
    | unfixed model | frozen at 0.870 s, −44.35° | none | 114 °/s |
 
-   - **Both events fire on every stroke** (8 releases, 8 turn-rounds). Hull
-     4.138 m/s (−1.3%), velocity rms 0.0318 m/s, so the hull is unchanged.
+   - **Both events fire on every stroke** (8 releases, 8 turn-rounds).
+     - At 8 strokes: hull 4.138 m/s (−1.3%), velocity rms 0.0318 m/s.
+     - That was not settled. At 16 strokes, where the last three agree to
+       0.3 mm/s: **4.1175 m/s (−1.8%)**, rms 0.0322 m/s, power 281.4 W. The
+       angles moved by under 0.3°.
+     - Either way the hull is essentially unchanged.
    - **The finish dynamics match hers.** Release is 0.015 s after hers and
      turn-round lands on her 1.025 s. The oar travels 5.3° from release to
      turn-round against her 5.2°, and stops at essentially zero rate: no
@@ -2422,6 +2426,107 @@ it at turn-round. No committed code is touched.
     recovery-push law for the pull shape comes first.
   - *Separately open:* the late-drive angle lead, and the recovery past
     turn-round (4.3's hands).
+
+**The drive-angle lead: her own traces imply [CR06]'s fitted blade
+coefficient, not the nominal one the model uses** (2026-09-14,
+`cr06/implied_c2_from_her_data.py`, no simulator).
+- *Why look at C₂.* The model's oar leads hers from mid-drive (above). A blade
+  that slips more sweeps further for the same boat travel. The model uses
+  [CR06]'s *computed* scull value, C₂ = ½ρC₀A₀ = 58.7 N·s²/m². [CR06] p. 208
+  says the value that best fits these data is "about 2.4 times the nominal",
+  and with it their oar-angle error halves.
+- *The check, her data only.* It reads the model's own seat balance
+  backwards, per oar with the blade in:
+
+  $$F_n = \frac{I_{lock}\,\ddot\theta + \tfrac12 F_{hand}\, s + m\, d\, a_{hull}\cos\theta}{\ell}, \qquad \text{slip} = \ell\dot\theta + v\cos\theta, \qquad C_2 = \frac{F_n}{\text{slip}^2}$$
+
+  The rig is [CR06] Table 1: s 0.83 m, ℓ 1.805 m, I_lock 1.233 kg·m², oar
+  1.2 kg with its centre 0.595 m outboard. The traces are periodic Fourier
+  fits to 49–51 points.
+
+  | smoothing | velocity ×0.98 | ×1.00 | ×1.02 |
+  |---|---|---|---|
+  | 8 harmonics | 145 (2.47×) | 168 (2.87×) | 194 (3.30×) |
+  | 10 | 143 (2.44×) | 168 (2.87×) | 192 (3.27×) |
+  | 12 | 138 (2.34×) | 163 (2.77×) | 186 (3.17×) |
+  | 15 | 139 (2.37×) | 167 (2.85×) | 200 (3.41×) |
+
+  Each cell is the median implied C₂ over 0.15–0.73…0.79 s (the window's end
+  moves with the settings), where slip < −0.4 m/s
+  and F_n > 20 N.
+- **Result: 2.3–3.4× nominal under every smoothing and a ±2% velocity
+  scale, never near 1×.**
+  - At mid-drive, 0.40 and 0.50 s, the value is 146 and 143, which is
+    [CR06]'s 2.4× (140.9).
+  - Her slip there is −0.88 and −0.94 m/s. The nominal blade needs −1.38 and
+    −1.47 m/s to carry the same force.
+- *Limits.*
+  - Slip is the difference of two ~4.5 m/s terms, which is why a 2% velocity
+    scale moves the answer ±15%.
+  - The value is unsteady where slip nears zero: 317 at 0.20 s, 1118 at
+    0.80 s.
+  - One athlete, and a quasi-steady blade. [CR06] attribute the excess over
+    Hoerner's plate to transient added mass (Wang 2005), which C₂ lumps
+    together.
+- **Her stroke with C₂ × 2.4, in the simulator** (the finish-fix study,
+  `finish_fix_cr06_unclipped.py`, env `C2_SCALE`).
+  - *Control passes.* The ×1.0 run reproduces attempt 3b line for line, so
+    the edit changes nothing but the blade.
+  - *Settled at 16 strokes* (`finish_fix_cr06_c2x{1.0,2.4}_n16.out`; the
+    last three strokes agree to 0.3–0.4 mm/s). The 8-stroke runs had not
+    settled, falling 14–17 mm/s a stroke, but their angles were within
+    0.4° of these.
+
+    | her stroke, her force | C₂ × 1.0 (58.7) | **C₂ × 2.4 (140.9)** | [CR06] measured |
+    |---|---|---|---|
+    | oar angle − hers at 0.30 / 0.50 / 0.70 s | −0.2 / −2.9 / −5.7° | +2.7 / +3.9 / +4.3° | — |
+    | at 0.85 / 0.894 / 1.025 s | −7.1 / −7.9 / −9.6° | +2.8 / +1.6 / −2.0° | — |
+    | oar angle rms, 0.80–1.10 s (max) | 8.87° (11.27) | **2.26° (3.90)** | their own fit: < 2.1° |
+    | release: time, angle, rate | 0.909 s, −48.5°, −92 °/s | 0.905 s, **−38.7°**, −108 °/s | marker 0.894 s, −39.1°, −80 °/s |
+    | turn-round: time, angle | **1.025 s**, −53.9° | 1.072 s, **−46.5°** | 1.013–1.025 s, −44.3° |
+    | mean deceleration, release to turn | 791 °/s² | **646 °/s²** | 672 °/s² |
+    | hull speed | 4.1175 m/s (−1.8%) | 4.0901 m/s (−2.4%) | 4.191 |
+    | velocity rms vs her | 0.0322 m/s | 0.0331 m/s | — |
+    | power from her force | 281.4 W | **250.0 W** | 260 W implied, 251 W of hull drag |
+
+  - **Result: [CR06]'s fitted C₂ removes the drive-angle lead.**
+    - The angle error falls fourfold, to about their own fitted residual.
+    - The same handle force now does 250 W against 281 W. Her force times
+      her handle speed gives 260 W, and the paper's hull drag over her
+      velocity takes 251 W. With the nominal blade, her force was spending
+      about 30 W on extra slip.
+    - The hull loses 0.7% of speed, from −1.8% to −2.4%. So the blade is
+      not what props up the speed prediction.
+    - Three independent reads now agree: the fitted value in the paper, her
+      traces alone (2.3–3.4×, 2.4× at mid-drive), and her angle trace in
+      the simulator.
+  - **What it leaves.**
+    - *The early drive now lags her by 2.7–4.3° from 0.30 s.* With the
+      nominal blade it was 0.2° at 0.30 s. A stiffer blade slows the oar
+      from the catch, so the catch is now where the remaining angle error
+      comes from.
+    - *The turn-round is 47 ms late and 2.2° deep.* The deceleration after
+      release, 646 °/s² against her 672, is right. So is the release angle,
+      −38.7° against −39.1°. The oar simply leaves the water faster.
+    - *The release rate is not a like comparison.* [CR06]'s release marker
+      is their model's, not measured (SOURCES). At zero slip the rate is set
+      by kinematics, θ̇ = −v cosθ/ℓ, which is about 110 °/s at her release
+      angle and speed. Her own kinematic slip crosses zero near 0.82 s at
+      the reference smoothing, before the marker, where she is still
+      sweeping faster. The turn-round timing is the measured comparison,
+      and it is 47 ms late.
+    - *The nominal blade's exact turn-round timing was partly luck:* it got
+      there 9.6° deep, releasing late at a deep angle.
+  - **Candidate, not adopted.** The fitted value would be a research-only
+    `PhysicsProfile` blade option. It stays out of the shipped game, whose
+    `BladeModel.sculling` stays at 58.7.
+    - *Against adopting it now:* it is one athlete's fit, and it lumps
+      transient added mass into a steady coefficient ([CR06] cite Wang
+      2005). The research profile already has a separate blade added mass
+      (`blade_added_mass.py`, [G19]), so adopting both could count it twice.
+    - *Next:* rerun this study with the research profile's blade added mass
+      reported, on or off. Then check C₂ × 2.4 against Holt's singles slips
+      before any profile change.
 
 ### The drive is 18–28% too long, and the cause is the ergometer
 **Impact: high — drive duration sets the time base of the whole stroke.**

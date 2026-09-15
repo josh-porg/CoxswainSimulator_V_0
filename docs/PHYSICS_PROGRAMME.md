@@ -704,6 +704,17 @@ force are not in the paper and have to be built and validated here.
   - *Blocked:* with the torque clipped at zero, quadratic slip drag never
     crosses zero and the blade never releases. So promotion needs a sourced
     recovery-push law for the research pull shape.
+- **Drive-angle lead traced to the blade coefficient** (2026-09-14).
+  - *The evidence:* her traces alone imply C₂ = 2.3–3.4× the computed
+    nominal 58.7, and 2.4× at mid-drive, which is [CR06]'s own best fit.
+    With C₂ × 2.4 on her stroke (16 strokes, settled), the oar-angle rms
+    against her falls from 8.87° to 2.26°. Power from her force drops from
+    281 to 250 W, against her implied 260 W. Hull speed goes from −1.8% to
+    −2.4%.
+  - *What remains:* a 3–4° early-drive lag and a turn-round 47 ms late.
+  - *Candidate research-profile option, not adopted:* the fit may lump in
+    the blade added mass the research profile already models. Check that and
+    Holt's singles slips first. Shipped value unchanged.
 
   *Fix (b), and what it showed.* The velocity jumps are now handed to the
   hull as impulses through the system mass matrix, conserving the momentum
