@@ -1396,11 +1396,21 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
   | | accel. zero after catch | first peak | catch dip | accel. rms | gate shape rms | force scale |
   |---|---|---|---|---|---|---|
   | men, [LE26] | 0.069 | +4.14 | −14.2 | — | — | — |
-  | men, measured force | **0.131** | **+2.19** | −11.5 | **2.85** | **0.070** | 0.87 |
-  | men, measured force + body | 0.160 | −0.81 | −19.1 | 3.13 | 0.094 | 0.87 |
+  | men, measured force | **0.131** | **+2.18** | ~~−11.5~~ −9.9 | ~~2.85~~ **2.87** | ~~0.070~~ **0.063** | 0.87 |
+  | men, measured force + body | 0.160 | −0.81 | ~~−19.1~~ −17.9 | ~~3.13~~ 3.18 | ~~0.094~~ 0.061 | 0.86 |
   | women, [LE26] | 0.069 | +3.49 | −11.0 | — | — | — |
-  | women, measured force | **0.129** | **+1.97** | −9.3 | **2.22** | **0.058** | 0.92 |
-  | women, measured force + body | 0.155 | −0.35 | −14.8 | 2.48 | 0.058 | 0.91 |
+  | women, measured force | **0.129** | **+1.97** | ~~−9.3~~ −7.8 | ~~2.22~~ **2.24** | **0.059** | 0.92 |
+  | women, measured force + body | 0.155 | −0.34 | ~~−14.8~~ −14.2 | ~~2.48~~ 2.47 | 0.057 | 0.91 |
+
+  *Corrected 2026-09-14* (`measured_inputs_vs_legge_airmask27.py`, the 2.7 kg
+  oar these rows used, at T/160 with the true blade air mask). The struck
+  values came from one run at the default step (T/80), evaluated with the
+  blade forced into the water before entry.
+  - **Catch minimum:** moves by the air mask alone.
+  - **Gate shape error:** moves with the step, since gate force comes from
+    in-water samples.
+  - **Unchanged:** zero after the catch, first peak and speed-matched power
+    (within 1%).
 
   - **The measured force time-law is the best build so far.** First peak
     +2.0–2.2 m/s² (against 1.4–1.6 for oar only) and acceleration rms
@@ -1410,22 +1420,31 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
     whereas [LE26]'s gates carry about 100 N at the catch itself.
   - **Adding the measured leg time-law makes it worse.** The sharp reversal
     pushes the hull back harder after the catch than the measured blade load
-    offsets. The dip is 34% too deep, and there is no positive first peak.
+    offsets. The dip is ~~34%~~ **26–29%** too deep, and there is no positive
+    first peak.
   - **If the two inputs were consistent, the hull could not miss**: blade,
     drag and crew momentum are all this model has. The candidate: the model
     body's moving mass is too great. Its legs agree with [CR06] to
     millimetres, but its trunk travels 30% further (0.516 against 0.398 m;
-    ratio 0.77), about the size of the 34% overshoot.
+    ratio 0.77), about the size of the ~~34%~~ 26–29% overshoot.
   - **Tested and rejected** (`measured_inputs_vs_legge.py 0.77`). The head,
     upper and mid trunk and arms had their velocity and acceleration relative
     to the lower trunk scaled by 0.77, with the legs untouched:
 
     | | accel. zero after catch | first peak | catch dip | accel. rms |
     |---|---|---|---|---|
-    | men, force + body | 0.160 → **0.157** | −0.81 → −0.56 | −19.1 → **−18.8** | 3.13 → 2.74 |
-    | men, force only | 0.131 → 0.129 | +2.19 → +2.44 | −11.5 → −11.3 | 2.85 → 2.74 |
-    | women, force + body | 0.155 → 0.152 | −0.35 → −0.15 | −14.8 → −14.5 | 2.48 → 2.16 |
-    | women, force only | 0.129 → 0.127 | +1.97 → +2.18 | −9.3 → −9.2 | 2.22 → 2.14 |
+    | men, force + body | 0.160 → **0.157** | −0.81 → −0.57 | −17.9 → **−17.6** | 3.18 → 2.78 |
+    | men, force only | 0.131 → 0.129 | +2.18 → +2.43 | −9.9 → −9.7 | 2.87 → 2.78 |
+    | women, force + body | 0.155 → 0.152 | −0.34 → −0.15 | −14.2 → −13.9 | 2.47 → 2.15 |
+    | women, force only | 0.129 → 0.127 | +1.97 → +2.17 | −7.8 → −7.6 | 2.24 → 2.16 |
+
+    *Corrected 2026-09-14* (`measured_inputs_vs_legge_airmask27.py` with and
+    without `0.77`: 2.7 kg oar, T/160, true blade air mask). The first
+    version, −19.1 → −18.8 and 3.13 → 2.74 men, was at the default step with
+    the blade forced into the water before entry. The conclusions below
+    hold as written: the dip moves 0.3 m/s², and rms falls 12–13%. Any
+    number quoted below from the first version is superseded by this
+    table.
 
     - **The dip and the return barely move.** The catch reversal is carried
       by the legs, hips and lower trunk, not the upper body. The rms error
@@ -1727,28 +1746,32 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
 
         | build | 2.7 kg, T/160 | 1.2 kg, T/320 |
         |---|---|---|
-        | men, measured force | 484 W · zero 0.131 · min −11.5 · rms 2.85 · shape 0.070 | 479 W · 0.131 · ~~−11.5~~ **−9.9** · ~~2.84~~ 2.87 · **0.062** |
-        | men, force + body | 474 W · 0.160 · −19.1 · 3.13 · 0.094 | 475 W · 0.160 · ~~−19.1~~ **−17.9** · ~~3.20~~ 3.19 · **0.060** |
-        | women, measured force | 343 W · 0.129 · −9.3 · 2.22 · 0.058 | 340 W · 0.129 · ~~−9.3~~ **−7.8** · ~~2.22~~ 2.24 · 0.058 |
-        | women, force + body | 339 W · 0.155 · −14.8 · 2.48 · 0.058 | 339 W · 0.155 · ~~−14.8~~ **−14.2** · ~~2.49~~ 2.48 · 0.057 |
+        | men, measured force | 481 W · zero 0.131 · min −9.9 · rms 2.87 · shape 0.063 | 479 W · 0.131 · −9.9 · 2.87 · 0.062 |
+        | men, force + body | 477 W · 0.160 · −17.9 · 3.18 · 0.061 | 475 W · 0.160 · −17.9 · 3.19 · 0.060 |
+        | women, measured force | 341 W · 0.129 · −7.8 · 2.24 · 0.059 | 340 W · 0.129 · −7.8 · 2.24 · 0.058 |
+        | women, force + body | 339 W · 0.155 · −14.2 · 2.47 · 0.057 | 339 W · 0.155 · −14.2 · 2.48 · 0.057 |
 
-        *Air-mask correction, 2026-09-14.*
-        - **1.2 kg column:** corrected from `measured_inputs_vs_legge_airmask.py`.
-          Only the minimum and rms move; power, zero, first peak and shape
-          are identical.
-        - **2.7 kg column:** still the forced-water evaluation, so its minima
-          and rms are void. Its rerun, `measured_inputs_vs_legge_airmask27.py`
-          at T/160, is running.
+        *Air-mask and step correction, 2026-09-14.* Both columns are now
+        resolved runs with the true blade air mask.
+        - **1.2 kg column:** `measured_inputs_vs_legge_airmask.py`.
+        - **2.7 kg column:** `measured_inputs_vs_legge_airmask27.py`. The
+          column first shown here was the original run: default step (T/80,
+          not T/160 as labelled) with the blade forced into the water before
+          entry. Its values were min −11.5 / −19.1 / −9.3 / −14.8, rms
+          2.85 / 3.13 / 2.22 / 2.48 and shape 0.070 / 0.094 / 0.058 / 0.058.
 
-        - **The hull does not notice the oar's mass.** Catch minimum, return
-          to positive acceleration and rms are unchanged. Every [LE26]
-          catch conclusion above stands.
+        - **The oar's mass changes nothing measurable here.** Catch minimum,
+          return to positive acceleration, rms and gate shape all agree
+          within 0.01, and power within 1%. Every [LE26] catch conclusion
+          above stands.
         - **Power stays within 1%**, confirming the 13% drop as integration
           error.
-        - **The gate force notices.** The men's gate-force shape error falls
+        - ~~**The gate force notices.** The men's gate-force shape error falls
           11% with measured force and 36% with the measured body
-          (0.094 → 0.060): 1.5 kg less oar inertia is less for the
-          handle-to-gate balance to carry through the catch.
+          (0.094 → 0.060).~~ **Withdrawn.** The fall came from comparing a
+          default-step 2.7 kg run with a finer-step 1.2 kg one. At resolved
+          steps the shape errors are 0.063 against 0.062 and 0.061 against
+          0.060.
     - **Consequence for the probes.** Every study that builds its single
       through `research.apply` and then puts the oar-only balance on it
       (the [LE26] measured-force and measured-body scripts, the catch
