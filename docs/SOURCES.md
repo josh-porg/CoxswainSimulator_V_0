@@ -1598,6 +1598,42 @@ split of stretcher force into vertical and horizontal parts.
 - With [BU13] ch. 8 (men, sweep, ergometer), every foot-force split found is
   from men, and none gives a vertical-to-horizontal ratio in numbers for
   on-water sculling.
+
+### Sensory and reflex delays (read 2026-09-14, for phase 4.3's trunk controller)
+- **[K15] Kurtzer (2015)**, *Long-latency reflexes account for limb
+  biomechanics through several supraspinal pathways*, Front. Integr.
+  Neurosci., PMC4310276, open access. Upper limb, also seen in leg muscles:
+  - short-latency reflex "20–45 ms following a limb displacement" (spinal,
+    group I afferents);
+  - long-latency reflex "the burst of muscle activity occurring 50–100 ms
+    following a limb displacement";
+  - voluntary reaction: "100 ms is the earliest onset of a wide
+    distribution".
+- **[MS16] Milosevic, Shinya, Masani, Patel, McConville, Nakazawa & Popovic
+  (2016)**, J. Electromyogr. Kinesiol. 26, 94–101,
+  doi:10.1016/j.jelekin.2015.12.003 (abstract via Europe PMC).
+  - *Who and how:* twelve able-bodied adults *seated* on a kneeling chair,
+    with sudden forward and backward support-surface translations.
+  - *Trunk motion* starts "approximately 40 ms after the perturbation".
+  - *Unanticipated:* trunk muscle latencies "between 103.4 and 117.4 ms".
+  - *Anticipated:* shorter by 16.8 ± 10.0 ms.
+  - The authors call these medium-latency, reflexive responses.
+- **[PE04] Pedersen, Essendrop, Skotte, Jørgensen & Fallentin (2004)**,
+  *Training can modify back muscle response to sudden trunk loading*, Eur.
+  Spine J., PMC3476610.
+  - *Who and how:* 38 healthy adults, mostly women, standing with hips
+    fixed; a sudden 58 N horizontal load on the upper back.
+  - *Erector spinae onset:* 89.3–100.8 ms, unchanged by training. Stopping
+    time 337 → 311 ms.
+- **Eriksson Crommert & Thorstensson (2009)**, Exp. Brain Res. 196, 385–392,
+  doi:10.1007/s00221-009-1860-z. Eleven men side-lying, with no upright
+  demand. Expectation shortened onsets; the abstract gives no values.
+- **What this settles for the plan.** The trunk's muscular response to a
+  sudden disturbance is sourced at about 90–117 ms unanticipated, and about
+  17 ms shorter when anticipated. Reflexes in limb muscles start at 20–45 ms.
+  The plan's per-channel figures ("proprioceptive ~30–50 ms, vestibular
+  ~50–100") are now bracketed by sources for limb and trunk muscles. The
+  auditory (~160 ms) and visual (~180–200 ms) figures remain unsourced.
   - **Chapter 8, foot-force direction.** The only numbers read that split
     horizontal from resultant foot force.
     - **Who:** ten heavyweight **male sweep** rowers, GB U23 or equivalent
