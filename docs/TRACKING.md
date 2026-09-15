@@ -1830,6 +1830,47 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
         bias error. The bias size is chosen.
       - *Latencies:* for trunk muscles in general, not rowers, and the
         upper-limb reflex windows only order the short delays.
+  - **Step 4.3, fifth rung: the controlled trunk inside the simulation,
+    two-way coupled** (2026-09-14, `cr06/coupled_trunk_cr06.py`).
+    - **Method.** Trunk angle and rate are appended to the simulator's
+      state. A study subclass overrides three methods: `derivative`,
+      `augmented_initial_state`, and `_catch`, which otherwise zeroes
+      everything after the oar angles at each catch.
+      - *The loop:* the hull feels the trunk through the crew field, and the
+        trunk feels the hull through its moment balance. Both are affine in
+        the trunk's angular acceleration.
+      - *Per stage:* each RK4 stage evaluates the simulator's own derivative
+        at α = 0 and 1 and solves the hip-moment equation exactly.
+      - *Torque:* the rung-2 feedforward plus undelayed PD at 5 rad/s,
+        gains from the plant.
+      - *Run:* her rig and force, 12 strokes at T/320.
+    - **Two script slips, fixed before any result.** The loaded study
+      scripts read their own command line, so the case name was parsed as
+      rung 2's travel scale. Earlier, the rung-3 periodic seam (above).
+    - **Results** (last stroke):
+
+      | case | speed | velocity rms vs her | catch min | trunk error max / end | feedback torque |
+      |---|---|---|---|---|---|
+      | undisturbed | 4.1173 m/s | 0.0297 m/s | 2.98 | 0.0017 / −0.0010° | 0.0 N·m |
+      | 0.1° start offset | 4.1173 | 0.0297 | 2.98 | 0.0017 / −0.0010° (decayed) | 0.0 N·m |
+      | 10 N·m bias | 4.1183 | 0.0299 | 2.99 | **3.71 / −3.43°** | 22.2 N·m (8.3%) |
+      | rung 2, prescribed trunk | 4.115 | 0.030 | 2.98 | — | — |
+      | rung 4, one-way, bias, no delay | — | — | — | 3.79 / 3.46° | 22.5 N·m |
+
+    - **Validated.** Undisturbed, the coupled system reproduces rung 2's
+      hull to 2 mm/s, and her trunk motion to 0.002° with no feedback
+      torque. The trunk equation, its feedforward and the coupling agree.
+    - **Coupling changes almost nothing here.** Under the bias, trunk error
+      and feedback torque match the one-way rung 4 within 0.1° and 0.3 N·m.
+      A trunk held 3.4° off its path moves the hull by only 1 mm/s. So for
+      this stroke, rung 4's delay findings carry over to the coupled system.
+    - **Caveat.** The speed is still easing by ~0.7 mm/s per stroke at
+      stroke 12: the run starts at the mean speed, and its first stroke
+      overshoots to 4.40 m/s. The rung-2 comparison holds to 2 mm/s
+      regardless.
+    - *Next:* confirm one delayed case inside the coupled loop (5 rad/s,
+      117 ms, bias). Then the legs, which stay blocked at the knee and
+      ankle until a foot-force direction is sourced.
     - **The same artefact reaches five earlier [LE26] scripts.**
       `model_vs_legge`, `probe_vs_legge`, `retimed_body_vs_legge`,
       `warped_body_vs_legge` and `measured_inputs_vs_legge` built their hull

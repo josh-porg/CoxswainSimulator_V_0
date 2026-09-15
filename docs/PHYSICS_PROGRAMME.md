@@ -898,6 +898,14 @@ force are not in the paper and have to be built and validated here.
           a measured constraint on 4.3's stroke-tracking controller and on
           tier 3.
         - *Caveats:* one-way coupling to the hull; ζ fixed at 0.7.
+      - **Two-way coupled** (rung 5). The controlled trunk now sits inside
+        the simulator's state, so hull and trunk act on each other.
+        - *Validated:* undisturbed, it reproduces rung 2's hull to 2 mm/s
+          (velocity rms 0.0297 m/s) and her trunk to 0.002°, with no
+          feedback torque.
+        - *Under a 10 N·m bias:* it matches the one-way controller within
+          0.1° and 0.3 N·m, and moves the hull by 1 mm/s.
+        - *So:* the delay findings carry over.
 
   *Qualified on reading [CR06] in full:* the direction of slaving decides
   it. [CR06] slaves the **oar to the body** — smooth prescribed leg, back and
