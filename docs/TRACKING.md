@@ -1917,6 +1917,43 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
         feedforward torque pattern the thing that must be right, and
         prediction (anticipating the stroke's own disturbances) a
         requirement rather than a refinement.
+    - **Prediction, checked on the linear trunk mode** (2026-09-14,
+      `smith_predictor_linear.py`, `state_predictor_linear.py`; e″ = λ²e + u,
+      λ = 1/0.29 s, PD gains as above, 40 s runs, boundary by bisection):
+
+      | controller | 5 rad/s: 117 ms / 200 ms / boundary | 10 rad/s: 117 ms / 200 ms / boundary |
+      |---|---|---|
+      | plain delayed PD | −0.70 /s / diverges / **132 ms** | diverges / diverges / **71 ms** |
+      | plain Smith predictor, exact model | diverges within ~3 s at every delay 100–200 ms | — |
+      | state predictor, exact model | −3.50 / −3.51 /s / **> 600 ms** | −7.02 / −7.02 /s / > 600 ms |
+      | state predictor, model λ −20% | −3.70 / −1.82 /s / 343 ms | −7.64 / −6.12 /s / 472 ms |
+      | state predictor, model λ +20% | −3.25 / −2.54 /s / 415 ms | −6.34 / −4.57 /s / 471 ms |
+
+      (Negative rates are the decay of the trunk error.)
+      - **The plain Smith predictor fails even with an exact model.** That
+        is the textbook result for an unstable plant: its free-running
+        internal model drifts on the unstable mode.
+      - **The finite-horizon state predictor works.** x̂ = A^L x(t−δ) +
+        Σ A^(L−1−i) B u over the delay window, with exact ZOH matrices. With
+        an exact model it returns the *undelayed* decay rates at 117 and
+        200 ms. With the model's λ 20% wrong either way it still holds to
+        343–472 ms.
+      - **Trap caught on the way.** The window sum was first updated
+        recursively, through the unstable model. Its round-off grew like
+        e^(λt) and made the exact-model predictor "diverge" at +3.3 /s in
+        40 s runs. It is now summed directly from precomputed powers; the
+        debug trace shows prediction error ≤ 8×10⁻⁹ once the window fills.
+      - **So the conclusion sharpens.** Human latencies stop limiting the
+        trunk controller once it has even a rough internal model of the
+        trunk, run forward over the delay with its own recent commands.
+        That is what the plan's tier-3 policy, given its own action history
+        across a delay-aware context window, is meant to supply. Without
+        such a model, the gentlest useful feedback sits on its stability
+        edge at sourced trunk latencies.
+      - *Caveat and next rung:* this is the linear, constant-coefficient
+        mode. The next rung is the same predictor inside the nonlinear
+        coupled simulation at 117 ms, the case that diverged, with a local
+        linear model (slope and λ) as the internal model.
     - **Caveat.** The speed is still easing by ~0.7 mm/s per stroke at
       stroke 12: the run starts at the mean speed, and its first stroke
       overshoots to 4.40 m/s. The rung-2 comparison holds to 2 mm/s

@@ -920,6 +920,16 @@ force are not in the paper and have to be built and validated here.
           anticipated):* the gentlest useful loop sits on its stability edge.
           So feedforward must carry the stroke, and anticipation is a
           requirement for a safely stable trim, not a refinement.
+        - *Prediction, on the linear trunk mode:* a plain Smith predictor
+          fails even with an exact model, as theory says for an unstable
+          plant. A finite-horizon state predictor does work. It propagates
+          the delayed measurement over the window with its own recent
+          commands. With an exact model it restores the undelayed decay at
+          117 and 200 ms; with the model's instability rate 20% wrong it
+          still holds to 343–472 ms. So an internal model removes the
+          latency limit, which is the job the plan gives tier 3's
+          action-history context. Next: that predictor inside the
+          nonlinear coupled simulation at 117 ms.
 
   *Qualified on reading [CR06] in full:* the direction of slaving decides
   it. [CR06] slaves the **oar to the body** — smooth prescribed leg, back and
