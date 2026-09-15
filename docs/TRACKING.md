@@ -2301,6 +2301,52 @@ law, and [FE17]'s 117 °/s peak was at 17–18 spm with no power reported, so it
 is context and not a target. Needs a measured oar-angle trace, already on the
 Blocked list.
 
+**Update — the turn-round is reproduced from her own handle force** (2026-09-14,
+`cr06/recovery_oar_from_her_force.py`, `finish_sweep_vs_her.py`,
+`finish_dynamic_oar.py`). [CR06] Fig. 3 is that measured trace, and it
+carries her handle force through release.
+1. **Newton's law on the blade-out oar, fed only her data, turns it round
+   as she does.**
+   - *Equation:* I_lock θ̈ = −(F⊥ s + m_O d a_hull cos θ), with F⊥ half her
+     summed handle force, s = 0.83 m, and a_hull from her velocity trace.
+   - *Oar:* [CR06]'s 1.2 kg scull, I_lock = 1.233 kg·m².
+   - *Start:* her release state (0.894 s, −39.10°, −80.3 °/s).
+   - *Result:* the oar turns round at **0.999 s, −44.03°**, against her
+     measured **1.025 s, −44.34°**. Angle rms is 0.67° over the first
+     0.3 s. The hull term is worth 0.05°.
+   - *With the catalog's 2.7 kg oar* it turns at 1.300 s and −53.8°, so the
+     finish also confirms the research profile's 1.2 kg scull.
+   - *Not closed beyond the turn:* integrated to the catch, the oar reaches
+     4–10° against her 60°. Her recorded recovery handle force is too
+     small to swing it back. The likeliest cause is the measurement: shaft
+     strain gauges calibrated for static handle loads may not read the
+     recovery's inertial loads. That part is the hands' and arms' in 4.3
+     either way.
+2. **The prescribed sweep cannot take the oar at release.** It turns round
+   at 0.897 s, the model's drive end. At her release instant it is already
+   at rest (−44.35°, 2 °/s) while she still sweeps at 80 °/s. Its recovery
+   is 9.4° rms from hers, so a handover would only move the dead stop.
+3. **What the dynamic oar does now, on her rig** (her force, whole measured
+   body, T/320).
+   - *At the finish:* it reaches the finish angle (−44.35°, her turning
+     angle) at **0.870 s, still sweeping at 114 °/s** (71% of its 160 °/s
+     peak), and is frozen.
+   - *Energy:* 4.9 J a stroke across both oars, ~2.5 W, 0.9% of 277 W.
+   - *Against her:* she is at −39.1° and 80 °/s at 0.894 s, and turns at
+     1.025 s.
+   - *So two defects are tangled.* The finish angle is her *turning*
+     angle, and the oar arrives there early and fast. Unfrozen, it would
+     overshoot her turn-round by ~9° (114 °/s stopping at her ~13 rad/s²).
+- **The fix path, now sourced for one athlete:**
+  1. Release by [CR06]'s rule: blade out when its normal velocity returns
+     to zero. It exists as `release="slip"`.
+  2. After release, keep the oar dynamic with the blade out, under the
+     rower's handle torque, including the negative recovery force now
+     clipped to zero.
+  3. Leave the recovery past the turn-round to 4.3's hands.
+  - *To validate before any code change:* on her stroke, the oar must turn
+    round near 1.025 s and −44.3°, with no energy dropped at a hold.
+
 ### The drive is 18–28% too long, and the cause is the ergometer
 **Impact: high — drive duration sets the time base of the whole stroke.**
 
