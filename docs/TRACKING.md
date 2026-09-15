@@ -2522,11 +2522,15 @@ coefficient, not the nominal one the model uses** (2026-09-14,
     `BladeModel.sculling` stays at 58.7.
     - *Against adopting it now:* it is one athlete's fit, and it lumps
       transient added mass into a steady coefficient ([CR06] cite Wang
-      2005). The research profile already has a separate blade added mass
-      (`blade_added_mass.py`, [G19]), so adopting both could count it twice.
-    - *Next:* rerun this study with the research profile's blade added mass
-      reported, on or off. Then check C₂ × 2.4 against Holt's singles slips
-      before any profile change.
+      2005).
+    - *No double count today.* `DynamicOarSimulator(blade_added_mass=...)`
+      defaults to `"none"`, and `PhysicsProfile` never sets it; these runs
+      had none. The Patton model is a study, and it refuses anything but
+      `release="angle"`, so it cannot run with the slip release. Adopting
+      the fitted C₂ would rule out also switching on the added mass later,
+      and that should be written next to the option.
+    - *Next:* check C₂ × 2.4 against Holt's singles catch and finish slips
+      before any profile change. It is one athlete against a population.
 
 ### The drive is 18–28% too long, and the cause is the ergometer
 **Impact: high — drive duration sets the time base of the whole stroke.**

@@ -712,9 +712,11 @@ force are not in the paper and have to be built and validated here.
     281 to 250 W, against her implied 260 W. Hull speed goes from −1.8% to
     −2.4%.
   - *What remains:* a 3–4° early-drive lag and a turn-round 47 ms late.
-  - *Candidate research-profile option, not adopted:* the fit may lump in
-    the blade added mass the research profile already models. Check that and
-    Holt's singles slips first. Shipped value unchanged.
+  - *Candidate research-profile option, not adopted.* The fit lumps
+    transient added mass into C₂. The profile does not switch on the
+    separate Patton blade added mass, so there is no double count today, but
+    the two must stay exclusive. Holt's singles slips are the check before
+    adopting it. Shipped value unchanged.
 
   *Fix (b), and what it showed.* The velocity jumps are now handed to the
   hull as impulses through the system mass matrix, conserving the momentum
