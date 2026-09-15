@@ -1741,6 +1741,43 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
         Drive the trunk with the rung-2 hip torque, legs still prescribed.
         It must reproduce her trunk motion and hull to integration precision
         before any perturbation is read.
+  - **Step 4.3, third rung: the trunk driven forward by the hip torque**
+    (2026-09-14, `cr06/forward_hip_cr06.py`).
+    - **Method.** The trunk angle becomes a state. Everything else stays as
+      in rung 2: hip motion, hull acceleration, handle force, and the arms'
+      offset from the shoulder. The moment balance is linear in the trunk's
+      angular acceleration, which is solved exactly from two evaluations.
+      Effective inertia: −8.8 to −8.9 kg·m² over the stroke, and the probe
+      recovers the prescribed acceleration exactly. One-way coupling: the
+      hull does not feel the forward trunk yet.
+    - **A script bug, caught before any result.** The saved series carried
+      a sample at phase 1.0, the same instant as phase 0. The periodic
+      spline's wrap point landed 2×10⁻¹⁵ s from it, and the spline swung to
+      10⁹–10¹² just past the seam. The first run blew up on it. That sample
+      is now dropped, with an assertion on knot spacing.
+    - **Round trip, passed:**
+
+      | run | max trunk-angle error over the stroke |
+      |---|---|
+      | reconstructed moment against the saved rung-2 moment | 0.00 N·m apart |
+      | A: reference torque, RK4 1000 and 2000 steps | **0.0028°** at both |
+      | B: the saved rung-2 torque | **0.0147°** |
+
+      A's error does not change with the step, so it is not integration.
+      It sits at the end of the cycle, consistent with the smoothed warp
+      being very slightly non-periodic at its seam.
+    - **Open loop, unstable.** Run A started 0.1° off ends **72° off** after
+      one stroke, a growth of 720×. That is an average e-folding time of
+      about ln(720) / 1.94 s ≈ **0.29 s**: an inverted pendulum, 44 kg of
+      upper body leaning over the hip on an effective inertia of 8.8 kg·m².
+    - **So 4.3's torque-driven trunk needs feedback, and this sets the
+      requirement.** Any stroke-tracking controller must correct an error
+      that e-folds in about 0.3 s. The plan's quoted proprioceptive and
+      vestibular delays, 30–100 ms, are shorter than that, but they are not
+      yet sourced. *Next rung:* the same trunk with a tracking controller
+      around the rung-2 torque as feedforward. Checks: the feedback torque
+      it needs stays small against the feedforward, and it survives a
+      sourced sensory delay.
     - **The same artefact reaches five earlier [LE26] scripts.**
       `model_vs_legge`, `probe_vs_legge`, `retimed_body_vs_legge`,
       `warped_body_vs_legge` and `measured_inputs_vs_legge` built their hull

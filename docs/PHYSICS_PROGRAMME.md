@@ -878,7 +878,15 @@ force are not in the paper and have to be built and validated here.
           not reachable by top-down statics and serve only as order of
           magnitude.
       - **Knee and ankle:** indeterminate in this plane until a foot-force
-        direction for her is sourced.
+        direction for her is sourced. The on-water sources found measured
+        men only and published no vertical values.
+      - **Trunk driven forward by the hip torque** (rung 3): the round trip
+        returns her trunk angle to 0.003° (0.015° from the saved torque).
+        But the open loop is an inverted pendulum. A 0.1° error grows 720×
+        in one stroke, e-folding in about 0.29 s. So the torque-driven
+        chain needs a stroke-tracking controller, as planned, and its
+        requirement is now a number. Next: that controller around the
+        rung-2 torque as feedforward, with a sourced sensory delay.
 
   *Qualified on reading [CR06] in full:* the direction of slaving decides
   it. [CR06] slaves the **oar to the body** — smooth prescribed leg, back and
