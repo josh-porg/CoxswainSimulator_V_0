@@ -911,8 +911,15 @@ force are not in the paper and have to be built and validated here.
         - *Linear check of the one-way loop over 40 s:* 5 rad/s is stable
           to ~132 ms; 10 rad/s only to ~72 ms, so rung 4's 75 ms "edge" was
           already unstable.
-        - *Whether the coupling or the script causes the 117 ms divergence*
-          is being tested at 45–100 ms (TRACKING).
+        - *Not the script:* the coupled loop holds at 45, 75 and 100 ms and
+          matches the one-way results there. The real system's long-run
+          boundary lies between 100 and 117 ms, below the linear ~132 ms.
+          The coupling or the stroke-varying plant takes the margin; the
+          runs do not separate which.
+        - *Against sourced trunk latencies (103–117 ms, ~17 ms shorter
+          anticipated):* the gentlest useful loop sits on its stability edge.
+          So feedforward must carry the stroke, and anticipation is a
+          requirement for a safely stable trim, not a refinement.
 
   *Qualified on reading [CR06] in full:* the direction of slaving decides
   it. [CR06] slaves the **oar to the body** — smooth prescribed leg, back and

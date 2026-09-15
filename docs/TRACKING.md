@@ -1886,9 +1886,37 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
           ~15 ms of margin.
         - *So the coupled divergence is not the one-way loop's.* Either
           the two-way coupling eats that margin, or the delayed coupled
-          script is wrong. **Discriminating now:** the coupled delayed
-          script at 45, 75 and 100 ms. If 45 ms diverges it is the script,
-          since the margin there is wide.
+          script is wrong.
+    - **Discriminated: not the script; the limit is between 100 and 117 ms.**
+      The coupled delayed script (5 rad/s, 10 N·m bias, 12 strokes):
+
+      | delay | coupled: max / end error, feedback | one-way rung 4 (one stroke) | velocity rms vs her |
+      |---|---|---|---|
+      | 45 ms | 3.80 / 3.35°, 23.0 N·m | 3.87 / 3.38°, 23.0 N·m | 0.0303 m/s |
+      | 75 ms | 3.88 / 3.21°, 23.7 N·m | 3.91 / 3.28°, 23.3 N·m | 0.0312 |
+      | 100 ms | 4.17 / 2.89°, 27.9 N·m | 4.01 / 3.18°, 25.2 N·m | 0.0331 |
+      | 117 ms | **45.6 / −31.4°, 485 N·m (diverged)** | 4.59 / 2.99°, 30.4 N·m | 0.64 |
+
+      - **The delay buffer is right.** 45 ms holds and matches the one-way
+        loop.
+      - **The long-run boundary of the real system is between 100 and
+        117 ms**, below the constant-coefficient linear estimate of ~132 ms.
+        Two things the linear model leaves out could take that margin: the
+        two-way coupling, and a plant whose slope and unstable rate vary
+        through the stroke (slope −8.67 to −9.15 kg·m²). These runs do not
+        separate them. The margin shows before the edge: feedback torque and
+        velocity rms rise with delay, so 100 ms may itself be marginal over
+        longer runs.
+      - **Against the sourced trunk latencies** (unanticipated 103–117 ms,
+        ~17 ms shorter anticipated [MS16]), the gentlest useful loop sits on
+        its stability edge. It holds at anticipated latencies and fails at
+        the slow end of unanticipated ones. **So rung 4's conclusion
+        strengthens:** at human latencies feedback can be only a slow trim
+        on a feedforward stroke, and even a slow trim needs anticipation to
+        be safely stable. For 4.3's controller and tier 3 that makes the
+        feedforward torque pattern the thing that must be right, and
+        prediction (anticipating the stroke's own disturbances) a
+        requirement rather than a refinement.
     - **Caveat.** The speed is still easing by ~0.7 mm/s per stroke at
       stroke 12: the run starts at the mean speed, and its first stroke
       overshoots to 4.40 m/s. The rung-2 comparison holds to 2 mm/s
