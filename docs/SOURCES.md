@@ -1561,6 +1561,43 @@ checked against. None are recorded here yet. What the search found:
         and finite differences with a five-point average.
       - *So [BU13] gives pattern, not magnitude, for 4.3's hip moment*
         (TRACKING, second rung).
+
+**Foot-force direction on the water: searched 2026-09-14, none usable for
+[CR06]'s woman.** Knee and ankle moments in the model's plane need the
+split of stretcher force into vertical and horizontal parts.
+- **Sinclair, Greene & Smith (2009)**, *The effects of horizontal and
+  vertical forces on single scull boat orientation while rowing*, ISBS 27.
+  Full text read.
+  - *Who:* eleven male rowers (82.3 ± 8.2 kg, 1.87 m; national, state and
+    university) in an instrumented single scull at 32 spm. A stretcher
+    with six Kistler transducers measured 3-D force for both feet together.
+  - *No values:* the forces are shown only in figures.
+  - *Qualitative pattern:*
+    - vertical stretcher force rises rapidly in the late recovery as the
+      rower slides into the catch;
+    - the rower pushes down on the stretcher at the catch;
+    - vertical stretcher force falls through the drive as vertical pin
+      force rises;
+    - both are minimal at the finish and early recovery, when the seat
+      carries the weight.
+- **Baca, Kornfeind & Heller (2007)**, *Comparison of foot-stretcher force
+  profiles between on-water and ergometer rowing*, ISBS 24 (2006). Full text
+  read.
+  - *Who:* four Austrian elite men; single scull and a Concept2 Model D,
+    static and on slides; 20 and 30 spm.
+  - *Method:* force normal and parallel to each footplate, converted to
+    horizontal and vertical with the plate angle.
+  - *Tabulated:* only maximum total horizontal force (boat 984 ± 75 and
+    1030 ± 32 N; static ergometer 886 ± 120 and 912 ± 134 N), with
+    pulling-phase durations and left–right differences up to 200 N. No
+    vertical values.
+- **Liu, Gao, Li, Ma & Sun (2020)**, Sports Biomech. 19(2),
+  doi:10.1080/14763141.2018.1453540. Abstract via Europe PMC. Ten men,
+  three stretcher heights. Gate force, boat acceleration and leg drive
+  only; no foot force measured.
+- With [BU13] ch. 8 (men, sweep, ergometer), every foot-force split found is
+  from men, and none gives a vertical-to-horizontal ratio in numbers for
+  on-water sculling.
   - **Chapter 8, foot-force direction.** The only numbers read that split
     horizontal from resultant foot force.
     - **Who:** ten heavyweight **male sweep** rowers, GB U23 or equivalent

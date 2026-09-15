@@ -1732,6 +1732,15 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
       - **Hip moment:** internally validated, statics-bounded, no
         quantitative external target yet.
       - **Knee and ankle:** blocked on a sourced foot-force direction.
+        *Searched 2026-09-14* (SOURCES, "Foot-force direction on the
+        water"). Sinclair et al. (2009) and Baca et al. (2007) measured
+        on-water stretcher force in 3-D or in components, but for men only,
+        and published no vertical values. [BU13] ch. 8 is men sweeping on an
+        ergometer. Still blocked; a data request is the route.
+      - **Next rung, determinate without foot data:** a forward-dynamic hip.
+        Drive the trunk with the rung-2 hip torque, legs still prescribed.
+        It must reproduce her trunk motion and hull to integration precision
+        before any perturbation is read.
     - **The same artefact reaches five earlier [LE26] scripts.**
       `model_vs_legge`, `probe_vs_legge`, `retimed_body_vs_legge`,
       `warped_body_vs_legge` and `measured_inputs_vs_legge` built their hull
