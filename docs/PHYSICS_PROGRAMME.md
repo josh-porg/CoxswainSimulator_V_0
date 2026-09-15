@@ -928,8 +928,16 @@ force are not in the paper and have to be built and validated here.
           117 and 200 ms; with the model's instability rate 20% wrong it
           still holds to 343–472 ms. So an internal model removes the
           latency limit, which is the job the plan gives tier 3's
-          action-history context. Next: that predictor inside the
-          nonlinear coupled simulation at 117 ms.
+          action-history context.
+        - *In the nonlinear coupled simulation at 117 ms,* the predictor
+          prevents the divergence (12.3° max instead of 45.6°). But under a
+          10 N·m bias its steady offset is 3.2× the undelayed loop's.
+        - *Mechanism, confirmed linearly:* an unmodelled constant load
+          doubles the predictor's offset (5.43° against 2.59°), and a
+          disturbance estimate removes it exactly.
+        - *So:* 4.3's controller, and tier 3's learned rower, need an
+          internal model that both predicts over the delay and estimates
+          unseen loads.
 
   *Qualified on reading [CR06] in full:* the direction of slaving decides
   it. [CR06] slaves the **oar to the body** — smooth prescribed leg, back and

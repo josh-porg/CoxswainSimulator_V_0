@@ -1954,6 +1954,53 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
         mode. The next rung is the same predictor inside the nonlinear
         coupled simulation at 117 ms, the case that diverged, with a local
         linear model (slope and λ) as the internal model.
+    - **The predictor in the nonlinear coupled simulation**
+      (`coupled_trunk_predictor_cr06.py bias 0.117`). The local linear
+      model (λ = 1/0.29 s) runs forward over the window. The controller's
+      own commands sit on a 1 ms grid, held between samples and summed
+      directly.
+
+      | 117 ms, 10 N·m bias | max / end trunk error | feedback torque | velocity rms vs her | speeds |
+      |---|---|---|---|---|
+      | plain delayed PD | 45.6 / −31.4° (diverged) | 485 N·m | 0.64 m/s | swinging 4.07–4.21 |
+      | **state predictor** | **12.3 / −11.1° (stable)** | 78 N·m (29%) | 0.040 m/s | settling, 4.1252 → 4.1218 |
+      | undelayed PD | 3.71 / −3.43° | 22.2 N·m | 0.030 m/s | settled |
+
+      - **Stability restored:** prediction stops the divergence on the real
+        stroke.
+      - **Accuracy not restored:** the steady offset is 3.2× the undelayed
+        loop's, using 3.5× the feedback torque.
+    - **Mechanism, confirmed linearly** (`predictor_bias_linear.py`): the
+      same bias as a constant 1.13 rad/s² on the plant, absent from the
+      model.
+
+      | controller | steady trunk error |
+      |---|---|
+      | plain PD, no delay | 2.59° (analytic −d/(Kp − λ²) = 2.59°) |
+      | predictor, 117 ms, bias unmodelled | **5.43°** |
+      | predictor, 117 ms, with a disturbance estimate | **2.59°** |
+
+      - An unmodelled constant load makes the predictor misread the
+        delayed state's drift, so it settles at a larger offset. A
+        disturbance estimate removes that: here, a slow observer on the
+        mismatch between the delayed measured and modelled acceleration.
+      - The coupled run's larger ratio (3.2× against 2.1×) fits the real
+        trunk's instability rate and moment slope varying through the
+        stroke, which the constant model does not follow. The runs do not
+        prove that part.
+      - **What 4.3 takes from this:**
+        1. Feedforward carries the stroke.
+        2. Without an internal model, feedback at human latencies sits on
+           its stability edge.
+        3. An internal model run forward over the delay restores
+           stability.
+        4. To keep accuracy that model must also *estimate unseen loads*,
+           not only replay its own commands.
+
+        For tier 3, the learned rower's context must be able to infer
+        disturbances, not only compensate for delay.
+      - *Not yet run:* the predictor with a disturbance estimate inside the
+        coupled simulation.
     - **Caveat.** The speed is still easing by ~0.7 mm/s per stroke at
       stroke 12: the run starts at the mean speed, and its first stroke
       overshoots to 4.40 m/s. The rung-2 comparison holds to 2 mm/s
