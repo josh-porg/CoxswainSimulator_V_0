@@ -693,6 +693,17 @@ force are not in the paper and have to be built and validated here.
   instead reaches that angle at 0.870 s, sweeping at 114 °/s, and freezes.
   Fix path: release by blade slip, then a dynamic blade-out oar under the
   rower's handle torque until it turns.
+  - *Built as a study, validated:* with her handle force unclipped (her push
+    carries the slip through zero), the blade releases at 0.909 s against
+    her 0.894 s. The oar turns round at 1.023–1.025 s against her 1.025 s,
+    travelling 5.3° against her 5.2°, and stops at ~0 °/s with no energy
+    dropped. The hull is unchanged.
+  - *Angles are 9.7° past hers at turn-round.* 8.1° of that is the model's
+    drive lead at her release, which grows from mid-drive; the fix's phase
+    adds 1.6°.
+  - *Blocked:* with the torque clipped at zero, quadratic slip drag never
+    crosses zero and the blade never releases. So promotion needs a sourced
+    recovery-push law for the research pull shape.
 
   *Fix (b), and what it showed.* The velocity jumps are now handed to the
   hull as impulses through the system mass matrix, conserving the momentum

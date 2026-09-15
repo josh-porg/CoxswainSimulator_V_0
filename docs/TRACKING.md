@@ -2376,9 +2376,52 @@ it at turn-round. No committed code is touched.
      finish (−40 N at her release marker). That push is what can drive the
      slip through zero, and release the blade there before it brakes the
      boat.
-3. **Attempt 3, running:** her measured handle force *unclipped* throughout,
-   with the same slip release, blade-out phase and hold. The torque differs
-   from the validated drive runs, so it must also reproduce her hull.
+3. **Attempt 3: her measured handle force unclipped throughout — the fix
+   engages** (`finish_fix_cr06_unclipped.py`). Same slip release, blade-out
+   phase and hold.
+
+   | last stroke | release | turn-round | rate at the hold |
+   |---|---|---|---|
+   | model, attempt 3 | 0.909 s, −48.7°, −91.5 °/s | **1.023–1.025 s**, −54.0° | **0.0–0.8 °/s** |
+   | her measured | 0.894 s, −39.1°, −80 °/s | **1.025 s**, −44.34° | 0 |
+   | unfixed model | frozen at 0.870 s, −44.35° | none | 114 °/s |
+
+   - **Both events fire on every stroke** (8 releases, 8 turn-rounds). Hull
+     4.138 m/s (−1.3%), velocity rms 0.0318 m/s, so the hull is unchanged.
+   - **The finish dynamics match hers.** Release is 0.015 s after hers and
+     turn-round lands on her 1.025 s. The oar travels 5.3° from release to
+     turn-round against her 5.2°, and stops at essentially zero rate: no
+     energy dropped at the hold, where the unfixed model dropped 4.9 J a
+     stroke. Her push on the handle is what carries the slip through zero.
+   - **The angles sit 9.7° past hers at turn-round, and most of that is
+     built in the drive.** Model minus her, rerun with a readout
+     (`finish_fix_cr06_attempt3b.out`):
+
+     | stroke time | 0.30 s | 0.50 s | 0.70 s | 0.80 s | 0.85 s | 0.894 s (her release) | 0.95 s | 1.025 s (turn) |
+     |---|---|---|---|---|---|---|---|---|
+     | model − her | −0.2° | −3.1° | −5.9° | −6.8° | −7.3° | −8.1° | −9.4° | −9.7° |
+
+     - The lead grows from mid-drive, and 8.1° of it is there when she
+       releases. The fix's phase adds 1.6° more: the model releases 0.015 s
+       later and at 91.5 °/s against her 80 °/s.
+     - The oar angle rms against her over 0.80–1.10 s is 9.0°, which is this
+       offset. The mid-to-late drive lead is its own open item.
+   - *Power* reads 282.6 W against 277 W, and the two are not like for like.
+     `handle_power` adds |τ·ω| at every blade-in sample short of the finish
+     angle. With the finish put out of reach, it now counts the push against
+     the oar between release and turn-round, which the unfixed run skipped,
+     and her unclipped negative force.
+- **Status of the finish defect.**
+  - *The mechanism is validated on one athlete:* slip release, a dynamic
+    blade-out oar under the rower's handle force including its push, and a
+    hold at turn-round. It removes the dead stop and the energy it discarded,
+    and times release and turn-round to her within 0.015 s.
+  - *Promotion into `dynamic_oar` is blocked.* It needs a negative handle
+    torque near the finish, and the research pull shape (a Beta profile) is
+    clipped at zero. The push is one athlete's measurement, so a sourced
+    recovery-push law for the pull shape comes first.
+  - *Separately open:* the late-drive angle lead, and the recovery past
+    turn-round (4.3's hands).
 
 ### The drive is 18–28% too long, and the cause is the ergometer
 **Impact: high — drive duration sets the time base of the whole stroke.**
