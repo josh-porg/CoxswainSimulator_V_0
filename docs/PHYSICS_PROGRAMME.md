@@ -686,6 +686,13 @@ force are not in the paper and have to be built and validated here.
   0.400 → 0.424 — measured that defect, not the physics, and predicted the
   opposite of what I had stated beforehand. It is void. Pinned as a strict
   xfail in `tests/test_crew_follows.py`; TRACKING has the fix options.
+  *The dead stop's mechanism is now sourced (2026-09-14; TRACKING, finish
+  item).* On [CR06]'s single, Newton's law on the blade-out 1.2 kg scull,
+  driven only by her measured handle force, turns the oar round at 0.999 s
+  and −44.03°. She turns round at 1.025 s and −44.34°. The model's oar
+  instead reaches that angle at 0.870 s, sweeping at 114 °/s, and freezes.
+  Fix path: release by blade slip, then a dynamic blade-out oar under the
+  rower's handle torque until it turns.
 
   *Fix (b), and what it showed.* The velocity jumps are now handed to the
   hull as impulses through the system mass matrix, conserving the momentum
