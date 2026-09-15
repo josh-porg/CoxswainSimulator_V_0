@@ -1727,10 +1727,18 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
 
         | build | 2.7 kg, T/160 | 1.2 kg, T/320 |
         |---|---|---|
-        | men, measured force | 484 W · zero 0.131 · min −11.5 · rms 2.85 · shape 0.070 | 479 W · 0.131 · −11.5 · 2.84 · **0.062** |
-        | men, force + body | 474 W · 0.160 · −19.1 · 3.13 · 0.094 | 475 W · 0.160 · −19.1 · 3.20 · **0.060** |
-        | women, measured force | 343 W · 0.129 · −9.3 · 2.22 · 0.058 | 340 W · 0.129 · −9.3 · 2.22 · 0.058 |
-        | women, force + body | 339 W · 0.155 · −14.8 · 2.48 · 0.058 | 339 W · 0.155 · −14.8 · 2.49 · 0.057 |
+        | men, measured force | 484 W · zero 0.131 · min −11.5 · rms 2.85 · shape 0.070 | 479 W · 0.131 · ~~−11.5~~ **−9.9** · ~~2.84~~ 2.87 · **0.062** |
+        | men, force + body | 474 W · 0.160 · −19.1 · 3.13 · 0.094 | 475 W · 0.160 · ~~−19.1~~ **−17.9** · ~~3.20~~ 3.19 · **0.060** |
+        | women, measured force | 343 W · 0.129 · −9.3 · 2.22 · 0.058 | 340 W · 0.129 · ~~−9.3~~ **−7.8** · ~~2.22~~ 2.24 · 0.058 |
+        | women, force + body | 339 W · 0.155 · −14.8 · 2.48 · 0.058 | 339 W · 0.155 · ~~−14.8~~ **−14.2** · ~~2.49~~ 2.48 · 0.057 |
+
+        *Air-mask correction, 2026-09-14.*
+        - **1.2 kg column:** corrected from `measured_inputs_vs_legge_airmask.py`.
+          Only the minimum and rms move; power, zero, first peak and shape
+          are identical.
+        - **2.7 kg column:** still the forced-water evaluation, so its minima
+          and rms are void. Its rerun, `measured_inputs_vs_legge_airmask27.py`
+          at T/160, is running.
 
         - **The hull does not notice the oar's mass.** Catch minimum, return
           to positive acceleration and rms are unchanged. Every [LE26]
