@@ -1778,6 +1778,58 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
       around the rung-2 torque as feedforward. Checks: the feedback torque
       it needs stays small against the feedforward, and it survives a
       sourced sensory delay.
+  - **Step 4.3, fourth rung: a delayed feedback controller on the trunk**
+    (2026-09-14, `cr06/tracking_hip_cr06.py`).
+    - **Setup.** Hip torque = the rung-2 feedforward + a delayed PD on the
+      trunk-angle error, M_fb = s(−Kp e(t−δ) − Kd ė(t−δ)).
+      - *Slope:* s is the balance's own d(moment)/dα, −8.67 to −9.15
+        kg·m² over the stroke.
+      - *Gains, from the plant, not tuned:* Kp = ω_n² + 1/τ² with
+        τ = 0.29 s (rung 3), and Kd = 2ζω_n with ζ = 0.7.
+      - *Delays swept* over the sourced windows (SOURCES, "Sensory and
+        reflex delays"): 0, 45, 75, 100 and 117 ms.
+      - *Disturbances:* (1) a 0.1° starting offset; (2) the saved rung-2
+        torque plus a 10 N·m bias, a chosen size.
+    - **Sanity checks, passed.**
+      - At ω_n = 20 rad/s with no delay, the offset decays to 0.00000°
+        using 6.4 N·m of feedback.
+      - With no feedback it grows to 72.1°, as in rung 3.
+    - **Results** (max / end tracking error; peak feedback torque and its
+      share of the 267 N·m feedforward):
+
+      | ω_n | delay | 0.1° offset | torque + 10 N·m bias | held |
+      |---|---|---|---|---|
+      | 5 rad/s | 0–75 ms | 0.10 / 0.000°, 0.6 N·m | 3.8–3.9 / 3.3–3.5°, 22–23 N·m (8–9%) | yes |
+      | 5 rad/s | 100 ms | 0.10 / 0.002° | 4.0 / 3.2°, 25 N·m (9.5%) | yes |
+      | 5 rad/s | 117 ms | 0.10 / 0.013° | 4.6 / 3.0°, 30 N·m (11%) | yes |
+      | 10 rad/s | 0–45 ms | 0.10 / 0.000°, 1.7 N·m | 0.7 / 0.7°, 13–19 N·m (5–7%) | yes |
+      | 10 rad/s | 75 ms | 0.13 / 0.13° (not decaying) | 1.5 / 1.5°, 40 N·m (15%) | at the edge |
+      | 10 rad/s | 100 ms | 8.0 / 6.3°, 235 N·m | 56 / 41°, 1640 N·m | **no** |
+      | 10 rad/s | 117 ms | 60°, 1010 N·m | 91°, diverged | **no** |
+
+    - **What it settles.**
+      - **A feedback loop delayed as much as sourced trunk-muscle responses
+        (90–117 ms) can hold her trunk, but only slowly.** At 5 rad/s it
+        holds at every delay, and correcting a 0.1° offset costs 0.6 N·m.
+        A constant 10 N·m bias, though, leaves a 3–4.6° steady error.
+      - **Faster feedback buys accuracy but not delay tolerance.** At
+        10 rad/s the bias error falls to 0.7° up to 45 ms of delay. It
+        reaches the edge at 75 ms and fails at 100 ms: the classic limit
+        near bandwidth × delay ≈ 1. Anticipation's ~17 ms [MS16] does not
+        move it off the edge.
+      - **So feedforward must carry the stroke.** At human latencies,
+        feedback can make only slow corrections to the torque-driven trunk.
+        For 4.3's stroke-tracking controller and tier 3's learned rower,
+        the torque pattern itself has to be learned or prescribed almost
+        exactly. The plan's per-channel delay design is now a measured
+        constraint, not an assumption.
+    - **Caveats.**
+      - *One-way coupling:* the hull does not yet feel the controlled trunk.
+      - *Controller form:* ζ is fixed at 0.7 and the controller is linear
+        PD, so a richer one (integral action, prediction) could shift the
+        bias error. The bias size is chosen.
+      - *Latencies:* for trunk muscles in general, not rowers, and the
+        upper-limb reflex windows only order the short delays.
     - **The same artefact reaches five earlier [LE26] scripts.**
       `model_vs_legge`, `probe_vs_legge`, `retimed_body_vs_legge`,
       `warped_body_vs_legge` and `measured_inputs_vs_legge` built their hull

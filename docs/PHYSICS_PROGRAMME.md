@@ -887,6 +887,17 @@ force are not in the paper and have to be built and validated here.
         chain needs a stroke-tracking controller, as planned, and its
         requirement is now a number. Next: that controller around the
         rung-2 torque as feedforward, with a sourced sensory delay.
+      - **A delayed feedback controller on that trunk** (rung 4).
+        - *What holds:* PD at 5 rad/s holds her trunk at every sourced
+          delay up to 117 ms. A 0.1° offset costs 0.6 N·m, but a 10 N·m
+          bias leaves a 3–4.6° error.
+        - *What fails:* at 10 rad/s it tracks to 0.7° up to 45 ms, reaches
+          the edge at 75 ms, and fails at 100 ms.
+        - *So:* at human latencies feedback can make only slow corrections,
+          and the feedforward torque pattern must carry the stroke. That is
+          a measured constraint on 4.3's stroke-tracking controller and on
+          tier 3.
+        - *Caveats:* one-way coupling to the hull; ζ fixed at 0.7.
 
   *Qualified on reading [CR06] in full:* the direction of slaving decides
   it. [CR06] slaves the **oar to the body** — smooth prescribed leg, back and
