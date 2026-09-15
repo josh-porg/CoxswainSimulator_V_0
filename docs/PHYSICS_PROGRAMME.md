@@ -938,6 +938,14 @@ force are not in the paper and have to be built and validated here.
         - *So:* 4.3's controller, and tier 3's learned rower, need an
           internal model that both predicts over the delay and estimates
           unseen loads.
+        - *Confirmed in the coupled simulation:* predictor plus a slow
+          disturbance observer, at 117 ms under the 10 N·m bias, holds the
+          trunk to 4.44 / −3.61°. That is within 0.2° of the undelayed loop,
+          with 27.6 N·m of feedback and hull velocity rms 0.0314 m/s.
+          The estimate (−1.49 rad/s² against the bias's 1.13) also absorbs
+          the stroke-varying model mismatch.
+        - **Proposed tier-3 acceptance test:** a constant unmodelled load at
+          a sourced delay, tracked to within the undelayed loop's offset.
 
   *Qualified on reading [CR06] in full:* the direction of slaving decides
   it. [CR06] slaves the **oar to the body** — smooth prescribed leg, back and

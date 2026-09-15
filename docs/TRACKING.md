@@ -1999,8 +1999,53 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
 
         For tier 3, the learned rower's context must be able to infer
         disturbances, not only compensate for delay.
-      - *Not yet run:* the predictor with a disturbance estimate inside the
-        coupled simulation.
+      - ~~*Not yet run:* the predictor with a disturbance estimate inside
+        the coupled simulation.~~ Run below.
+    - **Predictor + disturbance estimate in the coupled simulation**
+      (`coupled_trunk_predictor_obs_cr06.py bias 0.117`).
+      - *Observer:* slow, K_OBS = 2 /s. It compares the delayed measured
+        trunk acceleration (5 ms difference of the logged rate) with the
+        model's λ²e(t−δ) + u(t−δ) + d̂.
+      - *Prediction:* d̂ is added to the commands the model is driven with
+        over the window.
+
+      | 117 ms, 10 N·m bias, last stroke | max / end trunk error | feedback torque | velocity rms vs her | speeds |
+      |---|---|---|---|---|
+      | plain delayed PD | 45.6 / −31.4° (diverged) | 485 N·m | 0.64 m/s | swinging |
+      | predictor only | 12.3 / −11.1° | 78 N·m | 0.040 | settling |
+      | **predictor + disturbance estimate** | **4.44 / −3.61°** | **27.6 N·m (10%)** | **0.0314** | settling, 4.1216 → 4.1184 |
+      | undelayed PD (reference) | 3.71 / −3.43° | 22.2 N·m | 0.030 | settled |
+
+      - **Accuracy restored at the slow end of sourced trunk latencies.** The
+        steady offset is within 0.2° of the undelayed loop's, for 24% more
+        feedback torque. The hull's velocity trace stays at her boat's.
+      - **The estimate settles at d̂ = −1.49 rad/s²**, against the bias's
+        1.13 in magnitude. The sign is right for the model's convention,
+        where a positive torque bias is a negative acceleration.
+      - The extra 32% is model mismatch the estimate also absorbs: the trunk's
+        instability rate and moment slope vary through the stroke, and the
+        internal model is constant. So d̂ estimates everything the model does
+        not know, not the bias alone. That is the property wanted.
+    - **The trunk-controller thread of 4.3, as validated rung by rung**
+      (her stroke, female table, two-way coupled):
+      1. **Feedforward** carries the stroke. The rung-2 torque alone
+         reproduces her trunk and hull.
+      2. **Plain feedback** at sourced human latencies sits on its stability
+         edge. The long-run boundary is 100–117 ms against 103–117 ms
+         latencies.
+      3. **Prediction over the delay** restores stability, but leaves a
+         3.2× offset under an unseen load.
+      4. **Disturbance estimation** restores accuracy to within 0.2° of an
+         undelayed loop.
+
+      For tier 3: the learned rower's context must both predict over its
+      own latency and infer unseen loads. The plan's action-history window
+      gives it the means; the acceptance tests should include a constant
+      unmodelled load at a sourced delay.
+    - *Open:* the legs. Knee and ankle are blocked on a foot-force
+      direction; the data request is drafted (DATA_REQUESTS §11). Also a
+      stroke-varying internal model, which should shrink d̂ toward the bias
+      itself.
     - **Caveat.** The speed is still easing by ~0.7 mm/s per stroke at
       stroke 12: the run starts at the mean speed, and its first stroke
       overshoots to 4.40 m/s. The rung-2 comparison holds to 2 mm/s
