@@ -403,6 +403,91 @@ The ask is the **boat speeds** that go with the drive durations.
 
 ---
 
+## 11. Foot-stretcher force components (added 2026-09-14)
+
+**Why.** Phase 4.3's joint moments stall at the knee and ankle. In the
+model's plane, the seat's vertical load and the stretcher's vertical force
+share one equation, so the split of stretcher force into vertical and
+horizontal parts has to be measured (SOURCES, "Foot-force direction on the
+water"). Every source found measured it but did not publish it in numbers:
+men only, figures only, or horizontal only. **The ask is the same to each
+group: vertical and horizontal (or plate-normal and plate-parallel)
+stretcher force against stroke time, ideally with a women's or sculling
+subset.** Take each address from the paper, as above.
+
+### 11a. Peter Sinclair, Andrew Greene & Richard Smith — University of Sydney
+
+*The effects of horizontal and vertical forces on single scull boat
+orientation while rowing*, ISBS 27 (2009).
+
+> Subject: Vertical and horizontal stretcher force from your instrumented single
+>
+> Dear Dr Sinclair,
+>
+> Your 2009 ISBS paper on boat orientation used a single scull with a 3-D
+> instrumented foot stretcher. Your figures show the vertical stretcher force
+> rising into the catch and falling through the drive as pin force takes
+> over. I'm building an open simulator for racing shells and working through
+> the rower's joint moments on a measured stroke, and the knee and ankle are
+> stuck on exactly that split: without it the seat's and the stretcher's
+> vertical loads can't be separated.
+>
+> Would the ensemble-averaged vertical and horizontal (fore-aft) stretcher
+> force curves against stroke time from that study, even as numbers read
+> off the figures, be something you could share? A few points through the
+> drive would already be enough.
+>
+> With thanks,
+> [name]
+
+### 11b. Arnold Baca, Philipp Kornfeind & Mario Heller — University of Vienna
+
+*Comparison of foot-stretcher force profiles between on-water and ergometer
+rowing*, ISBS 24 (2006).
+
+> Subject: Vertical stretcher force from your single-scull dynamometer
+>
+> Dear Professor Baca,
+>
+> Your 2006 comparison of stretcher forces on the water and on the Concept2
+> measured the plate-normal and plate-parallel components and converted
+> them to horizontal and vertical force. Table 1 gives the horizontal peaks.
+> I'm modelling the rower's joint moments on a measured single-scull stroke,
+> and the knee and ankle need the vertical component alongside the horizontal.
+>
+> Would the vertical force, or the normal and parallel components with the
+> plate angle, be available for the boat trials, as mean curves or a few
+> values through the drive? I'd cite the source in the project's documentation.
+>
+> With thanks,
+> [name]
+
+### 11c. Erica Buckeridge, Anthony Bull & Alison McGregor — Imperial College London
+
+Buckeridge, PhD thesis (2013), doi:10.25560/28699, chapters 5–7; and
+*Incremental training intensities increases loads on the lower back of elite
+female rowers*, J. Sports Sci. 34(4) (2016).
+
+> Subject: Vertical and horizontal foot force for the heavyweight women
+>
+> Dear Dr Buckeridge,
+>
+> Your thesis's instrumented Concept2 recorded vertical and horizontal foot
+> force for GB heavyweight women scullers and sweep rowers, shown in Fig. 5.7.
+> I'm building an open rowing simulator and have one on-water women's single
+> stroke whose hip moment I've computed top-down from the handle. The knee
+> and ankle need a foot-force direction for women, and yours is the closest
+> measurement I've found.
+>
+> Would the group-mean vertical and horizontal foot force for the women at
+> the catch and at maximum handle force, or the curves behind Fig. 5.7, be
+> shareable? I'd be glad to show what the model does with them.
+>
+> With thanks,
+> [name]
+
+---
+
 ## Notes on sending these
 
 * **Send them individually**, not as a mailing list. Each is written to
