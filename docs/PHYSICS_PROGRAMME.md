@@ -905,7 +905,14 @@ force are not in the paper and have to be built and validated here.
           feedback torque.
         - *Under a 10 N·m bias:* it matches the one-way controller within
           0.1° and 0.3 N·m, and moves the hull by 1 mm/s.
-        - *So:* the delay findings carry over.
+        - ~~*So:* the delay findings carry over.~~ **Withdrawn:** with the
+          feedback delayed 117 ms, the coupled system diverges over 12
+          strokes (45.6° trunk error), where one-way over one stroke held.
+        - *Linear check of the one-way loop over 40 s:* 5 rad/s is stable
+          to ~132 ms; 10 rad/s only to ~72 ms, so rung 4's 75 ms "edge" was
+          already unstable.
+        - *Whether the coupling or the script causes the 117 ms divergence*
+          is being tested at 45–100 ms (TRACKING).
 
   *Qualified on reading [CR06] in full:* the direction of slaving decides
   it. [CR06] slaves the **oar to the body** — smooth prescribed leg, back and

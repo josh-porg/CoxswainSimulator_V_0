@@ -1860,10 +1860,35 @@ minimum boat acceleration: 46.5% of the cycle for the men, 46.0% for the women.
     - **Validated.** Undisturbed, the coupled system reproduces rung 2's
       hull to 2 mm/s, and her trunk motion to 0.002° with no feedback
       torque. The trunk equation, its feedforward and the coupling agree.
-    - **Coupling changes almost nothing here.** Under the bias, trunk error
-      and feedback torque match the one-way rung 4 within 0.1° and 0.3 N·m.
-      A trunk held 3.4° off its path moves the hull by only 1 mm/s. So for
-      this stroke, rung 4's delay findings carry over to the coupled system.
+    - **Coupling changes almost nothing without delay.** Under the bias,
+      trunk error and feedback torque match the one-way rung 4 within 0.1°
+      and 0.3 N·m. A trunk held 3.4° off its path moves the hull by only
+      1 mm/s. ~~So for this stroke, rung 4's delay findings carry over to
+      the coupled system.~~ **Withdrawn — see below: with a 117 ms delay
+      the coupled system diverges.**
+    - **With delay, it does not carry over** (`coupled_trunk_delayed_cr06.py
+      bias 0.117`). Same 5 rad/s PD, fed the trunk error 117 ms old. Over
+      12 strokes the trunk error reaches **45.6°** (−31.4° at the end), with
+      485 N·m of feedback (182% of the feedforward). Hull velocity rms
+      against her data rises to 0.64 m/s, and stroke speeds swing from
+      4.07 to 4.21 m/s. Rung 4, one-way over one stroke, had 4.59° / 30.4 N·m.
+    - **Linear check** (`delayed_pd_linear.py`). The trunk's measured unstable
+      mode, e″ = λ²e − Kp e(t−δ) − Kd ė(t−δ) with λ = 1/0.29 s, integrated
+      for 40 s:
+      - **5 rad/s:** stable at every delay swept. Growth −3.5 /s at 0 ms,
+        −1.75 at 100 ms, −0.70 at 117 ms. **Boundary ≈ 132 ms.**
+      - **10 rad/s:** stable to 45 ms (−6.8 /s); **unstable at 75 ms**
+        (+0.45 /s); diverges within 3.5 s at 100–117 ms. **Boundary ≈ 72 ms.**
+      - **Consequences:**
+        - *Rung 4 correction:* its "10 rad/s at 75 ms: at the edge" is in
+          fact slowly unstable. A one-stroke horizon hid growth of +0.45 /s.
+        - *5 rad/s at 117 ms is linearly stable one-way*, but with only
+          ~15 ms of margin.
+        - *So the coupled divergence is not the one-way loop's.* Either
+          the two-way coupling eats that margin, or the delayed coupled
+          script is wrong. **Discriminating now:** the coupled delayed
+          script at 45, 75 and 100 ms. If 45 ms diverges it is the script,
+          since the margin there is wide.
     - **Caveat.** The speed is still easing by ~0.7 mm/s per stroke at
       stroke 12: the run starts at the mean speed, and its first stroke
       overshoots to 4.40 m/s. The rung-2 comparison holds to 2 mm/s
