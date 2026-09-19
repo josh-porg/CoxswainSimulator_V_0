@@ -3713,6 +3713,69 @@ also need testing on the eight and the four, and would go through `PhysicsProfil
 for research and learned only. `HIP_ENTRY` defaults to 0, so every recorded run is
 unchanged.
 
+### The recovery-push law: the premise was wrong, and the finish is a rate defect (2026-09-19)
+
+Promotion of the finish fix has stood blocked on "a sourced recovery-push law for
+the research pull shape". Going after it changed the question.
+
+**1. There is no published negative-force law to find.** A regex sweep of the whole
+local library for a negative gate/handle/pin force, or force "becoming negative",
+returns **zero hits in every paper**. A second sweep for the physical alternative —
+blade immersion, blade depth, vertical oar angle, washing out — returns almost
+nothing either, and **no paper in the library reports a vertical oar angle at all**.
+So neither route is sourceable from what is on hand.
+
+**2. [CR06] does not need one, because it enforces the transition.** "We end the
+drive when the force on the blade is exactly zero which … corresponds to
+`v_O·ê_h = 0` in both oar models." And the paper flags the consequence itself:
+"the deviations between the predicted and measured angle are greatest near the catch
+and release [which] indicate that perhaps our enforcement of the instantaneous
+transition from drive to recovery … is imperfect." **The primary source names the
+very defect this programme has been chasing at both ends of the stroke.**
+
+**3. The push is real and now measured, from her digitised trace:**
+
+| | |
+|---|---|
+| peak handle force | 553 N at 0.508 s |
+| push minimum | **−49.9 N at 0.965 s, −9.0% of peak** |
+| force crosses zero | **0.8895 s** (10-harmonic fit; 0.8905 raw) |
+| her release | **0.894 s** |
+| push impulse | −8.9 N·s against a drive impulse of +291 N·s, **3.1%** |
+
+The zero-crossing and the release agree to about 4 ms — a tenth of one sample
+spacing of the digitised figure, so **indistinguishable at its resolution**. And the
+research Beta shape, `u^a (1−u)^b`, reaches exactly zero at the end of
+`drive_duration`. So for her the two candidate release triggers — "the torque
+reaches zero" and "the drive ends" — are the same instant.
+
+**4. But the finish defect is not the missing push.** The `HIP_ENTRY` gate run
+already used her force **unclipped**, so the −9% tail was present, and the finish
+still overshot by 5°. The release rates say why:
+
+| | release rate |
+|---|---|
+| her measured | **−80 °/s** |
+| baseline model | −107.9 °/s |
+| with `HIP_ENTRY` | −103.8 °/s |
+
+**The model's oar arrives at the release about 30% too fast**, in both runs, and a
+3%-of-impulse push cannot absorb that. A bigger push tail would be fitting a number
+to hide a rate error.
+
+*So the finish is a rate defect, exactly as the catch was.* What decelerates a real
+handle at the finish is the hands arriving at the body — the arms draw in and the
+handle stops — and the model represents none of that, because `hand_targets` slaves
+the hands to the oar instead of letting them constrain it. **The oar is
+under-constrained by the body at both ends of the stroke, and the entry fix and the
+finish fix are the same fix seen twice.**
+
+*Status.* The blocker as worded — "a sourced recovery-push law" — should be retired:
+it asks for a number that does not exist in the literature and that would not fix
+the defect if it did. What replaces it is the hands-on-handle constraint, which is
+the architectural change already named at the end of 4.3a. No number was adopted and
+nothing in the model changed.
+
 ### v0.13 — asked for, and done
 
 | what | where | pinned by |
