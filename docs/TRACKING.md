@@ -2671,6 +2671,62 @@ blade loads, and it fails** (2026-09-18, `cr06/blade_law_vs_her.py`).
   developing over the first strokes of the drive) and the body-on-the-oar
   balance at the catch, which 4.3 owns.
 
+**What the fitted C₂ actually is: three tests and a literature check**
+(2026-09-18, `cr06/added_mass_vs_her.py`, `wake_growth_vs_her.py`,
+`lever_sensitivity.py`).
+
+1. **It is not a constant added mass, and [CR06]'s own explanation fails on
+   their own athlete.** They attribute the 2.4× to transient added mass
+   (citing Wang 2005). Fitting C₂ and an added mass jointly to her blade load
+   gives **m_a = −1.50 ± 0.15 kg** against Patton's 13.1 for her blade — the
+   wrong sign and 94 standard errors away — while C₂ stays at 140.3, moving 1%
+   of the way toward the computed 58.7. The two basis terms are orthogonal
+   (r = 0.005), so the fit can see them separately, and the conclusion holds
+   from 8 to 15 harmonics. Forcing m_a to Patton's value leaves C₂ at 140.3
+   and raises the rms from 23.7 to 83.4 N.
+2. **But the mechanism survives, as a growing wake rather than a constant
+   mass.** [G19] measured an accelerating AR-2 plate: a constant added mass is
+   *inadequate* because the entrained mass grows with travel, and the transient
+   lasts **7–8 plate heights**. Her blade travels **0.54 m through the water in
+   the whole drive — 2.5 blade widths — so the drive never leaves the
+   transient.** And her effective coefficient does grow: fitting force to slip²
+   without ever dividing, **C₂ = 120 over the first half of the travel and 160
+   over the second**, a 34% rise, with the second half fitting better (rms 17.3
+   against 26.0 N). The trend strengthens under stricter slip filters
+   (r = 0.45 → 0.93 as the cut rises), which is the opposite of the
+   small-denominator artefact that would otherwise be suspected.
+3. **The level is not a clean fluid coefficient, because it is entangled with
+   the lever arm.** C₂ = 140.88 implies C_D = 2C₂/(ρA₀) = **3.12**, against
+   [G19]'s measured 1.10 at the surface, 1.30 deep and 1.60 at 20 mm. But ℓ
+   enters twice — dividing the moment and setting the slip — and mid-drive the
+   slip is a small difference between ℓθ̇ ≈ 4.3 and v cos θ ≈ 4.5:
+
+   | ℓ | C₂ | implied C_D | rms |
+   |---|---|---|---|
+   | 1.700 | 256 | 5.68 | 38.6 N |
+   | **1.805** (adopted) | **140** | **3.11** | 25.1 N |
+   | 1.900 | 88 | 1.94 | 18.3 N |
+   | 2.020 (her outboard) | 53 | 1.17 | 14.2 N |
+
+   *But the lever arm cannot be moved far enough to rescue it.* Her blade spans
+   1.590–2.020 m from the pin; its geometric centre is 1.805 and, if the slip
+   were purely rotational, the centre of pressure would sit at 1.822. The
+   defensible range is 1.805–1.822, where C_D stays 2.9–3.1 — still about twice
+   [G19]'s measured maximum.
+   - *An unexplained flag, recorded rather than resolved:* the rms keeps
+     falling monotonically as ℓ grows past any physical value. The balance is
+     absorbing a systematic error that a longer lever partly compensates.
+     Candidates: blade immersion (less wetted area than the nominal 0.0903 m²),
+     shaft bend putting the blade behind the measured shaft angle, or an
+     oarlock water-relative velocity that is not the hull's surge.
+
+**What this means for the value adopted this morning.** It stands on what it
+does, not on what it is: it predicts her boat speed, quarters her oar-angle
+error, and moves Holt's singles the right way. It should **not** be quoted as a
+measured blade drag coefficient — at her geometry it implies a C_D about twice
+anything measured, and it is acutely sensitive to a lever arm the data cannot
+pin down. The docstring now says so.
+
 ### The drive is 18–28% too long, and the cause is the ergometer
 **Impact: high — drive duration sets the time base of the whole stroke.**
 

@@ -1258,6 +1258,23 @@ shallow experimental channel":
 
 Reported with no significant stall at any attack angle, and no Reynolds number.
 
+**[G19] read for its numbers, and they bear on [CR06]'s fitted C₂** (2026-09-18,
+primary obtained). Grift, Vijayaragavan, Tummers & Westerweel, *Drag force on an
+accelerating submerged plate*, JFM 866: an AR-2 plate (200 × 100 × 4 mm) at
+Re 4–8 × 10⁴.
+- **Steady-phase C_D: 1.10 at the surface, 1.60 at 20 mm depth, 1.30 deep.**
+  So free-surface proximity raises it by 45% at most, and nothing in that paper
+  reaches 3.
+- **A constant added mass is inadequate.** Patton and Yu both give ≈ 1.3 kg for
+  their plate, but measured peaks (3.6 N) exceed the prediction (2.6–2.8 N):
+  "the entrainment of mass in the wake ... is not constant, but grows larger
+  over time".
+- **The transient lasts 7–8 plate heights of travel.** A rowing blade covers
+  only about 2.5 blade widths through the water in a whole drive, so a drive
+  never leaves the transient — which is why an effective coefficient fitted to
+  on-water data should exceed any steady value, and why it should *grow*
+  through the drive. Both are observed on [CR06]'s athlete (TRACKING).
+
 **Tested against measured blade loads, and they do not survive the catch**
 (2026-09-18, `cr06/blade_law_vs_her.py`; TRACKING). Scored against the normal
 load implied by [CR06]'s own oar balance across her drive, these constants give

@@ -75,8 +75,14 @@ def test_the_efficiency_wiring_sees_the_same_value():
 
 
 def test_the_fitted_c2_and_patton_added_mass_are_refused_together():
-    """Both model the same water: the fit already contains the transient
-    added mass ([CR06] cite Wang 2005)."""
+    """Her stroke admits one or the other, not both.
+
+    [CR06] attribute their 2.4x to transient added mass, but fitting ``C2``
+    and an added mass jointly to the blade load their own athlete's oar
+    balance implies gives ``m_a = -1.5 +- 0.15 kg`` against Patton's 13.1,
+    with ``C2`` unmoved at 140.3 (TRACKING, 2026-09-18).  So the exclusion
+    rests on the measurement, not on their explanation of it.
+    """
     boat = physics.resolve("research").apply(catalog.build("1x", rate=30.0))
     with pytest.raises(ValueError, match="exclusive"):
         DynamicOarSimulator(boat, peak_torque=120.0, blade_added_mass="patton")

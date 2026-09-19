@@ -241,9 +241,10 @@ class DynamicOarSimulator(RowingSimulator):
         if blade_added_mass != "none" and getattr(boat, "scull_c2", None):
             raise ValueError(
                 "a fitted sculling C2 and the Patton blade added mass are "
-                "exclusive: [CR06]'s fitted coefficient already lumps the "
-                "transient added mass into a steady C2, so running both "
-                "counts the same water twice")
+                "exclusive: fitted jointly to [CR06]'s own measured blade "
+                "load her stroke wants m_a = -1.5 +- 0.15 kg against Patton's "
+                "13.1 and leaves C2 at 140.3, so it admits the large "
+                "quasi-steady coefficient or the added mass, not both")
         if blade_added_mass != "none" and (crew != "clock"
                                            or release != "angle"):
             raise ValueError(

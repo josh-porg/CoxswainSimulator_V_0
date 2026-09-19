@@ -122,11 +122,33 @@ class PhysicsProfile:
     #: 8.87 -> 2.26 deg), and on Holt's singles it closes the speed gap 3.0-3.5
     #: points and lifts blade efficiency into Kleshnev's band (TRACKING).
     #:
-    #: **Exclusive of the Patton blade added mass.**  The fitted coefficient
-    #: lumps transient added mass into a steady C2 ([CR06] cite Wang 2005), so
-    #: a run may have one or the other, never both; ``DynamicOarSimulator``
-    #: refuses the combination.  Sweep blades keep 84.5: [CR06] fitted the
-    #: 2.4x on singles only.
+    #: **Exclusive of the Patton blade added mass**, but not for the reason
+    #: [CR06] give.  They attribute their own 2.4x to transient added mass
+    #: (citing Wang 2005), and that explanation does not survive their own
+    #: athlete: fitting ``C2`` and an added mass jointly to the blade load her
+    #: oar balance implies returns ``m_a = -1.5 +- 0.15 kg`` against Patton's
+    #: 13.1, leaves ``C2`` at 140.3, and the two basis terms are orthogonal
+    #: (r = 0.005) so the fit can see them separately (TRACKING, 2026-09-18).
+    #: The 2.4x scales with slip squared, not with blade acceleration -- though
+    #: the *mechanism* they name survives in another form: [G19] measured that
+    #: a plate's entrained mass grows with travel and its transient lasts 7-8
+    #: plate heights, her blade travels only 2.5 blade widths in a whole drive,
+    #: and her effective coefficient does grow through it (C2 120 -> 160 across
+    #: the two halves of that travel).
+    #:
+    #: **Do not quote this as a measured drag coefficient.**  It implies
+    #: ``C_D = 2 C2 / (rho A0) = 3.12`` against [G19]'s measured 1.10 at the
+    #: surface, 1.30 deep and 1.60 at 20 mm, and it is acutely sensitive to the
+    #: assumed centre of pressure: at l = 1.9 m the same data give C2 = 88, and
+    #: at her actual outboard 2.02 m, C2 = 53.  The defensible range for l is
+    #: only 1.805-1.822 m, so the lever arm does not explain the level away.
+    #: The value earns its place empirically -- her boat speed, her oar angle,
+    #: Holt's singles -- not as a fluid-dynamic measurement.  The
+    #: exclusion therefore stands on the measurement rather than the
+    #: explanation: her stroke admits a large quasi-steady coefficient *or* a
+    #: Patton-sized added mass, and running both adds a force she does not
+    #: show.  ``DynamicOarSimulator`` refuses the combination.  Sweep blades
+    #: keep 84.5: [CR06] fitted the 2.4x on singles only.
     scull_c2: Optional[float] = None
     #: Frozen profiles may not be altered, and the game may resolve only
     #: a frozen one.
