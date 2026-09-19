@@ -3776,7 +3776,7 @@ the defect if it did. What replaces it is the hands-on-handle constraint, which 
 the architectural change already named at the end of 4.3a. No number was adopted and
 nothing in the model changed.
 
-### Correction (2026-09-19): the entry fix's justification is refuted; the rule is empirical, not derived
+### WITHDRAWN, same day — see the entry below. Correction (2026-09-19): the entry fix's justification is refuted; the rule is empirical, not derived
 
 Going at the hands-on-handle constraint properly tested the reason I had given for
 the entry fix, and the reason does not hold. `arm_reach_cr06.py` measures
@@ -3820,6 +3820,55 @@ hand position is an outcome rather than an input — which is tier 3 and the res
 
 *Nothing was adopted and nothing in the model changed.* `HIP_ENTRY` stays at 0 and
 is now recorded as empirical.
+
+### The catch reach is a rig bug: `station_x + 0.30` (2026-09-19)
+
+**This withdraws the correction above, which was wrong in two ways.** The project
+owner pushed back that the arms are straight at the catch, which is correct
+technique, and checking it properly found a defect in the model rather than in the
+claim.
+
+**Error 1 — I reported the model's own cap as a measurement.** The "arms are
+straightest mid-drive at d/L = 0.933" figure is `_arm_reach_margin`, which the elbow
+solve holds at **0.9326** by design to stay off the straight-arm singularity
+(`kinematics.py`, "the elbow solve keeps a usable margin"). It is a hard limit, not
+an observation, so it says nothing about where the arms are straightest. Withdrawn.
+
+**Error 2 — I used the model's geometry to refute a claim about real rowing.** The
+catch bend is real *in the model* (verified: shoulder `(−0.482, −0.200, 0.525)`,
+hand `(−0.772, −0.391, 0.320)`, separation 0.403 m of a 0.626 m arm, port paired
+with port, and the elbow chain confirms 0.279 + 0.347 = 0.626 with a genuine bend).
+But real rowers *do* take the catch with straight arms, so this is the model failing
+to represent the catch — it cannot adjudicate the premise. **The entry fix's
+straight-arm justification is not refuted; it is untestable in the current model.**
+
+**The cause, and it is a shipped constant.** `build_sculling_rig` and
+`build_sweep_rig` both place the pin at
+
+> `position = np.array([station_x + 0.30, side * span, oarlock_height])`
+
+and `RowerStation(x_ankle=seat.station_x)` puts the feet at the same station, so
+**the pin is always 0.30 m bow-ward of the feet**. At her 60.5° catch with a 0.83 m
+inboard the handle swings `r_h sin θ = 0.722 m` aft of the pin, so the hands land
+**0.422 m behind the feet** — which no sculler does. Straight arms would need 0.591 m
+of horizontal reach against the 0.347 m available, a **0.244 m shortfall**, and the
+oar cannot close it: the handle would need `sin θ = 1.16`. For the hands to arrive
+near the feet the pin wants to be about **0.72 m** bow-ward of them, not 0.30.
+
+The constant carries **no comment, no test and no mention anywhere in the docs** —
+an undocumented magic number in the geometry, which is exactly what the programme's
+sourcing rule exists to prevent, and it is in the sweep builder too.
+
+*Consequences, not yet acted on.*
+* **`HIP_ENTRY` is reinstated to its earlier status** — a rule whose justification is
+  plausible and whose numbers stand (lag 4.24° → 0.25°, speed −2.4% → −1.1%). It is
+  still only validated on one athlete.
+* **The hands-on-handle programme is blocked on this, not on arm dynamics.** Any
+  constraint tying the oar to the hands is being fed a catch posture that cannot
+  occur, so the earlier conclusion that it "needs a torque-driven arm" was premature.
+* **Fixing it changes shipped geometry.** The pin position moves the crew kinematics
+  and the oar's moment arm, so it would change the frozen game. That is the project
+  owner's call, and nothing has been altered.
 
 ### v0.13 — asked for, and done
 
