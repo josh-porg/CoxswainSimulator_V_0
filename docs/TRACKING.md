@@ -3889,6 +3889,64 @@ pin bow-ward makes it worse, which is the opposite of what I first assumed.
   and the oar's moment arm, so it would change the frozen game. That is the project
   owner's call, and nothing has been altered.
 
+### The rig question is [CR06] eq. 8, and our 3-D arm breaks their degeneracy (2026-09-19)
+
+Chasing the catch geometry landed on [CR06]'s own hand-on-handle constraint, §2.6
+eq. 8:
+
+> `d_L/F − s sin θ = x_B/F + x_S/B + x_H/S`
+
+left side the **handle** relative to the foot stretcher, right side the **hand**.
+Three things follow.
+
+**1. `d_L/F` — oarlock fore-aft position relative to the stretcher — is an explicit
+rigging input.** "Oar rotation is known once the rower's coordination and the oarlock
+fore-aft positioning are specified." That is exactly the quantity
+`build_sculling_rig` hard-codes as `station_x + 0.30`, and the project owner is right
+that it is an adjustable setting rather than fixed geometry.
+
+**2. [CR06] cannot supply its value.** Appendix A.7: `d_L/F` and `x_H/S(0)` "cannot
+be chosen independently … therefore we fix `x_H/S(0)` and allow `d_L/F` to be free".
+It is **fitted per trial and degenerate with the initial hand-to-shoulder distance**,
+so only their sum is identifiable. There is no measured number to take.
+
+**3. Our model breaks that degeneracy, and [CR06]'s cannot.** They state they are
+"only considering the movement of the arm in the fore-aft direction … neglecting the
+projected arm shortening due to the arms not being parallel to the boat", so their
+`x_H/S` is unconstrained — nothing checks the arm can reach. **Ours is a 3-D arm of
+finite length**, so `x_H/S` is determined by the anthropometry, and `d_L/F` follows
+from eq. 8. Evaluated at her catch:
+
+> `d_L/F = s sin θ + x_B/F + x_S/B + x_H/S = 0.722 + 0.220 − 0.352 − 0.512 = **0.078 m**`
+
+against the hard-coded **0.300 m**. The 0.222 m gap is the same number the stretcher
+sweep produced independently, which is a consistency check on both.
+
+**But the catch and finish still do not both close.** Setting `d_L/F = 0.078` leaves
+the finish **0.142 m short of the hip**, and the underlying sum is rig-independent:
+
+| | |
+|---|---|
+| the oar offers | `r_h (sin θ_catch − sin θ_finish)` = **1.303 m** of handle travel in x |
+| the body wants | shoulder 0.978 + arms (0.512 straight at the catch − 0.045 drawn) = **1.445 m** |
+| difference | **0.142 m** (0.222 m using the rower's native trunk rather than her 0.398) |
+
+So **the body's stroke is longer than the oar's sweep**, whatever the stretcher does,
+and the model has been absorbing it by bending the arms 36% at the catch. The
+remaining suspects are the ones not pinned by her measurements: the **arm length**
+from the anthropometry at the fitted stature, and the **span of 0.80 m**, which was
+chosen in `her_boat` and is not from [CR06] — the lateral offset costs 0.079 m of
+fore-aft reach on its own.
+
+*Also corrected:* `s = 0.83 m` is right but is **not the geometric inboard**. Table 1
+defines it as `s* − 0.06 m` for sculls, "assuming that the rower applies a force at
+the oar handle 6 cm from the end", so the actual inboard is ≈ 0.89 m — consistent
+with the usual 0.88 — while 0.83 is the force/hand radius the model correctly uses.
+
+*Status: derivable, not fitted.* `d_L/F` now has a route that needs no new data, and
+the residual is a well-posed 0.14 m to chase rather than a mystery. Nothing changed
+in the model; fixing `d_L/F` moves shipped geometry and is the owner's call.
+
 ### v0.13 — asked for, and done
 
 | what | where | pinned by |
