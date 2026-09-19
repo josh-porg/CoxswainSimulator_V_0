@@ -1136,6 +1136,75 @@ falling to about zero at the finish angle, catch near −60° and finish near
 +45°. Qualitative for the finish: no deceleration law, so it does not unblock
 the `research` finish defect.
 
+*Re-read 2026-09-18 for foot force.* Two things this review gives that its
+own summary above missed. It records that the same qualitative methods
+apply to "forces observed at the foot-stretcher or pin in the
+**non-propulsive (vertical and transverse) planes**", citing Smith &
+Loschner (2002) — the only pointer found to anyone measuring the split
+DATA_REQUESTS §11 asks for; and its reference list carries Loschner, Smith,
+Barrett, Simeoni & D'Helon (2000) on pin forces and **individual feet
+forces in sculling**. Richard Smith is a co-author of this review and of
+both, and of the 11a paper. See "Foot-force direction on the water" below
+and DATA_REQUESTS §11d. The review itself reports no foot-force numbers.
+
+### [LO00] Loschner & Smith — individual feet forces in women's sculling, *read in full*
+C. Loschner (NSW Institute of Sport) & R. Smith (Univ. of Sydney) (2000), *The
+relationship between pin forces and individual feet forces applied during
+sculling*, 3rd Australasian Biomechanics Conference. Supplied by the project
+owner 2026-09-18 after [WA18]'s reference list turned it up. Two pages.
+
+- **Who:** three *international female single scullers*, 500 m at each of 20, 24
+  and 28 spm plus 500 m at race pace. **This is [CR06]'s population**, and the
+  closest match to her the project has found.
+- **What was measured:** 3-D pin forces, **the propulsive force of each foot
+  separately** (the novelty — "until now, differences due to the forces each foot
+  applied to the footstretcher were not recorded"), oar angles, boat velocity.
+  100 Hz, telemetered to shore, normalised and averaged to percent of stroke.
+- **Table 1, rating 30, race pace** (stroke side / bow side, and the oar angle of
+  each peak; the paper's convention has the catch negative):
+
+  | subject | peak pin (N) | at (°) | peak foot (N) | at (°) | v mean (m/s) |
+  |---|---|---|---|---|---|
+  | A | 533 / 465 | −18 / −18 | 358 / 338 | −16 / −28 | 4.01 |
+  | B | 600 / 503 | −29 / −14 | 373 / 390 | −19 / −21 | 3.71 |
+  | C | 546 / 438 | −25 / −16 | 299 / 354 | −23 / −14 | 3.84 |
+
+  Boat velocity min/max: 3.06/4.80, 2.75/4.44, 2.83/4.77. Stroke lengths 96–100°.
+  Transcribed to `scratchpad/phase4/cr06/loschner2000_table1.csv`.
+- **It does *not* answer DATA_REQUESTS §11.** These are propulsive (long-axis)
+  forces. The paper's own conclusion defers "transverse and vertical forces on
+  the pin and stretcher" to Loschner & Smith (1999), *Three dimensional pin
+  forces at different stroke rates*, 5th IOC World Congress on Sport Sciences —
+  which is about the **pin**, not the stretcher. So §11 stays open, and the 1999
+  abstract is the next thing to chase.
+- **A label ambiguity, resolved by the rest of the paper.** Table 1's column
+  reads "Prop. Peak *Oar* Force", which could be read as a handle force, but
+  Fig. 1's legend says "Stroke/Bow **Pin** Propulsive Force", the title is about
+  pin forces, and the methods list only "3-D pin forces, propulsive feet forces,
+  oar angles, the boat velocity" — no handle transducer. It is read here as the
+  **pin** force. Reading it as a handle force would only widen the gap with her
+  stroke, not close it.
+- **Caveat carried into every use:** each side's peak is tabulated separately,
+  and for B and C the two sides peak at different oar angles, so the bilateral
+  sum is an upper bound. Subject A (both sides at −18°) is the clean comparison.
+
+*What it settles* — see TRACKING, "[LO00] against her stroke":
+1. **Stretcher magnitude, out of sample.** The balance-derived peak stretcher
+   force on [CR06]'s stroke is 715 N against a measured 653–763 N (mean 704).
+   Nothing in that derivation was fitted to force.
+2. **Boat-velocity swing.** Her 3.06/5.13/4.19 m/s is a 49% swing; theirs are 43,
+   46 and 51%, and subject A's minimum is 3.06 exactly. The digitised [CR06]
+   velocity trace is representative of real women's singles.
+3. **Foot and pin peak together** — measured means −20.0° and −20.2°, 0.2° apart.
+   The model puts both at the same instant, so that structure is confirmed.
+4. **A genuine conflict with [LE26].** Stretcher/pin at peak is 0.68 here
+   (0.66–0.70 across the three) and 0.94 in [LE26]. They cannot both describe the
+   same quantity. Her stroke gives 0.91, i.e. it matches [LO00]'s stretcher
+   *magnitude* and [LE26]'s *ratio*; forcing her handle force up until the pin
+   reached [LO00]'s 1028 N would put her stretcher at about 876 N, matching
+   [LE26]'s 864 and breaking [LO00]'s. **Unresolved — no number from either has
+   been used to change the model.**
+
 ### [G19] Grift, Vijayaragavan, Tummers & Westerweel — accelerating submerged plate
 E. J. Grift, N. B. Vijayaragavan, M. J. Tummers & J. Westerweel (2019),
 *Drag force on an accelerating submerged plate*, J. Fluid Mech. **866**,
@@ -1701,6 +1770,56 @@ split of stretcher force into vertical and horizontal parts.
 - With [BU13] ch. 8 (men, sweep, ergometer), every foot-force split found is
   from men, and none gives a vertical-to-horizontal ratio in numbers for
   on-water sculling.
+
+**Re-searched 2026-09-18, scanning the local library for foot force. The
+standard elite instrument cannot answer §11, and one named study can.**
+- **[LE26] Legge et al.** is the library's densest source on stretcher
+  force (53 hits), and it settles what the Peach PowerLine records:
+  > "The stretcher force is generated in the negative direction towards
+  > the stern of the boat, while the opposing horizontal gate force is in
+  > the positive direction towards the bow of the boat. The gate and
+  > stretcher force were measured along the boat's longitudinal axis."
+  - *So Peach measures one axis.* Instrumented gates, stretcher, GPS and
+    accelerometer at 50 Hz on single sculls — and the stretcher channel is
+    longitudinal only. **Any lab whose kit is a PowerLine has no vertical
+    component to send**, however elite the squad. §11's three addressees
+    are all chosen for custom instrumentation instead, which was the right
+    instinct; this records why no fourth Peach-equipped lab should be added.
+  - *One positive result worth keeping:* stretcher force was the **most
+    consistent variable** measured, by group and by individual — 100% of
+    the men's strokes and 74% of the women's fall into just two cluster
+    patterns, more stereotyped than gate force. A stretcher-force profile
+    is therefore a reasonable thing to model as a fixed shape; its
+    *direction* is what is missing, not its timing.
+  - The paper reports normalised profiles and cluster membership, not peak
+    newtons; a second extraction pass for magnitudes returned only
+    qualitative text. Kleshnev (2016) is cited there on styles that
+    "minimise early application of force on the foot stretcher" against a
+    swift catch giving "greater peak stretcher forces for a shorter period".
+- **New lead, and the closest match yet to the ask:** the review *Over 50
+  Years of Researching Force Profiles in Rowing* ([WA18], 2018) notes that
+  qualitative force-profile methods apply equally to "forces observed at
+  the foot-stretcher or pin in the **non-propulsive (vertical and
+  transverse) planes**", citing **Smith & Loschner (2002)**, *Biomechanics
+  feedback for rowing*, J. Sports Sci. 20(10):783–91. Its reference list
+  also carries **Loschner, Smith, Barrett, Simeoni & D'Helon (2000)**,
+  *The relationship between pin forces and individual feet forces applied
+  during sculling*, 3rd Australasian Biomechanics Conference.
+  - *Why this is the best target:* **sculling**, **individual feet** (not
+    both feet summed, as Sinclair's six-transducer plate gives), and pin
+    force concurrently — which is the pairing §11 needs to close the
+    knee/ankle equation. It is also the same Sydney group as [11a], so one
+    email can ask for both. Richard Smith co-authors [WA18] as well, so
+    the review's own author is the person holding the data.
+  - **Update, same day: the project owner supplied the 2000 paper, and it is
+    now read in full as [LO00] above.** It does not answer §11 — its forces
+    are propulsive only, and it defers the vertical and transverse components
+    to Loschner & Smith (1999), *Three dimensional pin forces at different
+    stroke rates*, 5th IOC World Congress, which covers the **pin** rather
+    than the stretcher. **§11 stays open.** What [LO00] did give is the first
+    same-population check on the stretcher force; see its entry.
+  - Smith & Loschner (2002) is still unread, and the 1999 abstract is now the
+    better target for §11. No number from either has entered the model.
 
 ### Sensory and reflex delays (read 2026-09-14, for phase 4.3's trunk controller)
 - **[K15] Kurtzer (2015)**, *Long-latency reflexes account for limb

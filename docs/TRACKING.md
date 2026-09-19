@@ -3431,6 +3431,50 @@ spent on measurement before any physics was touched.
 | `research` and `learned` catch by the sweep: tier 1 blade efficiency 0.714 eight, 0.681 four; tier 2 0.826 eight, **0.795 four, the first pass of the level target** (b923d62) | `coxswain/physics.py` | `tests/test_dynamic_oar_consumers.py`, `tests/test_dynamic_oar_run.py` |
 | blade added mass on the sweep catch: an oar in the air follows the sweep with no added mass; entry momentum left out 2.5 N·s per blade at most, against 63 parked; exit 12–24 N·s remains | `DynamicOarSimulator._coupled_system` | `tests/test_blade_added_mass.py`, `tests/test_sweep_catch.py` |
 
+### [LO00] against her stroke — the first same-population check on the stretcher (2026-09-18)
+
+A library sweep for phase 4.3's foot-force blocker turned up
+Loschner & Smith (2000) in [WA18]'s reference list; the project owner supplied
+it the same day. **Three international female single scullers** — [CR06]'s own
+population — with propulsive pin force, **each foot measured separately**, the
+oar angle of every peak, and boat velocity. Six checks, none of them fitted:
+the stretcher and pin curves come from `stretcher_from_balance_cr06.py`, built
+from her measured handle force and hull acceleration plus the segment-mass books.
+
+| check | model, her stroke | [LO00] measured | verdict |
+|---|---|---|---|
+| peak stretcher force | 715 N | 653–763 N (mean 704) | **passes, 1.02×** |
+| boat velocity min/max/mean | 3.06 / 5.13 / 4.19 m/s | subject A 3.06 / 4.80 / 4.01 | **passes** |
+| velocity swing / mean | 49% | 43, 46, 51% | **passes** |
+| foot and pin peak together | same instant | means −20.0° and −20.2°, 0.2° apart | **passes** |
+| oar angle of peak force | −13.1° | −14 to −29°, mean −20.1° | at the late edge of the band, 7° from their mean |
+| peak pin force, both gates | 790–800 N | 984–1103 N (mean 1028) | **0.77–0.78, low** |
+
+*The low pin force is not the oar's inertia.* `gate_inertia_check.py` recomputed
+it keeping `I_lock·θ̈` — the term the validated blade balance uses and the
+diagnostic's massless lever drops — and got **790 N either way**. The term
+cancels at the peak and only bites near the catch (blade load 17 → 5 N at
+t = 0.05 s). The gap is in her handle force itself: 553 N peak across both
+hands, where [LO00]'s subject A implies about 719 N.
+
+*And it exposes a conflict between the two measurement sets.* Stretcher-to-pin
+at peak is **0.68** in [LO00] (0.66–0.70 across three athletes) and **0.94** in
+[LE26]. Those cannot both describe the same quantity. Her stroke gives **0.91**
+— matching [LO00]'s stretcher *magnitude* and [LE26]'s *ratio*. Pushing her
+handle force up until the pin reached [LO00]'s 1028 N would put her stretcher at
+about 876 N, matching [LE26]'s 864 and breaking the [LO00] agreement that
+currently holds. **Left unresolved; no number from either has changed the model.**
+
+*What it does not do:* answer DATA_REQUESTS §11. [LO00]'s forces are propulsive
+only and it defers the vertical and transverse components to a 1999 abstract on
+three-dimensional **pin** forces. §11 stays open, now aimed at that abstract
+(§11d), and phase 4.3's knee and ankle stay blocked on it.
+
+*Also settled by the same sweep:* the Peach PowerLine — the standard elite
+instrument, and [LE26]'s — records gate and stretcher force **along the boat's
+longitudinal axis only**, so no PowerLine-equipped squad can answer §11 however
+good its data. Recorded in SOURCES and as "What not to ask for" in DATA_REQUESTS.
+
 ### v0.13 — asked for, and done
 
 | what | where | pinned by |

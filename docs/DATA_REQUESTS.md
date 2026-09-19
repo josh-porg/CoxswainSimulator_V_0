@@ -486,6 +486,69 @@ female rowers*, J. Sports Sci. 34(4) (2016).
 > With thanks,
 > [name]
 
+### 11d. Richard Smith & Conny Loschner — University of Sydney *(added 2026-09-18)*
+
+*The relationship between pin forces and individual feet forces applied
+during sculling*, 3rd Australasian Biomechanics Conference (2000); and
+*Biomechanics feedback for rowing*, J. Sports Sci. 20(10):783–91 (2002).
+
+**Updated the same day: the project owner supplied the 2000 paper, so it is
+read ([LO00] in SOURCES) and no longer the thing to ask for.** It measures each
+foot separately but *propulsively only*, and its own conclusion defers
+"transverse and vertical forces on the pin and stretcher" to a 1999 abstract.
+So the ask narrows to two specific things.
+
+Found through the reference list of *Over 50 Years of Researching Force
+Profiles in Rowing* ([WA18], 2018), which credits this group with measuring
+stretcher and pin force in the **non-propulsive (vertical and transverse)
+planes** — the only such citation found anywhere in the search. Smith also
+co-authors that review and the 11a paper, so the reviewer, the measurer and
+the 11a author are one person; say so in the email.
+
+> Subject: Vertical and transverse stretcher force from your Sydney sculling work
+>
+> Dear Professor Smith,
+>
+> I'm building an open simulator for racing shells and working out the rower's
+> joint moments on one measured single-scull stroke. The knee and ankle come
+> down to a split I have not found published in numbers: how much of the
+> stretcher force is vertical and how much horizontal, through the drive.
+>
+> I've read your ABC3 paper with Conny Loschner on pin forces and individual
+> feet forces — it has been genuinely useful, and its peak foot forces for the
+> three W1x scullers are the closest match to my athlete I've found. Its
+> conclusion points to transverse and vertical forces on the pin and stretcher,
+> citing your 1999 IOC congress abstract on three-dimensional pin forces.
+>
+> Two questions, either of which would help:
+>
+> 1. Did the same rig record the stretcher in three dimensions as well as the
+>    pin, and if so is there a mean vertical (or plate-normal) foot force
+>    against stroke time or oar angle that you could share?
+> 2. Is the 1999 abstract, or the fuller write-up behind it, available anywhere?
+>    I have not been able to find it.
+>
+> Even a few points through the drive, or values read off your own figures,
+> would be enough. I'd cite it in the project's documentation and would be glad
+> to show you what the model does with it.
+>
+> With thanks,
+> [name]
+
+> With thanks,
+> [name]
+
+### What not to ask for (2026-09-18)
+
+**Don't ask a Peach PowerLine lab.** [LE26] Legge et al. state that their
+gate and stretcher forces "were measured along the boat's longitudinal
+axis" — the standard elite system records **one axis at the stretcher**, so
+a PowerLine-equipped squad has no vertical component to send, however good
+its data otherwise. Every addressee above was picked for custom
+instrumentation (Kistler transducers, a footplate dynamometer, an
+instrumented Concept2); keep it that way. See SOURCES, "Foot-force
+direction on the water".
+
 ---
 
 ## Notes on sending these
