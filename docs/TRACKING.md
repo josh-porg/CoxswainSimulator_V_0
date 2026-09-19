@@ -2749,6 +2749,54 @@ Caplan & Gardner 2007 supplied by the project owner, now [CG07] in SOURCES).
 - *What is still unexplained:* the monotone rms improvement toward an
   unphysical lever arm. Reconciling the level does not touch it.
 
+**The unexplained flag, chased down: it is partly the shaft bending**
+(2026-09-18, `cr06/shaft_bend_vs_her.py`).
+- *Why suspect it.* The residual is phased, not a constant bias: with
+  ℓ = 1.805 the law over-predicts early (94 N against her 31 at 0.10 s) and
+  under-predicts late (5 N against 40 at 0.80 s). A shaft that bends under load
+  does exactly that — the blade trails the pin while the load builds, so the
+  true slip is smaller than computed early and larger late, since
+  θ̇_blade = θ̇ + δ̇.
+- *Modelled* as δ = c·(F_hand/2), with the target left alone: it is measured at
+  the handle, so bending changes where the blade is, not what the rower pulled.
+- *Constrained by measurement, not fitted freely.* Laschowski, Nolte,
+  Adamovsky & Alexander (2015) loaded sculling oars to **201 N at the blade**
+  and measured a deflection angle at the blade end of **at most 1.18 ± 0.01°**.
+  A free fit here wants 1.43° at a blade load of only 127 N — about **1.9×
+  softer than real oars are** — so the free fit is absorbing more than a shaft
+  can give.
+
+  | | C₂ | C_D | rms |
+  |---|---|---|---|
+  | rigid shaft | 140.4 | 3.11 | 25.5 N |
+  | **bend at the measured stiffness** | **142.6** | 3.16 | **20.2 N** |
+  | bend fitted freely (too soft) | 140.9 | 3.12 | 18.3 N |
+
+- **Verdict: real, correctly phased, worth about a fifth of the residual, and
+  not the explanation for the 2.4×** — it moves C₂ by 1.5%. At the measured
+  stiffness the peak lag is 0.75°, 2.4 cm at the blade.
+- *It also only flattens the lever-arm drift rather than removing it* (rms
+  across ℓ = 1.805 → 2.02 falls 25.5 → 14.5 rigid, 18.3 → 16.1 with bend), so
+  something smaller is still there. Immersion — less wetted area than the
+  nominal 0.0903 m² — is the remaining candidate, and it needs data this
+  dataset does not have.
+
+**Model status before advancing: the adopted C₂ is robust.** It is the one
+number the next stage rests on, and it does not move under any plausible
+elaboration of the model:
+
+| model extension | fitted C₂ |
+|---|---|
+| none (pure slip law) | 140.3 |
+| + constant blade added mass | 140.3 |
+| + shaft bend at measured stiffness | 142.6 |
+| + shaft bend fitted freely | 140.9 |
+| lift and drag instead of slip² | rejected: rms 82 N against 25 N |
+
+Only the assumed centre of pressure moves it, and the blade's geometry pins
+that to 1.805–1.822 m. The residual that remains is ~20 N rms against peak
+blade loads of 127 N, about 16%, with its phase now understood.
+
 ### The drive is 18–28% too long, and the cause is the ergometer
 **Impact: high — drive duration sets the time base of the whole stroke.**
 

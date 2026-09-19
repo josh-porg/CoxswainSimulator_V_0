@@ -1242,6 +1242,23 @@ oarlock and stretcher forces: the angle rounds smoothly through the finish.
 Figure 6 (Nolte, 1984) is an *idealised* pull falling to zero at the finish.
 Both qualitative; no deceleration law is given.
 
+### [LNA15] Laschowski, Nolte, Adamovsky & Alexander (2015) — oar-shaft stiffness
+*The effects of oar-shaft stiffness and length on rowing biomechanics*, Proc.
+IMechE Part P. Two sets of **sculling** oars of different design stiffness, at
+three lengths from 2.66 to 2.70 m, statically loaded to **201 N at the blade
+end**, with deflection measured at six positions along the shaft.
+- **The deflection angle at the blade end was at most 1.18 ± 0.01°.**
+- Shafts are **not uniform**: most compliant near the sleeve, up to 80% stiffer
+  toward the blade.
+
+*What it is used for here.* It puts a hard ceiling on the shaft compliance in
+the blade-load work (TRACKING, 2026-09-18). Fitting the bend freely to [CR06]'s
+athlete wants 1.43° at a blade load of 127 N — about 1.9× softer than these
+oars — so the free fit is absorbing more than a shaft can give. Held at the
+measured stiffness, bend is worth about a fifth of the residual and moves the
+fitted C₂ by 1.5%. Read via its abstract and the search record, not the full
+text: the deflection ceiling is the only number taken from it.
+
 ### [CG07] Caplan & Gardner (2007) — **primary, read 2026-09-18**
 *A fluid dynamic investigation of the Big Blade and Macon oar blade designs in
 rowing propulsion*, J. Sports Sci. 25(6), 643–650. Supplied by the project
