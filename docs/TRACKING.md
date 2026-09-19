@@ -3619,6 +3619,47 @@ are this same defect seen at the body; this is it seen at the oar. The standing
 conclusion that the four-keyframe ergometer body cannot make a measured catch
 spike is now quantified at the oar: 24 °/s, 29 ms, 3.2°, 1.1 points of boat speed.
 
+### 4.3a: can the body drive the entry? Not naively — it overshoots (2026-09-19)
+
+Having established that a correct entry is worth 3.2° and 1.1 points of speed, the
+principled fix is that the hands are on the handle, so the body should set the oar
+angle through the air phase. `entry_from_body_cr06.py` asks whether it can.
+
+**An architectural obstacle first.** `Boat._hand_targets` derives the hands *from*
+the oar sweep — "a rower holds the oar, so the hands are not free" — and
+`kinematics.py` then constrains the arms to it: "the hand track IS the handle". So
+in the coupled model the hands follow the oar and cannot drive it. A first probe
+that read `rower.joint_positions` was therefore circular, and said so: it recovered
+the arc's own rate to 4% (36.7 against 38.2 °/s), which is a check on the method,
+not an answer.
+
+**Rebuilt with `hand_targets=None`**, so the hand comes from the stroke dataset's
+own arm and body angles, over the air phase 0.02–0.10 s:
+
+| | mean rate | vs her |
+|---|---|---|
+| prescribed arc | 38.2 °/s | **0.65×** |
+| her measured oar | 59.0 °/s | — |
+| free-arm body's own hand path | 101.8 °/s | **1.73×** |
+
+**So coupling the oar to the body is not the fix.** It would trade a 35% deficit
+for a 73% excess. The body model and the oar arc disagree about hand speed at the
+catch by a factor of 2.7, and because the architecture slaves the hands to the oar,
+the body's own preference is silently discarded — which is *why* the arc's gentle
+catch survives into the simulation unchallenged. Her measurement sits between them.
+
+*Provisional, and marked so.* The free-arm rower is a configuration the model never
+runs, and its dataset arm angles were fitted with the hand constraint present, so
+the 1.73× may be part artefact. **The arc's 0.65× is the solid half** — it comes
+straight from her measured trace and is what the two studies above rest on.
+
+*Where that leaves the fix.* Not the arc alone: correcting its catch rate to hers
+would be fitting to one athlete and would not generalise, which the "no unsourced
+number" rule forbids. Not the body as it stands either. The remaining route is the
+one the programme already names — a torque-driven body whose own dynamics produce
+the catch, with the hands on the handle as a constraint rather than a slaving — and
+that is the rest of 4.3, not a patch to the entry.
+
 ### v0.13 — asked for, and done
 
 | what | where | pinned by |
