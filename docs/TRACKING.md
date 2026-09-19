@@ -2629,6 +2629,48 @@ coefficient, not the nominal one the model uses** (2026-09-14,
   mechanism, which is what makes it a check rather than a restatement.
 - *Suite:* 2025 passed, 17 xfailed, nothing else touched.
 
+**Which blade law does her stroke demand? Tier 2 tested against measured
+blade loads, and it fails** (2026-09-18, `cr06/blade_law_vs_her.py`).
+- *Why ask.* Adopting the fitted C₂ removed the drive-angle lead and left a
+  2.7–4.3° **lag** from 0.30 s: the residual moved to the catch, which is
+  exactly where [CR06] say their own fit is worst. Tier 2 predicts a
+  catch-specific correction, because the angle of attack there is small
+  (the blade is at ~60° and the flow runs along the shaft) and 90° at
+  mid-drive, where it reduces to Model 1.
+- *The target.* Her oar's moment balance gives the normal blade load
+  independently of any blade law:
+  F_n = (I_lock θ̈ + ½F_hand·s + m d a_hull cos θ)/ℓ. Each candidate law is
+  then evaluated on her own kinematics and scored against it.
+
+  | law | rms | bias | catch → 0.35 s | 0.35 → 0.85 s |
+  |---|---|---|---|---|
+  | tier 1, computed C₂ 58.7 | 55.2 N | −50.5 | 39.9 | 63.1 |
+  | **tier 1, fitted C₂ 140.88** | **25.1 N** | −6.0 | 32.2 | **19.4** |
+  | tier 2, lift and drag as shipped | 82.3 N | +45.8 | **124.0** | 36.5 |
+
+- **Tier 2 fails, and in the opposite direction to the hypothesis.** At
+  0.10 s it predicts 246 N against her 31 N. The cause is structural: at a
+  small angle of attack the *axial* flow (2.6 m/s) dwarfs the slip (0.8 m/s),
+  so the dynamic pressure ½ρA(w_n² + w_a²) is large and the lift term turns it
+  into a large normal load. The shipped constants make the blade behave like a
+  hydrofoil through the catch.
+- **It is the lift term, not the structure.** Halving A_l gives rms 38.9 N;
+  her drive would choose **A_l = 0.25 and A_d = 4.11** against the shipped
+  1.25 and 2.07 — a fifth of the lift and twice the drag.
+- **And the second parameter barely earns its place.** That best-fit
+  lift/drag pair reaches 21.5 N against the one-parameter slip law's 25.1 N.
+- **An independent route to the adopted C₂.** Least squares of a pure slip law
+  on her blade load gives **C₂ = 140.3**, against [CR06]'s fitted 140.88
+  (0.4%) and their computed 58.7. Adopted today from their fit; recovered here
+  from her trace.
+  - *Not independent physics.* F_n is dominated by the handle term — it
+    correlates 0.996 with her measured handle force — so this is the same
+    data reached by a different route, not a second measurement of the water.
+- *What it leaves.* The early-drive lag is **not** angle of attack. The
+  candidates still standing are the entry transient (immersion and added mass
+  developing over the first strokes of the drive) and the body-on-the-oar
+  balance at the catch, which 4.3 owns.
+
 ### The drive is 18–28% too long, and the cause is the ergometer
 **Impact: high — drive duration sets the time base of the whole stroke.**
 

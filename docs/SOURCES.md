@@ -1258,6 +1258,20 @@ shallow experimental channel":
 
 Reported with no significant stall at any attack angle, and no Reynolds number.
 
+**Tested against measured blade loads, and they do not survive the catch**
+(2026-09-18, `cr06/blade_law_vs_her.py`; TRACKING). Scored against the normal
+load implied by [CR06]'s own oar balance across her drive, these constants give
+rms 82.3 N against tier 1's 25.1 N, and at 0.10 s predict **246 N where her oar
+says 31 N**. The failure is the lift term: at a small angle of attack the axial
+flow dominates ½ρA(w_n² + w_a²), and `C_L = A_l sin 2α` converts that into a
+large normal load, so the blade behaves like a hydrofoil through the catch. Her
+drive would choose **A_l = 0.25, A_d = 4.11** — a fifth of the quoted lift and
+twice the drag. Whether that indicts Caplan & Gardner or Atkinson's rendering of
+them cannot be told without the primary, which is the same reason these stay
+provisional. One caveat on the test: the implied load correlates 0.996 with her
+handle force, so it is the same measurement reached another way, not an
+independent reading of the water.
+
 **The status of these numbers, plainly.** Secondary: the primary is paywalled
 and has not been read, so the constants are *provisional* — any tier 2 result
 built on them is labelled as resting on a secondary source until Caplan &

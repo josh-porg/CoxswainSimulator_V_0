@@ -727,6 +727,16 @@ force are not in the paper and have to be built and validated here.
     - **Decision: adopt as a research/learned `PhysicsProfile` scull blade
       coefficient**, exclusive of the Patton blade added mass, with tests.
       Shipped value stays 58.7.
+  - **Tier 2 now has a measured test, and fails it** (2026-09-18,
+    `cr06/blade_law_vs_her.py`). Scored against the normal blade load implied
+    by [CR06]'s oar balance, tier 1 with the fitted C₂ gives rms 25.1 N and
+    tier 2 as shipped 82.3 N, with tier 2's error concentrated at the catch
+    (124 N) where it predicts 246 N against her 31 N. The cause is the lift
+    term acting on the axial flow, which dominates the dynamic pressure at a
+    small angle of attack. Her drive would choose A_l 0.25 / A_d 4.11 against
+    the shipped 1.25 / 2.07, and even then beats the one-parameter slip law
+    only 21.5 N to 25.1 N. **The [CG06a] constants should not be trusted for
+    a catch, and tier 2 is not the fix for the early-drive lag.**
   - **Built** (2026-09-18): `PhysicsProfile.scull_c2`, `None` on `shipped`,
     140.88 on `research` and `learned`. Applied to sculling rigs only, read by
     `OarDynamics.from_boat`; `BladeModel`'s own defaults unchanged; sweep keeps
