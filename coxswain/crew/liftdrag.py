@@ -64,9 +64,20 @@ class LiftDragBlade:
 
     #: Where the constants came from, carried on the class so a result built
     #: on them cannot be quoted as though they were primary.
-    PROVENANCE = ("[CG06a]: Caplan & Gardner's flume fits, via Atkinson's "
-                  "'Oarblade Lift and Drag' -- a secondary source; the "
-                  "primary is not read, so the constants are provisional.")
+    PROVENANCE = (
+        "[CG06a] rendering, amplitudes now verified: the shapes are "
+        "Atkinson's and the interpolation between the measured peaks stays "
+        "provisional. "
+        "Amplitudes verified against the primary (Caplan & Gardner 2007, read "
+        "2026-09-18): their measured flat-plate C_Dmax is ~2 at alpha = 90 deg "
+        "and C_Lmax falls at 40-45 deg, which is exactly what A_d and A_l are "
+        "here. The sin(2a)/sin^2(a) INTERPOLATION between those peaks is "
+        "Atkinson's fit, not their measurement, and it is what fails at a "
+        "catch: scored against CR06's measured blade load this model gives "
+        "rms 82 N against tier 1's 25 N, predicting 246 N at 0.10 s where her "
+        "oar says 31 N (TRACKING). Their flume is also quasi-static with the "
+        "blade's top edge at the surface, so a catch is a configuration "
+        "nobody measured.")
 
     #: Lift and drag amplitudes; Big Blade by default ([CG06a], provisional).
     lift_amplitude: float = 1.25

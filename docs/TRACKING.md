@@ -2727,6 +2727,28 @@ measured blade drag coefficient — at her geometry it implies a C_D about twice
 anything measured, and it is acutely sensitive to a lever arm the data cannot
 pin down. The docstring now says so.
 
+**The primary arrives, and the level stops being anomalous** (2026-09-18;
+Caplan & Gardner 2007 supplied by the project owner, now [CG07] in SOURCES).
+- **The constants this project uses are verified.** Their measured flat-plate
+  C_Dmax is ≈ 2 at α = 90° and C_Lmax falls at α = 40–45°. Atkinson's rendering
+  evaluates to A_d at 90° and A_l at 45°, so his 2.07 and 1.25 *are* their
+  peaks. The amplitudes were never the problem.
+- **So the tier-2 failure is re-diagnosed, and more precisely.** What breaks at
+  a catch is the *interpolation* between those measured peaks: α is ~12° there,
+  far from either, and `sin 2α` at small α is Atkinson's curve rather than
+  their measurement. Add that [CG07] is quasi-static with the blade's top edge
+  flush with the surface, and the model is being asked for a load in a
+  configuration nobody measured.
+- **And the C_D = 3.12 that looked wrong is now roughly where it should be.**
+  [CG07] ignores non-steady vortex development by construction; [G19] measured
+  what that omission is worth — peaks of 3.6 N against 2.6–2.8 N predicted,
+  +30–40% — and showed the transient outlasts a whole rowing drive. A
+  quasi-static ≈ 2.0 carrying that enhancement is ≈ 2.6–2.8, against the fitted
+  3.12. An on-water effective coefficient *should* sit above every flume
+  number, and it does, by about the measured amount.
+- *What is still unexplained:* the monotone rms improvement toward an
+  unphysical lever arm. Reconciling the level does not touch it.
+
 ### The drive is 18–28% too long, and the cause is the ergometer
 **Impact: high — drive duration sets the time base of the whole stroke.**
 

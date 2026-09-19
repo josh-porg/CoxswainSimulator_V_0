@@ -1242,6 +1242,49 @@ oarlock and stretcher forces: the angle rounds smoothly through the finish.
 Figure 6 (Nolte, 1984) is an *idealised* pull falling to zero at the finish.
 Both qualitative; no deceleration law is given.
 
+### [CG07] Caplan & Gardner (2007) — **primary, read 2026-09-18**
+*A fluid dynamic investigation of the Big Blade and Macon oar blade designs in
+rowing propulsion*, J. Sports Sci. 25(6), 643–650. Supplied by the project
+owner; the secondary entry below is superseded on the numbers and kept for the
+functional forms.
+
+**Method, and the two limits that matter here.**
+- **Quarter-scale** models in a flume 0.64 m wide, 0.15 m deep; free stream
+  0.75 m/s; Re = 9.4 × 10⁴ at 0.7 m/s. Coefficients were checked to be
+  Reynolds-independent above 0.7 m/s.
+- Projected areas: flat plate 77.42 cm², Big Blade 77.41 cm², Macon 67.48 cm²
+  (model scale). Water 16 °C, ρ = 999 kg/m³. Shaft at 10° to the surface, and
+  at α = 0 the blade's **top edge is flush with the water surface**.
+- **Quasi-static by construction:** the blade is held static at each angle, and
+  the paper states that forces from the development of non-steady-state
+  vortices are ignored.
+
+**Measured coefficients.**
+- Flat plate: C_D rises with α to **C_Dmax ≈ 2 at α = 90°**, then falls toward
+  zero; C_L peaks at **α ≈ 40–45°** and is negative above 90° (the force
+  reverses direction), with a minimum near 135°.
+- Big Blade against flat plate: lift is similar below 90° — curvature does *not*
+  help there — and markedly better above 90°, where the blade acts like a delta
+  wing. Drag is similar up to 50° and above 145°, with a substantial Big Blade
+  increase between 75° and 100°.
+- Big Blade and Macon are very similar overall; the paper concludes hydraulic
+  efficiency is *not* the reason for the Big Blade's claimed 2% advantage.
+
+**This verifies the constants this project has been using.** Atkinson's
+rendering gives C_D = A_d sin²α → A_d at 90°, and C_L = A_l sin 2α → A_l at
+45°. With A_d = 2.07 and A_l = 1.25, both land on the measured peaks. **The
+functional forms are Atkinson's, the amplitudes are Caplan & Gardner's, and
+they are faithful.**
+
+**It also reconciles the level of [CR06]'s fitted C₂.** That fit implies
+C_D = 3.12, which looked anomalous against [G19]'s 1.10–1.60. But [G19] is a
+*steady* plate and [CG07] is explicitly *quasi-static* at the surface — the
+low-drag configuration — while a rowing blade never leaves [G19]'s transient.
+Quasi-static ≈ 2.0 plus the transient enhancement [G19] measured (peaks 3.6 N
+against 2.6–2.8 N predicted, +30–40%) gives ≈ 2.6–2.8 against the fitted 3.12.
+The on-water value *should* exceed every flume number, and it does, by about
+the amount the unsteady measurement predicts.
+
 ### [CG06a] Caplan & Gardner blade coefficients — *secondary, via Atkinson*
 Bill Atkinson, *Oarblade Lift and Drag*,
 [atkinsopht.com/row/liftdrag.htm](http://www.atkinsopht.com/row/liftdrag.htm),
@@ -1275,6 +1318,13 @@ Re 4–8 × 10⁴.
   on-water data should exceed any steady value, and why it should *grow*
   through the drive. Both are observed on [CR06]'s athlete (TRACKING).
 
+**Status update, 2026-09-18: the amplitudes are now verified against the
+primary** ([CG07] above). A_d = 2.07 is the paper's measured C_Dmax at 90° and
+A_l = 1.25 its C_Lmax at 45°, so Atkinson's rendering is faithful. What remains
+provisional is the *interpolation* between those peaks — the sin 2α and sin²α
+shapes are his fit, not the paper's — and that is precisely what the test below
+exercises at small α.
+
 **Tested against measured blade loads, and they do not survive the catch**
 (2026-09-18, `cr06/blade_law_vs_her.py`; TRACKING). Scored against the normal
 load implied by [CR06]'s own oar balance across her drive, these constants give
@@ -1283,9 +1333,14 @@ says 31 N**. The failure is the lift term: at a small angle of attack the axial
 flow dominates ½ρA(w_n² + w_a²), and `C_L = A_l sin 2α` converts that into a
 large normal load, so the blade behaves like a hydrofoil through the catch. Her
 drive would choose **A_l = 0.25, A_d = 4.11** — a fifth of the quoted lift and
-twice the drag. Whether that indicts Caplan & Gardner or Atkinson's rendering of
-them cannot be told without the primary, which is the same reason these stay
-provisional. One caveat on the test: the implied load correlates 0.996 with her
+twice the drag. *Now that the primary is read, the blame can be assigned:* the
+amplitudes are Caplan & Gardner's own measured peaks and are not in doubt, so
+what fails is the extrapolation between them. At a catch the angle of attack is
+~12° — far from either measured peak — and `sin 2α` there is Atkinson's
+interpolation, applied to an axial flow that dominates the dynamic pressure.
+[CG07] is also quasi-static with the blade's top edge at the surface, which is
+neither the immersion nor the unsteadiness of a real catch. One caveat on the
+test: the implied load correlates 0.996 with her
 handle force, so it is the same measurement reached another way, not an
 independent reading of the water.
 

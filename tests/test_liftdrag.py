@@ -30,8 +30,14 @@ def test_the_constants_are_the_recorded_ones_and_say_so():
     assert (big.lift_amplitude, big.drag_amplitude) == (1.25, 2.07)
     assert (macon.lift_amplitude, macon.drag_amplitude) == (1.24, 1.90)
     # A result built on these must not be able to pass for a primary one.
+    # Since 2026-09-18 the AMPLITUDES are verified against Caplan & Gardner's
+    # own paper -- A_d is their measured C_Dmax at 90 deg, A_l their C_Lmax at
+    # 45 deg -- so the provenance must now say both things: where the numbers
+    # come from, and that the curve BETWEEN those peaks is still Atkinson's.
     assert "CG06a" in LiftDragBlade.PROVENANCE
     assert "provisional" in LiftDragBlade.PROVENANCE.lower()
+    assert "verified" in LiftDragBlade.PROVENANCE.lower()
+    assert "interpolation" in LiftDragBlade.PROVENANCE.lower()
 
 
 def test_pure_normal_flow_is_tier_one_law(blade):
