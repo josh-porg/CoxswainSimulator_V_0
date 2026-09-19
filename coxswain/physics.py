@@ -112,6 +112,22 @@ class PhysicsProfile:
     #: scull at 1.2 kg.  The shipped game reads oar mass for recovery roll
     #: authority, so the correction lives here and not in the catalogue.
     scull_mass: Optional[float] = None
+    #: Equivalent blade force coefficient for *sculling* blades, N s^2/m^2,
+    #: or ``None`` to keep :class:`~coxswain.crew.oarlock.BladeModel`'s
+    #: computed 58.7.  [CR06] computed that value as ``(1/2) rho C0 A0``;
+    #: the value that minimised the error against their own singles data was
+    #: about 2.4x it, and with it their oar-angle error halved (their p. 208
+    #: and Fig. 7).  Measured here three ways on [CR06]'s own athlete: her
+    #: traces alone imply 2.3-3.4x, her oar angle needs 2.4x (rms against her
+    #: 8.87 -> 2.26 deg), and on Holt's singles it closes the speed gap 3.0-3.5
+    #: points and lifts blade efficiency into Kleshnev's band (TRACKING).
+    #:
+    #: **Exclusive of the Patton blade added mass.**  The fitted coefficient
+    #: lumps transient added mass into a steady C2 ([CR06] cite Wang 2005), so
+    #: a run may have one or the other, never both; ``DynamicOarSimulator``
+    #: refuses the combination.  Sweep blades keep 84.5: [CR06] fitted the
+    #: 2.4x on singles only.
+    scull_c2: Optional[float] = None
     #: Frozen profiles may not be altered, and the game may resolve only
     #: a frozen one.
     frozen: bool = False
@@ -133,6 +149,14 @@ class PhysicsProfile:
             raise ValueError(
                 f"scull_mass must be a positive mass in kg; got "
                 f"{self.scull_mass!r}")
+        if self.scull_c2 is not None and not self.scull_c2 > 0.0:
+            raise ValueError(
+                f"scull_c2 must be a positive blade coefficient in "
+                f"N s^2/m^2; got {self.scull_c2!r}")
+        if self.scull_c2 is not None and self.blade_tier == 0:
+            raise ValueError(
+                "scull_c2 sets a blade coefficient, and tier 0 has no blade "
+                "model to set it on")
         if self.catch != "rest" and self.oar != "dynamic":
             raise ValueError(
                 f"catch rule {self.catch!r} belongs to the dynamic oar; "
@@ -169,6 +193,8 @@ class PhysicsProfile:
         """
         if self.blade_tier == 0:
             return None
+        import dataclasses
+
         from .crew.oarlock import BladeModel
 
         sculling = False
@@ -180,8 +206,10 @@ class PhysicsProfile:
                 sculling = False
         outboard = _outboard_of(boat)
         if sculling:
-            return (BladeModel.sculling(outboard=outboard)
-                    if outboard else BladeModel.sculling())
+            blade = (BladeModel.sculling(outboard=outboard)
+                     if outboard else BladeModel.sculling())
+            return (dataclasses.replace(blade, c2=float(self.scull_c2))
+                    if self.scull_c2 is not None else blade)
         return (BladeModel.sweep(outboard=outboard) if outboard
                 else BladeModel.sweep())
 
@@ -212,6 +240,12 @@ class PhysicsProfile:
                 boat.wave_table = wave_table_for(offsets)
         if self.scull_mass is not None:
             _set_scull_mass(boat, float(self.scull_mass))
+        # Read by OarDynamics.from_boat when it builds the sculling blade.
+        # Left unset on sweep rigs and on profiles that do not ask for it, so
+        # a boat carries the attribute only where it changes something.
+        if self.scull_c2 is not None and not bool(
+                getattr(getattr(boat, "rig", None), "is_sweep", True)):
+            boat.scull_c2 = float(self.scull_c2)
         boat.physics_profile = self.name
         return boat
 
@@ -303,6 +337,12 @@ PROFILES: Dict[str, PhysicsProfile] = {
         # scull inherits the sweep oar's 2.7 kg.  +0.5% speed on the 1x at
         # equal torque, stable at the default step.
         scull_mass=1.2,
+        # [CR06]'s own best fit, 2.4 x their computed 58.7, since 2026-09-18.
+        # Validated on their athlete (oar-angle rms 8.87 -> 2.26 deg) and on
+        # Holt's singles (speed gap -3.0 to -3.5 points, blade efficiency
+        # 0.69-0.70 -> 0.78-0.79, inside Kleshnev's band).  Exclusive of the
+        # Patton blade added mass.
+        scull_c2=140.88,
     ),
     # Declared so the shape of the programme is visible in the code and not
     # only in the plan.  NOTHING behind it exists yet: there is no tier 2
@@ -321,6 +361,7 @@ PROFILES: Dict[str, PhysicsProfile] = {
         wave="sretenskii",
         catch="sweep",
         scull_mass=1.2,
+        scull_c2=140.88,
     ),
 }
 

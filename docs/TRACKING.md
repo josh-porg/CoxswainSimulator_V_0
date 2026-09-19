@@ -2531,6 +2531,103 @@ coefficient, not the nominal one the model uses** (2026-09-14,
       and that should be written next to the option.
     - *Next:* check C₂ × 2.4 against Holt's singles catch and finish slips
       before any profile change. It is one athlete against a population.
+- **Against Holt's singles: no target gets worse by more than 0.05 s, the
+  speed gap closes by 3.0–3.5 points, and blade efficiency lands in
+  Kleshnev's band** (2026-09-14, `phase4/holt_singles_c2_probe.py`).
+  - *Setup:* the recorded catch probe's oar-only singles (body off the oar,
+    Holt's conditions at 26 °C, power matched on handle power, 16 strokes)
+    with the blade's c2 scaled on every simulator built.
+  - *First launch diverged in the ×1.0 control too,* before any C₂ result.
+    With the research profile's 1.2 kg scull (9917c7d), the oar-only balance
+    diverges at the default step, as recorded above, and the probe predated
+    it. The probe now takes `OAR_MASS` and `DT_DIV`.
+  - *Control passes:* 2.7 kg, default step, ×1.0 reproduces all four
+    recorded probe rows digit for digit, gate forces included.
+  - *The measured scull on its own (1.2 kg, step/4, ×1.0), against 2.7 kg:*
+    catch slip −0.6 to −0.8°, finish ±0.3°, speed +0.2 to +0.4 points, blade
+    efficiency −0.003.
+
+    | single, 1.2 kg, step/4 | catch / finish slip (Holt) | catch to peak (Holt) | peak / mean (Holt) | peak gate (Holt) | speed error | oar rate at 10° | blade eff. (Kleshnev 0.754–0.816) |
+    |---|---|---|---|---|---|---|---|
+    | M1x default, C₂ × 1.0 | 14.0 / 20.1° (7.7 / 14.1) | 0.49 s (0.43) | 2.17 (1.90) | 471 N (497) | −4.7% | 77 °/s | 0.687 |
+    | M1x default, **× 2.4** | 14.0 / 20.1° | 0.52 s | 2.13 | 471 N | **−1.2%** | 70 °/s | **0.781** |
+    | M1x cr06, × 1.0 | 12.7 / 15.8° | 0.48 s | 1.91 | 424 N | −4.4% | 80 °/s | 0.692 |
+    | M1x cr06, **× 2.4** | 12.6 / 15.7° | 0.52 s | 1.88 | 424 N | **−1.0%** | 72 °/s | **0.785** |
+    | W1x default, × 1.0 | 19.3 / 24.2° (9.7 / 18.1) | 0.56 s (0.39) | 2.15 (1.87) | 332 N (371) | −7.9% | 64 °/s | 0.698 |
+    | W1x default, **× 2.4** | 19.2 / 24.3° | 0.60 s | 2.11 | 332 N | **−4.8%** | 58 °/s | **0.790** |
+    | W1x cr06, × 1.0 | 19.0 / 20.3° | 0.55 s | 1.89 | 299 N | −7.5% | 67 °/s | 0.702 |
+    | W1x cr06, **× 2.4** | 19.0 / 20.3° | 0.60 s | **1.87** | 299 N | **−4.5%** | 60 °/s | **0.793** |
+
+  - **Blade efficiency: 0.69–0.70 → 0.78–0.79, inside Kleshnev's
+    0.785 ± 0.031 on all four rows.**
+    - Kleshnev is a population measurement, independent of [CR06]. So a
+      coefficient fitted to one athlete's angle trace also brings a second,
+      unrelated target into its band.
+    - This is the singles, oar-only probe. The scorecard's pinned fail is on
+      the sweep eight and four, which a scull C₂ does not touch.
+  - **Speed at Holt's power: +3.5, +3.4, +3.1 and +3.0 points.** M1x ends at
+    −1.0 to −1.2%, W1x at −4.5 to −4.8%. At equal power a blade that slips
+    less converts more of it.
+    - This does not contradict her stroke, where the hull slowed 0.6
+      points. That run was at equal *force*, and the same force then did
+      31 W less work.
+  - **Slips and peak force unchanged** (≤ 0.1°, same peak N). Catch and
+    finish slip are thresholds on gate force, and the pull shape and body
+    set them, not the blade. The 5–10° catch miss is still 4.3's.
+  - **One thing worse: force peaks 0.03–0.05 s later** (0.52 against Holt's
+    0.43; 0.60 against 0.39). The stiffer blade slows the oar, by 9% at 10°
+    past the catch, and lengthens the drive by 0.04–0.05 s. The catch to peak
+    was already 0.06–0.17 s late. Peak/mean falls 0.02–0.04: toward Holt on
+    three rows, and just past Holt's on M1x cr06 (1.91 → 1.88 against 1.90).
+  - **Scope.** [CR06]'s 2.4× was fitted on singles only. The sweep C₂ (84.5)
+    has no fitted value, so nothing here says the sweep blade should change,
+    and the eight's and four's race-pace tension is untouched.
+- **Decision recorded: adopt the fitted scull C₂ in the research profile.**
+  - *It is sourced:* [CR06] p. 208 for these singles.
+  - *It is confirmed three ways:* her traces alone; her oar angle, fourfold
+    better; Holt's singles, with speed +3 points and blade efficiency into
+    Kleshnev's band.
+  - *It costs:* force peaks 0.03–0.05 s later.
+  - *Not frozen:* the shipped game keeps 58.7.
+  - *Next:* a `PhysicsProfile` field for the scull blade coefficient, set
+    only on `research`/`learned`, with tests and the fast suite. It must
+    record that the fitted value lumps transient added mass and stays
+    exclusive of `blade_added_mass="patton"`.
+
+**Adopted: `PhysicsProfile.scull_c2`** (2026-09-18, `tests/test_research_scull_c2.py`).
+- *The field.* `scull_c2: Optional[float]`, N·s²/m², `None` on `shipped` and
+  **140.88** (2.4 × 58.7) on `research` and `learned`. Refused when
+  non-positive, and refused at `blade_tier=0`, which has no blade to set it on.
+- *How it reaches the blade.* `apply` stamps `boat.scull_c2` on sculling rigs
+  only; `OarDynamics.from_boat` replaces the blade's `c2` when the boat carries
+  it. `BladeModel.sculling()`'s own default stays 58.7, so the shipped game and
+  every un-profiled caller are untouched. An explicit `from_boat(blade=...)`
+  still wins, so studies keep their override.
+- *Sweep is untouched* (84.5): [CR06] fitted the 2.4× on singles only, and
+  `apply` never stamps a sweep rig.
+- *Exclusivity enforced, not just documented.* `DynamicOarSimulator` raises if
+  `blade_added_mass != "none"` on a boat carrying a fitted `scull_c2`: the fit
+  already contains the transient added mass, so running both counts the same
+  water twice.
+- *One existing test changed on purpose.*
+  `test_blade_coefficient_follows_the_rig` pinned the research scull blade at
+  58.7. Its intent — the coefficient follows the rig — is kept: it now asserts
+  sweep 84.5, scull 140.88, and that the two still differ.
+- **The adopted code path reproduces the study that justified it.** The Holt
+  probe reached its ×2.4 numbers by multiplying `c2` inside a `ScaledSim`
+  subclass. Re-run with no scaling at all, so the value comes from the profile
+  instead, it prints c2 = 140.9 and returns the same rows:
+
+  | single | catch / finish slip | speed error | blade eff. |
+  |---|---|---|---|
+  | M1x default | 14.0 / 20.1° | −1.2% | 0.781 |
+  | M1x cr06 shape | 12.6 / 15.7° | −1.0% | 0.785 |
+  | W1x default | 19.2 / 24.3° | −4.8% | 0.790 |
+  | W1x cr06 shape | 19.0 / 20.3° | −4.5% | 0.793 |
+
+  Identical to the hand-scaled run to the printed precision, by a different
+  mechanism, which is what makes it a check rather than a restatement.
+- *Suite:* 2025 passed, 17 xfailed, nothing else touched.
 
 ### The drive is 18–28% too long, and the cause is the ergometer
 **Impact: high — drive duration sets the time base of the whole stroke.**

@@ -93,14 +93,21 @@ def test_tiers_above_zero_produce_a_blade_model():
 
 
 def test_blade_coefficient_follows_the_rig():
-    """[CR06] fit C2 separately for sweep (84.5) and sculling (58.7)."""
+    """[CR06] computed C2 separately for sweep (84.5) and sculling (58.7).
+
+    Sweep still carries the computed value.  Since 2026-09-18 the sculling
+    one is [CR06]'s own *fitted* coefficient, 2.4 x 58.7, which they fitted
+    on singles only -- so the two must still differ by rig, and the sweep
+    number must not have moved.  See tests/test_research_scull_c2.py.
+    """
     from coxswain.boats import catalog
 
     research = physics.resolve("research")
     sweep = research.blade_model(catalog.build("4+", rate=30.0))
     scull = research.blade_model(catalog.build("1x", rate=30.0))
     assert sweep.c2 == pytest.approx(84.5)
-    assert scull.c2 == pytest.approx(58.7)
+    assert scull.c2 == pytest.approx(140.88)
+    assert sweep.c2 != scull.c2
 
 
 def test_blade_outboard_comes_from_the_boat_not_the_default():

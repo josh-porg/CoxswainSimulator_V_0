@@ -416,6 +416,14 @@ class OarDynamics:
             maker = BladeModel.sculling if sculling else BladeModel.sweep
             # the blade force acts at the blade's centre, not its tip
             blade = maker(outboard=float(lock.oar.blade_centre_outboard))
+            # A profile may fit the sculling coefficient: research and learned
+            # carry [CR06]'s own 2.4x value.  ``PhysicsProfile.apply`` sets it
+            # on sculling rigs only, so a sweep boat never sees it.
+            fitted = getattr(boat, "scull_c2", None)
+            if sculling and fitted:
+                import dataclasses
+
+                blade = dataclasses.replace(blade, c2=float(fitted))
         return cls(
             blade=blade,
             inboard=float(lock.oar.inboard),

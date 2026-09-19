@@ -717,6 +717,21 @@ force are not in the paper and have to be built and validated here.
     separate Patton blade added mass, so there is no double count today, but
     the two must stay exclusive. Holt's singles slips are the check before
     adopting it. Shipped value unchanged.
+  - **Holt's singles check passed** (oar-only probe, equal power, control
+    reproducing the recorded rows exactly).
+    - Speed gap closes 3.0–3.5 points: M1x −1.0/−1.2%, W1x −4.5/−4.8%.
+    - Blade efficiency 0.69–0.70 → 0.78–0.79, inside Kleshnev's
+      0.785 ± 0.031, an independent population target.
+    - Slips unchanged; force peaks 0.03–0.05 s later.
+    - Sweep C₂ has no fitted value and is untouched.
+    - **Decision: adopt as a research/learned `PhysicsProfile` scull blade
+      coefficient**, exclusive of the Patton blade added mass, with tests.
+      Shipped value stays 58.7.
+  - **Built** (2026-09-18): `PhysicsProfile.scull_c2`, `None` on `shipped`,
+    140.88 on `research` and `learned`. Applied to sculling rigs only, read by
+    `OarDynamics.from_boat`; `BladeModel`'s own defaults unchanged; sweep keeps
+    84.5. `DynamicOarSimulator` refuses it together with
+    `blade_added_mass="patton"`. Tests in `tests/test_research_scull_c2.py`.
 
   *Fix (b), and what it showed.* The velocity jumps are now handed to the
   hull as impulses through the system mass matrix, conserving the momentum
