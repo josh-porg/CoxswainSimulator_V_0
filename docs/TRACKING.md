@@ -3526,6 +3526,53 @@ together, and the boat-velocity swing agrees. §11 stays open. And nothing in th
 model was altered to reach any of this; the only new code is a default-1.0
 `F_SCALE` env knob on two scratchpad scripts, so the recorded runs are unchanged.
 
+### The catch lag taken apart (2026-09-19): not the blade, mostly the entry
+
+The live defect on her stroke is the model's oar running behind hers through the
+drive — +2.66 / +3.89 / +4.26° at 0.30 / 0.50 / 0.70 s. Her measured handle force
+drives it, so the candidates were the blade load, the oar's inertia, or the hull.
+`catch_lag_blade_cr06.py` settles it. Oar inertia was already at its floor (the
+oar-only profile on a 1.2 kg oar; the rower's arms would only raise it).
+
+**It is not the blade law.** Compared at the same instant through the drive, the
+model's blade load and the load her oar balance implies agree to **0.1%** on the
+mean (88 N against 88 N) and within a few newtons pointwise — 92/87, 115/113,
+127/127, 68/70. What differs underneath is the hull: 3.400 m/s against her
+3.513 through the drive, 3.2% slow, which makes the slip 6.6% more negative,
+because `w = ℓθ̇ + v cos θ`.
+
+**And the hull is only about a third of it.** Integrating the oar *alone* on her
+clock from her catch, under her measured handle force and the same tier-1 law,
+changing only the hull velocity it sees:
+
+| | 0.10 s | 0.50 s | 0.70 s | rms, 0.05–0.85 s |
+|---|---|---|---|---|
+| full simulation, lag vs her | +1.72° | +3.89° | +4.26° | — |
+| isolated oar, **model** hull | −0.25° | +1.05° | +1.35° | 0.88° |
+| isolated oar, **her** hull | −0.39° | −0.42° | −0.93° | **0.74°** |
+
+The bottom row is a result in its own right: **the oar equation with the tier-1
+law at C₂ = 140.88 and the oar-only inertia, given her handle force and her hull,
+reproduces her oar angle to 0.74° rms across the drive.** Blade law, C₂ and oar
+inertia are jointly exonerated, by the same machinery that reproduced her
+turn-round to 0.67° rms.
+
+So at 0.70 s the lag splits roughly: **1.35° the hull deficit**, and **2.89°
+generated inside the full simulation** — of which **1.72° is already there at
+0.10 s**, before the hull deficit has had time to accumulate. That early part is
+the catch entry, which is 4.3a's own subject, and it sits with the known 13–16°
+of catch slip against [H20]'s 7.7–9.7°.
+
+*Correction to an earlier reading in this file:* the catch dip and the oar lag are
+**not** the same defect. The dip contributes, but it is the smaller share, and
+removing it entirely would leave roughly two thirds of the lag standing. The
+entry is where the work is.
+
+*Caveat:* the isolated oar is given her catch state at t = 0.02 s, so by
+construction it carries no entry error — that is what makes the comparison
+localise the entry, and also why its two rows cannot be read as a full accounting
+of the simulation. Nothing was changed in the model; the script only reads it.
+
 ### v0.13 — asked for, and done
 
 | what | where | pinned by |
