@@ -3573,6 +3573,52 @@ construction it carries no entry error — that is what makes the comparison
 localise the entry, and also why its two rows cannot be read as a full accounting
 of the simulation. Nothing was changed in the model; the script only reads it.
 
+### Phase 4.3a: the entry is a RATE defect, and it is worth 3.2° and 1.1 points of speed (2026-09-19)
+
+Following the decomposition above, `entry_arc_vs_her.py` located the entry defect
+and `entry_from_her_cr06.py` measured what it is worth. The mechanism is in
+`DynamicOarSimulator._integrate_sweep_catch`: while the blade is in the air the oar
+is forced onto the prescribed sweep `boat.oar_sweep` after every step, and handed to
+the torque drive only when the blade's normal velocity reaches zero ([CR06] eq. 16).
+
+**It is not the catch angle.** Hers is +60.42° and the arc starts at +60.49°.
+**It is the rate.** The arc accelerates too gently and runs about 24 °/s slow
+through the whole air phase — at 0.04 s hers is −44.6 °/s against the arc's −25.7,
+at 0.08 s −75.2 against −50.9. That one defect does three things:
+
+* the blade **enters 29 ms late** — eq. 16 fires at 0.0521 s on her measured trace
+  and 0.0815 s on the arc, an air phase 56% longer than hers, because the slower
+  rate delays the slip reaching zero;
+* the torque drive **inherits an angle 1.44° behind** hers;
+* and **inherits a rate 24 °/s slower**, which it must then make up under load.
+
+**What it is worth.** Replacing *only* `_sweep_pose` with her measured angle and
+rate — her handle force, the tier-1 blade at C₂ = 140.88, the body field and the
+hull all untouched, eq. 16 still the entry rule:
+
+| | entry | 0.30° | 0.50° | 0.70° | speed |
+|---|---|---|---|---|---|
+| prescribed arc, as built | 0.0828 s | +2.63 | +3.84 | +4.24 | 4.0918 (−2.37%) |
+| her measured hand path | **0.0516 s** | +0.50 | +1.02 | **+1.03** | **4.1375 (−1.28%)** |
+
+The drive lag collapses by **76%** and the speed deficit nearly halves. The entry
+fires within **0.5 ms** of her own eq.-16 entry, which confirms [CR06]'s rule was
+right all along and only the rate fed into it was wrong. And the residual +1.03°
+sits where the isolated-oar test predicted the hull deficit would leave it
+(+1.35°), so the three pieces close: **entry ≈ 3.2°, hull ≈ 1.0°, blade law 0.**
+
+*This is a study, not a fix, and it cannot ship.* Feeding the model her measured
+hand path is not predictive; it sets the budget a genuine body-driven catch has to
+buy back. The real fix is the rower's body driving the oar through the entry —
+phase 4.3's subject — and would go through `PhysicsProfile` for research and
+learned only, never touching the frozen shipped game.
+
+*It also joins up with what was already on record.* "The ergometer-fitted body
+reverses too gently" and the legs reversing at 6.9 m/s² against a measured 12–15
+are this same defect seen at the body; this is it seen at the oar. The standing
+conclusion that the four-keyframe ergometer body cannot make a measured catch
+spike is now quantified at the oar: 24 °/s, 29 ms, 3.2°, 1.1 points of boat speed.
+
 ### v0.13 — asked for, and done
 
 | what | where | pinned by |
