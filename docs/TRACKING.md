@@ -2797,6 +2797,20 @@ Only the assumed centre of pressure moves it, and the blade's geometry pins
 that to 1.805–1.822 m. The residual that remains is ~20 N rms against peak
 blade loads of 127 N, about 16%, with its phase now understood.
 
+*End-to-end gate passed* (`cr06/her_via_profile.out`). Her stroke re-run with
+no manual scaling, so the coefficient comes from the profile rather than a
+study subclass, reproduces the study digit for digit: oar-angle rms 2.26°
+against her over 0.80–1.10 s, hull 4.0901 m/s (−2.4%), velocity rms 0.0331 m/s,
+250.0 W, turn-round 1.072 s at −46.5°. Together with the Holt singles check and
+the 2025-test suite, the adopted path is the studied path.
+
+**So 4.1's blade is closed for now, and the live defect is 4.3's.** The model's
+oar no longer leads hers; it lags by 2.7–4.3° from 0.30 s, and the catch is
+where that sits. Angle of attack is ruled out, added mass is ruled out, shaft
+bend is measured and too small to carry it. What is left is the body on the
+oar at the catch — which is phase 4.3, and which is partly blocked on the
+foot-force data in DATA_REQUESTS §11.
+
 ### The drive is 18–28% too long, and the cause is the ergometer
 **Impact: high — drive duration sets the time base of the whole stroke.**
 
