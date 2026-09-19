@@ -3776,6 +3776,51 @@ the defect if it did. What replaces it is the hands-on-handle constraint, which 
 the architectural change already named at the end of 4.3a. No number was adopted and
 nothing in the model changed.
 
+### Correction (2026-09-19): the entry fix's justification is refuted; the rule is empirical, not derived
+
+Going at the hands-on-handle constraint properly tested the reason I had given for
+the entry fix, and the reason does not hold. `arm_reach_cr06.py` measures
+shoulder-to-handle distance against arm length across the cycle, on her boat:
+
+| | d / arm length | oar angle |
+|---|---|---|
+| catch, t = 0 | **0.644** | +60.5° |
+| **straightest** | 0.933 | **+22.5°, mid-drive** |
+| most drawn | 0.503 | −44.3°, the finish |
+
+**The arms are not straight at the catch.** They sit at 64% of full extension and are
+straightest in mid-drive. So:
+
+1. **The stated justification for the entry fix was wrong.** The commit and the 4.3a
+   entry above say "at the catch the arms are straight and the hands ride the seat".
+   The model's own geometry says otherwise. What survives is the *measurement* — her
+   hand speed is 1.07× her hip speed over the air phase — but that is now an observed
+   coincidence in one athlete, not a consequence of a principle. **The rule is closer
+   to fitted than claimed, and must not be promoted on the old reasoning.** Its
+   numbers (lag 4.24° → 0.25°, speed −2.4% → −1.1%) are unaffected; only its status is.
+2. **A reach limit cannot be the finish constraint either.** The arms never approach
+   full extension, so nothing runs out to stop the oar. The hypothesis that the oar
+   is bounded at both ends by arm reach is dead.
+
+**And it exposes why a kinematic hands-drive-oar rule is hard in general.** The hand
+sits between shoulder and handle, so its position needs the *arm angles*. The model
+solves those by IK **from the oar**, which is circular; the only independent source
+is the stroke dataset's own arm angles, and those imply **1.73×** her oar rate. So:
+
+* arms from the oar → circular, cannot drive it;
+* arms from the ergometer dataset → 73% too fast;
+* arms from her measured hip → works, but is the empirical relation above, on one
+  athlete, with no mechanism behind it.
+
+*This is a genuine wall, not a missing afternoon's work.* Driving the oar from the
+body kinematically needs an arm model the project does not have. The route that does
+not need one is the **torque-driven arm** — give the arms their own dynamics so the
+hand position is an outcome rather than an input — which is tier 3 and the rest of
+4.3, exactly where the programme already said this leads.
+
+*Nothing was adopted and nothing in the model changed.* `HIP_ENTRY` stays at 0 and
+is now recorded as empirical.
+
 ### v0.13 — asked for, and done
 
 | what | where | pinned by |
