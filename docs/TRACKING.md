@@ -3448,7 +3448,7 @@ from her measured handle force and hull acceleration plus the segment-mass books
 | velocity swing / mean | 49% | 43, 46, 51% | **passes** |
 | foot and pin peak together | same instant | means −20.0° and −20.2°, 0.2° apart | **passes** |
 | oar angle of peak force | −13.1° | −14 to −29°, mean −20.1° | at the late edge of the band, 7° from their mean |
-| peak pin force, both gates | 790–800 N | 984–1103 N (mean 1028) | **0.77–0.78, low** |
+| peak pin force, both gates | 790–800 N | 984–1103 N (mean 1028) | **0.77–0.78** — resolved the next day as [LO00]'s column, not the model's; see below |
 
 *The low pin force is not the oar's inertia.* `gate_inertia_check.py` recomputed
 it keeping `I_lock·θ̈` — the term the validated blade balance uses and the
@@ -3474,6 +3474,57 @@ three-dimensional **pin** forces. §11 stays open, now aimed at that abstract
 instrument, and [LE26]'s — records gate and stretcher force **along the boat's
 longitudinal axis only**, so no PowerLine-equipped squad can answer §11 however
 good its data. Recorded in SOURCES and as "What not to ask for" in DATA_REQUESTS.
+
+### Resolved (2026-09-19): the pin gap is [LO00]'s column, and the stretcher is validated three ways
+
+The open question above was whether the 22% pin shortfall was the model or the
+source. It is the source, and the test that shows it is cheap: scale her handle
+force uniformly until the model *settles at each dataset's own measured boat
+speed*, then read the stretcher and gate force there. **This is fair rather than
+circular because the hull drag was never fitted to [CR06]** — it is Michell's
+integral checked against Lazauskas's printed Wigley curve, Sretenskii's
+finite-depth integral and ITTC'57 friction — so it can mediate between one column
+of a paper and another. `force_vs_speed_check.py`, from five settled runs:
+
+| source | v measured | v model | stretcher, model vs measured | gate, model vs measured |
+|---|---|---|---|---|
+| [LO00] A | 4.01 | 4.0139 | 668 vs 696 — **−4.0%** | 749 vs 998 — −24.9% |
+| [LO00] C | 3.84 | 3.8583 | 619 vs 653 — **−5.2%** | 693 vs 984 — −29.6% |
+| [LO00] B | 3.71 | 3.7458 | 583 vs 763 — −23.6% | 654 vs 1103 — −40.7% |
+| [LE26] women | 4.40 | 4.3948 | 796 vs 864 — **−7.9%** | 893 vs 916 — **−2.5%** |
+
+**The stretcher force is validated at three independent points** — [LO00] A and C
+and [LE26] — where the model runs a consistent **4–8% low**. That is the real
+residual, and it is small. It replaces yesterday's "structure passes, ~120 N
+short", which was a catch-time reading; at the peak the model is within 8%
+everywhere it can be checked.
+
+**The gate force agrees with [LE26] to 2.5% and cannot be reconciled with [LO00]
+at any subject.** Two things point at [LO00]'s pin column rather than at us:
+
+1. *It does not track its own boat speed.* The model's forces fall as the boat
+   slows, as they must. [LO00]'s pin column is flat-to-rising — its **slowest**
+   boat carries its **highest** pin force. The paper says so itself: "Subject B
+   applied the highest propulsive forces on the pin and the stretcher but the boat
+   velocity was the slowest." B is also the one subject whose *stretcher* the model
+   misses (−23.6% against −4 and −5 for A and C), so B is anomalous in both
+   columns by the model's reckoning and by the authors'.
+2. *Rate does not rescue it.* Fig. 1's panel captions give each subject a rate the
+   table omits — B 28, A 30, C 31 spm. B's lower rate raises per-stroke force at
+   equal power, but by about 7%, not 40%.
+
+**Caveat, to be repeated wherever this is quoted:** every run keeps her stroke
+shape and her rate (1.94 s, 30.9 spm). [LO00]'s 28–31 spm makes that comparison
+effectively rate-matched, which is why it is the clean one. [LE26]'s women rowed
+at 34.1 spm, where the same power is spread over a shorter stroke; matching the
+rate too would move the model's gate from 2.5% low to roughly 10% low. **So the
+2.5% is a rate-matched figure, not a clean pass**, and the honest statement is
+that the gate sits within about 2–10% of [LE26] and 25–41% from [LO00].
+
+*What this does not change:* [LO00]'s structural results stand — foot and pin peak
+together, and the boat-velocity swing agrees. §11 stays open. And nothing in the
+model was altered to reach any of this; the only new code is a default-1.0
+`F_SCALE` env knob on two scratchpad scripts, so the recorded runs are unchanged.
 
 ### v0.13 — asked for, and done
 

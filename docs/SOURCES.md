@@ -1197,13 +1197,26 @@ owner 2026-09-18 after [WA18]'s reference list turned it up. Two pages.
    velocity trace is representative of real women's singles.
 3. **Foot and pin peak together** — measured means −20.0° and −20.2°, 0.2° apart.
    The model puts both at the same instant, so that structure is confirmed.
-4. **A genuine conflict with [LE26].** Stretcher/pin at peak is 0.68 here
-   (0.66–0.70 across the three) and 0.94 in [LE26]. They cannot both describe the
-   same quantity. Her stroke gives 0.91, i.e. it matches [LO00]'s stretcher
-   *magnitude* and [LE26]'s *ratio*; forcing her handle force up until the pin
-   reached [LO00]'s 1028 N would put her stretcher at about 876 N, matching
-   [LE26]'s 864 and breaking [LO00]'s. **Unresolved — no number from either has
-   been used to change the model.**
+4. **A conflict with [LE26], resolved 2026-09-19 against this paper's pin
+   column.** Stretcher/pin at peak is 0.68 here and 0.94 in [LE26]; they cannot
+   both describe the same quantity. Running the model at each dataset's *own*
+   measured boat speed separates them — see TRACKING, "Resolved (2026-09-19)":
+
+   | | v measured | stretcher, model vs meas | gate, model vs meas |
+   |---|---|---|---|
+   | [LO00] A | 4.01 | 668 vs 696, **−4.0%** | 749 vs 998, −24.9% |
+   | [LO00] C | 3.84 | 619 vs 653, **−5.2%** | 693 vs 984, −29.6% |
+   | [LO00] B | 3.71 | 583 vs 763, −23.6% | 654 vs 1103, −40.7% |
+   | [LE26] | 4.40 | 796 vs 864, **−7.9%** | 893 vs 916, **−2.5%** |
+
+   **This paper's *foot* column is sound and its *pin* column is not.** The pin
+   column does not track its own boat velocity: the slowest boat carries the
+   highest pin force, which the paper itself remarks on ("Subject B applied the
+   highest propulsive forces … but the boat velocity was the slowest"). The rates
+   in Fig. 1's captions — B 28, A 30, C 31 spm — raise B's per-stroke force at
+   equal power by about 7%, not 40%. Subject B is anomalous in both columns.
+   **Use the foot forces; do not use the pin forces as a model target.** Still no
+   number from either paper has been used to change the model.
 
 ### [G19] Grift, Vijayaragavan, Tummers & Westerweel — accelerating submerged plate
 E. J. Grift, N. B. Vijayaragavan, M. J. Tummers & J. Westerweel (2019),
