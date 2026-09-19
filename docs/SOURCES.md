@@ -1156,6 +1156,51 @@ prescribed-motion route was tried and judged insufficient by its authors.
 *What it does not:* a torque-driven or hybrid rower, a hand-on-handle
 constraint force, or arms — none is in the paper.
 
+### [MOLA] Mola — PhD thesis draft, *read for the rower's motion*
+A. Mola, PhD thesis draft (Politecnico di Milano), 98 pp. **Supplied directly by
+Luca Formaggia on 2026-09-19** in answer to DATA_REQUESTS §4, with a referral to
+Mola as the author. It is the long form of [F09]'s §5.2, and it documents things the
+paper only gestures at.
+
+- **The motion capture behind [F09]'s rower.** Chiarella Sforza's group, Dipartimento
+  di Morfologia Umana, Università Statale di Milano: **22 passive retro-reflective
+  markers at 60 Hz**, on an **ergometer**, markers on the main articulations.
+- **Two reconstruction caveats the paper omits**, both of which bias the body:
+  - hip and femur-head markers were **occluded for part of the cycle** and the gaps
+    filled with a polynomial, which also served as the low-pass filter;
+  - most markers sat **on the back**, so every trunk segment's barycentre had to be
+    **advanced 5 cm anteriorly** by hand. The trunk mass distribution is therefore a
+    correction, not a measurement.
+- **The hand-marker path, which is the find.** §3.3.2 reconstructs it as a tilted
+  ellipse in the *xz* plane (eq. 3.2): centre {−300, −100, 475} mm, major axis
+  inclined α = −π/25, axes `d_x = 1500 mm`, `d_z = 150 mm` — **full axis lengths, so
+  the semi-axes are 750 and 75 mm**, which is what Fig. 3.2's own range (−1030 to
+  +430 mm) requires. The time law is eq. 3.3, `τ(t) = t + b e^(−aT/t − T/(T−t))`,
+  with `a` and `b` (eq. 3.4) set so the active phase ends at a prescribed `τ_a`.
+  - *Cross-check, and it passes:* the path gives **1.46 m of hand travel**. Her boat's
+    implied handle arc is `r_h × 104.7° = 1.52 m` — **4% apart**, from a different
+    group, different athletes and a different rig. Independent corroboration that the
+    model's handle arc is right.
+  - *Limitation to carry:* it is an **ergometer** hand path, where the handle runs on
+    a chain rather than sweeping an arc, so the *shape* is not a boat's. Its value is
+    the **time law** — how fast the hands move through the stroke — which is exactly
+    what 4.3a's catch-rate problem needs, and which no other source supplies.
+- **The hand force, and its provenance is worse than [F09] implies.** §3.3.3 states
+  the values "are available from several sources mainly on the **World Wide Web**, as
+  rowing machines producers often present comparisons between indoor and outdoor
+  force measurements". And the thesis gives **`F_x^max` = 800 N, `F_z^max` = 150 N**
+  where [F09] publishes **1200 N and 200 N** — the same formula with different
+  numbers, neither traceable to a measurement. **Confirms the 2026-09-19 finding that
+  [F09] eq. 15 is not usable as a sourced number**, and strengthens it.
+- **The rower is 12 parts**, mass and inertia from anthropometric tables, with a
+  two-dimensional link-segment model (Fig. 3.3) carrying stretcher, foot and hand
+  forces `F_s`, `F_f`, `F_h`.
+
+*What it settles:* where [F09]'s body came from, and that its trunk and hip are the
+weakest parts of it. *What it does not:* anything on the water — it is all ergometer.
+*Open:* Mola himself, whom Formaggia referred the project to, is the person to ask
+for the marker data and the hand-path parameters for a boat rather than an erg.
+
 ### [WA18] Warmenhoven, Cobley, Draper & Smith — force-profile review
 J. Warmenhoven, S. Cobley, C. Draper & R. Smith (2018), *Over 50 years of
 researching force profiles in rowing: what do we know?*, Sports Med. 48,

@@ -569,6 +569,20 @@ waiting on replies.
 * Work that does *not* depend on a reply continues meanwhile — 4.3a's catch entry
   is unblocked and is where the effort is going.
 
+## Replies received
+
+### §4 Formaggia — **answered 2026-09-19.** Partly declined, and better than the ask.
+
+Prof. Formaggia replied that the details requested are **unavailable**, but supplied
+**Andrea Mola's PhD thesis draft** and referred the project to Mola as its author.
+Recorded in SOURCES as **[MOLA]**. The referral is the live thread: Mola is the
+person to ask about the rower-motion reconstruction and the marker data behind it.
+
+*What it closed:* the §4 ask as worded is answered — those numbers are not available.
+*What it opened:* the thesis carries a **measured hand-marker path** and the full
+provenance of [F09]'s rower motion, which is worth more to phase 4.3 than the
+original request was. See [MOLA].
+
 ## Contact addresses (compiled 2026-09-19)
 
 **Verified means read verbatim out of the paper's own PDF.** Nothing in the

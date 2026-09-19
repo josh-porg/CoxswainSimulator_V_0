@@ -3859,6 +3859,25 @@ The constant carries **no comment, no test and no mention anywhere in the docs**
 an undocumented magic number in the geometry, which is exactly what the programme's
 sourcing rule exists to prevent, and it is in the sweep builder too.
 
+**Reframed 2026-09-19, on the project owner's correction: the stretcher moves.** It
+is adjustable fore-aft in any real shell, and setting it is exactly how a rower
+places their catch. So `station_x + 0.30` is not "the pin in the wrong place" — it is
+**a rigging variable hard-coded to a single value**, and that value produces a catch
+posture that cannot occur. The fix is therefore *derivable rather than fitted*: put
+the stretcher where the catch closes, which is what a rower does when rigging the
+boat. No free parameter — the catch angle, the inboard and the arm length determine it.
+
+**Which element is wrong is not yet settled, and should not be asserted.** What is
+solid is that the set is mutually inconsistent at the catch:
+* the arms sit 36% bent where real technique has them straight;
+* the shoulder (−0.482) is 0.13 m stern-ward of the ankle (−0.35), a very large lean;
+* **the finish, by contrast, looks right** — the handle arrives at +0.53, between the
+  hip (+0.451) and the shoulder (+0.612), which is where a finish should land.
+So the defect is at the catch end, and the candidates are the stretcher position, the
+body's lean at the catch, and the catch angle. Moving the stretcher **bow-ward**
+(feet nearer the pin) is what increases the shoulder-to-handle separation; moving the
+pin bow-ward makes it worse, which is the opposite of what I first assumed.
+
 *Consequences, not yet acted on.*
 * **`HIP_ENTRY` is reinstated to its earlier status** — a rule whose justification is
   plausible and whose numbers stand (lag 4.24° → 0.25°, speed −2.4% → −1.1%). It is
