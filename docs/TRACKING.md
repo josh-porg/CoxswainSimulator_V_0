@@ -3660,6 +3660,59 @@ one the programme already names — a torque-driven body whose own dynamics prod
 the catch, with the hands on the handle as a constraint rather than a slaving — and
 that is the rest of 4.3, not a patch to the entry.
 
+### 4.3a: a predictive entry fix that works in the drive and exposes the finish (2026-09-19)
+
+The entry defect had been read as the ergometer body reversing too gently. **It is
+not.** `entry_body_speeds_cr06.py`, from measurement alone:
+
+| over the air phase 0.02–0.10 s | speed | |
+|---|---|---|
+| her hip | 0.487 m/s | **1.07× the hand her oar needs** |
+| her shoulder | 0.982 m/s | 2.16× — not what moves the hand |
+| the hand her oar needs | 0.455 m/s | — |
+| **the model's hip** | 0.510 m/s | **1.05× hers — already right** |
+
+**Her hand speed is her hip speed, not her shoulder's** — at the catch the arms are
+straight and the hands ride the seat. And the model's seat is already moving at the
+right speed. The defect is that the prescribed arc drags the hands at 0.284 m/s,
+**0.58× the model's own hip**, and `hand_targets` makes the arms absorb the
+mismatch instead of the oar. The body was fine; the coupling discarded it.
+
+**The candidate fix**, in `entry_hip_driven_cr06.py` and behind `HIP_ENTRY=1` on the
+gate: during the air phase put the handle where the seat has carried it. With the
+hand at radius `r_h` from the pin, `d(hand_x) = −r_h cos θ dθ`, so
+
+> `sin θ(t) = sin θ_catch − Δx_hip(t) / r_h`,  `θ̇ = −v_hip / (r_h cos θ)`
+
+`Δx_hip` comes from the model's own leg chain — which is independent of the oar,
+since only the elbow and hand are slaved by `hand_targets`. **No free parameters and
+nothing read from her oar**, so unlike the measured-path study this one could ship.
+
+**On the full gate, against the recorded run:**
+
+| | speed | vel rms | power | drive lag 0.30/0.50/0.70 | finish rms 0.80–1.10 |
+|---|---|---|---|---|---|
+| recorded | 4.0901 (−2.4%) | 0.0331 | 250.0 W | +2.66 / +3.89 / +4.26° | **2.26°** |
+| `HIP_ENTRY=1` | **4.1457 (−1.1%)** | **0.0317** | 257.6 W | **−0.03 / +0.34 / +0.25°** | **3.93°** |
+
+**The drive is fixed and the finish is worse**, and the signs say why. The recorded
+run crossed from *behind* her in the drive (+1.60° at 0.894 s) to *ahead* at the
+turn (−1.95°). With the entry corrected it is already ahead at 0.894 s (−1.97°) and
+reaches −4.99° by 1.025 s. Release −42.20° against her −39.1° (was −38.68°, nearly
+exact); turn-round −49.38° against her −44.34°, error 2.15° → 5.04°.
+
+**So the finish overshoot was always there and the drive lag was masking it.** The
+recorded gate's respectable 2.26° finish rms was in part two errors cancelling —
+worth knowing, because it means that number was never as good as it looked.
+
+*Not promoted, and not promotable yet.* It is a clear net gain on speed and on the
+whole drive, but it trades a finish that was accidentally right for one that is
+honestly wrong. Promotion needs the finish handled, and that is the standing blocked
+item — a **sourced recovery-push law** for the pull shape past the release. It would
+also need testing on the eight and the four, and would go through `PhysicsProfile`
+for research and learned only. `HIP_ENTRY` defaults to 0, so every recorded run is
+unchanged.
+
 ### v0.13 — asked for, and done
 
 | what | where | pinned by |

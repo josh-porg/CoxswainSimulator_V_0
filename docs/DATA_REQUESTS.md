@@ -548,6 +548,27 @@ direction on the water".
 
 ---
 
+## Status: sent 2026-09-19
+
+The requests in this file were sent by the project owner on **19 September 2026**,
+signed Joshua Poznanski. Nothing here is waiting on drafting any more — it is
+waiting on replies.
+
+* **Record answers against the section they answer**, and note in SOURCES whether
+  the number arrived and what it changed. A reply that declines is still worth
+  recording: it closes a line.
+* **§11 is the one that blocks live work.** Phase 4.3's knee and ankle need the
+  foot-force direction, and the search so far says no one has published it: the
+  standard elite instrument ([LE26]'s Peach PowerLine) measures the stretcher on
+  one axis only, [LO00] measures each foot but propulsively, and [F09] supplies the
+  vertical component by assumption rather than measurement.
+* **If nothing comes back on §11**, the fallback is not to guess a direction. It is
+  to state in the model that the knee/ankle split is unidentifiable from the
+  available on-water data and to carry the hip moment alone, which rung 2 already
+  computes and checks.
+* Work that does *not* depend on a reply continues meanwhile — 4.3a's catch entry
+  is unblocked and is where the effort is going.
+
 ## Contact addresses (compiled 2026-09-19)
 
 **Verified means read verbatim out of the paper's own PDF.** Nothing in the
