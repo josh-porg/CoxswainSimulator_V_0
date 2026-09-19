@@ -52,6 +52,35 @@ Taken from it:
 - validation targets (§7): single scull hull 8.2 m / 15 kg / 66 kg·m²
   pitch inertia; pitch within ±0.02 rad; heave within ~0.08 m.
 
+**Asked 2026-09-19: does [F09] supply the lower-body force vectors DATA_REQUESTS
+§11 needs? No.** Re-read for this. It has *a* vector, but at the wrong place and
+without the provenance:
+
+- **The vector it has is at the oarlock**, not the foot: `F_max_x = 1200 N`,
+  `F_max_z = 200 N` (eq. 15), a 6:1 horizontal-to-vertical ratio. Its provenance is
+  weak — the paper says only that the sine form is "well fitting measurements" and
+  calls these "typical values … [that] can be changed to suit different athlete
+  characteristics", with no citation and no athlete. **Not usable as a sourced
+  number** under the no-unsourced-number rule.
+- **The rower has no joints.** "Each rower can be approximated by a set of point
+  masses corresponding to the main body parts and moving in accordance to a model
+  of rower's motion" — so there are no joint moments and no inverse dynamics, which
+  is what a library scan for those terms already showed (zero hits for both).
+- **The stretcher force is never measured or decomposed.** It is whatever closes
+  the momentum balance of prescribed point masses — which is precisely what this
+  project's own segment-mass books already do. [F09] is therefore a *precedent* for
+  the method used at rung 1, not a source of the missing split.
+- **And the body motion is an ergometer body**, reconstructed by motion capture
+  from "three-dimensional motion analysis during **ergometer** rowing" by
+  C. Sforza's team at Milan — the same class of source as [BU13], and subject to
+  the same limitation the programme has already recorded (the ergometer body
+  reverses too gently).
+
+It does note that pushing the stretcher "produces a force with a vertical
+component", and models heave and pitch because of it — so it identifies the effect
+§11 is after, and then supplies it from assumption rather than measurement.
+**§11 stays open.**
+
 Two cautions found while implementing:
 - the paper **switches rotation-matrix convention** between §3 (where `R`
   maps absolute→hull, eq. 2–5) and eq. (8)/(14) (where it maps hull→absolute).

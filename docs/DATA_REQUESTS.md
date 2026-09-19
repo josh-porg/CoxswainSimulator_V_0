@@ -78,8 +78,8 @@ request is also the most specific and the easiest to answer.
 > interleaves streams and must be sorted first), and `motion_user_
 > acceleration` is in g rather than m/s².
 >
-> With thanks,
-> [name]
+> Sincerely,
+> Joshua Poznanski
 
 ---
 
@@ -117,8 +117,8 @@ model's crew data comes from his published figures.
 > better — for validation use? I would cite it however you prefer, and I'm
 > happy to send back what the model does with it.
 >
-> With thanks and respect for the work,
-> [name]
+> Sincerely,
+> Joshua Poznanski
 
 ---
 
@@ -157,8 +157,8 @@ people to ask for the underlying time series.
 > measurement uncertainty, which is not something most published tables
 > make possible.
 >
-> With thanks,
-> [name]
+> Sincerely,
+> Joshua Poznanski
 
 ---
 
@@ -196,8 +196,8 @@ model for the dynamics and hydrodynamics of rowing boats* (2010).
 > would value them for validation — my model currently overstates
 > within-stroke speed variation and I am trying to localise why.
 >
-> With thanks,
-> [name]
+> Sincerely,
+> Joshua Poznanski
 
 ---
 
@@ -225,8 +225,8 @@ a men's eight.
 > whether an unsteady correction of the size you measured is enough to
 > account for what I am seeing, and if it is not, to be able to say so.
 >
-> With thanks,
-> [name]
+> Sincerely,
+> Joshua Poznanski
 
 ---
 
@@ -256,8 +256,8 @@ fluctuation losses.
 > in-phase condition would let me check my crew model against a measured
 > displacement rather than against inferences from hull motion.
 >
-> With thanks,
-> [name]
+> Sincerely,
+> Joshua Poznanski
 
 ---
 
@@ -285,8 +285,8 @@ Shell-velocity-coupled blade hydrodynamics.
 > damping effect at a magnitude that would matter? Either would help me
 > decide whether to build a reacting blade model or rule the idea out.
 >
-> With thanks,
-> [name]
+> Sincerely,
+> Joshua Poznanski
 
 ---
 
@@ -316,8 +316,8 @@ Proc. IMechE Part P (with V. Kleshnev).
 > your mounting convention is documented, that would be as valuable as the
 > data.
 >
-> With thanks,
-> [name]
+> Sincerely,
+> Joshua Poznanski
 
 ---
 
@@ -365,8 +365,8 @@ Proc. IMechE Part P (with V. Kleshnev).
 > Either would be used with attribution and the provenance recorded in
 > the open source tree.
 >
-> With thanks,
-> [name]
+> Sincerely,
+> Joshua Poznanski
 
 ---
 
@@ -398,8 +398,8 @@ The ask is the **boat speeds** that go with the drive durations.
 > If those are to hand it would turn a plausible prediction into a
 > falsifiable one.
 >
-> With thanks,
-> [name]
+> Sincerely,
+> Joshua Poznanski
 
 ---
 
@@ -437,8 +437,8 @@ orientation while rowing*, ISBS 27 (2009).
 > off the figures, be something you could share? A few points through the
 > drive would already be enough.
 >
-> With thanks,
-> [name]
+> Sincerely,
+> Joshua Poznanski
 
 ### 11b. Arnold Baca, Philipp Kornfeind & Mario Heller — University of Vienna
 
@@ -459,8 +459,8 @@ rowing*, ISBS 24 (2006).
 > plate angle, be available for the boat trials, as mean curves or a few
 > values through the drive? I'd cite the source in the project's documentation.
 >
-> With thanks,
-> [name]
+> Sincerely,
+> Joshua Poznanski
 
 ### 11c. Erica Buckeridge, Anthony Bull & Alison McGregor — Imperial College London
 
@@ -483,8 +483,8 @@ female rowers*, J. Sports Sci. 34(4) (2016).
 > the catch and at maximum handle force, or the curves behind Fig. 5.7, be
 > shareable? I'd be glad to show what the model does with them.
 >
-> With thanks,
-> [name]
+> Sincerely,
+> Joshua Poznanski
 
 ### 11d. Richard Smith & Conny Loschner — University of Sydney *(added 2026-09-18)*
 
@@ -532,11 +532,8 @@ the 11a author are one person; say so in the email.
 > would be enough. I'd cite it in the project's documentation and would be glad
 > to show you what the model does with it.
 >
-> With thanks,
-> [name]
-
-> With thanks,
-> [name]
+> Sincerely,
+> Joshua Poznanski
 
 ### What not to ask for (2026-09-18)
 
@@ -550,6 +547,61 @@ instrumented Concept2); keep it that way. See SOURCES, "Foot-force
 direction on the water".
 
 ---
+
+## Contact addresses (compiled 2026-09-19)
+
+**Verified means read verbatim out of the paper's own PDF.** Nothing in the
+"verified" column was guessed from an institutional naming pattern, and no address
+anywhere in this file has been constructed. Where none was found, the row says so
+and gives the route instead — a fabricated address either bounces or reaches a
+stranger, and neither is acceptable.
+
+| § | who | address | provenance |
+|---|---|---|---|
+| 3 | Nick Caplan | `nick.caplan@northumbria.ac.uk` | **verified** — Caplan & Gardner (2007) PDF |
+| 4 | Luca Formaggia | `luca.formaggia@polimi.it` | **verified** — Formaggia et al. (2009) PDF, and the 3-D companion paper |
+| 5 | Alexander "Sandy" Day | `sandy.day@na-me.ac.uk` | **verified** but old — the paper's own address; `na-me.ac.uk` was Strathclyde's Naval Architecture department and may since have folded into `strath.ac.uk` |
+| 6 | Laura Cuijpers | `l.s.cuijpers@rug.nl` | **verified** — Cuijpers et al. PDF |
+| 11d | Constanze Loschner | `Closchner@dsr.nsw.gov.au` | **verified but almost certainly dead** — printed in the 2000 ABC3 paper; NSW Dept of Sport & Recreation, 26 years old |
+
+**Not found, and not invented.** §2 Kleshnev (BioRow — commercial, contact through
+biorow.com), §7 Sliasas & Tullis (McMaster), §8 Knarr & Kwoun, §9 Grift, Tummers &
+Westerweel (TU Delft), §10 Hill & Fahrig, §11a Sinclair, §11b Baca, §11c
+Buckeridge, Bull & McGregor. For these, take the address from the paper's
+corresponding-author footnote, or from the current staff page. Two were checked
+directly and carry no public address: Sydney's profile pages render by script
+(`profiles.sydney.edu.au/peter.sinclair`) and Vienna's staff page for Baca prints
+none.
+
+### A better route to §11 than any of the above
+
+**Dr Conny Draper** is the best-connected person for the foot-force question, on
+three separate counts:
+
+* she **co-authors [LE26]** (Legge et al., *Assessment of rowing biomechanics
+  during single sculling using functional clustering*) — the Peach PowerLine paper
+  whose one-axis statement closed off the standard instrument;
+* she **co-authors [WA18]**, the review whose reference list produced §11d;
+* she was **Senior Sports Biomechanist for Rowing at the AIS** and now consults to
+  national rowing teams — so she knows what instrumentation exists and who holds
+  what.
+
+`conny.draper@ausport.gov.au` appears in a 2010 document in the local library.
+**Treat it as unverified for current use** — she has since left the AIS for
+consulting, so it may be stale.
+
+*One thing worth asking her directly rather than assuming.* §11d's paper is by
+Constanze **Loschner** with Richard Smith; [WA18] and [LE26] are by Conny
+**Draper** with, in [WA18]'s case, Richard Smith. Same first name, same narrow
+field, same collaborator. It is plausible these are one person under a changed
+surname, **but a search did not confirm it** and it should not be assumed in
+writing. If they are the same person, she is the author of the very paper §11d
+asks about, which would make her the single most valuable contact in this file.
+
+The live corresponding author of [LE26] is **`natalie.legge@acu.edu.au`**
+(verified, Australian Catholic University), and [WA18]'s is
+**`john.warmenhoven@hotmail.com`** (verified). Either is a reasonable route to
+Draper and Smith.
 
 ## Notes on sending these
 
