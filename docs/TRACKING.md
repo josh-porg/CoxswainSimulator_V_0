@@ -4002,6 +4002,56 @@ where their fore-aft-only formulation cannot. **Once the trunk travel is correct
 measurement behind it.* Fixing the trunk travel should fix the catch arm posture as a
 consequence — a real test of that connection, and it needs no new data.
 
+### The trunk prediction fails, and the failure localises it better (2026-09-19)
+
+`dec6d9d` predicted that scaling the trunk to her measured 0.398 m travel would fix
+the catch posture, with `d_L/F` following to 0.184 m. `trunk_fix_geometry_cr06.py`
+tests it by working [CR06] eq. 8 forward — `x_H/S(t) = d_L/F − s sin θ − x_B/F −
+x_S/B` — so the arm posture is determined at every instant for each candidate rig.
+
+**It fails, and so does every other `d_L/F`.** Reach demanded, as a fraction of what
+the arm can give:
+
+| t / T_drive | native trunk, `d_L/F` 0.300 | her trunk, 0.300 | her trunk, 0.184 |
+|---|---|---|---|
+| 0.00 (catch) | 56.6% | 72.2% | 94.9% |
+| 0.20 | 76.8% | 89.2% | 111.4% |
+| **0.41** | **100.0%** | **107.6%** | **132.2%** |
+| 0.70 | 41.2% | 39.5% | 65.0% |
+| 1.00 (finish) | 16.5% | 9.1% | 32.4% |
+
+**The model's arm runs backwards through the early drive** — 57% extended at the
+catch, rising to **full stretch at 41% of the drive**. Real technique is the
+opposite: straight at the catch, held straight through the legs and back, bending
+only for the arm draw.
+
+**And that 100.0% is the solver's own cap, not a coincidence.** It equals
+`_arm_reach_margin` × arm length (0.9326 × 0.626 = 0.584 m), and it falls at
+t = 0.369 s, which `arm_reach_cr06.py` independently found as the point of maximum
+extension. **The elbow solve is already clamped in mid-drive**, so the geometry has
+no slack anywhere, and any change that lengthens the reach demand overruns it.
+
+**So `d_L/F` cannot be the fix.** Moving it to 0.158 m puts the catch at full stretch
+— correct — but demands **138%** of reach at mid-drive, which no arm can do. The
+catch and the mid-drive pull in opposite directions and the arm is already at its
+limit between them.
+
+*What this rules out, and what it leaves.* Ruled out: the stretcher position alone,
+and trunk travel alone. What remains are the inputs her measurements do not pin and
+that all bear on mid-drive reach —
+
+* the **catch lean** (the model's shoulder sits 0.35 m stern-ward of the hip at the
+  catch, 0.27 m with her trunk scaled);
+* the **arm length** from the anthropometry at the stature fitted to her leg travel;
+* the **oarlock height** (0.32 m, chosen in `her_boat`): the shoulder sits ~0.30 m
+  above the handle at mid-drive and that vertical drop costs 0.08 m of fore-aft
+  reach right where the budget is tightest;
+* the **span** (0.80 m, also chosen rather than taken from [CR06]).
+
+*The honest summary is that the one-athlete rig has four unpinned geometric inputs
+and no slack, so the catch posture cannot be attributed to any one of them yet.*
+Nothing changed in the model.
+
 ### v0.13 — asked for, and done
 
 | what | where | pinned by |
