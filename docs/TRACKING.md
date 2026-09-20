@@ -3889,7 +3889,7 @@ pin bow-ward makes it worse, which is the opposite of what I first assumed.
   and the oar's moment arm, so it would change the frozen game. That is the project
   owner's call, and nothing has been altered.
 
-### The rig question is [CR06] eq. 8, and our 3-D arm breaks their degeneracy (2026-09-19)
+### PARTLY SUPERSEDED, same day — see the next entry. The rig question is [CR06] eq. 8, and our 3-D arm breaks their degeneracy (2026-09-19)
 
 Chasing the catch geometry landed on [CR06]'s own hand-on-handle constraint, §2.6
 eq. 8:
@@ -3946,6 +3946,61 @@ with the usual 0.88 — while 0.83 is the force/hand radius the model correctly 
 *Status: derivable, not fitted.* `d_L/F` now has a route that needs no new data, and
 the residual is a well-posed 0.14 m to chase rather than a mystery. Nothing changed
 in the model; fixing `d_L/F` moves shipped geometry and is the owner's call.
+
+### The bent catch is the trunk over-travel, not a rig bug (2026-09-19)
+
+Solving [CR06] eq. 8 for `d_L/F` properly — letting the travel balance fix the arms
+instead of assuming a straight catch — closes the question and retracts most of what
+the last two entries claimed.
+
+**Eq. 8 must give one `d_L/F`, and it gives two.**
+
+| evaluated at | `d_L/F` |
+|---|---|
+| the catch, with **her** measured leg and back travel | **0.184 m** |
+| the finish, with the **model's** body | **0.300 m** — the coded value |
+
+The 0.116 m between them has a single cause:
+
+| | leg | trunk | total |
+|---|---|---|---|
+| the model's body | 0.581 | **0.515** | 1.096 m |
+| her measurement | 0.581 | **0.398** | 0.979 m |
+| | | | **0.117 m apart** |
+
+**The model's trunk travels 29% further than hers** — which is already on the record
+from the [LE26] work as "the model's trunk … travels 30% further". The scratchpad
+applies her `K = 0.771` to the body *field* that feeds the momentum books, but
+`joint_positions` — and so the hand tracks, and so the entire oar coupling — still
+runs the unscaled trunk.
+
+**So the bent catch is a symptom, not a cause.** The over-travelling trunk consumes
+0.117 m of hand travel the arms would otherwise supply, so the arms start the catch
+less extended: `x_H/S(catch)` comes out −0.289 m, 56% of the available fore-aft
+reach, instead of the −0.406 m and 79% that her body implies.
+
+**Retractions.**
+* *"`station_x + 0.30` is an undocumented magic number producing an impossible
+  catch."* Overstated. It is **consistent with the model's own body** — eq. 8 at the
+  finish returns exactly 0.300. It is still undocumented and still a rigging variable
+  frozen at one value, but it is not itself the defect.
+* *"No single stretcher position closes both ends."* **Wrong**, and wrong because I
+  held the catch arm at full extension and then found the finish would not fit. Eq. 8
+  does not work that way: the travel balance determines how far the arms draw in, and
+  the stretcher follows. With her trunk the geometry **does** close, arms at 79% at
+  the catch.
+* *"The body's stroke is longer than the oar's sweep."* Only under the straight-arm
+  assumption. The arms must draw in by `1.303 − 0.979 = 0.324 m`, and the 0.512 m of
+  fore-aft reach available covers it comfortably.
+
+**What stands.** `d_L/F` is a genuine rigging input, [CR06] cannot supply it (fitted,
+and degenerate with `x_H/S(0)` — Appendix A.7), and our 3-D arm breaks that degeneracy
+where their fore-aft-only formulation cannot. **Once the trunk travel is corrected,
+`d_L/F` must move from 0.300 to 0.184 m**, derived rather than fitted.
+
+*So the catch geometry is downstream of a defect already on the list with independent
+measurement behind it.* Fixing the trunk travel should fix the catch arm posture as a
+consequence — a real test of that connection, and it needs no new data.
 
 ### v0.13 — asked for, and done
 
