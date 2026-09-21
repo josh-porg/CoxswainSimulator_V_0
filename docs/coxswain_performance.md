@@ -200,3 +200,65 @@ actually costs against the optimum.
 rowing directory — `Coaching-the-Coxswain-EXTRACT.pdf` is Dommert's
 coach-facing guide and `Coxswain-Evaluations-2.0.pdf` is an evaluation
 form. The mental-skills paper needs adding before it can be read.
+
+## What a call is worth — measured, and bounded
+
+The gap above ("nobody has measured what a call is worth") is now partly
+closed. One masters head race, 4050 m and 576 strokes, with the coxswain's
+speech synchronised to stroke-by-stroke GPS through her own spoken split
+callouts. Crews are referred to generically throughout; no raw recording or
+sheet data lives in this repository.
+
+**The headline is an upper bound, not an effect.** With theme measures that
+pass cross-validation, peak responses are under 0.6 mm/s per unit of theme
+intensity, and the model explains 6.0% of stroke-scale speed variance.
+Motivational and tactical peak at one stroke with intervals excluding zero;
+technical is negative throughout with an interval spanning zero.
+
+**Dropping the three-theme taxonomy changes nothing.** The buckets are
+inherited from thematic work and may not be the axis along which calls
+differ in effect. An unconstrained elastic net over all 55 unigrams and
+bigrams occurring six or more times selected **0 phrases**, out-of-sample
+R2 = -0.010. A first run without controls selected "we" (+100 mm/s) and
+"at" (+68 mm/s); both are proxies for how much the coxswain is talking at
+all, and partialling out speech density removes them. So the finer-grained
+question — which specific calls work — is not answerable from one race by
+either a theme model or a phrase model.
+
+**Why, and what it would take.** Stroke-scale speed noise is 57.7 mm/s after
+detrending, against a theme intensity of 1.35 per stroke: a per-stroke
+signal-to-noise ratio of order 1e-2. Power by injection into the observed
+design matrix, with the false-positive rate verified at 2.0-4.5% against a
+nominal 5%:
+
+| true effect | 1 race | 3 | 6 | 12 | 24 |
+|---|---|---|---|---|---|
+| 0.5 mm/s | 6% | 6% | 12% | 18% | 32% |
+| 1.0 mm/s | 8% | 16% | 27% | 44% | 77% |
+| 2.0 mm/s | 18% | 46% | 71% | 98% | 100% |
+| 4.0 mm/s | 62% | 98% | 100% | 100% | 100% |
+| 8.0 mm/s | 100% | 100% | 100% | 100% | 100% |
+
+One race excludes per-unit effects of 8 mm/s and larger. It says almost
+nothing about effects the size actually observed: 24 races still reach only
+32% power at 0.5 mm/s. **Eighty per cent power needs roughly 2 mm/s at 6-12
+races, or 1 mm/s at 24** — and that is optimistic, because the simulation
+replicates one design matrix and so carries no between-race heterogeneity.
+
+This is the concrete data ask: 6-24 races with audio synchronised to speed,
+rate and position. Cox-box and CoxOrb class devices already log all of it
+simultaneously, so a corpus is a retention-policy question rather than a
+hardware one. No public dataset pairs the two; it has to come from a squad.
+
+**Four methods that looked fine and were not.** Each produced a confident
+wrong answer and none was visible without validation: rolling automatic
+captions duplicate 12-39% of words; caption punctuation differs so severely
+between corpora (26.2 sentence marks per 100 words versus 0.0-0.6) that
+sentence segmentation is not comparable; fixed windows attribute each call
+its neighbours' effect, inflating estimates about sixfold; and single-label
+coding of overlapping speech is ill-posed, giving a classifier at 0.506
+accuracy against a 0.388 majority baseline. Replacing the classifier with
+continuous per-theme intensity passed (technical AUC 0.920 by lexicon,
+motivational 0.798 and tactical 0.790 learned).
+
+Written up as `paper.tex` for *Int J Sports Sci Coach* (SAGE), six pages.
