@@ -1135,3 +1135,53 @@ widest table and measuring ink extent: **left margin 186 px, right margin
 
 Final: `paper.pdf` 10 pages, `paper_sage.pdf` 15 pages, both with zero
 errors, zero overfull boxes and no undefined references.
+
+## Reframed: the data exists, the sharing does not
+
+The paper previously said the required corpus "does not exist". That was
+wrong, and the corrected claim is stronger. Synchronised recordings are
+made routinely — cox-boxes log speed, rate and distance per stroke; crews
+already wear cameras. **The constraint is convention, not equipment.** Logs
+are overwritten by the next session, or sit in club and squad archives no
+one has had reason to open.
+
+The paper now makes three concrete asks instead of one abstract one:
+
+1. Crews holding synchronised archives deposit them, with consent, in an
+   analysable form.
+2. Those unable to share run the pipeline on their **own** material and
+   publish the coefficients rather than the recordings — which raises no
+   confidentiality question at all.
+3. Crews recording future races retain the cox-box export beside the video.
+   Costs nothing; the only step that cannot be taken retrospectively.
+
+### Sample sizes in this literature
+
+| study | n | synchronised boat data? |
+|---|---|---|
+| Nugent et al. 2025 | 8 recordings (16 found, 8 included) | **no** — speech only |
+| Zach & Furman 2022 | 3 coaches, 5 games | possession outcomes only |
+| Gabana et al. 2015 | 26 rowers | laboratory ergometer |
+| **this study** | **3 races** | **yes** |
+
+Small n is the norm here, not a failing peculiar to this work. On the
+specific combination at issue — coxswain speech synchronised to a boat
+response — **the published sample size is zero**, because the question had
+not been asked. Three races is not adequate; what it establishes is what
+the measurement costs and what a sufficient corpus must contain.
+
+(Note: the count for Nugent is **8**, verified from the published abstract,
+not 6.)
+
+### The framing goal, stated in the paper
+
+Coxing knowledge is currently transmitted through apprenticeship and
+inference — coxswains learn which calls work by being told, by imitation,
+and by their impression of what the boat did next. That impression is
+precisely the quantity this study shows to be hard to measure: theme-level
+effects sit an order of magnitude below stroke-to-stroke noise. A practice
+calibrated on unaided impressions of differences that small is unlikely to
+be well calibrated, and experience does not substitute for a measurement
+the practitioner cannot make.
+
+Final: abstract 250 words, main text 5,785, both builds clean.
