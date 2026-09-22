@@ -976,3 +976,34 @@ reporting one effect per call type assumes homogeneity that this study
 cannot test and that mechanism gives reason to doubt. Work at the sample
 sizes in the power table should fit boat class and crew as random effects,
 and treat the between-race component as a result rather than a nuisance.
+
+### Call profiles differ sharply between the three races
+
+Calls per minute of race, by functional category:
+
+| race | power | catch | finish | length | ratio | rate | motiv. | tact. |
+|---|---|---|---|---|---|---|---|---|
+| 1 — 4050 m W4+ | 3.0 | 1.1 | 1.9 | 0.9 | 1.6 | 1.8 | 3.8 | 5.5 |
+| 2 — 1000 m W8+ | 1.9 | 0.3 | 2.4 | 2.4 | 0.8 | 2.7 | 4.6 | 6.5 |
+| 3 — 1000 m W4+ | 6.6 | 2.3 | 3.1 | 3.1 | 2.6 | 0.3 | 3.4 | 4.0 |
+
+Technical share of coded calls: race 1 **43%**, race 2 **36%**, race 3
+**70%**. Race 3 calls power at 6.6/min against race 1's 3.0; race 2 calls
+rate at 2.7/min against race 3's 0.3. These are not the same task performed
+three times, which is direct support for treating between-race variation as
+a parameter rather than noise.
+
+### Two proposed additions checked and not made
+
+**"down" / "tap down" into the finish category.** `tap down` occurs **zero
+times** across all three races (`tap` alone: 0, 0, 2). Every bigram ending
+in "down" is tactical or idiomatic — *it down* (4), *split down* (2),
+*double down*, *you down*, *them down*, *race down*, *legs down*, *we're
+down*, *place down*, *barely down*. Only *"through legs down hold them"*
+(race 2) reads as a finish call. Adding bare "down" to `finish` would
+misclassify 8 of 9 instances in race 1. "Down and away" is a real finish
+call; this coxswain is not using it in this corpus.
+
+**Power tens / focus tens as a burst category.** Too rare to test:
+`power 10` ×1 and `big 10` ×1 in race 2, `take 10` ×1 in race 1, none in
+race 3. Recorded in the paper as a one-line note rather than an analysis.
