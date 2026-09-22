@@ -1220,3 +1220,40 @@ variation. Moved ahead of both subsections.
 
 Discussion now runs: what the validation showed → how it relates to prior
 work → what we claim → a caveat about the design → what to do next.
+
+## Register pass: process narration removed
+
+The paper was describing how the analysis was produced rather than what the
+method is. Worst case:
+
+> "Because our first labelling prompt described that cycle, both races were
+> relabelled blind with neutral speech-act categories and an explicit
+> instruction not to assume repeating structure."
+
+A reader does not care what a coder was told. The property that matters is
+that the second scheme **did not assume** a cycle. Rewritten as:
+
+> "A scheme that names a cycle cannot on its own demonstrate one, so each
+> race was coded twice under schemes sharing no categories. The first used
+> the cycle itself: inform, request, reinforce, feedback, or bare counting.
+> The second used neutral speech-act categories (assertive, directive,
+> intensifier, commissive, expressive, enumerative) which make no reference
+> to any cycle and carry no assumption that the sequence repeats."
+
+Thirteen passages fixed in total:
+
+| pattern | instances | example |
+|---|---|---|
+| process narration | 4 | "blind relabelling designed to suppress it"; "a labeller steered away from it"; "Relabelling from context" |
+| self-commentary | 6 | "worth recording"; "better stated than left implicit"; "deserves examination"; "invite over-reading"; "was abandoned" |
+| informal openers | 2 | sentence-initial "And" |
+| em-dash cluster | 1 | three in one paragraph, recast with a colon and parentheses |
+
+Checked and clean: no AI-tell vocabulary (*crucially, notably, delve,
+leverage, underscore, holistic, in essence*), no "In other words", no "That
+is,", one legitimate embedded question, 16 em-dashes across ~5,800 prose
+words with no paragraph carrying three.
+
+**The rule for this paper:** state the property of the method, in the
+author's voice. Never narrate how the analysis was carried out, and never
+tell the reader how to weigh what they are reading.
