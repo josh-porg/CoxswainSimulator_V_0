@@ -718,3 +718,76 @@ Result: adding all 52 wavelet features over the simple sd/peak-to-peak
 summaries changes nothing. Every gain is near zero or negative except a
 marginal +0.043 for tactical. Frequency content carries no more than
 amplitude here.
+
+## LLM labelling changes the picture
+
+An agent labelled all 435 utterances from both races on four axes — theme,
+functional target, pragmatic function, and **information source** — from
+context rather than word lists. It validated its own output byte-for-byte
+against the source and flagged real problems (captions are cut on ~2 s
+boundaries, not call boundaries, so `multi` is partly a captioning artefact;
+`target: none` dominates because the scheme has no split/speed target;
+~8–10 race-1 lines are marshalling chatter addressed outside the boat).
+
+### 1. The catch effect replicates under independent labelling
+
+| labelling method | catch OOS R2 | p |
+|---|---|---|
+| keyword lexicon | +0.079 | corrected 0.040 (best-of-8) |
+| LLM, from context | **+0.048** | **0.00033, 0 of 3000 shifts** |
+
+Passes Bonferroni across all 23 LLM categories tested (threshold 0.0022).
+Two labelling methods with nothing in common find the same effect. Still one
+race, so this replicates the *measurement*, not the phenomenon.
+
+`theme=technical` also came up positive (+0.024) but **fails** correction
+(p = 0.012) — the technical-theme effect is carried by catch, not general.
+
+### 2. Technical calls run on feel; tactical calls run on the instrument
+
+The coxswain asserted this from experience. It holds, and replicates:
+
+| | technical from boat_feel+coxbox | baseline | odds ratio | Fisher p |
+|---|---|---|---|---|
+| race 1 | 91/134 = 68% | 46% | 4.29 | 1.5e-10 |
+| race 2 | 9/13 = 69% | 25% | 12.15 | 2.3e-4 |
+
+The dissociation is near-total. Race 1 sources by theme:
+
+| theme | boat_feel | coxbox | race_position | crew_visual | plan |
+|---|---|---|---|---|---|
+| technical | **81** | 10 | 1 | 18 | 24 |
+| tactical | **1** | 46 | 59 | 0 | 14 |
+| motivational | 27 | 0 | 5 | 7 | 25 |
+
+Tactical calls have *one* boat_feel attribution out of 120.
+
+**Caveat that matters:** `source` is the LLM's inference from text, not a
+measurement of the coxswain's cognition, and an LLM may hold the prior that
+technical calls come from feel. The corroboration is that the coxswain
+independently asserted the same thing before seeing these labels.
+
+### 3. The pragmatic cycle is the structure the themes miss
+
+The coxswain describes their method as inform → request → reinforce →
+feedback. The **theme** sequence is memoryless (n-grams added nothing). The
+**pragmatic** sequence is strongly predictable:
+
+| lag | race 1 held-out loglik vs shuffled | z | p |
+|---|---|---|---|
+| 1 | −462.7 vs −514.0 ± 4.7 | **+10.92** | <0.0001 |
+| 2 | −496.7 vs −513.0 ± 4.8 | +3.41 | <0.0001 |
+| 3 | −492.1 vs −510.9 ± 4.8 | +3.90 | <0.0001 |
+
+Race 2 is weaker and same-signed (lag 1 z = +1.87, p = 0.035, n = 76).
+
+The transition matrix reproduces the described mechanic:
+`count → reinforce 0.43` (the countdown lands, then you drive it),
+`feedback → request 0.34` (report the result, ask for the next thing),
+`inform → request 0.43`.
+
+**Circularity risk, being checked:** the labelling prompt described the
+cycle and gave the coxswain's own example, so the agent knew to look for it.
+A blind relabel using neutral speech-act categories, with an explicit
+instruction not to assume any cyclical structure, is running to test whether
+the sequence structure survives.
