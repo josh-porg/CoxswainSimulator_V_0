@@ -839,3 +839,45 @@ Read both numbers together: the structure is real, because it survives a
 labeller steered away from it — but the primed estimate overstated it by
 about 2.7× in race 1. That factor is a useful measure of how much a
 suggestive coding scheme adds to a sequence that is genuinely present.
+
+## Corpus triage: why n>2 needs exports, not more OCR
+
+A third legible display was found — **Nats Women's Club C4+ Heat** — with
+the same four-field layout, confirmed by the DPS identity (at 240 s: rate
+30, split 2:22 → 3.52 m/s, predicted DPS 7.04 vs displayed 7.07; distance
+561→703 over 40 s gives 3.55 m/s). **Head of the Oklahoma** (1324 s head
+race, 8 catch calls) has a large deck-mounted CoxBox but the display sits at
+~45° to the camera under glare and water — not readable.
+
+Triaging the corpus by what actually limits the analysis:
+
+| race | words | catch calls | display |
+|---|---|---|---|
+| **race 1 (head race, 4050 m)** | 1816 | **21** | n/a (device export) |
+| Nats Open D4+ | 496 | 9 | unchecked |
+| Rowfest practice Jun 6 | 1405 | 9 | unchecked |
+| Head of the Oklahoma | 2091 | 8 | **illegible** |
+| Nats Open E4+ Heat | 398 | 5 | unchecked |
+| Nats C4+ Heat | 386 | 2 | **legible** |
+| race 2 (Nats F8+) | 545 | 1 | legible (extracted) |
+
+No other single race approaches race 1's 21 catch calls. Pooling five would
+reach ~27, which is feasible — but each race costs roughly 56 manual display
+readings, because automatic OCR fails at this resolution.
+
+### The better route was available all along
+
+`race.npz` is a **per-stroke device export**: 576 strokes with time,
+distance, speed, rate, distance-per-stroke and lat/lon to 6 decimal places,
+with rate quantised to 0.5 spm. That is an NK/CoxBox CSV export, not
+anything read off a display.
+
+So the data that took ten image-reads per race to recover by OCR already
+exists in exportable form for every race the coxswain has filmed. The video
+supplies the synchronised audio; the export supplies the boat channel at
+full per-stroke resolution, without OCR, tracking, or manual reading.
+
+**The ask is therefore narrow and concrete:** CoxBox/SpeedCoach exports for
+the races already on the channel. Six to twenty-four of those, paired with
+the audio that already exists, is exactly the corpus the power analysis
+specifies — and the pipeline to consume them is built and validated.
