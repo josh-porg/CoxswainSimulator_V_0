@@ -451,3 +451,57 @@ recovers our assumptions, not the crew's behaviour.
 **n>1 requires instrumented boat data logged at the time.** The audio,
 the synchronisation method and the analysis pipeline are all built and
 validated; only the boat channel is missing.
+
+## n>1 SOLVED: the CoxBox display is readable in the coxswain's own footage
+
+Every route from video to a *derived* response variable failed. The route
+that works reads the instrument directly.
+
+The coxswain's own channel holds ~40 race recordings. In the **stern-loaded**
+boats the CoxBox sits facing the coxswain, so the camera sees the display
+close to face-on rather than at the oblique, glare-washed angle of the
+bow-loaded case race. At 1080p the LCD is legible.
+
+Verified on `Masters National Championship 2025 SRA Womens Club F8+`:
+
+| video t | rate | split | DPS | speed from split |
+|---|---|---|---|---|
+| 114 s | 39½ | 1:50 | 6.69 | 4.545 m/s |
+| 119 s | 39½ | 1:44 | 7.32 | 4.808 |
+| 124 s | 39½ | 1:43 | 7.21 | 4.854 |
+| 129 s | 39 | 1:46 | 7.18 | 4.717 |
+| 134 s | 38½ | 1:45 | 7.44 | 4.762 |
+
+Display layout (confirmed by the coxswain): top-left stroke rate, top-right
+split, lower fields distance-per-stroke and distance.
+
+**The reads validate internally.** The three fields must satisfy
+DPS = speed x 60 / rate. They do, to a mean error of +1.2% and a maximum of
+3.2%. That confirms the digit reads *and* the field semantics without any
+external ground truth — which matters, because the one race that has GPS
+truth is the bow-loader whose display is illegible.
+
+**Resolution is adequate.** Split at 1 s gives 44 mm/s quantisation, so
+13 mm/s of noise against a stroke-scale speed sd of 58 mm/s. Rate reads to
+half a stroke per minute — far better than the r2 0.337 the head IMU
+managed. Both are usable response variables.
+
+### What remains
+
+Engineering, not discovery:
+
+1. **Tracking.** The camera is head-mounted so the CoxBox moves in frame
+   (y range 398-972 px). A rigid template finds it in 28% of samples with
+   one clean 22 s run; a scale-invariant or CSRT tracker should do far
+   better, and coverage per video is the figure that decides how many
+   recordings are usable.
+2. **Digit OCR.** Clean fixed-segment LCD, consistent font. Digit templates
+   suffice; the DPS identity above gives a per-frame self-check that
+   rejects bad reads automatically.
+3. **Synchronisation.** Free — the speech and the display share one video
+   clock, so the split-callout method is not even needed.
+
+**This is the n>1 route.** It needs no new recording, no instrumentation
+and no third party: the corpus already exists and is the coxswain's own.
+The power table says 6-24 races; the channel holds roughly 40, of which the
+stern-loaded subset is the candidate pool.
