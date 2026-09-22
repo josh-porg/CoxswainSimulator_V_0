@@ -1185,3 +1185,38 @@ be well calibrated, and experience does not substitute for a measurement
 the practitioner cannot make.
 
 Final: abstract 250 words, main text 5,785, both builds clean.
+
+## Structural fix: implications were in the wrong sections
+
+Two faults, both from adding material where it was written rather than
+where it belonged.
+
+**Duplication.** The Conclusion restated the three data-sharing
+recommendations and the calibration argument that the analysis section
+already made in full.
+
+**Misplacement, both directions.** The section "What it would take" sits
+before the Discussion but its last four paragraphs were pure implication —
+data-sharing convention, the three recommendations, the wider aim about how
+coxing knowledge is held, and the comparative sample sizes. That is
+Discussion work inside a results section. Meanwhile the Conclusion was
+making new arguments, which a conclusion should not.
+
+Resolved:
+
+| section | now contains |
+|---|---|
+| What it would take | power simulation, size check, the table, and the race counts it implies — analysis only |
+| Discussion (opening) | methodological findings, convergence with Gabana and Zach, **the general claim** |
+| Discussion → The races are not replicates | heterogeneity |
+| Discussion → **What would move the field** | 521 words of implications moved here |
+| Conclusion | **127 words** — what was done, what was found, no recommendations, no new argument |
+
+A third fault surfaced while checking: the paragraph beginning "These
+results do not indicate that coxing is without effect" — the Discussion's
+central interpretive claim — had been trapped inside the heterogeneity
+subsection, where a reader would take it as a claim about between-race
+variation. Moved ahead of both subsections.
+
+Discussion now runs: what the validation showed → how it relates to prior
+work → what we claim → a caveat about the design → what to do next.
