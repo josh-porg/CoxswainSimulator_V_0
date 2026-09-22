@@ -325,3 +325,42 @@ have not yet been scanned, and the scan is cheap.
 Official World Rowing race data (speed and rate every 50 m, rounded to
 0.1 m/s) is not a substitute: the rounding is tolerable but 50 m is about
 8-10 strokes, which destroys the short lags entirely.
+
+### Unsupervised clustering: null, and the reason is sample size
+
+Hand-built categories risk finding what was put in, so the transcript was
+asked to group its own calls: TF-IDF over 8-word windows, k-means at
+k = 4, 6, 8, 10, speed playing no part in forming the clusters. Each
+cluster's impulse response was then fitted and scored by blocked
+out-of-sample R2 against a matched circular-shift null, with the best
+cluster compared to the best-of-k null distribution.
+
+**Nothing at any k.** Strongest was k=8, cluster of 203 windows, OOS R2
++0.019 against a best-of-k null 95th of +0.044, p = 0.267.
+
+The diagnostic is the useful part. Catch terms appear in only 24 of 453
+windows; at k=8 they scatter across seven clusters and are at most 13% of
+any one. **No cluster is a catch cluster.** Clustering groups by dominant
+vocabulary, so a call type too rare to form its own cluster is diluted
+below detection — which is exactly what happened to the one effect that a
+pure hand-built series did find. This is a statement about how much speech
+one race contains, not about clustering.
+
+### Elite recordings surveyed — telemetry does not exist at the needed resolution
+
+All six identified elite cox recordings checked:
+
+| recording | footage | telemetry |
+|---|---|---|
+| 2022 World Cup III W8+ (CAN) | broadcast | speed km/h + clock + distance, **18% of race** |
+| U23 2021 GB M8+ | broadcast | race clock only |
+| 2011 Worlds LM8+ AUS | broadcast | none |
+| Henley Thames v Barge | onboard bow cam | none (course boom visible) |
+| Henley 2022 Leander v Yale | onboard + broadcast | none |
+| Henley Women's Varsity 8+ | onboard | none |
+
+Only one carries speed, and only in runs of 26, 23 and 18 s. **A fragment
+shorter than the impulse response cannot estimate one, however many are
+pooled** — so broadcast telemetry cannot supply n>1 for this analysis at
+any collection effort. Official 50 m race data averages 8–10 strokes and
+removes the short lags. The corpus has to be recorded, not found.
