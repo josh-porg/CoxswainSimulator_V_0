@@ -1043,3 +1043,34 @@ negative (binomial p = 0.02 if treated as independent). They are not
 independent — within a race every category is regressed on the same
 detrended speed series, so residual trend biases them together. Recorded as
 a caution, not a finding.
+
+## Journal-standards pass on the paper
+
+Brought to submission standard for *Int J Sports Sci Coach* (SAGE).
+
+**Added:** theme impulse-response figure with pointwise bootstrap
+intervals, captioned with the fact that makes it safe to publish — **3 of
+78 coefficients have intervals excluding zero against 3.9 expected by
+chance**, so the apparent peaks at 2 s are not effects. Largest coefficient
+anywhere is 1.59 mm/s against a 57.7 mm/s stroke-scale sd.
+
+**Fixed:**
+
+| issue | resolution |
+|---|---|
+| YouTube URL broke the right margin | moved to its own centred line |
+| abstract 312 words (IJSSC limit 250) | trimmed to **250** |
+| no SAGE back-matter | added Declaration of Conflicting Interests, Funding, Ethical Approval, Data Availability |
+| Tables 2/3 numbered against reading order | profile table moved ahead of heterogeneity table |
+| duplicated weighting prose (98.8% stated twice) | subsection rewritten, 998 → 923 words |
+| appendix tables continued main numbering | now A1–A8, figures A-series |
+
+**Ethical approval statement** notes that the coxswain is the author and
+consented to use of their own speech and boat data, that crews are
+identified only by boat class and event, and that the comparison corpus is
+publicly posted material analysed only in aggregate. The institutional
+review reference is left as an explicit placeholder — it is the one item
+that cannot be supplied from the analysis side.
+
+**Final state:** 11 pages, ~6,000 words, 3 main tables + 8 appendix tables
++ 2 figures, zero overfull boxes, no undefined references or citations.
