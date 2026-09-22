@@ -1007,3 +1007,39 @@ call; this coxswain is not using it in this corpus.
 **Power tens / focus tens as a burst category.** Too rare to test:
 `power 10` ×1 and `big 10` ×1 in race 2, `take 10` ×1 in race 1, none in
 race 3. Recorded in the paper as a one-line note rather than an analysis.
+
+### Ridge responses per race per category
+
+Frequency showed the coxswain's input differs between races; this is the
+boat's response. Mean coefficient over the first 48 s after a call, mm/s
+per call (bootstrap se, call count):
+
+| category | race 1 | race 2 | race 3 | Cochran Q (p) | race-1 weight |
+|---|---|---|---|---|---|
+| power | +0.2 (1.4) 60 | −6.5 (11.8) 7 | −8.5 (13.9) 23 | 0.70 (0.70) | 97.5% |
+| catch | **−2.3 (0.8) 21** | — (n=1) | −18.8 (14.0) 9 | 1.39 (0.24) | 99.7% |
+| finish | +1.0 (1.2) 38 | −23.5 (11.8) 13 | −4.7 (13.9) 12 | 4.44 (0.11) | 98.2% |
+| length | +0.2 (0.9) 19 | +3.9 (9.1) 12 | +4.4 (10.2) 12 | 0.33 (0.85) | 98.4% |
+| ratio | −2.0 (0.8) 31 | — (n=3) | −8.0 (9.6) 10 | 0.38 (0.54) | 99.3% |
+| rate | +0.2 (0.9) 36 | −0.2 (8.0) 11 | — (n=1) | 0.00 (0.96) | 98.8% |
+| motivational | +0.3 (1.1) 75 | −2.9 (6.5) 20 | −8.6 (14.5) 14 | 0.60 (0.74) | 96.9% |
+| tactical | +1.4 (1.0) 110 | −8.6 (9.1) 28 | −8.8 (16.7) 16 | 1.57 (0.46) | 98.4% |
+
+**No category shows detectable heterogeneity** — smallest p is 0.11
+(finish); catch is Q = 1.39, p = 0.24, I² = 0.
+
+**Race 1 carries 96.9–99.7% of the inverse-variance weight in every
+category.** Sprint standard errors are 6.5–16.7 mm/s against race 1's
+0.8–1.4. So no pooled estimate anywhere in this study is more than race 1
+restated — worth stating once, generally, rather than per category.
+
+**Internal check:** within race 1, only catch clears a Bonferroni threshold
+across the eight categories (z = −2.87; ratio borderline at −2.50). That
+reproduces the category selection found earlier by out-of-sample R² and
+circular-shift nulls, from a different direction.
+
+**A pattern not to over-read:** 11 of 13 estimable sprint coefficients are
+negative (binomial p = 0.02 if treated as independent). They are not
+independent — within a race every category is regressed on the same
+detrended speed series, so residual trend biases them together. Recorded as
+a caution, not a finding.
