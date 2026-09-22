@@ -404,3 +404,50 @@ ground truth to validate.
 
 **Conclusion: video alone cannot supply n>1.** More cox-POV footage,
 however much of it exists, does not help without paired boat data.
+
+### Head IMU: stroke detection works, rate and speed do not
+
+The Osmo telemetry is head motion, but the whole boat surges each stroke,
+so the rhythm survives. Scored against the CoxBox for all 576 strokes:
+
+| quantity | result | usable? |
+|---|---|---|
+| stroke **events** | 577 detected vs 576 true, 97% matched, median timing error **0.127 s** | **yes** |
+| stroke **rate**, per stroke | r2 0.040, error sd 2.31 spm | no |
+| stroke rate, 11-stroke smoothed | r2 0.337, error sd 0.95 spm vs signal sd 0.87 | no |
+| surge **speed** | r2 0.039 (best of 9) | no |
+
+Stroke detection is the one thing that transfers: any cox-POV recording
+with this telemetry can be segmented into strokes and its speech aligned
+to them, which solves synchronisation for free. But rate carries ±0.13 s
+of timing jitter, which on a 2.0 s interval is ±2 spm — larger than the
+1.70 spm of real rate variation. Smoothing plateaus with error still above
+signal, so rate cannot serve as a response variable either.
+
+Also tried and failed: **OCR of the CoxBox LCD**, which is visible in frame
+throughout. The display is washed out by glare at an oblique angle; no
+digits are recoverable at 1080p.
+
+**Every route from video to a response variable is now closed**, each
+tested against ground truth rather than assumed:
+
+| route | verdict |
+|---|---|
+| broadcast telemetry overlay | 18% coverage, fragments shorter than the IRF |
+| official 50 m race data | averages 8-10 strokes, kills short lags |
+| optical flow (5 variants) | r2 <= 0.061 vs GPS |
+| head IMU surge | r2 0.039 |
+| head IMU stroke rate | r2 0.337, error > signal |
+| CoxBox LCD OCR | illegible |
+| hull-referenced flow subtraction | r2 0.007 |
+
+On fusing a physics model with optical data via a Kalman filter: a filter
+cannot create information the measurements lack. With observations at
+r2 ~ 0.05 the posterior is dominated by the prior, and the prior knows
+nothing about call-driven deviations — that being the unknown. The output
+would be the model's own prediction, and regressing calls against it
+recovers our assumptions, not the crew's behaviour.
+
+**n>1 requires instrumented boat data logged at the time.** The audio,
+the synchronisation method and the analysis pipeline are all built and
+validated; only the boat channel is missing.
