@@ -364,3 +364,43 @@ shorter than the impulse response cannot estimate one, however many are
 pooled** — so broadcast telemetry cannot supply n>1 for this analysis at
 any collection effort. Official 50 m race data averages 8–10 strokes and
 removes the short lags. The corpus has to be recorded, not found.
+
+### Can boat speed be recovered from cox-POV video? Tested against GPS: no
+
+If speed could be extracted from onboard video, every cox-POV recording
+becomes an n>1 datapoint. The case race is the ideal test bed because it
+has **both** the video and CoxBox GPS for the same 576 strokes, so any
+optical estimate can be scored against truth rather than assumed.
+
+**Important:** the camera is head-mounted, not boat-mounted. The IMU and
+the image therefore describe the coxswain's head, not the hull.
+
+Four approaches, all scored against per-stroke GPS:
+
+| method | best r2 vs GPS | configs tried |
+|---|---|---|
+| optical flow magnitude, water patches | 0.061 | 15 |
+| head IMU surge, rotated to world + integrated | 0.039 | 9 |
+| flow de-rotated by IMU angular velocity | 0.000 | 9 |
+| flow divergence (rotation-invariant) + low-pass | 0.051 | 20 |
+
+Every figure is the best of many configurations and so is inflated; the
+honest expectation is lower. Speed is the *dependent variable* in the
+impulse-response analysis, so measurement noise enters directly. Against
+effects of 0.5-10 mm/s on a stroke-scale sd of 58 mm/s, an r2 of 0.05
+is not usable — it would swamp everything the analysis is looking for.
+
+The DJI Osmo Action files do carry a per-frame telemetry track
+(`DJI meta`, protobuf `dvtm_ac203`, 29.97 Hz): unit orientation quaternion
+and 3-axis accelerometer, verified by gravity landing on world -Z at
+-1.006 g. **No GPS** — the camera was not paired to a GPS source. The IMU
+is real and clean; it simply measures the wrong body.
+
+The "reference a position from a frame and integrate" route (tracking a
+fixed part of the hull to separate head motion from boat motion) remains
+untried and is the one optical avenue not yet closed. It is a harder
+computer-vision problem than anything above, and it would still need
+ground truth to validate.
+
+**Conclusion: video alone cannot supply n>1.** More cox-POV footage,
+however much of it exists, does not help without paired boat data.
