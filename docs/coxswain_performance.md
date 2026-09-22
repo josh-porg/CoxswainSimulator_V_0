@@ -1109,3 +1109,29 @@ copy of the template carries the correct value.
   superscript.
 - A blank `SAGE_Logo.pdf` placeholder is supplied so the class compiles;
   the real asset ships with SAGE's bundle.
+
+### Correction: the "zero overfull boxes" checks were wrong
+
+Earlier passes reported zero overfull boxes. The check was
+`grep -c "Overfull \\hbox"`, which bash turns into a literal double
+backslash, matching nothing. **Every "zero overfull" claim in the preceding
+sections was false.** The real counts were 1 in the article build and 4 in
+the SAGE build, the worst 53.6 pt over.
+
+Causes and fixes:
+
+| table | over by | cause | fix |
+|---|---|---|---|
+| A6 response variables | 53.6 pt | 10 numeric columns | `\footnotesize` + `\tabcolsep` 3 pt |
+| 3 heterogeneity | 38.8 pt | 9 columns | `\tabcolsep` 3.5 pt |
+| A1 category definitions | 28.9 pt | fixed `p{9.8cm}` wider than SAGE's text block | `tabularx` with a ragged-right `X` column |
+| A8 source recordings | 1.6 pt | column separation | `\tabcolsep` 3.5 pt |
+| A1 first column | 2.4 pt | the word *motivational* exceeded `p{1.5cm}` | widened to 2.05 cm |
+| prose | 2.2 pt | "non-alphanumeric characters" | reworded to "punctuation" |
+
+Verified independently of the log by rasterising the page carrying the
+widest table and measuring ink extent: **left margin 186 px, right margin
+188 px** on an 850 px page, i.e. symmetric with nothing at the edge.
+
+Final: `paper.pdf` 10 pages, `paper_sage.pdf` 15 pages, both with zero
+errors, zero overfull boxes and no undefined references.
