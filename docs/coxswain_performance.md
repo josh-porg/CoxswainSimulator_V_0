@@ -881,3 +881,57 @@ full per-stroke resolution, without OCR, tracking, or manual reading.
 the races already on the channel. Six to twenty-four of those, paired with
 the audio that already exists, is exactly the corpus the power analysis
 specifies — and the pipeline to consume them is built and validated.
+
+## n=3, and the replication attempt FAILS
+
+### Race 3 extracted: Masters Nationals 2025 Women's Open D4+
+
+Display mounted facing the coxswain, so the camera sees it inverted;
+rotated 180° before reading. More legible than race 2 — the field labels
+(RATE, SPLIT, DIST) are themselves readable. **40 readings, 102–312 s.**
+
+Speed taken as rate × dps / 60 rather than from the split, because the
+three fields are redundant and the split is the one most often clipped at
+the crop edge. Three independent checks:
+
+| check | result |
+|---|---|
+| rate×dps vs the split field (18 readings) | mean −0.01%, median abs 1.42% |
+| distance strictly increasing | **true**, all 40 readings, 12 → 870 m |
+| steady-phase speed: distance integration vs instantaneous | **4.000 vs 3.975 m/s** (0.6%) |
+
+Catch calls: **9** (vs 1 in race 2, 21 in race 1).
+
+### The pooled test
+
+Races 2 and 3 pooled — the first data in this project independent of race 1.
+Lags in 8 s bins to 40 s, spanning race 1's peak at 21 strokes (~42 s).
+Rows stacked with race-specific centring; the null shifts each race's call
+times independently, preserving within-race spacing.
+
+| category | calls | rows | OOS R2 | null 95th | p |
+|---|---|---|---|---|---|
+| catch | 10 | 89 | **−0.218** | −0.007 | 0.795 |
+| all technical | 69 | 89 | −0.034 | −0.026 | 0.070 |
+
+**The catch effect does not replicate.** Race 1 found it twice — keyword
+labelling (p corrected 0.040) and LLM labelling (p = 0.00033, Bonferroni
+across 23 categories) — but those are two analyses of one race, not two
+races. Given independent data, nothing.
+
+### How much weight this failure carries
+
+Not as much as a clean refutation, and the reasons should be stated:
+
+- **10 catch calls** across both races against 21 in race 1. Underpowered.
+- **89 rows at 4–5 s spacing** against race 1's 576 per-stroke rows.
+- **Different event type.** Races 2 and 3 are 1000 m sprints; race 1 is a
+  4050 m head race. Race 1's technical density is what made it findable.
+- 8 s lag bins only coarsely resolve a response peaking near 42 s.
+
+So the correct reading is: **the race 1 catch effect is provisional.** It is
+robust to how it is labelled and to how the boat data is detrended, and it
+is not robust to being asked of a different race. That is exactly the
+distinction the power table predicted would need 6–24 races to settle, and
+it is why replication rather than more within-race analysis was the
+right next step.
