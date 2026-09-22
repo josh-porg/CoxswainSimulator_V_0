@@ -505,3 +505,78 @@ Engineering, not discovery:
 and no third party: the corpus already exists and is the coxswain's own.
 The power table says 6-24 races; the channel holds roughly 40, of which the
 stern-loaded subset is the candidate pool.
+
+## Literature the paper was missing
+
+### Gabana et al. (2015) — the only controlled test of a coxswain
+
+*J Appl Sport Psychol* 27(3): 288–300. 26 female intercollegiate rowers, four
+maximal 1000 m ergometer sprints under **music / live coxswain / both /
+control**, measuring time to completion, RPE, attentional focus and
+motivation. Nugent cites it.
+
+The design is the point: an ergometer has no steering, no boat to balance
+and no crew to synchronise, so it strips a coxswain down to the voice
+alone. Cleanest available evidence on whether the voice does anything.
+
+**Verified from the publisher's abstract and the paper's own table notes:**
+the design above, and that the reported findings concern attentional focus
+(external attention to music can coexist with task-relevant thought) and
+motivation (no significant difference across conditions). **No performance
+benefit of the coxswain condition is reported.**
+
+**Not verified:** several secondary sources state "no significant
+difference in performance time between conditions", but that claim does not
+appear in the abstract, the key-takeaways, or the table notes that are
+publicly accessible. The full text is paywalled. The paper is cited in
+PAPER.tex for what was checked, not for the stronger claim.
+
+### Zach & Furman (2022) — the nearest prior art, and it agrees with us
+
+*Int J Sports Sci Coach* 17(6): 1306–1316. Related basketball coaches'
+feedback to the outcome of the possession it was given during: 3 coaches,
+5 games, **1931 feedbacks over 761 possessions, 2.54 per possession**.
+
+Two things matter for us:
+
+1. They used **multi-label** coding — one utterance could sit in several of
+   six categories rather than being forced into one. We reached the same
+   conclusion from the other direction: single-label coding cross-validated
+   at 0.506 accuracy and had to be replaced with continuous intensity.
+2. Of six categories, **only valence (positive/negative) related to
+   outcomes; the content categories did not.** That is the same shape as
+   our result — the three themes explain almost nothing, and the one thing
+   that predicts held-out strokes is a functional category cutting across
+   the technical theme.
+
+So "a taxonomy built to describe what is said need not align with what
+works" is now supported in two sports by two independent designs, not just
+asserted by us.
+
+### What Nugent cites (50 refs, via Semantic Scholar)
+
+The reference list is dominated by four clusters:
+
+- **Attentional focus** — Wulf 2013; Chua et al. 2021 (meta-analysis,
+  external focus superior); Neumann & Brown 2022 (rowing-specific:
+  *switching* internal/external beats either); Becker 2019; Zhuravleva 2023.
+  This is where the technical/motivational split comes from, and Nugent
+  flags that elite coxswains use internally focused language the evidence
+  base would discourage.
+- **Coach speech in competition** — Halperin et al. 2016 (boxing ringside);
+  Mason et al. 2020 (AFL in-game, two papers); Zach & Furman 2022; Smith &
+  Cushion 2006 (soccer); Havira et al. 2024 (football pregame speeches).
+  Almost all descriptive; Zach is the exception.
+- **Rowing** — Baudouin & Hawkins 2002 (biomechanics review); Wing &
+  Woodburn 1995 (crew coordination); Kleshnev 2000 (power); Nugent 2021
+  (low back pain).
+- **Qualitative method** — Nowell 2017 (thematic analysis); Smith &
+  McGannon 2018 (generalizability); Sui et al. 2022 (**YouTube as a
+  research source** — the methodological warrant for both Nugent's corpus
+  and ours).
+
+Nugent's corpus is also now pinned down: **16 recordings found, 8 included**
+— 2011 World Senior Championships, 2021 World U23, a 2022 World Cup, and
+Henley semi-finals and finals 2014–2022. That is the same set our elite
+comparison corpus was drawn from, which is worth stating explicitly in the
+paper rather than leaving as coincidence.
