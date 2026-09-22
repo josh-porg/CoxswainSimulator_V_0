@@ -791,3 +791,51 @@ cycle and gave the coxswain's own example, so the agent knew to look for it.
 A blind relabel using neutral speech-act categories, with an explicit
 instruction not to assume any cyclical structure, is running to test whether
 the sequence structure survives.
+
+### Validation of the two LLM findings: one holds, one does not
+
+**The source dissociation FAILS a test against measurement.** If the
+attributions tracked what the coxswain actually sensed, boat_feel calls
+should be better predicted by the vestibular signal than by the display,
+and coxbox calls the reverse. A crossed design gives a double dissociation
+that would be hard to fake:
+
+| call source | n | by FELT (null) | by BOX (null) |
+|---|---|---|---|
+| boat_feel | 109 | 0.529 (0.561) | 0.533 (0.558) |
+| coxbox | 54 | 0.577 (0.578) | 0.525 (0.578) |
+| race_position | 70 | 0.650 (0.697) | 0.654 (0.695) |
+| plan | 88 | 0.583 (0.527)* | 0.477 (0.528) |
+
+Nothing reaches its null except `plan` by FELT, which has no mechanism and
+is most likely one hit in eight. The interaction that a real dissociation
+would produce is **−0.056 — the wrong sign**.
+
+So the technical↔boat_feel association is **semantic, not sensory**, and
+close to tautological: a technical call describes what the boat is doing,
+so a model reading the words attributes it to feeling the boat. It records
+how calls are phrased, not what the coxswain attended to. The coxswain
+asserting the same division independently is worth noting but is not
+independent evidence — the same intuition may be what the model reproduces.
+
+**The pragmatic sequence SURVIVES a blind relabelling.** The first prompt
+described the cycle and gave the coxswain's own example, so the labeller
+knew what to look for. A second agent relabelled both races with neutral
+speech-act categories (assertive/directive/intensifier/commissive/
+expressive/enumerative), no mention of a cycle, and an explicit instruction
+not to assume repeating structure.
+
+| | primed z (lag 1) | blind z (lag 1) |
+|---|---|---|
+| race 1 | +10.92 | **+4.02** (p<0.0001) |
+| race 2 | +1.87 | **+3.38** (p=0.0025) |
+
+Blind lags 2 and 3 in race 1: z = +1.81 and +2.28, both p<0.05. Race 2 is
+*stronger* blind than primed. The two labellings agree on **76%** of
+utterances under the natural mapping (inform→assertive, request→directive,
+reinforce→intensifier, count→enumerative).
+
+Read both numbers together: the structure is real, because it survives a
+labeller steered away from it — but the primed estimate overstated it by
+about 2.7× in race 1. That factor is a useful measure of how much a
+suggestive coding scheme adds to a sequence that is genuinely present.
