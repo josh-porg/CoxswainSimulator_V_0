@@ -640,3 +640,81 @@ a hypothesis for the multi-race dataset, not a finding.
 **The null is symmetric.** Neither direction of the call↔boat relationship
 is detectable at n=1, and the positive control shows that is a statement
 about the data available, not about the method.
+
+## n=2 achieved: race 2 extracted from the CoxBox display
+
+**Masters National Championship 2025, SRA Women's Club F8+** (347 s video,
+1000 m race occupying video 108–330 s).
+
+Pipeline that worked: multi-scale template tracking of the CoxBox with
+temporal continuity and global re-acquisition on loss (**79% of frames
+matched, 60% coverage in runs ≥10 s**, up from 28% with a rigid template),
+normalise each hit to a canonical 360×220 display, cut into four fields.
+
+Automatic digit OCR **failed** — the LCD is too blurry, segmentation
+produced 15.7 glyphs/frame against an expected ~10 and cluster centroids
+were unreadable blobs. Readings were instead transcribed directly from the
+sharpest frame in each 4-second bin: **56 readings, 108–330 s**.
+
+**Validation (no external ground truth needed).** The three fields are
+physically linked by dps = v × 60 / rate:
+
+| check | result |
+|---|---|
+| DPS identity, 42 complete readings | median abs error **1.08%**, 90th pct 2.55% |
+| readings off by >5% | 3 of 42 (the start, plus two likely misreads) |
+| distance monotonic | **true**, all 26 readings, 18 → 1025 m |
+| speed | 4.528 ± 0.189 m/s |
+| rate | 34.7 ± 2.07 spm |
+
+Synchronisation is free: display and speech share the video clock.
+
+### But race 2 cannot replicate the catch finding
+
+Two hard limits, both worth stating plainly:
+
+1. **Catch calls in race 2: one.** By keyword the coxswain made 1 catch call
+   (vs 21 in race 1). The targeted replication is impossible.
+2. **50 speed readings against 11 lag bins overfits.** Every category scores
+   *worse* than its circular-shift null (OOS R2 −0.11 to −0.62). The design
+   is too small for any impulse response.
+
+**The deeper problem: the lexicon does not transfer.** Only 85 of 405 race-2
+words matched the functional categories, against 395 of 1816 in race 1. The
+word lists were built from race 1's own vocabulary. Keyword coding is
+race-specific, which is why LLM labelling in context is the right next step.
+
+## The family-wise null needs enough draws — a caution
+
+The catch/FELT trigger result was corrected for multiplicity three times
+with different draw counts, on identical data:
+
+| draws | corrected p |
+|---|---|
+| 60 | 0.167 |
+| 50 | **0.020** |
+| 400 | **0.158 ± 0.036** |
+
+An 8× swing in the reported p, entirely from the number of null draws used
+to estimate a tail. The settled answer at 400 draws is **p = 0.158** — the
+null's 95th percentile (+0.257) sits above the observed gain (+0.212), so
+the catch/FELT result does **not** survive correction. Any max-statistic
+correction reported anywhere in this work needs its draw count stated.
+
+## Wavelet sensory features add nothing
+
+Per the suggestion to use multi-resolution representations: octave-band
+energies (db4) for surge/sway/heave and the three angular rates at 30 Hz,
+4 levels plus loudness (36 features), and acoustic bands from the 16 kHz
+audio (16 features).
+
+The acoustic side needs a circularity guard — **the coxswain's own voice
+dominates the recording**, so predicting their calls from sound is circular.
+Two precautions: the speech band (100–4000 Hz) is dropped entirely, keeping
+only sub-100 Hz hull rumble and >4 kHz splash; and every acoustic feature
+comes from a window ending one stroke *before* the call it predicts.
+
+Result: adding all 52 wavelet features over the simple sd/peak-to-peak
+summaries changes nothing. Every gain is near zero or negative except a
+marginal +0.043 for tactical. Frequency content carries no more than
+amplitude here.
