@@ -262,3 +262,66 @@ continuous per-theme intensity passed (technical AUC 0.920 by lexicon,
 motivational 0.798 and tactical 0.790 learned).
 
 Written up as `paper.tex` for *Int J Sports Sci Coach* (SAGE), six pages.
+
+### Functional categories beat the themes — catch calls
+
+The three themes pool calls that do different jobs; a catch call and a ratio
+call are both "technical". Re-cutting the transcript into eight functional
+categories a coach distinguishes (power, catch, finish, length, ratio,
+rate, motivational, tactical), with terms taken from the race's own
+vocabulary, changes the answer.
+
+As an ensemble it still fails: in-sample R2 0.240 against the themes' 0.060,
+but blocked out-of-sample R2 **-0.059**, worse than a shifted control at
+-0.020. Five categories had pointwise intervals excluding zero and none
+survived a family-wise threshold. That in-sample number is the same trap the
+unvalidated classifier set.
+
+**One category is real.** Fitted alone, catch calls score out-of-sample
+R2 **+0.084**, the only positive of the eight (next best is 0.000). Matched
+null of 500 circular shifts maxes at +0.039; corrected for picking the best
+of eight, **p = 0.040**. Peak **-9.7 mm/s at lag 21 strokes**, and it is not
+a detrending artifact:
+
+| detrend | OOS R2 | null 95th | peak |
+|---|---|---|---|
+| 31-stroke MA | -0.002 | +0.012 | -7.4 |
+| 61-stroke MA | +0.084 | +0.028 | -9.7 |
+| 101-stroke MA | +0.103 | +0.019 | -10.9 |
+| 151-stroke MA | +0.094 | +0.017 | -11.0 |
+| linear | +0.058 | +0.005 | -11.1 |
+
+The 31-stroke window is the only one that removes it, which is what should
+happen — that filter attenuates the timescale the effect lives on. The 21
+calls fall at 17 strokes in 12 groups across all four quarters of the race,
+so it is not one coincidence; but leave-one-out shows a single call carrying
+47.5% of the score.
+
+**Do not read the sign causally.** The likelier account is that the coxswain
+calls the catch when she can see it going, and what she saw continues for
+the next twenty strokes. A marker of trouble, not necessarily a cause.
+
+The methodological point is independent of that: -10 mm/s is an order of
+magnitude above the theme peaks and, per the power table above, comfortably
+inside what one race resolves. It was invisible at theme level because
+averaging it with ratio, rate, length and finish diluted it to the -1.6 mm/s
+the technical theme reported with an interval spanning zero. **Where an
+effect lives at a finer grain than the coding scheme, the coding scheme
+destroys it.**
+
+### Elite n>1: World Rowing broadcast telemetry, partially usable
+
+World Rowing cox recordings are dubbed over broadcast footage carrying a
+live overlay: race clock, leader distance, and per-crew speed in km/h to
+0.1 (0.028 m/s, whose quantisation noise is 7x below the stroke-scale noise,
+so not a limiting factor). The crew being coxed is highlighted. This is real
+synchronised speed-plus-audio data.
+
+The limit is coverage. On the 2022 World Cup III women's eight A-final the
+SPEED table is present for **18% of the race**, in three runs of 26, 23 and
+18 s. Too fragmentary for impulse responses on that video. Other recordings
+have not yet been scanned, and the scan is cheap.
+
+Official World Rowing race data (speed and rate every 50 m, rounded to
+0.1 m/s) is not a substitute: the rounding is tolerable but 50 m is about
+8-10 strokes, which destroys the short lags entirely.
