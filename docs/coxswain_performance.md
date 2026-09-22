@@ -1074,3 +1074,38 @@ that cannot be supplied from the analysis side.
 
 **Final state:** 11 pages, ~6,000 words, 3 main tables + 8 appendix tables
 + 2 figures, zero overfull boxes, no undefined references or citations.
+
+## Paper now builds on SAGE's own class file
+
+**`sagej.cls` obtained and working.** The paper exists in two builds:
+
+| file | class | pages | use |
+|---|---|---|---|
+| `paper.tex` | stock `article` + manual SAGE-like layout | 11 | readable draft, compiles anywhere |
+| `paper_sage.tex` | **official `sagej.cls`** (`sagev,times`) | 15 | submission format |
+
+The `sagev` option gives superscript Vancouver citations, which is IJSSC
+house style. Both compile with zero overfull boxes and no undefined
+references.
+
+Two class-specific requirements caught in the switch: the abstract and
+`\keywords{}` must be declared **before** `\maketitle` (the class boxes the
+abstract and typesets it from the title block), and the class ships
+configured for a different SAGE title. `\journalname` is overridable and is
+set to IJSSC; one hardcoded URL in the page furniture is not overridable
+without editing the class, which its licence forbids — the journal's own
+copy of the template carries the correct value.
+
+### Fixes in this pass
+
+- **Broken footnote.** `\footnote` had been written through a shell heredoc
+  where Python read `\f` as a form feed, leaving a literal `0x0C` byte and
+  the text "ootnote" in the output. Swept the whole file for `\a \b \f \n
+  \r \t \v` mangling; this was the only instance.
+- **Author name** added as `Joshua Pozna\'nski`, rendering Poznański
+  correctly under T1 encoding.
+- **Citation spacing** checked: `al.\cite{x}` produces "al.[2]" with no
+  space, which is correct Vancouver style; under `sagej` it becomes a
+  superscript.
+- A blank `SAGE_Logo.pdf` placeholder is supplied so the class compiles;
+  the real asset ships with SAGE's bundle.
