@@ -935,3 +935,44 @@ is not robust to being asked of a different race. That is exactly the
 distinction the power table predicted would need 6–24 races to settle, and
 it is why replication rather than more within-race analysis was the
 right next step.
+
+## Between-race heterogeneity: plausible, untestable at n=3
+
+The three races are not replicates. They differ in piece length (4050 m vs
+1000 m), boat class (4+, 8+, 4+), crew, and season — and therefore in the
+coxswain's own experience. Mechanism gives reason to expect different
+responses: an eight and a four differ in inertia, in how many people must
+come into time, and in run between strokes.
+
+Mean response over the first 48 s after a catch call, per race:
+
+| race | catch calls | effect mm/s | SE | weight |
+|---|---|---|---|---|
+| 1 — 4050 m W4+, 2026 | 21 | −2.28 | 0.78 | **98.8%** |
+| 2 — 1000 m W8+, 2025 | 1 | −7.31 | 8.15 | 0.9% |
+| 3 — 1000 m W4+, 2025 | 9 | −18.80 | 14.96 | 0.3% |
+
+**Cochran Q = 1.59 on 2 df, p = 0.45; I² = 0%.** No dispersion beyond
+sampling error. But that is close to uninformative:
+
+| true between-race sd | 3 races | 6 | 12 | 24 |
+|---|---|---|---|---|
+| 5 mm/s | 29% | 60% | 86% | 99% |
+| 10 mm/s | 46% | 75% | 97% | 100% |
+| 20 mm/s | 72% | 96% | 100% | 100% |
+| 40 mm/s | 86% | 99% | 100% | 100% |
+
+Heterogeneity large enough to matter for coaching is undetectable at n=3
+and becomes reliably detectable at around twelve races.
+
+**Two cautions against over-reading this.** The fixed-effect pooled
+estimate carries **98.8% race-1 weight** — it is race 1 restated, not
+independent evidence, and must not be reported as a pooled result. And all
+three point estimates sharing a negative sign would occur one time in four
+under a true null.
+
+**The design implication stands regardless of the test.** Pooling races and
+reporting one effect per call type assumes homogeneity that this study
+cannot test and that mechanism gives reason to doubt. Work at the sample
+sizes in the power table should fit boat class and crew as random effects,
+and treat the between-race component as a result rather than a nuisance.
