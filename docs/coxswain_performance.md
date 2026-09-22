@@ -205,7 +205,7 @@ form. The mental-skills paper needs adding before it can be read.
 
 The gap above ("nobody has measured what a call is worth") is now partly
 closed. One masters head race, 4050 m and 576 strokes, with the coxswain's
-speech synchronised to stroke-by-stroke GPS through her own spoken split
+speech synchronised to stroke-by-stroke GPS through their own spoken split
 callouts. Crews are referred to generically throughout; no raw recording or
 sheet data lives in this repository.
 
@@ -298,7 +298,7 @@ so it is not one coincidence; but leave-one-out shows a single call carrying
 47.5% of the score.
 
 **Do not read the sign causally.** The likelier account is that the coxswain
-calls the catch when she can see it going, and what she saw continues for
+calls the catch when they can see it going, and what they saw continues for
 the next twenty strokes. A marker of trouble, not necessarily a cause.
 
 The methodological point is independent of that: -10 mm/s is an order of
@@ -580,3 +580,63 @@ Nugent's corpus is also now pinned down: **16 recordings found, 8 included**
 Henley semi-finals and finals 2014–2022. That is the same set our elite
 comparison corpus was drawn from, which is worth stating explicitly in the
 paper rather than leaving as coincidence.
+
+## The inverse problem: what makes a coxswain call?
+
+### First: the other cox-box channels are not independent
+
+Speed is an identity, v = dps × sr / 60, so a call that raises rate and
+shortens the stroke leaves speed flat while really changing the crew. Worth
+checking the other channels — except three of them cannot help:
+
+| channel | relation to speed | independent? |
+|---|---|---|
+| drag | ∝ v² to 1.3% | no |
+| power | ∝ v³ to 1.3% | no |
+| crew_power | r = 1.000 with power | no |
+| stroke rate | — | **yes** |
+| distance per stroke | ≈ 60v/sr, deviates up to 29% | partly |
+
+Running the validated machinery against drag/power/crew_power just
+reproduces the catch speed result three times. Against **stroke rate**:
+nothing (largest +0.001, for finish). Against **dps**: nothing. So whatever
+catch calls are associated with is a change in speed, not a redistribution
+between rate and length.
+
+### The inverse analysis
+
+Calls are frequent and boat state is precisely measured, so predicting the
+call is better posed than predicting the boat. The coxswain speaks on 41%
+of strokes, so "does a call occur" is base-rate dominated — the question
+was restricted to speaking strokes and asked **which category**.
+
+Predictor blocks, added in the order the coxswain receives them:
+- **POSITION** — race progress (the scripted component)
+- **BOX** — split, rate, dps, distance and recent changes (what they see)
+- **FELT** — vestibular input: surge/sway/heave in boat coordinates plus
+  angular rates, from rotating the head-cam's 30 Hz accelerometer into
+  world axes by its quaternion, then into boat axes by GPS heading
+
+**Positive control passes.** Race position predicts tactical calls at
+AUC 0.609, with 0 of 200 circular shifts reaching it (p = 0.000). This is
+the load-bearing result: without it the nulls below would indict the
+pipeline rather than the hypothesis.
+
+**Everything else is null.**
+
+| test | result |
+|---|---|
+| BOX over POSITION | nothing for any category |
+| FELT over POSITION+BOX | catch +0.212 AUC — but family-wise p = **0.167** |
+| call history (n-grams lag 1–2, skip-grams 3 & 5, 8-call running rate) | nothing; largest +0.076 vs null 95th +0.303 |
+| inverse clustering (cluster 12-stroke response shapes, then look for calls) | 3 marginal hits in 24 tests (1.2 expected), none persists across k |
+
+**The one lead worth keeping.** The entire catch/FELT gain comes from
+**lateral motion** — sway alone contributes +0.221 of the +0.212 — and a
+ragged catch in a four is felt precisely as a sideways lurch. Physically
+coherent, and it fails the multiplicity correction at n=17 positives. It is
+a hypothesis for the multi-race dataset, not a finding.
+
+**The null is symmetric.** Neither direction of the call↔boat relationship
+is detectable at n=1, and the positive control shows that is a statement
+about the data available, not about the method.
