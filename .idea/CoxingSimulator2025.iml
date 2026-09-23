@@ -4,6 +4,7 @@
     <content url="file://$MODULE_DIR$">
       <excludeFolder url="file://$MODULE_DIR$/.venv" />
       <excludeFolder url="file://$MODULE_DIR$/venv" />
+      <excludeFolder url="file://$MODULE_DIR$/research/callmodel/.venv" />
     </content>
     <orderEntry type="jdk" jdkName="~\PycharmProjects\CoxswainSimulator_V_0\.venv" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
