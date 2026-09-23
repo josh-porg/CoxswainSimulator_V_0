@@ -1257,3 +1257,98 @@ words with no paragraph carrying three.
 **The rule for this paper:** state the property of the method, in the
 author's voice. Never narrate how the analysis was carried out, and never
 tell the reader how to weigh what they are reading.
+
+---
+
+# Paper frozen 2026-09-23; problem re-set as a coupled joint process
+
+The paper is frozen read-only in `scratchpad/race/frozen_2026-09-23/` with
+SHA-256 checksums (`paper.tex` 07dedcda…, `paper_sage.tex` 90ef7d13…).
+
+## The reframing
+
+The paper ran three separate one-directional analyses — calls→speed,
+boat→calls, calls→calls. The actual object is one coupled process in which
+each stream predicts itself and shifts the other's conditional distribution:
+
+    p(C, B) = Π_t  p(C_t | C_<t, B_<t) · p(B_t | B_<t, C_<t)
+
+The first factor is "what makes a coxswain call"; the second is "what a
+call does". Coupling in each direction is a Granger test scored by held-out
+log-likelihood against a null that shifts the *other* stream only.
+
+**The flaw this exposes:** the paper's forward analysis never gave speed its
+own past as a predictor, so it could not separate "the call changed the
+boat" from "the boat was already changing and the coxswain saw it".
+
+## Results, race 1
+
+Compact representation (exponentially decayed history at τ = 2, 8, 30
+strokes — the linear form of a multivariate Hawkes process), regularisation
+tuned inside each fold. A first version with raw lags overfit below base
+rates and was discarded.
+
+| term | held-out gain | null 95th | p |
+|---|---|---|---|
+| boat, own past | **+0.524** nats/stroke | — | — |
+| calls, own past (8 keyword categories) | −0.085 | — | — |
+| calls → boat, given boat's own past | −0.074 | −0.040 | 0.31 |
+| boat → calls, given calls' own past | +0.014 | +0.060 | 0.33 |
+
+**No detectable coupling in either direction.**
+
+## The paper's catch finding does not survive
+
+| model | held-out R² |
+|---|---|
+| catch alone (paper's model) | +0.012 to +0.027 |
+| boat's own past | **+0.647** |
+| boat's own past + catch | +0.624 to +0.645 |
+
+Catch adds nothing once the boat's own history is present (p = 0.36, 0.97).
+Robust to speed treatment, because the paper's detrend is *centred* and
+leaks future speed into a Granger test:
+
+| speed treatment | own past | + catch | p |
+|---|---|---|---|
+| raw speed | 0.740 | 0.733 | 0.37 |
+| trailing 61-stroke detrend (causal) | 0.708 | 0.697 | 0.57 |
+| first difference | 0.234 | 0.190 | 0.68 |
+
+The rival account the paper's own Limitations raised is sufficient: the
+coxswain calls the catch when they see it going, and the boat's subsequent
+slowing is its own dynamics, not the call's effect.
+
+**Consequence for the frozen paper:** it describes the catch effect as
+"unreplicated rather than refuted" and "robust to how it is labelled and
+how the boat data are detrended". Both remain true as stated, but the
+stronger test now shows it is explained by the boat's self-dynamics. The
+paper should not be submitted without revising that section.
+
+## Power is essentially unchanged
+
+Hypothesis tested and rejected: that modelling the boat's own past would
+shrink the noise floor and sharpen coupling tests.
+
+| noise a call effect must beat | sd, held out |
+|---|---|
+| paper (centred detrend) | 56.3 mm/s |
+| joint model (residual after own past) | 53.3 mm/s |
+
+Ratio 1.06, so races needed scale by ~0.90: about 5–11 races for
+2 mm/s and ~22 for 1 mm/s. The own-past model mostly recovers the slow
+trend that detrending already removed; stroke-scale fluctuation stays
+largely unpredictable.
+
+## Transformer: right architecture, wrong data
+
+A causal transformer over strokes with two heads (boat Gaussian, calls
+multilabel) is the natural nonlinear form of this model, and coupling
+becomes an ablation. But at 551 synchronised strokes a linear model with
+80 features per channel already memorised; the linear coupled model finds
+no coupling to learn; a transformer can only overfit harder.
+
+Where a sequence model *could* be trained now: the self-term
+p(C_t | C_<t) needs only transcripts, not boat data. The channel holds ~40
+captioned recordings, and the pragmatic coding showed real sequence
+structure (blind z = +4.0). That is the one factor with enough data.
