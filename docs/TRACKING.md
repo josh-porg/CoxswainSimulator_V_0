@@ -4193,6 +4193,15 @@ to.
 
 ---
 
+### Coxing research — calls and boat
+
+| what | where | pinned by |
+|---|---|---|
+| **Calls and boat modelled as one coupled process.** A causal transformer carries both factors of p(C,B); stream dropout gives own-past and both-pasts predictions from one set of weights, so C→B and B→C are measured inside one model and call-only transcripts train the call self-term. A Hawkes-style linear autoregression is fitted on the same folds as the reference. | `research/callmodel/` (`model.py`, `train.py`, `evaluate.py`, `run.py`) | `selftest.py`: both models recover planted coupling (p = 0.032 at the 30-draw floor) and give chance p-values with none |
+| **Plug-and-play sessions.** A recording is a folder: `meta.json`, plus any of `words.jsonl`, `boat.csv`, `labels.json`. `ingest.py captions` builds call-only sessions from a folder of .vtt; `ingest.py session` builds a synchronised one from a transcript and a boat log with a clock offset. Nothing else changes to add data. | `research/callmodel/sessions.py`, `ingest.py`, `README.md` | — |
+| **First run, 2026-09-25:** 38 sessions (3 synchronised races, 35 transcripts), 11,313 grid steps, 647 with boat data. Self-prediction boat +0.32 / +0.28 nats, calls +0.35 / +0.32 (linear / transformer); coupling negative in both directions for both models, p 0.20–0.67; a second seed agrees. The race-1 catch effect is explained by the boat's own past. | results in `data/local/coxing/` (gitignored) | the working paper's coupled-process section |
+| **Email replies recorded.** Kleshnev sent an elite M1x averaged stroke ([BR24], SOURCES §156, data gitignored); Buckeridge referred us to McGregor. Drafts of both follow-ups are in DATA_REQUESTS. | `docs/DATA_REQUESTS.md`, `docs/SOURCES.md` | — |
+
 ## Fixed
 
 | what it was | how it was found |
