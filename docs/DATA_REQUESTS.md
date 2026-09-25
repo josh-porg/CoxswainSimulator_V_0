@@ -583,6 +583,95 @@ person to ask about the rower-motion reconstruction and the marker data behind i
 provenance of [F09]'s rower motion, which is worth more to phase 4.3 than the
 original request was. See [MOLA].
 
+### §2 Kleshnev — **answered 2026-09-25. Data received; better than the ask.**
+
+Dr Kleshnev sent a single athlete's **ensemble-averaged stroke (about 20 strokes of
+steady-state rowing)**: an elite men's single at **32.4 spm**, rower 1.91 m and 97 kg,
+boat 18 kg, inboard 0.875 m, oar 2.885 m, 51 samples across the 1.851 s cycle. Recorded in
+SOURCES as **[BR24]** (§156). Stored at `data/local/biorow/` — commercial data shared for
+validation, **gitignored and not to be redistributed**.
+
+*What it closed:* the ask was seat-position and trunk time series through complete
+strokes. Both are there, plus handle force and velocity for each oar, horizontal and
+vertical oar angle for each oar, and the boat's own velocity and acceleration.
+
+*What it opened:* the first **like-for-like** target for the model's largest known
+discrepancy. The 37–41% IVV and 8.88 m/s² it had been compared against came from a
+club double and a DGPS session, not from the athlete the model was set up as. Here
+rig, rate, segment motion and boat response belong to one athlete.
+
+*Blocked on one answer:* rower centre-of-mass excursion — the datum SOURCES §4 calls
+decisive — cannot be computed until the origins of the seat and trunk positions are
+known. Asked in the reply below.
+
+> Subject: Re: seat and trunk kinematics — thank you, and a few questions
+>
+> Dear Dr Kleshnev,
+>
+> Thank you — this is exactly what I needed, and more. Having the boat's own velocity
+> and acceleration alongside the seat, trunk and handle data for the same athlete makes
+> it the first like-for-like target I've had for the model's within-stroke speed
+> variation. A first look: this stroke shows a velocity fluctuation of
+> 48.9% of the mean and a hull acceleration range of 15.3 m/s², and the drive occupies
+> 54% of the cycle by both oar angle and handle force.
+>
+> A few questions so I use it correctly:
+>
+> 1. What are the origins of **seat position** and **trunk position**? Seat runs 0 to
+>    0.597 m and trunk −1.231 to −0.795 m; I'd like to know what each is measured from
+>    (the catch position, the stretcher, the pin?) and which way is positive.
+> 2. Is **trunk position** the shoulder, or another point on the trunk? I want to
+>    reconstruct the rower's centre of mass relative to the boat, and the point matters.
+> 3. Were the 51 samples resampled from a higher native rate?
+> 4. Do you have this athlete, or a comparable one, at **other stroke rates**? How the
+>    fluctuation changes with rate is the test the model most needs.
+> 5. How would you like the data cited?
+>
+> I'll send you the model's result against this stroke once it's run.
+>
+> Sincerely,
+> Joshua Poznanski
+
+### §11c Buckeridge — **answered 2026-09-25. Declined; referred on.**
+
+Dr Buckeridge no longer has access to the thesis datasets (PhD completed 2013, since
+relocated), and referred the project to her supervisor **Prof. Alison McGregor**
+(a.mcgregor@imperial.ac.uk), who remains active in the area and may hold the original
+data or have students continuing the work. She asked to hear how the simulator
+develops.
+
+*What it closed:* the thesis data are not available from the author.
+*What it opened:* the referral is the live thread for the foot-force direction, which
+is still the item that blocks phase 4.3's knee and ankle.
+
+> Subject: Foot-force data from the instrumented ergometer work — referred by Erica Buckeridge
+>
+> Dear Professor McGregor,
+>
+> Erica Buckeridge kindly suggested I contact you. I'm building an open-source rowing
+> simulator, and her thesis's instrumented Concept2 recorded vertical and horizontal
+> foot force for GB heavyweight women scullers and sweep rowers (Fig. 5.7). I have one
+> on-water women's single stroke whose hip moment I've computed from the handle, and
+> the knee and ankle need a foot-force direction for women — hers is the closest
+> measurement I've found.
+>
+> Would the group-mean vertical and horizontal foot force at the catch and at maximum
+> handle force, or the curves behind Fig. 5.7, be available from the group? I'd also be
+> glad to hear of any students continuing this work.
+>
+> Sincerely,
+> Joshua Poznanski
+
+> Subject: Re: rowing simulator — thank you
+>
+> Dear Dr Buckeridge,
+>
+> Thank you for the quick reply and the pointer to Professor McGregor — I'll write to
+> her. I'll gladly send you an update as the simulator develops.
+>
+> Sincerely,
+> Joshua Poznanski
+
 ## Contact addresses (compiled 2026-09-19)
 
 **Verified means read verbatim out of the paper's own PDF.** Nothing in the

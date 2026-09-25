@@ -11092,3 +11092,51 @@ The general lesson is the one worth keeping: **a timeout is not
 optional on anything a release blocks on.** A failure announces itself;
 a hang looks exactly like slowness, and the only way to tell them apart
 is to know how long the same work took somewhere else.
+
+## 156. One athlete, one rig, one stroke: the first like-for-like IVV target
+
+### [BR24] Kleshnev, BioRow — elite men's single, ensemble-averaged stroke (2024-02-05)
+
+Shared by Dr Kleshnev on 2026-09-25 in answer to DATA_REQUESTS §2. **Commercial
+data, shared for validation: kept in `data/local/biorow/` (gitignored), never
+committed or redistributed.** Only derived quantities are recorded here.
+
+One athlete's stroke averaged over about 20 steady-state strokes, 51 samples
+across a 1.851 s cycle (32.4 spm). Rower 1.91 m and 97 kg; boat 18 kg; inboard
+0.875 m, oar 2.885 m. Channels: boat velocity and acceleration; horizontal and
+vertical oar angle, handle force and handle velocity for each oar; seat
+position and velocity; trunk position and velocity.
+
+Computed from it:
+
+| quantity | value |
+|---|---|
+| boat speed, mean / min / max | 4.64 / 3.46 / 5.74 m/s |
+| IVV, (max − min) / mean | **48.9%** |
+| hull acceleration, peak to peak | **15.25 m/s²** (−10.65 to +4.60) |
+| catch / finish angle, arc | −67.2° / 36.4°, 103.7° |
+| drive fraction of cycle | 54.0% by oar angle, 54.9% by handle force |
+| handle force rises through | −58.9° (≈ 8° after the catch) |
+| peak handle force | 427 N, at 52% of the drive |
+| seat travel, peak speed | 0.597 m, 1.65 m/s |
+| trunk travel, peak speed | 0.435 m, 1.12 m/s |
+
+Integrating the recorded acceleration over the cycle reproduces the recorded
+velocity, so the two channels are mutually consistent.
+
+**Why it matters.** §4's standing discrepancy — modelled velocity fluctuation
+about 1.7× measured — was scored against numbers that did not describe the
+athlete being modelled: 37.3% IVV from a DGPS session and 8.88 m/s² from a club
+double's IMU (the latter since withdrawn as a diagnosis). Here the rig, the rate,
+the segment motion and the hull response belong to one person, so the model can
+be driven with his measured seat and trunk and scored against his own boat. A
+48.9% IVV in an elite single also says the 37–41% reference band was never a
+fair target for a single; the gap in §4 is smaller than it looked, by an amount
+the like-for-like run will settle.
+
+**What it does not yet give.** Rower centre-of-mass excursion relative to the
+boat — the datum §4 calls decisive — needs the origins of the seat and trunk
+positions (seat runs 0 to 0.597 m, trunk −1.231 to −0.795 m, origins
+unstated) and which point on the trunk is tracked. Asked in the reply
+(DATA_REQUESTS §2). Until answered, no number from this section enters the
+physics.
