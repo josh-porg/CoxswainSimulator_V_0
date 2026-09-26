@@ -2424,6 +2424,11 @@ it at turn-round. No committed code is touched.
     torque near the finish, and the research pull shape (a Beta profile) is
     clipped at zero. The push is one athlete's measurement, so a sourced
     recovery-push law for the pull shape comes first.
+  - *2026-09-26, second athlete, and it does not transfer (SOURCES §158).* On [BR24] the
+    slip release fires every stroke but the blade-out oar never turns round: his push is
+    −1.4% of peak (hers −9%) and his recovery handle force is +8–15 N. The turn-round is not
+    in the handle-force channel; it belongs with 4.3's hands. Promotion stays blocked, now
+    for that reason rather than for want of a second push.
   - *Separately open:* the late-drive angle lead, and the recovery past
     turn-round (4.3's hands).
 
@@ -2844,6 +2849,14 @@ in the project, so it belongs in the `research` profile behind the
 scorecard. `tests/regression/test_paper_validation.py` carries the [HF09]
 comparison as a strict xfail, so the fix announces itself.
 
+
+*2026-09-26, a third data point that cuts the other way (SOURCES §158):* [BR24]'s elite
+single at 32.4 spm keeps force above 10% of peak for 0.926 s (0.50 of the cycle). The
+research model's nominal drive is 0.47, its pull is above 10% for only 0.688 s, and driven by
+his force its oar reaches the finish at 0.79 s. For this single the model's effective drive
+is too **short**. [HF09]'s pairs are not a general on-water drive time; do not move every
+boat to them.
+
 ### Handle power moved 53% and nobody noticed
 **Impact: high — handle power is what CP and W′ are measured against.**
 
@@ -3226,6 +3239,15 @@ moving mass.
 this gap. The model's travel for [BR24]'s athlete is now 0.799 m against his
 0.71-0.74 m. The excess is not in where the leg masses sit; the joint-angle
 excursions are the next suspect.
+
+*2026-09-26, [BR24] like for like (SOURCES §158):* at his 432 W and on his arc the research
+model rows 4.652 m/s against his 4.641 and swings 61.0% against 49.1%. The twelve points
+decompose: the crew's timing ~4 (his seat plateaus near 1 m/s, legs before trunk; the
+model's CoM peaks at +1.64 m/s relative to the hull against his +1.04), his force shape 1,
+averaging under 1, and ~6–7 at the catch, where the model's blade delivers almost nothing
+for 0.2 s (8 N·s by 0.3 s against his 26) even with his force and his body. Neither catch
+rule reproduces his early loading. CoM travel is not the lever: his trunk sweep cut it 4 cm
+and IVV by one point. Next: the catch (blade squared and immersed; [G19]).
 
 ### The eight is validated only by inference
 Holt measured singles and pairs. The boat this project cares about most
@@ -4207,6 +4229,16 @@ to.
 | **Plug-and-play sessions.** A recording is a folder: `meta.json`, plus any of `words.jsonl`, `boat.csv`, `labels.json`. `ingest.py captions` builds call-only sessions from a folder of .vtt; `ingest.py session` builds a synchronised one from a transcript and a boat log with a clock offset. Nothing else changes to add data. | `research/callmodel/sessions.py`, `ingest.py`, `README.md` | — |
 | **First run, 2026-09-25:** 38 sessions (3 synchronised races, 35 transcripts), 11,313 grid steps, 647 with boat data. Self-prediction boat +0.32 / +0.28 nats, calls +0.35 / +0.32 (linear / transformer); coupling negative in both directions for both models, p 0.20–0.67; a second seed agrees. The race-1 catch effect is explained by the boat's own past. | results in `data/local/coxing/` (gitignored) | the working paper's coupled-process section |
 | **Email replies recorded.** Kleshnev sent an elite M1x averaged stroke ([BR24], SOURCES §156, data gitignored); Buckeridge referred us to McGregor. Drafts of both follow-ups are in DATA_REQUESTS. | `docs/DATA_REQUESTS.md`, `docs/SOURCES.md` | — |
+
+### [BR24] like-for-like tooling (one athlete, measured stroke)
+
+| what | where | pinned by |
+|---|---|---|
+| **Channel calibration from the data**: seat zeroed at the catch, trunk relative to the seat at shoulder height (momentum fit 0.583 m), rower CoM travel 0.71–0.74 m. | `research/biorow/calibrate_channels.py` | SOURCES §156 |
+| **The research model as his boat** at his 432 W: variants swap in his arc, trunk sweep, slide and drive fraction; the nearest reachable oarlock position is searched and reported. | `research/biorow/like_for_like.py` | SOURCES §158 |
+| **Shape and momentum diagnostics**: speed and force timed from the catch; his force shape as the pull; the model's body re-timed onto his seat and trunk curves; the [CR06] finish study on his force. | `research/biorow/shape_br24.py`, `measured_body.py`, `finish_br24.py` | SOURCES §158 |
+
+The measured stroke is commercial and stays in `data/local/biorow/`; every script prints derived numbers only.
 
 ## Fixed
 

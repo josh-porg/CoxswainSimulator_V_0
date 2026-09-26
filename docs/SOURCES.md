@@ -11256,3 +11256,101 @@ torque. The same gap covered stature and any other kinematic difference that lea
 total mass unchanged. The key now carries every rower's `kinematics_signature`.
 Only the first pass of the research rows above was affected. Those rows were repeated in separate
 processes at matched power (260.0 W), and the table shows the repeat.
+
+
+## 158. The research model, run as [BR24]'s athlete
+
+[BR24] (§156) is the first stroke where athlete, rig, rate, power and boat response
+belong to one person, so the research profile was set up as him — 97 kg / 1.91 m, an
+18 kg hull, 2.885 m sculls at 0.875 m inboard, 32.4 spm — and driven at his measured
+432 W handle power (mean of H·Vh over both oars). Scripts in `research/biorow/`; the
+data stay in `data/local/biorow/` and only derived numbers are recorded.
+
+### Pace: the first power–speed pair, and it passes
+
+| build | speed | IVV | CoM travel | blade eff. |
+|---|---|---|---|---|
+| research profile, catalogue arc 65/45° | 4.703 m/s (+1.3%) | 60.6% | 0.799 m | 0.773 |
+| + his arc 67.2/36.4°, oarlock 2 cm aft to reach it | **4.652 m/s (+0.2%)** | 61.0% | 0.792 | 0.759 |
+| + his trunk sweep (oarlock +12 cm to reach) | 4.710 | 59.7% | 0.757 | 0.774 |
+| + his drive fraction 0.50 | 4.700 | 60.8% | 0.799 | 0.773 |
+| **[BR24]** | **4.641 m/s** | **49.1%** | 0.71–0.74 | — |
+
+At his power and on his arc the model's mean speed is within 0.2% of his. The arc
+cannot be reached from the model's posture on the catalogue work-through; [BR24] does
+not state his, so the nearest feasible oarlock position is used and reported.
+
+### IVV: 61% against 49%, and where the twelve points are
+
+Timed from the catch (`shape_br24.py`), the model's boat dips to 2.85 m/s at 0.256 s
+where his dips to 3.46 at 0.111 s, and surges 0.4–0.5 m/s higher in the early recovery.
+
+1. **The pull shape is not the cause.** The model's peak handle force matches his in size
+   and timing (451 N at 0.519 s against 424 N at 0.518 s), though its force stays above 10%
+   of peak for 0.69 s against his 0.93. Driving the model with his measured force shape at
+   432 W moves IVV 61.0 → 59.5%.
+2. **The crew's timing is worth about four points.** Early in the drive the model's seat
+   reaches 1.5 m/s and its trunk opens with the legs; his seat holds about 1.0 m/s from 0.1
+   to 0.4 s and his trunk waits until 0.3 s (legs first). Early in the recovery the model's
+   body swings forward at once. Its crew CoM peaks at +1.64 m/s relative to the hull against
+   his +1.04. Re-timing the model's postures onto his seat and trunk curves, as the [CR06]
+   study did (`measured_body.py`), gives 61.0 → 60.0% (legs) → 57.0% (legs + trunk time-law
+   and travel) → 56.0% with his force too, with the dip now at his time (3.34 m/s at 0.106 s).
+   The re-timed crew's CoM velocity swing is then 2.82 m/s against his 2.75.
+   **CoM travel was the wrong target**: his trunk sweep takes 4 cm off the travel and moves
+   IVV by one point. What sets the swing is how fast the mass moves, and when.
+3. **Averaging and sampling are worth under a point.** The model's trace resampled at 50
+   points per cycle and averaged over 20 strokes with 1–3% within-cycle timing scatter
+   reads 54.8–55.9%.
+4. **The rest is the catch.** Backing the net blade force out of the model's own momentum
+   (hull, crew, oars; surge added mass is 0.6 kg), with his body and his force: −14 N at
+   0.1 s after the catch, 33 N at 0.2 s, 136 N at 0.3 s, against his 55, 111 and 174 N
+   (lever 0.41 × his handle force, the §156 fit). By 0.3 s the model has delivered 8 N·s
+   to his 26, and makes it up with 380 N against his 322 at mid-drive. The early deficit
+   deepens the dip and the mid-drive surplus raises the peak. The rest catch, which loads
+   the blade at once, is worse (58.8%, speed −1%). Neither catch rule reproduces his early
+   loading: this is the open item on a blade squared and immersed before the catch, and
+   the immersion curve blocked on [G19].
+
+### The drive is not too long for him
+
+His force stays above 10% of peak for 0.926 s (0.50 of the cycle; 1.000 s catch-to-finish
+by oar angle). The research model's nominal drive is 0.47 (Telfer), but its pull is above
+10% for only 0.688 s, and driven by his force its oar reaches the finish at 0.79 s against
+his 1.00 s. [HF09]'s on-water pairs (752 ms at 31.5 spm) and this single disagree by a
+quarter of a second, so the pairs result is not a general on-water drive time, and moving
+every boat to it would take the single further from him.
+
+### The finish fix does not transfer
+
+`finish_br24.py` repeats the [CR06] finish study on him: his handle force per oar,
+unclipped, through the oar-only balance, [CR06]'s slip release. His release (force through
+zero) is at 0.917 s after the catch, 35.6°; his turn-round at 1.000 s, 37.3°. His push
+after the finish is −6.1 N per oar, 1.4% of peak (hers was −9%), and through the recovery
+his measured handle force is **positive**, +8–15 N. The release fires on every stroke, at
+0.945 s and 57.7°, and the blade-out oar never turns round. Whatever turns his oar is not
+in the handle-force channel — the hands and arms of phase 4.3, as the [CR06] study already
+suspected of the recovery. The push-driven turn-round is one athlete's, not a law.
+
+### The drive-angle lead, on a second athlete
+
+Under his force the model's oar leads his by 3.9° at 0.5 s and 11.5° at 0.8 s after the
+catch (research C2 = 140.88). A one-parameter study, as [CR06]'s own C2 fit: at 1.5× the
+lead is 7.2° at 0.8 s; at 2× (282, 4.8× nominal) the angle stays within ±3.5° of his through
+the drive and the run's handle power is 423 W. At 3× the fixed-step integration diverges.
+Her oar needed 2.4× nominal; his needs about twice that. That is a second reason, after
+[CR06]'s own C2 growing through her drive, to read the quadratic coefficient as a stand-in
+for physics it does not contain (entrainment, immersion) rather than a constant.
+**No change to the profile**: under the oar-only balance the same runs are 11% fast at
+matched power, while the default balance matched his speed to 0.2%, so absolute speed from
+this balance is not a target.
+
+### `mean_handle_power` against a measured handle power
+
+[BR24] measures handle force and handle velocity, so his 432 W is handle power by
+definition. `crew.exertion.mean_handle_power` dots the *oarlock* force with the handle
+velocity. On the ideal lever the oarlock carries F_h (1 + r_h / r_b); for his rig
+(0.826 / 1.795) that is 1.46, so the function's definition applied to his stroke would read
+about 630 W. [BR24] has no pin-force channel, so this is the lever's consequence, not a
+measured pin force; it is the first real stroke to put a size on the open question.
+The research profile's dynamic oar measures handle power directly and is unaffected.
