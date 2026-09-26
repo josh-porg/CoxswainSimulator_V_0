@@ -11173,3 +11173,86 @@ model on this athlete and rig does.
 Provisional until Dr Kleshnev confirms the frame and the tracked point (asked as a
 confirmation in DATA_REQUESTS §2). Used as a validation target only; no number from
 this section enters the physics.
+
+## 157. The leg masses were measured from the wrong end
+
+de Leva (1996) Table 4 gives each segment's CM as a fraction of its length from
+the first-listed endpoint: the thigh 40.95% from the hip joint centre, the shank
+44.59% from the knee, the foot 44.15% from the heel. `anthropometry.py` stores
+them that way and `_lump` measures the lumped shank+foot from the knee. The
+placement in `JointDrivenRower.segment_state` did not:
+
+| segment | placed at | should be |
+|---|---|---|
+| thigh | `along(knee, hip, 0.4095)`: 40.95% from the **knee** | 40.95% from the hip |
+| shank_foot | `along(ankle, knee, 0.4027)`: from the **ankle**, and 0.4027 is a fraction of the shank+foot length (0.692 m), applied to the shank link alone (0.434 m) | from the knee |
+
+Checked and correct: upper arm (`along(shoulder, elbow, 0.5772)`), forearm+hand
+(`along(elbow, hand, c)`, the chain's elbow-to-hand link being forearm + hand, the
+same length the lumped fraction is of), and the three trunk masses (`1 − c`, since
+de Leva measures them from the cranial end). The head sits `0.5976 × 203.3 mm` above
+the cervicale, and de Leva's head CM is measured from the vertex. Numerically it
+still lands about right, because de Leva's head+neck (vertex to cervicale, 242.9 mm)
+has its CM 121.5 mm below the vertex, i.e. 121.4 mm above the cervicale. That figure
+is recalled, not re-checked against the paper.
+
+**The shank's correct placement is not the collinear lump.** The foot is strapped
+to the stretcher, so it does not move relative to the hull. The corrected placement
+puts the shank's own CM 44.59% from the knee and holds the foot's mass at the ankle.
+The pair's CM then moves `m_s/(m_s+m_f) × (1 − 0.4459) = 0.421` as far as the knee,
+against the legacy 0.403. So the legacy shank error was nearly cancelled by
+accident. Treating the foot as collinear with the shank and measuring from the knee
+would give 0.642 and overstate the legs' travel. The error is almost all in the
+thigh.
+
+**What it moves.** Crew centre-of-mass travel relative to the hull, one stroke:
+
+| case | legacy | de Leva | change |
+|---|---|---|---|
+| free rower 85 kg / 1.86 m, 32 spm | 0.7701 m | 0.7794 m | +0.0094 |
+| free rower 97 kg / 1.91 m ([BR24]'s athlete) | 0.7908 | 0.8004 | +0.0096 |
+| catalogue 1x, 32 spm | 0.7706 | 0.7800 | +0.0094 |
+| catalogue 1x at 97 kg / 1.91 m | 0.7892 | 0.7988 | +0.0096 |
+| catalogue 8+, 36 spm (crew; one rower 0.785 → 0.794) | 0.7277 | 0.7366 | +0.0089 |
+
+Of the +0.0094 m, the thighs give about 0.0085 (their CM travel 0.509 → 0.539 m at
+14.2% of body mass each) and the shank+foot pairs 0.0009 (0.178 → 0.186 m). The
+brief's estimate of ~0.02 m assumed the collinear lump for the shank.
+
+IVV, (max − min)/mean over the settled strokes, with only the leg placement changed:
+
+| run | legacy | de Leva |
+|---|---|---|
+| prescribed oar, 1x 32 spm, power scale 1 | 53.92% at 4.847 m/s | 54.41% at 4.852 |
+| prescribed oar, 8+ 36 spm | 44.30% at 6.350 | 45.05% at 6.351 |
+| research (dynamic oar), 1x 32 spm, 260 W | 67.69% at 3.970 | 68.74% at 3.973 |
+| research, 8+ 36 spm, 260 W/rower | 56.50% at 5.113 | 57.38% at 5.122 |
+
+Blade efficiency did not change (0.789 / 0.752). The crew CoM swings further, so
+the hull swings further: +0.5 to +1.05 points of IVV. Mean speed rises by 0.1–0.2%.
+
+**It moves the model away from every target on record, and it is right anyway.**
+[BR24] (§156) puts this athlete's CoM travel at 0.71–0.74 m. The model gave 0.789
+for his anthropometry before the correction and 0.799 after. §4's surge swing was
+already too large, and research IVV rises further. The correction is to published
+anatomy, not to a fit, so it stands. The remaining 6–9 cm travel gap to [BR24] has
+to come from somewhere else in the chain, most likely the joint-angle excursions,
+which are the larger lever (§53 cleared the trunk as a rigid link). The derivation
+behind §156's 0.71–0.74 m is not in the repository, so it is unknown which leg
+placement it used. Either choice moves it by less than 0.01 m.
+
+In the code it is `PhysicsProfile.segment_com`: `"legacy"` for `shipped` (frozen),
+`"de_leva"` for `research` and `learned`. It is applied to a built boat's rowers by
+`PhysicsProfile.apply`. The placement is part of `JointDrivenRower.kinematics_signature`,
+so stroke tables and seat groups cannot be shared across the two placements. Tests:
+`tests/unit/test_kinematics.py` (the thigh from the hip, the shank from the knee with
+the foot fixed, legacy pinned, +0.006 to +0.013 m of travel) and
+`tests/test_physics_profiles.py` (research and learned get it, shipped does not).
+
+**Found in measuring it:** the dynamic oar's matched-torque cache key
+(`_match_key`) did not include how the crew moves. A research 1x with the legacy
+placement and one with the de Leva placement, same name and stamp, shared one
+torque. The same gap covered stature and any other kinematic difference that leaves
+total mass unchanged. The key now carries every rower's `kinematics_signature`.
+Only the first pass of the research rows above was affected. Those rows were repeated in separate
+processes at matched power (260.0 W), and the table shows the repeat.

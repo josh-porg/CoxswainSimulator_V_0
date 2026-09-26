@@ -150,6 +150,15 @@ class PhysicsProfile:
     #: show.  ``DynamicOarSimulator`` refuses the combination.  Sweep blades
     #: keep 84.5: [CR06] fitted the 2.4x on singles only.
     scull_c2: Optional[float] = None
+    #: Where the leg masses sit on their links; see
+    #: :data:`~coxswain.crew.kinematics.SEGMENT_COM_MODES`.  ``"legacy"``
+    #: measures the thigh CM from the knee and applies the lumped
+    #: shank+foot fraction to the shank from the ankle -- both from the
+    #: wrong end of de Leva's tables -- and is what ships.  ``"de_leva"``
+    #: measures the thigh from the hip and the shank from the knee with the
+    #: foot held on the stretcher: +0.9-1.0 cm of crew centre-of-mass
+    #: travel (SOURCES sec. 157).
+    segment_com: str = "legacy"
     #: Frozen profiles may not be altered, and the game may resolve only
     #: a frozen one.
     frozen: bool = False
@@ -165,6 +174,9 @@ class PhysicsProfile:
             raise ValueError(f"unknown oar driver {self.oar!r}")
         if self.wave not in ("michell", "sretenskii"):
             raise ValueError(f"unknown wave model {self.wave!r}")
+        if self.segment_com not in ("legacy", "de_leva"):
+            raise ValueError(
+                f"unknown segment placement {self.segment_com!r}")
         if self.catch not in ("rest", "sweep"):
             raise ValueError(f"unknown catch rule {self.catch!r}")
         if self.scull_mass is not None and not self.scull_mass > 0.0:
@@ -268,6 +280,8 @@ class PhysicsProfile:
         if self.scull_c2 is not None and not bool(
                 getattr(getattr(boat, "rig", None), "is_sweep", True)):
             boat.scull_c2 = float(self.scull_c2)
+        if self.segment_com != "legacy":
+            _set_segment_com(boat, self.segment_com)
         boat.physics_profile = self.name
         return boat
 
@@ -296,6 +310,22 @@ def _set_scull_mass(boat, mass):
                                                               mass=mass))
             for lock in seat.oarlocks))
         for seat in rig.seats))
+
+
+def _set_segment_com(boat, mode):
+    """Place every rower's leg masses by ``mode``, and drop what cached the
+    old placement.
+
+    The rowers are switched in place rather than rebuilt: a rebuilt crew
+    would have to repeat the boat's hand targets, warps and offsets, and
+    this is the one field that differs.  The stroke tables and the seat
+    groups are keyed on the kinematics signature, which the switch changes,
+    but they are cleared anyway so a stale table cannot outlive it.
+    """
+    for member in getattr(boat, "crew", ()):
+        member.rower.segment_com = mode
+    boat._crew_group_cache = None
+    boat.__dict__.pop("_stroke_tables", None)
 
 
 def _outboard_of(boat):
@@ -365,6 +395,10 @@ PROFILES: Dict[str, PhysicsProfile] = {
         # 0.69-0.70 -> 0.78-0.79, inside Kleshnev's band).  Exclusive of the
         # Patton blade added mass.
         scull_c2=140.88,
+        # de Leva's leg CMs from the proximal joint, since 2026-09-26: the
+        # legacy placement measured both from the distal end and cost the
+        # crew 0.9-1.0 cm of centre-of-mass travel (SOURCES sec. 157).
+        segment_com="de_leva",
     ),
     # Declared so the shape of the programme is visible in the code and not
     # only in the plan.  NOTHING behind it exists yet: there is no tier 2
@@ -384,6 +418,7 @@ PROFILES: Dict[str, PhysicsProfile] = {
         catch="sweep",
         scull_mass=1.2,
         scull_c2=140.88,
+        segment_com="de_leva",
     ),
 }
 

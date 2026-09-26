@@ -65,6 +65,7 @@ __all__ = [
     "SegmentSequencing",
     "SYNCHRONOUS",
     "THIGH_MODES",
+    "SEGMENT_COM_MODES",
     "DEFAULT_ARM_POSTURE",
     "KEYFRAME_HARMONICS",
     "ARM_TRACK_HARMONICS",
@@ -215,6 +216,24 @@ SHOULDER_DROP_FRACTION = 0.085
 #:     likely an artefact of averaging angles across subjects at fixed time
 #:     points.  Selectable because it is what the data literally say.
 THIGH_MODES = ("level_seat", "measured")
+
+#: Where the leg masses sit along their links.
+#:
+#: ``"legacy"``
+#:     What ships, and frozen with it.  Measures both leg fractions from
+#:     the *distal* joint: the thigh CM lands 40.95% of the way up from the
+#:     knee (de Leva puts it 40.95% down from the hip), and the lumped
+#:     shank+foot fraction -- a fraction of the shank+foot length -- is
+#:     applied to the shank link from the ankle.  Understates crew
+#:     centre-of-mass travel; see SOURCES sec. 157.
+#: ``"de_leva"``
+#:     Thigh CM measured from the hip, as de Leva tabulates it.  The shank
+#:     CM measured from the knee, and the foot's mass held at the ankle:
+#:     the foot is strapped to the stretcher and does not travel relative
+#:     to the hull, so the pair's CM moves as the shank's CM scaled by the
+#:     shank's share of the pair's mass.  Selected by the ``research`` and
+#:     ``learned`` physics profiles only.
+SEGMENT_COM_MODES = ("legacy", "de_leva")
 
 #: Hand position relative to the shoulder joint, as
 #: ``(drive_fraction, extension, elevation_deg)`` at each arm keyframe.
@@ -408,7 +427,8 @@ class JointDrivenRower:
                  recovery_arrival: float = 1.0,
                  phase_warp=None,
                  sequencing: SegmentSequencing = None,
-                 flatness: float = None):
+                 flatness: float = None,
+                 segment_com: str = "legacy"):
         if thigh_mode not in THIGH_MODES:
             raise ValueError(
                 f"thigh_mode must be one of {THIGH_MODES}, got {thigh_mode!r}"
@@ -416,6 +436,7 @@ class JointDrivenRower:
 
         self.anthropometry = anthropometry
         self.timing = timing
+        self.segment_com = segment_com
         #: Retiming of the recovery traverse; see
         #: :func:`coxswain.crew.stroke.recovery_warp`.  Applied to every
         #: joint driver -- legs, trunk and arms share one clock.
@@ -1000,6 +1021,28 @@ class JointDrivenRower:
         return np.column_stack([chain["hand"][0].value,
                                 chain["hand"][1].value])
 
+    @property
+    def segment_com(self) -> str:
+        """Where the leg masses sit on their links; see :data:`SEGMENT_COM_MODES`."""
+        return self._segment_com
+
+    @segment_com.setter
+    def segment_com(self, mode: str) -> None:
+        if mode not in SEGMENT_COM_MODES:
+            raise ValueError(
+                f"segment_com must be one of {SEGMENT_COM_MODES}, got {mode!r}")
+        self._segment_com = mode
+        # The shank's CM from the knee, and the foot's mass at the ankle
+        # (fixed in the hull frame): the pair's CM is the shank's scaled by
+        # its mass share, at this fraction of the shank link from the ankle.
+        m_shank, _l, c_shank = self.anthropometry.base_segment("shank")
+        m_foot, _l, _c = self.anthropometry.base_segment("foot")
+        self._shank_foot_fraction = (m_shank / (m_shank + m_foot)
+                                     * (1.0 - c_shank))
+        # It changes the motion, so it is in the signature, and a rower
+        # switched after construction must not keep its old key.
+        self.__dict__.pop("_signature_cache", None)
+
     def kinematics_signature(self):
         """Key identifying rowers whose segment motion is identical.
 
@@ -1062,7 +1105,7 @@ class JointDrivenRower:
                 tuple(np.round(np.asarray(self.phase_warp[1]), 9))),
             station.z_ankle, station.seat_height, station.foot_half_span,
             station.hip_half_span, station.shoulder_half_span,
-            arms, sequencing, self.flatness,
+            arms, sequencing, self.flatness, self.segment_com,
         )
         self.__dict__["_signature_cache"] = signature
         return signature
@@ -1146,11 +1189,20 @@ class JointDrivenRower:
             places[f"forearm_hand_{suffix}"] = (
                 along(elbow, hand, seg[f"forearm_hand_{suffix}"].com_fraction),
                 side)
-            places[f"thigh_{suffix}"] = (
-                along(knee, hip, seg[f"thigh_{suffix}"].com_fraction), side)
-            places[f"shank_foot_{suffix}"] = (
-                along(ankle, knee, seg[f"shank_foot_{suffix}"].com_fraction),
-                side)
+            if self._segment_com == "de_leva":
+                places[f"thigh_{suffix}"] = (
+                    along(hip, knee, seg[f"thigh_{suffix}"].com_fraction),
+                    side)
+                places[f"shank_foot_{suffix}"] = (
+                    along(ankle, knee, self._shank_foot_fraction), side)
+            else:
+                places[f"thigh_{suffix}"] = (
+                    along(knee, hip, seg[f"thigh_{suffix}"].com_fraction),
+                    side)
+                places[f"shank_foot_{suffix}"] = (
+                    along(ankle, knee,
+                          seg[f"shank_foot_{suffix}"].com_fraction),
+                    side)
 
         n = len(SEGMENT_ORDER)
         position = np.zeros((n, 3))

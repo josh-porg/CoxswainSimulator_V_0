@@ -18,6 +18,7 @@ import ast
 import io
 import os
 
+import numpy as np
 import pytest
 
 from coxswain import physics
@@ -143,6 +144,49 @@ def test_apply_stamps_the_boat():
     # dynamic simulator, and setting it here would lay the efficiency-only
     # wiring on top in the ordinary simulator.
     assert boat.blade_model is None
+
+
+def test_research_places_the_legs_by_de_leva_and_shipped_does_not():
+    """SOURCES sec. 157: the leg CMs were measured from the distal joint.
+
+    The correction reaches every rower of a research or learned boat, and
+    none of a shipped one -- a fresh catalogue boat is what the game runs.
+    """
+    from coxswain.boats import catalog
+
+    fresh = catalog.build("1x", rate=32.0)
+    assert {m.rower.segment_com for m in fresh.crew} == {"legacy"}
+    assert physics.resolve(physics.SHIPPED).segment_com == "legacy"
+    shipped = physics.resolve(physics.SHIPPED).apply(
+        catalog.build("1x", rate=32.0))
+    assert {m.rower.segment_com for m in shipped.crew} == {"legacy"}
+    for name in ("research", "learned"):
+        boat = physics.resolve(name).apply(catalog.build("8+", rate=36.0))
+        assert {m.rower.segment_com for m in boat.crew} == {"de_leva"}, name
+
+
+def test_the_leg_correction_moves_the_research_crew_not_the_shipped_one():
+    """Same boat, same instants: research's crew CoM travels ~1 cm further,
+    and shipped's is exactly the fresh boat's."""
+    from coxswain.boats import catalog
+
+    def travel(boat):
+        times = np.linspace(0.0, boat.timing.period, 240, endpoint=False)
+        return np.ptp([boat.crew_centre_of_mass(t)[0] for t in times])
+
+    fresh = travel(catalog.build("1x", rate=32.0))
+    shipped = travel(physics.resolve(physics.SHIPPED).apply(
+        catalog.build("1x", rate=32.0)))
+    research = travel(physics.resolve("research").apply(
+        catalog.build("1x", rate=32.0)))
+    assert shipped == fresh
+    assert 0.006 < research - shipped < 0.013
+
+
+def test_an_unknown_segment_placement_is_rejected():
+    with pytest.raises(ValueError, match="segment placement"):
+        physics.PhysicsProfile("x", "", blade_tier=0, rower="prescribed",
+                               segment_com="middle")
 
 
 # ---------------------------------------------------------------------------

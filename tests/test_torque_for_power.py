@@ -69,6 +69,19 @@ def test_a_different_hull_shape_is_a_different_cache_entry():
         _match_key(_research(), 300.0, "sweep", "slip")
 
 
+def test_a_crew_that_moves_differently_is_a_different_cache_entry():
+    """Same name, stamp, mass and rig, but the leg masses placed differently
+    (SOURCES sec. 157): the sweep carries a different crew momentum in, so
+    the matched torque must not be shared."""
+    from coxswain.physics import _set_segment_com
+
+    a = _research()
+    b = _research()
+    _set_segment_com(b, "legacy")
+    assert _match_key(a, 300.0, "sweep", "slip") != \
+        _match_key(b, 300.0, "sweep", "slip")
+
+
 def test_a_different_pull_shape_is_a_different_cache_entry():
     """The shape decides how much work a peak torque does; a study shape
     must not be handed the default shape's matched torque."""

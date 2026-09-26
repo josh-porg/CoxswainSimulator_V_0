@@ -217,6 +217,11 @@ class RowerAnthropometry:
                 spec.length_fraction * self.stature,
                 spec.com_fraction)
 
+    def base_segment(self, name: str):
+        """``(mass kg, length m, CM fraction from proximal)`` of an un-lumped
+        de Leva segment -- e.g. ``"shank"`` or ``"foot"`` on their own."""
+        return self._dimensional(name)
+
     def _inertia(self, name: str):
         """Principal moments about the CM, ``m (r l)^2`` per de Leva axis."""
         mass, length, _com = self._dimensional(name)

@@ -1296,6 +1296,13 @@ def _match_key(boat, watts, catch, blade_law) -> tuple:
                         float(oar.inboard), float(oar.outboard),
                         float(getattr(oar, "blade_length", 0.0)),
                         float(getattr(oar, "mass", 0.0))))
+    # How the crew moves: the sweep carries the crew's momentum in, so two
+    # crews of one mass that move differently need different torques.
+    # Missing until 2026-09-26, when a research boat with the corrected leg
+    # placement (SOURCES sec. 157) was handed the legacy crew's torque.  The
+    # same gap let crews of equal mass but different stature share one.
+    crew = tuple(member.rower.kinematics_signature()
+                 for member in getattr(boat, "crew", ()))
     shallow = getattr(boat, "shallow", None)
     return (str(boat.name), hull, pull, float(boat.timing.period),
             float(boat.timing.drive_fraction), round(float(boat.total_mass), 9),
@@ -1303,4 +1310,4 @@ def _match_key(boat, watts, catch, blade_law) -> tuple:
             tuple(rig), getattr(boat, "physics_profile", None),
             type(getattr(boat, "wave_table", None)).__name__,
             float(getattr(shallow, "depth", float("inf"))),
-            float(watts), str(catch), str(blade_law))
+            float(watts), str(catch), str(blade_law), crew)

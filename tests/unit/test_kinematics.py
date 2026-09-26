@@ -16,6 +16,7 @@ from coxswain.crew import stroke_data
 from coxswain.crew.anthropometry import RowerAnthropometry
 from coxswain.crew.kinematics import (
     DEFAULT_ARM_POSTURE,
+    SEGMENT_COM_MODES,
     SEGMENT_ORDER,
     THIGH_MODES,
     JointDrivenRower,
@@ -334,8 +335,106 @@ def test_zero_phase_offset_is_a_no_op(anthro, timing):
 
 
 # --------------------------------------------------------------------------
+# where the leg masses sit (SOURCES sec. 157)
+# --------------------------------------------------------------------------
+def _legs(rower, t):
+    position, _, _ = rower.segment_state(t)
+    return dict(zip(SEGMENT_ORDER, position)), rower.joint_positions(t)
+
+
+def _fraction_from(point, start, end):
+    """How far along ``start -> end`` the sagittal projection of ``point`` is."""
+    run = (end - start)[[0, 2]]
+    return float(np.dot((point - start)[[0, 2]], run) / np.dot(run, run))
+
+
+@pytest.mark.parametrize("t", [0.0, 0.4, 0.9, 1.5])
+def test_de_leva_thigh_cm_is_measured_from_the_hip(anthro, timing, t):
+    """de Leva Table 4: thigh CM 40.95% of HJC->KJC from the hip.
+
+    The legacy placement measured it from the knee -- 59% from the hip --
+    and this fails on it.
+    """
+    rower = JointDrivenRower(anthro, RowerStation(x_ankle=0.0), timing,
+                             segment_com="de_leva")
+    lookup, joints = _legs(rower, t)
+    expected = anthro.by_name("thigh_port").com_fraction
+    for side in ("port", "starboard"):
+        assert _fraction_from(lookup[f"thigh_{side}"], joints["hip"],
+                              joints["knee"]) == pytest.approx(expected,
+                                                               abs=1e-9)
+
+
+@pytest.mark.parametrize("t", [0.0, 0.4, 0.9, 1.5])
+def test_de_leva_shank_is_measured_from_the_knee_with_the_foot_fixed(
+        anthro, timing, t):
+    """Shank CM 44.59% from the knee; the foot is on the stretcher.
+
+    The pair's CM is then the mass-weighted mean of the shank's CM and a
+    point fixed at the ankle, so it moves ``m_s / (m_s + m_f)`` as far as
+    the shank's own CM does.
+    """
+    rower = JointDrivenRower(anthro, RowerStation(x_ankle=0.0), timing,
+                             segment_com="de_leva")
+    lookup, joints = _legs(rower, t)
+    m_s, _l, c_s = anthro.base_segment("shank")
+    m_f, _l, _c = anthro.base_segment("foot")
+    shank_cm = joints["knee"] + c_s * (joints["ankle"] - joints["knee"])
+    pair = (m_s * shank_cm + m_f * joints["ankle"]) / (m_s + m_f)
+    for side in ("port", "starboard"):
+        got = lookup[f"shank_foot_{side}"]
+        np.testing.assert_allclose(got[[0, 2]], pair[[0, 2]], atol=1e-9)
+
+
+def test_legacy_leg_placement_is_what_ships(rower, anthro):
+    """The frozen trainer keeps its placement, error and all.
+
+    Pinned so the correction cannot leak into ``shipped`` through a default:
+    thigh 40.95% from the *knee*, lumped shank+foot fraction from the ankle.
+    """
+    assert rower.segment_com == "legacy"
+    lookup, joints = _legs(rower, 0.4)
+    assert _fraction_from(lookup["thigh_port"], joints["knee"],
+                          joints["hip"]) == pytest.approx(
+        anthro.by_name("thigh_port").com_fraction, abs=1e-9)
+    assert _fraction_from(lookup["shank_foot_port"], joints["ankle"],
+                          joints["knee"]) == pytest.approx(
+        anthro.by_name("shank_foot_port").com_fraction, abs=1e-9)
+
+
+def test_de_leva_placement_adds_about_a_centimetre_of_travel(anthro, timing):
+    """Measured +0.0095 m: the thigh ~0.0085, the shank ~0.001 (SOURCES
+    sec. 157).  Bounds wide enough to survive a retune of the stroke, tight
+    enough to catch the inversion coming back."""
+    travel = {}
+    for mode in SEGMENT_COM_MODES:
+        rower = JointDrivenRower(anthro, RowerStation(x_ankle=0.0), timing,
+                                 segment_com=mode)
+        times = np.linspace(0.0, timing.period, 360, endpoint=False)
+        travel[mode] = np.ptp([rower.centre_of_mass(t)[0] for t in times])
+    assert 0.006 < travel["de_leva"] - travel["legacy"] < 0.013
+
+
+def test_segment_placement_is_in_the_kinematics_signature(anthro, timing):
+    """Two rowers placed differently do not move identically, so they must
+    not share a stroke table -- including one switched after it was keyed."""
+    a = JointDrivenRower(anthro, RowerStation(x_ankle=0.0), timing)
+    b = JointDrivenRower(anthro, RowerStation(x_ankle=0.0), timing)
+    before = b.kinematics_signature()
+    b.segment_com = "de_leva"
+    assert b.kinematics_signature() != before
+    assert a.kinematics_signature() == before
+
+
+# --------------------------------------------------------------------------
 # validation
 # --------------------------------------------------------------------------
+def test_unknown_segment_placement_is_rejected(anthro, timing):
+    with pytest.raises(ValueError, match="segment_com must be one of"):
+        JointDrivenRower(anthro, RowerStation(x_ankle=0.0), timing,
+                         segment_com="middle")
+
+
 def test_unknown_thigh_mode_is_rejected(anthro, timing):
     with pytest.raises(ValueError, match="thigh_mode must be one of"):
         JointDrivenRower(anthro, RowerStation(x_ankle=0.0), timing,
