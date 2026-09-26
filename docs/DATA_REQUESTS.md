@@ -600,9 +600,10 @@ discrepancy. The 37–41% IVV and 8.88 m/s² it had been compared against came f
 club double and a DGPS session, not from the athlete the model was set up as. Here
 rig, rate, segment motion and boat response belong to one athlete.
 
-*Blocked on one answer:* rower centre-of-mass excursion — the datum SOURCES §4 calls
-decisive — cannot be computed until the origins of the seat and trunk positions are
-known. Asked in the reply below.
+*No longer blocked:* the origins turned out not to matter, and the frame and tracked
+point were inferred from the data (SOURCES §156): rower centre-of-mass travel 0.71–0.74 m
+relative to the hull. The reply below asks him to confirm that reading rather than to
+supply it.
 
 > Subject: Re: seat and trunk kinematics — thank you, and a few questions
 >
@@ -617,11 +618,13 @@ known. Asked in the reply below.
 >
 > A few questions so I use it correctly:
 >
-> 1. What are the origins of **seat position** and **trunk position**? Seat runs 0 to
->    0.597 m and trunk −1.231 to −0.795 m; I'd like to know what each is measured from
->    (the catch position, the stretcher, the pin?) and which way is positive.
-> 2. Is **trunk position** the shoulder, or another point on the trunk? I want to
->    reconstruct the rower's centre of mass relative to the boat, and the point matters.
+> 1. I've read the channels from the data itself and would value a check. **Seat
+>    position** appears zeroed at the catch. **Trunk position** appears to be measured
+>    relative to the seat rather than the boat, tracking a point near shoulder height: a
+>    momentum balance against the boat's acceleration puts it about 0.58 m above the hip,
+>    where this athlete's shoulder joint would be. Is that right, and which point is it?
+> 2. On that reading the rower's centre of mass travels about 0.72 m relative to the
+>    boat. Does that match what you'd expect for him?
 > 3. Were the 51 samples resampled from a higher native rate?
 > 4. Do you have this athlete, or a comparable one, at **other stroke rates**? How the
 >    fluctuation changes with rate is the test the model most needs.

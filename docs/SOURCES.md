@@ -11134,9 +11134,42 @@ be driven with his measured seat and trunk and scored against his own boat. A
 fair target for a single; the gap in §4 is smaller than it looked, by an amount
 the like-for-like run will settle.
 
-**What it does not yet give.** Rower centre-of-mass excursion relative to the
-boat — the datum §4 calls decisive — needs the origins of the seat and trunk
-positions (seat runs 0 to 0.597 m, trunk −1.231 to −0.795 m, origins
-unstated) and which point on the trunk is tracked. Asked in the reply
-(DATA_REQUESTS §2). Until answered, no number from this section enters the
-physics.
+**Calibrating the channels from the data, before asking.** The origins of seat
+and trunk position were not stated. Four tests, in order, settle most of it:
+
+1. *The velocities are the derivatives of the positions* (correlation 0.995 and 0.992),
+   so unknown origins are constant offsets, and constant offsets do not enter the
+   momentum balance. Only the frame and the tracked point matter.
+2. *Seat position is zeroed at the catch*: it reads 0.00-0.01 m at the oar's most
+   negative angle and 0.597 m at the finish. Anchoring the hip over the ankle with a
+   published catch posture (shank 91.6° from [CG10], catch knee 45.4° from [K19]) and
+   the finish knee of [CG10] predicts a seat travel of **0.592 m** for this athlete's de
+   Leva segment lengths, against 0.597 measured ([CG10]'s own catch knee gives 0.622).
+3. *Trunk position is relative to the seat, not to the hull.* Read in the hull's frame,
+   trunk-relative-to-hip would go from −1.23 m at the catch to −1.40 m at the finish:
+   the rower leaning further forward at the finish than at the catch. Read relative
+   to the seat, it rises 0.435 m through the drive, is flat through the leg drive and
+   swings forward early in the recovery while the seat is still at the finish — legs,
+   body, arms and back again.
+4. *The tracked point is at shoulder height.* Whole-system horizontal momentum (hull
+   18 kg + two 1.2 kg sculls + rower, de Leva masses) balanced against blade force
+   (handle force through a fitted lever ratio, along-boat component) and k v² drag, at
+   the velocity level to avoid differentiating averaged data twice. With the tracked
+   point's height free, the fit puts it **0.584 m above the hip** (R² 0.984; lever
+   ratio 0.41, k 4.1). This athlete's de Leva shoulder joint is at 0.606 m. Across hull
+   mass ±3 kg, both catch anchors and arm-CoM placement it stays at 0.54–0.63 m. The
+   hull-frame reading fits six times worse and does not conserve momentum over the
+   cycle (net −70 N·s). The height is identified only by the whole cycle; fitted on
+   half a cycle it is confounded with the integration constant.
+
+**Rower centre-of-mass travel relative to the hull: 0.71–0.74 m** (0.718 m at the
+fitted point, 0.712 at the shoulder joint, 0.742 if the trunk swept [K19]'s on-water
+angles), peak relative speed +1.02 / −1.54 m/s. This is the datum §4 calls decisive,
+for one elite 1.91 m sculler at 32.4 spm. It sits above the ~0.65 m this ledger has
+carried as a target and between the model's 0.695 (curling spine) and 0.760 (rigid
+link) of §52, so it does not by itself confirm either side of that gap; running the
+model on this athlete and rig does.
+
+Provisional until Dr Kleshnev confirms the frame and the tracked point (asked as a
+confirmation in DATA_REQUESTS §2). Used as a validation target only; no number from
+this section enters the physics.
