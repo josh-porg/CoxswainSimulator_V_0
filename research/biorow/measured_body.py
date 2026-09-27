@@ -128,9 +128,13 @@ def body_field(boat, back):
     return field, K
 
 
-def run(body, force, strokes, catch=None):
+def run(body, force, strokes, catch=None, blade_law="slip", ld_scale=1.0, added_mass="none"):
     boat = L.build("arc")
     boat.power_scales = np.ones(boat.n_seats)
+    if added_mass != "none":
+        if blade_law != "liftdrag":
+            raise ValueError("added mass is studied with the lift-drag blade only")
+        boat.scull_c2 = None      # the slip coefficient is unused by the lift-drag law
     catch = catch or physics.resolve("research").catch
     r_h = float(boat.rig.seats[0].oarlocks[0].oar.inboard)
     hp, _hv, hF, _hA = S.his()
@@ -138,11 +142,19 @@ def run(body, force, strokes, catch=None):
 
     def make(scale=None, torque=None):
         if torque is None:
-            torque = DynamicOarSimulator.torque_for_power(boat, L.POWER, catch=catch, start=4.6)
-        sim = DynamicOarSimulator(boat, peak_torque=torque, catch=catch,
+            torque = DynamicOarSimulator.torque_for_power(boat, L.POWER, catch=catch, start=4.6,
+                                                          blade_law=blade_law)
+        sim = DynamicOarSimulator(boat, peak_torque=torque, catch=catch, blade_law=blade_law,
+                                  blade_added_mass=added_mass,
                                   coxswain=Coxswain(rudder_override=lambda t, s: 0.0), fast=True)
         if field is not None:
             sim.crew_field = field
+        if blade_law == "liftdrag" and ld_scale != 1.0:
+            # one scale on both tier 2 amplitudes: a study, never a profile change
+            import dataclasses
+            sim._liftdrag = [dataclasses.replace(b, lift_amplitude=b.lift_amplitude * ld_scale,
+                                                 drag_amplitude=b.drag_amplitude * ld_scale)
+                             for b in sim._liftdrag]
         if scale is not None:
             sim._torque = lambda slot, ang, state, t: scale * max(
                 float(np.interp(np.mod(t - sim._stroke_start, T), hp, hF, period=T)), 0.0) * r_h
@@ -175,13 +187,16 @@ def main():
     ap.add_argument("--strokes", type=int, default=16)
     ap.add_argument("--builds", default="model:model,legs:model,legs+back:model,legs+back:his")
     ap.add_argument("--catch", default=None, help="override the research profile's catch rule")
+    ap.add_argument("--blade-law", default="slip", help="slip (tier 1) or liftdrag (tier 2)")
+    ap.add_argument("--ld-scale", type=float, default=1.0, help="scale on both tier 2 amplitudes")
+    ap.add_argument("--added-mass", default="none", help="none or patton (lift-drag only)")
     a = ap.parse_args()
     hp, hv, _hF, _hA = S.his()
     print("BR24                         speed 4.641  IVV 49.1%%  v min %.2f at %.3f s  v max %.2f"
           % (hv.min(), hp[np.argmin(hv)], hv.max()))
     for b in a.builds.split(","):
         body, force = b.split(":")
-        r = run(body, force, a.strokes, a.catch)
+        r = run(body, force, a.strokes, a.catch, a.blade_law, a.ld_scale, a.added_mass)
         print("%-10s body, %-5s force  speed %.3f  IVV %.1f%%  v min %.2f at %.3f s  v max %.2f  "
               "power %.0f W%s" % (body, force, r["speed"], 100 * r["ivv"], r["v_min"], r["t_min"],
                                   r["v_max"], r["power"], "  K %.3f" % r["K"] if r["K"] else ""), flush=True)

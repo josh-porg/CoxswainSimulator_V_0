@@ -11469,3 +11469,38 @@ power. A validation direction for the catch dip, not a target value.
    32–32.4 spm; [HF09]'s 752 ms at 31.5 spm is a pairs result.
 4. **Immersion.** [G20] Fig. 2.4 gives the curve (read from the figure); the refit is
    no longer blocked on the data, only on its precision.
+
+### What the review's leads did when tested on [BR24] (2026-09-27)
+
+All with his body re-timed onto his seat and trunk curves and his force shape, at 432 W
+(`measured_body.py`), against his 4.641 m/s, 49.1%, dip 3.46 m/s at 0.111 s, peak 5.74.
+
+| blade | speed | IVV | dip | peak |
+|---|---|---|---|---|
+| tier 1 slip law (research) | 4.692 | 56.0% | 3.34 at 0.106 s | 5.97 |
+| tier 2 lift+drag, [CG07] amplitudes | 4.850 | 54.3% | **3.48 at 0.100 s** | 6.12 |
+| tier 2 × 0.7 | 4.742 | 55.4% | 3.39 | 6.02 |
+| tier 2 × 0.5 (matches his speed) | **4.641** | 56.4% | 3.31 | 5.92 |
+| tier 2 + Patton added mass | 4.889 | 53.9% | 3.51 | 6.15 |
+| tier 2 × 0.5 + Patton | 4.726 | 55.5% | 3.37 | 5.99 |
+
+1. **Hull drag is right.** Over his recovery (handle force below 5% of peak, 0.81 s) the
+   system's momentum changes by drag alone, so drag is identified without the lever
+   ratio: k = 3.29–3.58 N s²/m², 73–79 N at 4.64 m/s. The model's hull gives 75.4 N
+   (k_eff 3.50). The full-cycle k = 4.12 of §156 was the lever–drag trade-off in that fit.
+2. **Lift does not fix the early deficit.** The tier 2 law's better dip at full amplitude
+   comes with a blade 4.5% too efficient; scaled to his speed the dip returns to 3.31. The
+   model's net blade force at 0.1 / 0.2 / 0.3 s after the catch stays at 1 / 45 / 122 N
+   against his 55 / 111 / 174. Coppel's corrections point both ways (full-scale drag up to
+   35% below quarter scale; a moving blade up to 67% above static), so the amplitude
+   level is not settled by the literature.
+3. **Added mass (Patton) is worth under a point.**
+4. **Immersion is not the cause in this path.** The dynamic oar does not apply
+   `immersion_factor`; the blade is fully effective from entry.
+
+So at matched speed and power about seven IVV points remain, and the model's blade still
+loads later than his under every blade law tried. What is left: how his measured handle
+torque is shared between the oar and the rower's reflected inertia in the model's oar
+balance at the catch (the "his force" builds put his whole handle force through the
+default balance, whose reflected crew inertia absorbs torque while the legs accelerate),
+and the entry itself (the research sweep catch). Neither is a blade coefficient.

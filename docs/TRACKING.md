@@ -3249,6 +3249,14 @@ for 0.2 s (8 N·s by 0.3 s against his 26) even with his force and his body. Nei
 rule reproduces his early loading. CoM travel is not the lever: his trunk sweep cut it 4 cm
 and IVV by one point. Next: the catch (blade squared and immersed; [G19]).
 
+*2026-09-27 (SOURCES §159):* the literature's leads, tested. Hull drag is right (his
+recovery alone: 73–79 N at 4.64 m/s; model 75.4). The tier 2 lift+drag law fixes the dip
+at [CG07] amplitudes but is 4.5% too efficient; scaled to his speed, IVV is 56.4% again.
+Patton added mass is worth under a point; the dynamic oar applies no immersion factor.
+The model's blade still loads late under every law (1/45/122 N at 0.1/0.2/0.3 s against
+his 55/111/174). Remaining suspects: the oar balance's share of his handle torque at the
+catch (reflected crew inertia) and the sweep entry. Not a blade coefficient.
+
 ### The eight is validated only by inference
 Holt measured singles and pairs. The boat this project cares about most
 has no measured counterpart in the comparison.
