@@ -43,6 +43,10 @@ python ingest.py captions --raw <vtt dir> --index channel_index.txt --root <root
 python ingest.py session --root <root> --id race_04 --vtt race.vtt --boat log.csv --offset 1.0
 ```
 
+An NK LiNK export (CoxBox Core, SpeedCoach, CBGPS) goes in directly with `--export "file.csv"`
+in place of `--boat`; per-stroke Empower oarlock fields (power, catch, slip, finish, force) are
+kept when the export has them.
+
 `--offset` is the seconds added to a caption time to reach the boat log's clock. Find it by
 sliding spoken split readings against the logged splits.
 

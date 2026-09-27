@@ -83,6 +83,73 @@ def from_captions(raw, index, root, exclude=(), prefix="transcript"):
     return made
 
 
+def _clock(text):
+    """'HH:MM:SS.t' or 'MM:SS.t' -> seconds."""
+    parts = [float(x) for x in text.strip().split(":")]
+    sec = 0.0
+    for x in parts:
+        sec = sec * 60.0 + x
+    return sec
+
+
+#: NK LiNK per-stroke columns kept when they carry values (Empower oarlock fields are '---'
+#: without one). Keys are the export's headers; values the session's column names.
+NK_EXTRAS = {"Distance (GPS)": "distance", "Distance/Stroke (GPS)": "dps", "Heart Rate": "heart_rate",
+             "Power": "power", "Catch": "catch_deg", "Slip": "slip_deg", "Finish": "finish_deg",
+             "Wash": "wash_deg", "Force Avg": "force_avg", "Work": "work", "Force Max": "force_max",
+             "Max Force Angle": "max_force_angle", "GPS Lat.": "lat", "GPS Lon.": "lon"}
+
+
+def read_nk_export(path, offset=0.0):
+    """Per-stroke rows from an NK LiNK export (CoxBox Core, SpeedCoach, CBGPS).
+
+    Returns ``(rows, meta)``: rows are dicts with ``t`` (s, minus ``offset``), ``speed`` (m/s,
+    from the speed column or, failing that, the split), ``rate`` (spm), and whichever of
+    :data:`NK_EXTRAS` carry numbers. ``meta`` holds the session header fields.
+    """
+    lines = open(path, encoding="utf-8-sig").read().splitlines()
+    meta = {}
+    for line in lines[:12]:
+        cells = [c.strip() for c in line.split(",")]
+        for k, v in zip(cells[0::4], cells[1::4]):
+            if k.endswith(":") and v:
+                meta[k[:-1]] = v
+    try:
+        i = next(n for n, l in enumerate(lines) if l.startswith("Per-Stroke Data:"))
+    except StopIteration:
+        raise ValueError("%s has no 'Per-Stroke Data:' section; not an NK LiNK export" % path)
+    header = next(n for n in range(i + 1, len(lines)) if lines[n].startswith("Interval"))
+    rows = []
+    for r in csv.DictReader(lines[header:]):
+        if not r.get("Elapsed Time") or r["Elapsed Time"].startswith("("):
+            continue
+        num = lambda k: (float(r[k]) if r.get(k) not in (None, "", "---") else None)
+        speed = num("Speed (GPS)") or num("Speed (IMP)")
+        if not speed:
+            split = r.get("Split (GPS)") or r.get("Split (IMP)")
+            speed = 500.0 / _clock(split) if split and _clock(split) > 0 else None
+        row = dict(t=_clock(r["Elapsed Time"]) - offset, speed=speed, rate=num("Stroke Rate"))
+        for key, name in NK_EXTRAS.items():
+            value = num(key) if key in r else None
+            if value is not None:
+                row[name] = value
+        rows.append(row)
+    return rows, meta
+
+
+def write_boat_rows(root, sid, rows):
+    """Write per-stroke rows as the session's boat.csv, t/speed/rate first, extras after."""
+    d = os.path.join(root, "sessions", sid)
+    os.makedirs(d, exist_ok=True)
+    extras = [k for k in NK_EXTRAS.values() if any(k in r for r in rows)]
+    with open(os.path.join(d, "boat.csv"), "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["t", "speed", "rate"] + extras)
+        for r in rows:
+            w.writerow([round(r["t"], 3), "" if r["speed"] is None else round(r["speed"], 4),
+                        "" if r["rate"] is None else r["rate"]] + [r.get(k, "") for k in extras])
+
+
 def read_boat_csv(path, offset=0.0):
     out = []
     for r in csv.DictReader(open(path, encoding="utf-8")):
@@ -103,7 +170,8 @@ def main():
     b.add_argument("--root", required=True)
     b.add_argument("--id", required=True)
     b.add_argument("--vtt")
-    b.add_argument("--boat")
+    b.add_argument("--boat", help="a t,speed,rate CSV")
+    b.add_argument("--export", help="an NK LiNK export (CoxBox Core, SpeedCoach); keeps oarlock fields")
     b.add_argument("--offset", type=float, default=0.0)
     b.add_argument("--t0", type=float)
     b.add_argument("--t1", type=float)
@@ -124,6 +192,11 @@ def main():
         words = parse(args.vtt) if args.vtt else None
         boat = read_boat_csv(args.boat, args.offset) if args.boat else None
         print(write_session(args.root, args.id, meta, words, boat))
+        if args.export:
+            rows, info = read_nk_export(args.export, args.offset)
+            write_boat_rows(args.root, args.id, rows)
+            print("%d strokes from %s (%s)" % (len(rows), os.path.basename(args.export),
+                                               info.get("Model", "NK LiNK")))
 
 
 if __name__ == "__main__":
