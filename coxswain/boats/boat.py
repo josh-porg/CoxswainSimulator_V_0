@@ -238,8 +238,13 @@ class Boat:
                  blade_model=None,
                  recovery_arrival: float = 1.0,
                  uniform_traverse: float = 0.0,
-                 drive_lag: float = 0.0):
+                 drive_lag: float = 0.0,
+                 sequencing=None):
         self.name = name
+        #: Per-segment timing warp (:class:`~coxswain.crew.kinematics.SegmentSequencing`)
+        #: handed to every rower; ``None`` is synchronous, exactly as before. A research
+        #: option (sprint 1 #3): no catalogue boat or profile sets it.
+        self.sequencing = sequencing
         self.offsets = offsets
         self.mesh = HullMesh(offsets, n_girth=n_girth)
         self.rig = rig
@@ -427,6 +432,7 @@ class Boat:
                     hand_targets=self._hand_targets(seat),
                     recovery_arrival=self.recovery_arrival,
                     phase_warp=self.phase_warp,
+                    sequencing=self.sequencing,
                 ),
                 seat_index=index,
             ))

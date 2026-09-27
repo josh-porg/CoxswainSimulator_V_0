@@ -1099,7 +1099,10 @@ class JointDrivenRower:
             sequencing = repr(sequencing)
         signature = (
             anthro.mass, anthro.stature, anthro.sex,
-            self.dataset.name, self.timing.rate, self.thigh_mode,
+            self.dataset.name, self.timing.rate,
+            # the drive fraction too: two timings at one rate move differently
+            # (OnWaterTiming against StrokeTiming, sprint 1 #3)
+            round(float(self.timing.drive_fraction), 12), self.thigh_mode,
             self.phase_offset, self.n_harmonics, self.recovery_arrival,
             None if self.phase_warp is None else (
                 tuple(np.round(np.asarray(self.phase_warp[1]), 9))),

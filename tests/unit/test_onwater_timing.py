@@ -25,3 +25,17 @@ def test_on_water_drive_is_longer_than_the_ergometer_fit():
 
 def test_the_default_timing_is_untouched():
     assert StrokeTiming(32.0).drive_fraction == pytest.approx(0.63067 - 5.20991 / 32.0)
+
+
+def test_two_timings_at_one_rate_do_not_share_a_kinematics_signature():
+    """The rower's signature keys stroke tables and seat groups; on-water and ergometer
+    timing at the same rate move the body differently and must not share them."""
+    from coxswain.boats import catalog
+
+    ergo = catalog.single_scull(rate=32.0)
+    ref = catalog.single_scull(rate=32.0)
+    water = type(ref)(name=ref.name, offsets=ref.offsets, rig=ref.rig, hull_mass=ref.hull_mass,
+                      hull_inertia=ref.hull_inertia, timing=OnWaterTiming(32.0),
+                      appendages=ref.appendages, water=ref.water,
+                      force_profile=ref.force_profile, oar_sweep=ref.oar_sweep)
+    assert ergo.crew[0].rower.kinematics_signature() != water.crew[0].rower.kinematics_signature()
