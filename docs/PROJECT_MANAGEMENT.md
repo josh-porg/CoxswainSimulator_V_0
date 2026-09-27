@@ -26,7 +26,9 @@ the next task.
 
 **Artifacts are published pages.** To change one, republish to its existing link (never
 a new page), after reading the full current version. The saved source is the thing to
-edit, not a reconstruction.
+edit, not a reconstruction. The last-published sources of the plan and ledger are kept in
+`data/local/artifacts/` (`blade_and_body.html`, `rowing_physics_ledger.html`); edit those and
+republish, after checking no newer version was published elsewhere.
 
 ---
 
@@ -56,6 +58,7 @@ lost that way on 2026-09-27).
 | `data/local/coxing/` | **no** | race recordings' captions, cox-box export and display readings, sessions, the coxing analysis and paper sources (`analysis/`) |
 | `data/local/literature/` | **no** | downloaded papers and theses (copyright) |
 | `data/local/cr06_study/`, `data/local/scratchpad_archive_*/` | **no** | study scripts recovered from the scratchpad |
+| `data/local/artifacts/` | **no** | last-published sources of the plan and ledger artifacts |
 | `data/raw/` | **no** | re-fetchable downloads |
 
 ## Subsystem documents
