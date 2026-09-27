@@ -3049,6 +3049,16 @@ little authority or the missing mechanism is elsewhere, such as more than
 2° of trunk lean.  Neither the learning gain nor the test thresholds
 should be tuned to hide it.
 
+### The [CR06] digitised traces were lost with the session scratchpad (2026-09-27)
+**Impact: medium — the one-athlete studies (SOURCES §§45–60, the finish fix, 4.3a) cannot be rerun until rebuilt.**
+
+`cr06_fig3_measured.csv`, `cr06_fig3_body.csv` and the extraction script
+`cr06/traces_fig3_body.py` lived only in the temporary scratchpad and were cleaned away.
+The study scripts that read them survive in `data/local/cr06_study/`. The source is open
+(Cabrera, Ruina & Kleshnev 2006, Fig. 3, a vector figure), so the traces can be
+re-extracted; when they are, they go in `data/literature/` with their provenance, and the
+recorded checks (mean boat speed 4.19 m/s against the stated 4.18) are the acceptance test.
+
 ## Open — numbers nobody has measured
 
 These are placeholders. Each is labelled in the code as such; this is

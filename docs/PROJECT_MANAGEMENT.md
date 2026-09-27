@@ -42,6 +42,22 @@ Updated as results arrive; they are the record the management set points into.
 | `research/callmodel/README.md` | the coupled call/boat model and its session format |
 | `research/biorow/` | scripts behind the [BR24] like-for-like results (derived numbers only; the data stay in `data/local/`) |
 
+## Data
+
+All research data lives in the repository's `data/` folder — never only in a session's
+temporary scratchpad, which is cleaned without warning (the [CR06] digitised traces were
+lost that way on 2026-09-27).
+
+| folder | committed? | holds |
+|---|---|---|
+| `data/` (top level) | yes | course, river, results and roster data the code reads |
+| `data/literature/` | yes | numbers digitised from published papers, provenance in each file's header ([README](../data/literature/README.md)) |
+| `data/local/biorow/` | **no** (gitignored) | [BR24] — commercial, shared for validation |
+| `data/local/coxing/` | **no** | race recordings' captions, cox-box export and display readings, sessions, the coxing analysis and paper sources (`analysis/`) |
+| `data/local/literature/` | **no** | downloaded papers and theses (copyright) |
+| `data/local/cr06_study/`, `data/local/scratchpad_archive_*/` | **no** | study scripts recovered from the scratchpad |
+| `data/raw/` | **no** | re-fetchable downloads |
+
 ## Subsystem documents
 
 Reference for one part of the code. Updated when that part changes.
