@@ -1,148 +1,137 @@
 # Project status
 
-Rowing shell simulator: full 6-DOF rigid-body dynamics, phase-locked
-collocation, trajectory optimisation over a real reach of the Charles.
-Written against the ultimate goal of a **stochastic** optimal control
-problem -- uncertain stream, crew, friction and temperature -- with the
-deterministic path as the prerequisite.
+*Last reviewed 2026-09-27. Update this file whenever work finishes or a priority moves;
+it is the one-page answer to "where are we, and what is next".*
 
-Detailed derivations, sources and the record of what was tried and
-rejected live in [SOURCES.md](SOURCES.md), numbered by section; this file
-points at them rather than repeating them. Known defects are in
-[TRACKING.md](TRACKING.md), and the programme currently fixing two of them
-offline — while the released trainer stays frozen — is in
-[PHYSICS_PROGRAMME.md](PHYSICS_PROGRAMME.md).
+Rowing shell simulator: full 6-DOF rigid-body dynamics, a released trainer, and an
+offline physics programme, written against the ultimate goal of a **stochastic**
+optimal control problem on the Charles — uncertain stream, crew, friction and
+temperature — with the deterministic path as the prerequisite. A second line of
+work studies coxing itself: what a coxswain's calls do to the boat.
 
-Test suite: **1647 passing** in the fast lane (`pytest -m "not slow"`,
-~7 min); full suite **1771 passing and 14 expected failures**, ~29 min.
+**Where everything lives** — the full index, with what to update when, is
+[PROJECT_MANAGEMENT.md](PROJECT_MANAGEMENT.md). In short:
 
-Every one of those 14 is a strict `xfail` carrying the reason in its own
-text: they are measurements the model currently gets wrong, kept rather
-than loosened so that fixing the model makes them fail loudly. Five are
-the drive duration against on-water pairs, six are published race pace
-compared without controlling for power, and the rest are recorded in
-[TRACKING.md](TRACKING.md).
+| document | what it holds |
+|---|---|
+| this file | the state of each workstream and what is next |
+| [TRACKING.md](TRACKING.md) | issues: every known defect (Open), everything finished (**Done** — check it before starting anything), fixed bugs |
+| *Blade and Body* ([the plan](https://claude.ai/artifact/5ZM6yag3fYTViD3fqwhgv6)) | the physics review and staged plan: phases, gates, decisions |
+| *Rowing Physics Ledger* ([the ledger](https://claude.ai/artifact/XBcnRHMy2Par4PAbw8kr6n)) | every force the research model applies, with its source and status |
+| [PHYSICS_PROGRAMME.md](PHYSICS_PROGRAMME.md) | phase table, **Blocked** and on what, decisions log |
+| [DATA_REQUESTS.md](DATA_REQUESTS.md) | letters to authors and labs, and their replies |
+| [SOURCES.md](SOURCES.md) | the evidence, numbered by section |
 
----
-
-## 1. What works
-
-**Physics.** 6-DOF rigid-body dynamics after Formaggia et al. (2009);
-hull hydrostatics from an exact mesh, wrapped in a b-spline surrogate
-over (heave, pitch, roll); feathered vs squared blade drag; wind with a
-log profile at WMO anemometer height; de Leva segment inertias driving a
-full joint chain.
-
-The slip-based blade model after Cabrera & Ruina is **written but not in
-use, and does not work as wired** — switched on as an efficiency factor
-the boat collapses from 3.92 m/s to 0.63. It used to be listed here as
-something that works. See [PHYSICS_PROGRAMME.md](PHYSICS_PROGRAMME.md).
-
-**Crew.** Phase-dependent balance authority (drive vs recovery), learned
-stroke-to-stroke trim by iterative learning control, coupled-oscillator
-crew synchronisation with anticipatory coupling, blades-on-water contact
-for an unset boat.
-
-**Numerics.** The NLP is non-dimensionalised -- variables, objective and
-constraints -- which bought a factor of 25 in iterations (§24). The
-reference-frame bug class is closed structurally by 31 invariance tests.
-
-**River.** Charles channel raster, bridges including BU and Grand
-Junction, clearance field, progress field along a centreline.
-
-**Validation.** Real telemetry: DGPS hull traces and, as of §34,
-rower-mounted kinematics from the same boat and outing.
+Test suite: **1875 passing, 0 failing** in the fast lane (`pytest -m "not slow"`, 7 min 47 s,
+run 2026-09-27). The full suite, with the strict xfails that pin known model errors
+(drive duration against on-water pairs, race pace without controlled power), was last run
+2026-09-12: 1771 passing, 14 expected failures.
 
 ---
 
-## 2. Open bugs, in priority order
+## 1. At a glance
 
-### 2.1 Hull surge exceeds the crew-only momentum bound  *(highest)*
-
-The model reports 51.5% of intracycle velocity variation for a 2x where
-the measured figure is 37.3%. The gap splits at the **crew-only momentum
-bound** of 42.5% -- what the crew's own motion could do to a free hull:
-
-* **51.5 -> 42.5 (~9 points): the model exceeds its own free-body
-  bound**, while being correctly phased (§31: minimum just after the
-  catch, maximum in early recovery). Blade thrust and crew reaction
-  *oppose* during the drive, so the total must come in *below* the
-  crew-only figure. It does not. Something in the surge force balance --
-  thrust magnitude, drag variation, or missing surge added mass -- is
-  wrong.
-* **42.5 -> 37.3 (~5 points):** inside the crew motion; a kinematics
-  question.
-
-This is the single largest known discrepancy in the model and the first
-thing to fix.
-
-### 2.2 The receding-horizon leg does not yet reach 850 m
-
-Best run to date: 476 m before §33's fixes. The current run (comfort
-barrier, retry escalation) is past that and negotiating the station-450
-pinch where the channel narrows to 30 m. Not yet closed.
-
-### 2.3 Route C (predictive stroke) does not converge
-
-`coxswain/crew/predictive.py` solves for the rower's motion rather than
-prescribing it. It terminates on `Maximum_Iterations_Exceeded`, and its
-slide travel (0.43 m at 400 W) is short of the measured 0.60-0.70. Four
-modelling errors were found and fixed through it (§27-28); the power
-attribution is now correct but the solve is not converged, so **none of
-its numbers are claimable**.
-
-### 2.4 Model boats are 1x-derived; only the 2x is validated
-
-`double_scull` was added in §32 specifically to make the fluctuation
-comparison like-for-like. The eight -- the boat that actually matters for
-the Head of the Charles -- has no equivalent validation data.
+| workstream | state | most recent | next |
+|---|---|---|---|
+| **Released trainer** | v0.13 (2026-09-11). Physics profile `shipped`, **frozen**: no accuracy change reaches it without a scorecard that justifies promotion | leg-mass placement fixed for research only, shipped left on `legacy` (2026-09-26) | nothing scheduled |
+| **Physics programme** (`research` profile) | phase 2 gate passed (dynamic oar, slip blade, 6-DOF hull); phase 3 tier 2 lift/drag wired as a study; phase 4.1 closed, **4.3 next** | [BR24] like-for-like runs (SOURCES §156–159) | an on-water crew driver; phase 4.3 |
+| **Like-for-like validation** | first athlete where rig, rate, power and boat response are one person's ([BR24], elite M1x) | pace passes (+0.2%); IVV 61% vs 49% decomposed; hull drag verified | close the catch deficit (§3.1 below) |
+| **Charles trajectory optimisation** | deterministic receding-horizon leg stalled near 409 m at the station-450 pinch; stochastic machinery solves per block | not revisited since 2026-09-13 (research wave drag wired into the optimisers) | resume after the physics settles |
+| **Coxing research** | foundations paper frozen 2026-09-23 for IJSSC; working copy revised with a coupled-process section; call/boat transformer pipeline built and validated on synthetic data | first run: no coupling either way on 3 races + 35 transcripts; the catch-call effect is explained by the boat's own history | more synchronised races (the pipeline takes them as folders) |
+| **Data requests** | 14 letters sent 2026-09-19 | replies: Formaggia (§4), Kleshnev (§2, data received), Buckeridge (§11c, referred to McGregor — draft ready); Grift (§9) partly answered by his open thesis | send the Kleshnev and McGregor drafts |
 
 ---
 
-## 3. Open avenues of development
+## 2. What works
 
-**Close the surge force balance (2.1).** Decompose the surge equation
-term by term over a stroke: crew reaction, blade thrust, hull drag,
-added mass. The phasing is right, so the fault is in a magnitude. Surge
-added mass is currently absent and is the obvious first suspect --
-including it moves the hull's response to crew motion in the right
-direction.
+**Physics.** 6-DOF rigid-body dynamics after Formaggia et al. (2009); hull
+hydrostatics from an exact mesh with a b-spline surrogate; Michell/Sretenskii wave
+drag with finite depth; wind with a log profile; de Leva segment inertias on a full
+joint chain. The `research` profile adds a **dynamic oar** (oar angle as a state,
+slip-quadratic blade force, [CR06]'s sweep catch, 1.2 kg sculls, fitted sculling
+C2) that holds pace on the full hull, and a tier 2 lift/drag blade as a study.
 
-**Finish the deterministic leg, then the stochastic one.** The stochastic
-machinery exists, is scenario-sampled from Kleshnev power scatter and
-Cuijpers timing scatter, uses a mean-standard-deviation objective, and
-now shares the deterministic solver's comfort and roll terms so the two
-differ only by uncertainty. It solves (E[progress] 19.19 m, sd 0.022) but
-runs ~375 s per block against ~90 s deterministic, so a full leg is a
-multi-hour job.
+**Validation against a real stroke** ([BR24], SOURCES §156–159): at his measured
+432 W the research model rows **4.652 m/s against his 4.641**; its hull drag matches
+the drag his own recovery implies (75.4 N against 73–79 N at 4.64 m/s).
 
-**Sequencing, calibrated properly.** `SegmentSequencing` works and is
-worth ~2.7 points of fluctuation in the anatomically correct direction
-(legs lead, trunk lags). Its magnitude is currently *fitted* to the very
-quantity it would predict, so it stays `SYNCHRONOUS` by default until
-there is kinematic data to set it independently.
+**Crew.** Phase-dependent balance authority, learned stroke-to-stroke trim,
+coupled-oscillator synchronisation, blades-on-water contact. Leg masses placed from
+the proximal joint (research).
 
-**Denser rower kinematics.** Worth having, but §34 bounds the prize: at
-most about a third of the remaining gap, and the trunk kinematics are
-probably already fine.
+**Numerics.** Non-dimensionalised NLP (×25 in iterations); the reference-frame bug
+class closed by 31 invariance tests.
+
+**River.** Charles channel raster, bridges, clearance field, progress field.
+
+**Coxing tooling.** Caption de-duplication with per-word timing; cox-box display
+reading from video; blocked out-of-sample scoring with matched circular-shift nulls;
+the plug-and-play coupled call/boat model (`research/callmodel/`).
 
 ---
 
-## 4. Wanted, but not a priority
+## 3. Open problems, in priority order
 
-* **A 2x/4x/8+ family with per-class validation data.** Only the 2x is
-  validated; the eight is the boat that matters for the race.
-* **Steering study conclusions.** The oscillate-vs-correct question that
-  started the rudder work has machinery but no written answer.
-* **Bridge piers as constraints.** Bridges are landmarks; the arches and
-  their piers are not yet obstacles, and at the Head of the Charles the
-  Weeks and Anderson arches are exactly where boats lose time.
-* **Stream field.** The Charles discharge data is loaded but the current
-  is uniform; a spatially varying field is the physically right thing and
-  matters for line choice around bends.
-* **Crew fatigue over 4.8 km.** The reserve state exists; a
-  physiologically grounded depletion model does not.
-* **Visualisation.** VTK output exists; nothing animates a whole leg.
-* **Route C as a frozen rower model.** Solve the stroke once against
-  real data, freeze it, use it in the trajectory NLP -- which would also
-  shrink that NLP. Blocked on 2.3.
+### 3.1 The boat's speed fluctuation is too large  *(highest)*
+Research model 61% IVV against [BR24]'s 49% at matched power and speed. Decomposed
+(SOURCES §158–159): ~4 points are the crew's timing — the model's body is
+**ergometer** data (Caplan & Gardner), and on the water the legs drive earlier and
+the seat peaks lower ([K05], [BRM]); ~1 is the pull shape; <1 is stroke averaging;
+**~6–7 are the catch**: the model's blade delivers 1–45 N in the first 0.2 s where
+he delivers 55–111 N, under every blade law tried (slip, lift/drag at any amplitude,
+with or without added mass). Hull drag is not the cause. Remaining suspects: how
+the oar balance shares handle torque with the rower's reflected inertia at the catch,
+and the blade entry.
+
+### 3.2 The crew is driven by ergometer kinematics
+The cause of 3.1's crew share, and the motivation for phase 4. A sourced on-water
+driver now exists: [K05]'s segment travels and timings and [BR24]'s seat and trunk
+curves. Re-timing the model's body onto his curves already recovers 4–5 points.
+
+### 3.3 The finish
+The slip-release fix validated on [CR06]'s athlete does not transfer to [BR24]: his
+push after the finish is 1.4% of peak and his recovery handle force is positive, so
+the blade-out oar never turns round. The turn-round belongs with phase 4.3's hands.
+Promotion stays blocked.
+
+### 3.4 Drive time is boat-dependent
+Two independent on-water single-scull sources ([K05], [BR24]) give 1.00 s at 32 spm;
+[HF09]'s pairs give 0.75 s. The five strict xfails against the pairs stay; moving
+every boat to the pairs figure would take the single further from him.
+
+### 3.5 `mean_handle_power` overstates handle power
+It dots the oarlock force with the handle velocity; on the ideal lever that reads
+~1.46× a measured handle power for [BR24]'s rig. It converts every power scale in
+the shipped trainer, so any fix is a promotion question.
+
+### 3.6 Receding-horizon leg does not reach 850 m; Route C does not converge
+Both unchanged since mid-September (SOURCES §27–33). Route C's slide travel is short
+of measured, and none of its numbers are claimable.
+
+### 3.7 The eight is validated only by inference
+[BR24] is a single; Holt's data are singles and pairs. The boat the Head of the
+Charles is raced in has no like-for-like target.
+
+---
+
+## 4. Waiting on other people
+
+| what | from | blocks |
+|---|---|---|
+| foot-force direction (women) | McGregor, via Buckeridge (§11c) — draft ready to send | phase 4.3 knee and ankle |
+| origin/frame confirmation of the trunk channel; other stroke rates | Kleshnev (§2) — draft ready to send | confirms §156; a rate sweep would test IVV against rate |
+| tabulated immersion and entrainment data, tangential force traces | Grift (§9) — thesis figures read; exact numbers wanted | the immersion refit's precision; phase 3's gate |
+| the others in DATA_REQUESTS | sent 2026-09-19, no reply yet | see each section |
+| more synchronised cox audio + boat logs | crews and coaches with archives | the coxing results (power: 6–24 races) |
+
+---
+
+## 5. Wanted, but not a priority
+
+* **Bridge piers as constraints** — bridges are landmarks only; clearance under the
+  arches is not yet a constraint.
+* **Stream field** — discharge data loaded, current uniform.
+* **Crew fatigue over 4.8 km** — reserve state exists, depletion model does not.
+* **Steering study conclusions** — machinery, no written answer.
+* **Visualisation of a whole leg.**
+* **Route C as a frozen rower model** — blocked on 3.6.

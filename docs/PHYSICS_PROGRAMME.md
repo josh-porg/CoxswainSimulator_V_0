@@ -73,8 +73,8 @@ shipped its crash.
 | 0 | Scaffolding: profiles, validation battery, freeze guards | scorecard reproduces every number the report already claims | **done** |
 | 1 | ~~Tier 1 blade as an efficiency factor~~ | **failed its gate — merged into phase 2** | **closed** |
 | 2 | Tier 1 blade: slip-quadratic **force**, oar angle a dynamic state | η against v — is the line through the origin gone, and does net propulsive impulse survive at race pace? | **gate passed on the full 6-DOF hull; `research` repointed, PARTIAL** |
-| 3 | Tier 2 blade: lift and drag on angle of attack | reproduces the sign and timing of Grift's measured tangential force | **wired and measured; the gate needs Grift's traces** |
-| 4 | Forward-dynamic rower (Rongère's recursion, driven by joint torques — the torque drive is ours, not theirs) | predicted CoM excursion lands in the measured band **without being fitted to it** | **4.1 closed on a finding; 4.3 next, segment inertias in** |
+| 3 | Tier 2 blade: lift and drag on angle of attack | reproduces the sign and timing of Grift's measured tangential force | **wired and measured; Grift's thesis supplies the force decomposition as figures (2026-09-27); on [BR24] it fixes the catch dip at [CG07] amplitudes but is 4.5% too efficient** |
+| 4 | Forward-dynamic rower (Rongère's recursion, driven by joint torques — the torque drive is ours, not theirs) | predicted CoM excursion lands in the measured band **without being fitted to it** | **4.1 closed on a finding; 4.3 next, segment inertias in. [BR24] (2026-09-27): the ergometer body is ~4 of 12 IVV points; an on-water driver is sourced** |
 | 5 | Tier 3 infrastructure: vectorised env, delay channels, BC dataset | throughput, measured, against the 10⁶–10⁷ steps training needs | planned |
 | 6 | Tier 3 training: BC then constrained PPO | the five acceptance tests, none of them trained on | planned |
 | 7 | Uncertainty, and the coupled-oscillator replication | — | planned |
