@@ -22,6 +22,7 @@ the next task.
 | **The plan** | *Blade and Body* — [artifact](https://claude.ai/artifact/5ZM6yag3fYTViD3fqwhgv6) | the physics review and staged development plan: the two defects, the tiers, the phases and their gates, decisions, bibliography. Numbered revisions | a phase moves, a gate is passed or failed, a decision is taken |
 | **The ledger** | *Rowing Physics Ledger* — [artifact](https://claude.ai/artifact/XBcnRHMy2Par4PAbw8kr6n) | every force the research model applies, as the code computes it, each term marked sourced / derived / fitted / provisional / chosen / failing, and the table of what has been checked | a term, value or status changes, or a validation result arrives |
 | **Physics programme** | [PHYSICS_PROGRAMME.md](PHYSICS_PROGRAMME.md) | the repository's copy of the plan's machinery: phase table and gates, **Blocked, and on what**, decisions log, open questions | as the plan, and whenever something blocks or unblocks |
+| **Sprint board** | [SPRINT.md](SPRINT.md) | the current sprint: goal, prioritised backlog with the groundwork approach for blocked items, board, findings that may unblock others | an item starts or finishes; a finding changes a priority |
 | **Outreach** | [DATA_REQUESTS.md](DATA_REQUESTS.md) | letters to authors and labs, their status, and replies received with drafted follow-ups | a letter is sent or a reply arrives |
 
 **Artifacts are published pages.** To change one, republish to its existing link (never
@@ -91,7 +92,7 @@ Reference for one part of the code. Updated when that part changes.
 
 | when this happens | update |
 |---|---|
-| a piece of work finishes | TRACKING **Done** (or **Fixed** for a bug); STATUS at-a-glance row; the plan and ledger if it touches physics |
+| a piece of work finishes | TRACKING **Done** (or **Fixed** for a bug); the SPRINT board; STATUS at-a-glance row; the plan and ledger if it touches physics |
 | a measurement or model result lands | a new SOURCES section; the TRACKING item it answers; the ledger's checks table; STATUS §3 if priorities move |
 | something blocks or unblocks | PHYSICS_PROGRAMME **Blocked**; STATUS §4 |
 | a decision is taken | PHYSICS_PROGRAMME **Decisions**; the plan's §07 |
