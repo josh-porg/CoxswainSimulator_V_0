@@ -11354,3 +11354,118 @@ velocity. On the ideal lever the oarlock carries F_h (1 + r_h / r_b); for his ri
 about 630 W. [BR24] has no pin-force channel, so this is the lever's consequence, not a
 measured pin force; it is the first real stroke to put a size on the open question.
 The research profile's dynamic oar measures handle power directly and is unaffected.
+
+
+## 159. Literature review against what [BR24] exposed (2026-09-27)
+
+A second review, aimed at the items §158 left open: the blade at the catch, the
+crew's kinematics, drive time, the finish, and power definitions. Open PDFs were
+downloaded to the session scratchpad; only derived figures are recorded here.
+
+### [G20] Grift — PhD thesis, *The hydrodynamics of rowing propulsion* (TU Delft, 2020)
+Open access (repository.tudelft.nl, embargo expired 2021-02-01). Chapter 2 is
+[G19] in full; chapter 3 is the JFM 918 (2021) paper.
+
+**Immersion curve, Fig. 2.4** (AR-2 plate, 100 mm high, 0.30 m/s, steady phase),
+read from the figure to about ±0.03 — the numbers are not tabulated:
+
+| depth of plate top / plate height | C_D |
+|---|---|
+| −0.45 … −0.1 (piercing; submerged area) | 1.05–1.20 (fence-like) |
+| 0 | 1.10 |
+| 0.1 | 1.30 |
+| **0.2** | **1.60** (peak) |
+| 0.35 | 1.42 |
+| 0.5 | 1.37 (local minimum, "trend break") |
+| 0.6–1.0 | 1.40–1.45 |
+| 1.1 | ~1.50 |
+| 1.3–2.0 | 1.30 (deep plate, agrees with 1.26–1.32 in the literature) |
+
+**Accelerating plate, eq. 2.15:** F = m_p a + ½ρV²C_D A + (dm_h/dt) a (t − t_sr) + m_h a.
+A single added-mass coefficient fits only motions much shorter than one plate
+height; beyond that the wake entrains mass at a rate dm_h/dt that is roughly
+independent of velocity. Fig. 2.11c, model scale: at the surface 4.5 kg/s at
+a = 0.41 m/s², levelling at ~6.2 kg/s from a ≈ 1 m/s²; at 20 mm and 100 mm depth
+2.7–4.6 kg/s. The entrainment at the surface is ~50% larger. No full-scale scaling
+law is given, so these cannot be moved to a full blade without an assumption.
+After the acceleration ends the extra force decays within about one plate height of
+travel (formation time t* ≈ 1).
+
+**Realistic stroke (chapter 3; 1:2 scale blade, M4− kinematics, catch ≈ −50°):**
+lift and drag both propel — **60% drag, 40% lift** over the drive. **At the start
+of the drive propulsion is primarily lift** (a leading-edge vortex forms); drag
+dominates mid-drive; lift again at the end. The isolated hydrodynamic propulsive
+force is small right after the catch and peaks near θ ≈ −10°. Impulse efficiency
+0.84; energetic efficiency ∝ κ^−0.7. Forces scale with V²: Reynolds-independent
+above κ = 0.5. Froude < 1: surface waves not dynamically relevant. The thesis warns
+that forces in the rowing literature are hydrodynamic force *plus* athlete force *plus*
+oar inertia, and not comparable with its isolated hydrodynamic force.
+
+*Checked against [BR24] (§158):* removing the oar's inertia (I_lock 1.22 kg m², his
+angle trace, 9 harmonics) takes 25 of his 54 N handle force at the catch instant but
+nothing from 0.1 s; his blade force at 0.1–0.3 s stands (71, 113, 190 N, geometric lever).
+
+### [CO10] Coppel — PhD thesis, *A computational fluid dynamic investigation of rowing oar blades* (Birmingham, 2010)
+Open access (etheses.bham.ac.uk/793). With the blade **moving**, lift coefficients
+were up to **72%** and drag coefficients up to **50% (flat) and 67% (Big Blade)**
+above the quasi-static values, attributed in part to start-up vortices. Quarter-scale
+coefficients overstate full scale (dynamic similarity matters). Chapter 3's
+quasi-static CL/CD come from Caplan & Gardner's quarter-scale flume data ([CG07]).
+Supports a moving blade needing a larger effective coefficient than a static one,
+by up to ~1.7× — less than the 2.4× ([CR06]) and ~4.8× (§158) that fits wanted.
+
+### [LB19] Labbé, Boucher, Clanet & Benzaquen (2019), *Physics of rowing oars*, New J. Phys. 21 093050
+Open access. Blade force = pressure drag + added mass on a cylinder of blade-width
+diameter and blade-length height; fitted **C_d = 2.0 ± 0.2, C_m = 0.7 ± 0.1**. For a
+scull blade that is ~10 kg of added mass (the repo's Patton value is 13.1). The
+characteristic length L_c = 2 C_m Ω / (S C_d) ≈ 0.13 m for a scull: the first ~0.1 m of
+blade travel is added-mass dominated, the rest drag dominated. Lift neglected.
+
+### [K05] Kleshnev (2005), *Comparison of on-water rowing with its simulation on Concept2 and RowPerfect machines*, ISBS XXIII, 130–133
+Open access (ojs.ub.uni-konstanz.de/cpa/article/view/853). Five women, single sculls
+and both machines, 20 and 32 spm. Seat and trunk by spring-loaded potentiometer and
+line **"to the seat or trunk at L1–C7 level"** — the instrumentation behind [BR24]'s
+trunk channel, and consistent with the fitted 0.54–0.63 m above the hip (§156).
+
+On the water at 32.3 spm: **drive time 1.00 s, rhythm 54.0%** — the same as [BR24]
+(1.00 s by angle, 32.4 spm); drive length 1.59 m; legs 0.51, trunk 0.48, arms 0.62 m;
+catch slip 0.04 m, release slip 0.20 m; position of peak force 34.7% of the drive
+(machines 40.5–40.8%); average/peak force 56.9% (machines 51–53%).
+
+Machines: handle force 30–40% higher, stroke 11–12% shorter (arms 30% shorter),
+legs drive 4–6% longer on the Concept2, handle speed 18–20% lower. **"Faster increase
+of the handle force and legs speed in the boat"**, explained by the mobile versus
+fixed point of support. Eq. (3): handle and stretcher forces in the boat differ by the
+lever ratio and 1/cos θ.
+
+### [BRM] BioRow, *How rowing on machines is related to on-water technique* (n = 30)
+biorow.com. "Maximal seat velocity on all rowing machines was significantly higher
+than in the single scull"; on-water Rowing Style Factor 80–82%, machines 57–76%.
+
+### [K-RSF] Kleshnev, *Rowing styles, analysis and optimisation* (row2k)
+Legs 43%, trunk 33–36%, arms 21–24% of power; world-class trunk 22.5° at the catch,
+25° at the finish; Rowing Style Factor (seat vs handle travel, first 20% of the drive),
+optimum 90–95%. The exact definition is not given; computed with the arc as handle
+travel, [BR24] reads 103–119% and the research model 82–89%, so only the direction is
+used: the model's legs lead the handle less than his.
+
+### [H21] Holt et al. (2021), PLOS ONE 16(4) e0249122
+Open access. 74 races, singles and pairs. Deeper maximum negative drive acceleration
+and greater late-recovery jerk go with faster boats after controlling for rate and
+power. A validation direction for the catch dip, not a target value.
+
+### Where this leaves the open items
+
+1. **The catch deficit (§158, ~6–7 IVV points).** Three independent sources ([G20],
+   [CO10], [LB19]) say the early drive is lift- and added-mass-dominated; the
+   research profile's blade law is drag-only and quadratic in slip. The tier 2
+   lift/drag law exists (`blade_law="liftdrag"`) and is the first thing to try.
+2. **The crew's ~4 points.** [K05] and [BRM] measure what the §158 re-timing inferred:
+   ergometer kinematics — which drive the model ([CG10]) — delay the leg drive and
+   the peak force, and machines produce higher peak seat velocity than a single.
+   An on-water driver dataset is sourced now: [K05]'s segment travels and timings,
+   with [BR24]'s curves.
+3. **Drive time.** Two independent on-water single-scull sources agree on 1.00 s at
+   32–32.4 spm; [HF09]'s 752 ms at 31.5 spm is a pairs result.
+4. **Immersion.** [G20] Fig. 2.4 gives the curve (read from the figure); the refit is
+   no longer blocked on the data, only on its precision.

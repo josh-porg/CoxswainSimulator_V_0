@@ -342,6 +342,12 @@ Proc. IMechE Part P (with V. Kleshnev).
   component is identically zero. It is the primary validation target for
   the lift-and-drag blade model.
 
+*2026-09-27: partly answered by the literature.* Grift's PhD thesis is open access and
+carries both papers; the immersion curve has been read from its Fig. 2.4 and the
+lift/drag split from chapter 3 (SOURCES §159). The ask narrows to the tabulated numbers
+behind Figs 2.4 and 2.11c and the force traces of Fig. 3.10, and to how the entrainment
+rate scales to a full-size blade.
+
 > Subject: Digitised force and drag curves from your rowing-blade work
 >
 > Dear Dr Grift,
