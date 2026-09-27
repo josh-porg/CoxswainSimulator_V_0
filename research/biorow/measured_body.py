@@ -154,7 +154,8 @@ def body_field(boat, back):
     return field, K
 
 
-def run(body, force, strokes, catch=None, blade_law="slip", ld_scale=1.0, added_mass="none"):
+def run(body, force, strokes, catch=None, blade_law="slip", ld_scale=1.0, added_mass="none",
+        entry="arc", balance="full"):
     boat = L.build("arc")
     boat.power_scales = np.ones(boat.n_seats)
     if added_mass != "none":
@@ -163,10 +164,24 @@ def run(body, force, strokes, catch=None, blade_law="slip", ld_scale=1.0, added_
         boat.scull_c2 = None      # the slip coefficient is unused by the lift-drag law
     catch = catch or physics.resolve("research").catch
     r_h = float(boat.rig.seats[0].oarlocks[0].oar.inboard)
-    hp, _hv, hF, _hA = S.his()
+    hp, _hv, hF, hA = S.his()
     field, K = (None, None) if body == "model" else body_field(boat, back=(body == "legs+back"))
 
+    if balance == "oar":
+        # a measured handle force is what reaches the handle: balance the oar alone, as the
+        # [CR06] one-athlete study did, instead of oar plus the rower's reflected inertia
+        from coxswain.crew import oardynamics
+        _real = oardynamics.InertiaProfile.__dict__["of"]
+        oardynamics.InertiaProfile.of = staticmethod(
+            lambda b, seat=0, **k: float(b.rig.seats[seat].oarlocks[0].oar.inertia_about_lock))
+        try:
+            return run(body, force, strokes, catch, blade_law, ld_scale, added_mass, entry, "restore")
+        finally:
+            oardynamics.InertiaProfile.of = _real
+
     def make(scale=None, torque=None):
+        if torque is None and scale is not None:
+            torque = 1.0                  # his measured force replaces the pull; no match needed
         if torque is None:
             torque = DynamicOarSimulator.torque_for_power(boat, L.POWER, catch=catch, start=4.6,
                                                           blade_law=blade_law)
@@ -175,6 +190,14 @@ def run(body, force, strokes, catch=None, blade_law="slip", ld_scale=1.0, added_
                                   coxswain=Coxswain(rudder_override=lambda t, s: 0.0), fast=True)
         if field is not None:
             sim.crew_field = field
+        if entry == "his":
+            # a budget study, as 4.3a on [CR06]: the air phase follows his measured oar angle
+            # and rate (sign-flipped to the model's convention) instead of the prescribed arc
+            from scipy.interpolate import CubicSpline
+            sp = CubicSpline(np.append(hp, hp[0] + T), np.radians(-np.append(hA, hA[0])),
+                             bc_type="periodic")
+            sim._sweep_pose = lambda tau: (float(sp(tau % T)), float(sp(tau % T, 1)))
+            sim._sweep_motion = lambda tau: (float(sp(tau % T, 1)), float(sp(tau % T, 2)))
         if blade_law == "liftdrag" and ld_scale != 1.0:
             # one scale on both tier 2 amplitudes: a study, never a profile change
             import dataclasses
@@ -184,6 +207,11 @@ def run(body, force, strokes, catch=None, blade_law="slip", ld_scale=1.0, added_
         if scale is not None:
             sim._torque = lambda slot, ang, state, t: scale * max(
                 float(np.interp(np.mod(t - sim._stroke_start, T), hp, hF, period=T)), 0.0) * r_h
+        if balance == "restore":
+            # the 1.2 kg scull alone on its balance needs a quarter of the default step
+            from coxswain.core import integrators
+            return sim, sim.run_strokes(int(strokes), surge_speed=4.6,
+                                        dt=integrators.estimate_step(T) / 4.0)
         return sim, sim.run_strokes(int(strokes), surge_speed=4.6)
 
     # the re-timed body changes the power a given pull delivers, so rematch on the run
@@ -216,6 +244,10 @@ def main():
     ap.add_argument("--blade-law", default="slip", help="slip (tier 1) or liftdrag (tier 2)")
     ap.add_argument("--ld-scale", type=float, default=1.0, help="scale on both tier 2 amplitudes")
     ap.add_argument("--added-mass", default="none", help="none or patton (lift-drag only)")
+    ap.add_argument("--balance", default="full", choices=["full", "oar"],
+                    help="oar balance: oar + reflected crew inertia, or the oar alone (study)")
+    ap.add_argument("--entry", default="arc", choices=["arc", "his"],
+                    help="air-phase oar motion: the prescribed arc, or his measured angle (study)")
     ap.add_argument("--timelaw", default="br24", choices=["br24", "cr06"],
                     help="whose seat and trunk timing drives the body (his travel either way)")
     a = ap.parse_args()
@@ -226,7 +258,7 @@ def main():
           % (hv.min(), hp[np.argmin(hv)], hv.max()))
     for b in a.builds.split(","):
         body, force = b.split(":")
-        r = run(body, force, a.strokes, a.catch, a.blade_law, a.ld_scale, a.added_mass)
+        r = run(body, force, a.strokes, a.catch, a.blade_law, a.ld_scale, a.added_mass, a.entry, a.balance)
         print("%-10s body, %-5s force  speed %.3f  IVV %.1f%%  v min %.2f at %.3f s  v max %.2f  "
               "power %.0f W%s" % (body, force, r["speed"], 100 * r["ivv"], r["v_min"], r["t_min"],
                                   r["v_max"], r["power"], "  K %.3f" % r["K"] if r["K"] else ""), flush=True)

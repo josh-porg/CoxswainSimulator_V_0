@@ -11536,3 +11536,27 @@ timing" share is on-water timing that transfers, and half is his individual styl
 **For the on-water driver:** build it from what is shared — the drive fraction and the later
 recovery body swing — not from one athlete's curves; expect about 2 of the 12 IVV points from
 it. The catch (§158–159) remains the larger item.
+
+
+## 161. The catch deficit is the oar balance, not the blade or the entry (2026-09-27)
+
+Two quick studies on [BR24], his body re-timed onto his curves and his force at his power
+(`measured_body.py`):
+
+1. **The entry rate is not it here.** His oar is already turning at the catch (−18 °/s) and
+   reaches −60 °/s by 0.05 s, where the prescribed arc starts from rest (−34 °/s at 0.05 s,
+   0.56×) and then overshoots (−96 against his −70 °/s at 0.15 s) — the same pattern as
+   [CR06]'s athlete in 4.3a. Replacing the air phase with his measured angle and rate
+   (`--entry his`) moves IVV 61.0 → 60.2% (model force) and 56.0 → 55.8% (his force): under a
+   point, where on [CR06] it was worth 3.2° of drive lag.
+2. **The oar balance is.** With the rower's reflected inertia (~93 kg·m² at the catch) taken
+   off the oar (`--balance oar`, T/320 step, as the [CR06] study), his force loads the blade
+   early and the catch dip lands on his: **3.44 m/s at 0.097 s against his 3.46 at 0.111**;
+   IVV 54.4%. But the boat then runs 3.9% fast (4.823 m/s at 434 W), so dropping the body
+   from the balance is not the fix either.
+
+The reflected-inertia balance absorbs handle torque while the legs accelerate, so the oar and
+its slip build late; the oar-only balance hands the rower's whole effort to the blade. The
+truth is between, and it is what phase 4.3's hands-on-handle constraint decides: how the
+rower's effort splits between moving the body and pulling the handle. The catch is a 4.3
+problem, which is also where [CR06]'s remaining catch dip was assigned (§ one-athlete test).

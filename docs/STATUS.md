@@ -79,9 +79,9 @@ Research model 61% IVV against [BR24]'s 49% at matched power and speed. Decompos
 the seat peaks lower ([K05], [BRM]); ~1 is the pull shape; <1 is stroke averaging;
 **~6–7 are the catch**: the model's blade delivers 1–45 N in the first 0.2 s where
 he delivers 55–111 N, under every blade law tried (slip, lift/drag at any amplitude,
-with or without added mass). Hull drag is not the cause. Remaining suspects: how
-the oar balance shares handle torque with the rower's reflected inertia at the catch,
-and the blade entry.
+with or without added mass). Hull drag is not the cause. **Located (§161):** not the entry rate but the oar balance — with the rower's reflected
+inertia off the oar, his force reproduces his catch dip (3.44 vs 3.46 m/s), though the boat
+runs 3.9% fast. The fix is phase 4.3's split of effort between body and handle.
 
 ### 3.2 The crew is driven by ergometer kinematics
 The cause of 3.1's crew share, and the motivation for phase 4. A sourced on-water

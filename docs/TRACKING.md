@@ -3275,6 +3275,12 @@ style. What the two on-water scullers share against the ergometer body is a long
 (0.53–0.54 vs 0.47) and a later body swing on the recovery. That is what an on-water driver
 should encode.
 
+*2026-09-27, the catch located (SOURCES §161):* not the entry rate (his measured air phase
+moves IVV under a point) but the oar balance. With the reflected crew inertia taken off the
+oar, his force loads the blade early and the catch dip matches his (3.44 vs 3.46 m/s at
+0.10 vs 0.11 s), though the boat then runs 3.9% fast. The split of the rower's effort between
+body and handle — phase 4.3's hands-on-handle constraint — is the fix.
+
 ### The eight is validated only by inference
 Holt measured singles and pairs. The boat this project cares about most
 has no measured counterpart in the comparison.
