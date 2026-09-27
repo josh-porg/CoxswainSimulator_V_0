@@ -39,7 +39,7 @@ from ..core.vector import clip
 
 from ..core.taylor import Jet2
 
-__all__ = ["StrokeTiming", "FourierProfile", "FourierTrack",
+__all__ = ["StrokeTiming", "OnWaterTiming", "FourierProfile", "FourierTrack",
            "DEFAULT_HARMONICS", "DEFAULT_FLATNESS"]
 
 #: Harmonics retained when converting an idealised piecewise profile into a
@@ -271,6 +271,7 @@ class StrokeTiming:
         """Recovery-to-drive time ratio, the number coaches quote."""
         return self.recovery_duration / self.drive_duration
 
+
     def phase(self, t):
         """Normalised stroke phase in ``[0, 1)``; 0 is the catch."""
         return np.mod(np.asarray(t, dtype=float), self.period) / self.period
@@ -278,6 +279,29 @@ class StrokeTiming:
     def is_drive(self, t):
         """Boolean mask: is the blade in the water at time ``t``?"""
         return self.phase(t) < self.drive_fraction
+
+
+@dataclass(frozen=True)
+class OnWaterTiming(StrokeTiming):
+    """Drive / recovery split measured on the water, in a single scull.
+
+    ``0.73770 - 6.38723 / rate``: the same reciprocal form as :class:`StrokeTiming`, through
+    Kleshnev (2005)'s on-water single-scull rhythm at two rates -- 42.0% at 20.1 spm and
+    54.0% at 32.3 spm (ISBS XXIII, Table 1; ``data/literature/kleshnev2005_onwater_vs_machines.csv``),
+    drive timed catch to finish by oar angle.
+
+    Two athletes it was not fitted to land on it: [CR06]'s women's single, 0.525 at 30.9 spm
+    against 0.531 predicted, and [BR24]'s elite men's single, 0.539 at 32.4 against 0.541
+    (SOURCES sec. 160). The ergometer fit gives 0.462 and 0.470 there.
+
+    Sculling only: [HF09]'s on-water sweep pairs run a quarter of a second shorter at the
+    same rate, so this is not a general on-water drive time. Not used by any profile yet;
+    boats built with it are a research option (sprint 1 #3).
+    """
+
+    @property
+    def drive_fraction(self) -> float:
+        return 0.73770 - 6.38723 / self.rate
 
 
 class FourierTrack:

@@ -496,15 +496,31 @@ class DynamicOarSimulator(RowingSimulator):
             if self.release == "slip" and float(
                     blade.slip_velocity(angle, rate, speed)) >= 0.0:
                 return 0.0, 0.0                   # not driving: out, [CR06]
-            return (float(blade.normal_force(angle, rate, speed)), 0.0)
-        velocity = self._lock_velocity(state, lock)
-        blade = self._liftdrag[slot]
-        if self.release == "slip":
-            w_n, _w_a = blade.relative_velocity(angle, rate, velocity[:2],
-                                                int(lock.side))
-            if w_n >= 0.0:
-                return 0.0, 0.0                   # not driving: out, [CR06]
-        return blade.loads(angle, rate, velocity[:2], int(lock.side))
+            loads = (float(blade.normal_force(angle, rate, speed)), 0.0)
+        else:
+            velocity = self._lock_velocity(state, lock)
+            blade = self._liftdrag[slot]
+            if self.release == "slip":
+                w_n, _w_a = blade.relative_velocity(angle, rate, velocity[:2],
+                                                    int(lock.side))
+                if w_n >= 0.0:
+                    return 0.0, 0.0               # not driving: out, [CR06]
+            loads = blade.loads(angle, rate, velocity[:2], int(lock.side))
+        if self.blade_depth is not None:
+            loads = tuple(f * self._depth_factor(slot, angle) for f in loads)
+        return loads
+
+    #: Optional :class:`~coxswain.crew.blade_depth.BladeDepth`: the blade's depth through
+    #: the drive, scaling its load by Grift's immersion curve. ``None`` (the default) is
+    #: depth-blind, exactly as before. A study hook; no profile sets it.
+    blade_depth = None
+
+    def _depth_factor(self, slot, angle):
+        """Depth factor at this oar's progress through the drive, catch 0 -> finish 1."""
+        oar = self._oars[slot]
+        span = float(oar.catch_angle) - float(oar.finish_angle)
+        u = (float(oar.catch_angle) - float(angle)) / span if span else 0.0
+        return float(self.blade_depth.factor(min(max(u, 0.0), 1.0)))
 
     def _torque(self, seat_slot: int, angle: float, state: State,
                 t: float) -> float:
@@ -543,7 +559,8 @@ class DynamicOarSimulator(RowingSimulator):
                 side = int(lock.side)
                 normal = np.array([np.cos(angle), -side * np.sin(angle), 0.0])
                 axis = np.array([np.sin(angle), side * np.cos(angle), 0.0])
-                if self.blade_law == "slip" and self.release == "angle":
+                if (self.blade_law == "slip" and self.release == "angle"
+                        and self.blade_depth is None):
                     speed = self._lock_speed_on_normal(state, lock, angle)
                     normal_force = float(oar.blade.normal_force(angle, rate,
                                                                 speed))
@@ -623,7 +640,7 @@ class DynamicOarSimulator(RowingSimulator):
             locks = self.boat.rig.seats[seat].oarlocks
             angle_rate[slot] = rate
             if (len(locks) == 1 and self.blade_law == "slip"
-                    and self.release == "angle"):
+                    and self.release == "angle" and self.blade_depth is None):
                 # A sweep seat: one rower, one oar -- exactly the balance the
                 # unit was validated on, arithmetic unchanged.
                 rate_rate[slot] = float(oar.acceleration(
@@ -916,7 +933,8 @@ class DynamicOarSimulator(RowingSimulator):
         moment, slope = oar.inertia_at(angle)
         oar_inertia = float(getattr(oar.inertia, "oar_inertia", 0.0))
         seat_inertia = moment + (len(locks) - 1) * oar_inertia
-        if self.blade_law == "slip" and self.release == "angle":
+        if (self.blade_law == "slip" and self.release == "angle"
+                and self.blade_depth is None):
             blade = sum(float(oar.blade_torque(
                 angle, rate, self._lock_speed_on_normal(state, lock, angle)))
                 for lock in locks)

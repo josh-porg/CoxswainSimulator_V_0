@@ -155,7 +155,7 @@ def body_field(boat, back):
 
 
 def run(body, force, strokes, catch=None, blade_law="slip", ld_scale=1.0, added_mass="none",
-        entry="arc", balance="full"):
+        entry="arc", balance="full", depth=None):
     boat = L.build("arc")
     boat.power_scales = np.ones(boat.n_seats)
     if added_mass != "none":
@@ -175,7 +175,7 @@ def run(body, force, strokes, catch=None, blade_law="slip", ld_scale=1.0, added_
         oardynamics.InertiaProfile.of = staticmethod(
             lambda b, seat=0, **k: float(b.rig.seats[seat].oarlocks[0].oar.inertia_about_lock))
         try:
-            return run(body, force, strokes, catch, blade_law, ld_scale, added_mass, entry, "restore")
+            return run(body, force, strokes, catch, blade_law, ld_scale, added_mass, entry, "restore", depth)
         finally:
             oardynamics.InertiaProfile.of = _real
 
@@ -198,6 +198,13 @@ def run(body, force, strokes, catch=None, blade_law="slip", ld_scale=1.0, added_
                              bc_type="periodic")
             sim._sweep_pose = lambda tau: (float(sp(tau % T)), float(sp(tau % T, 1)))
             sim._sweep_motion = lambda tau: (float(sp(tau % T, 1)), float(sp(tau % T, 2)))
+        if depth is not None:
+            # sprint 1 #2: his measured vertical oar angle through the drive, Grift's curve
+            from coxswain.crew.blade_depth import BladeDepth, br24_profile
+            u, v = br24_profile()
+            ref, z0 = depth
+            sim.blade_depth = BladeDepth.for_oar(boat.rig.seats[0].oarlocks[0].oar, u, v,
+                                                 reference=ref, zero_offset=z0)
         if blade_law == "liftdrag" and ld_scale != 1.0:
             # one scale on both tier 2 amplitudes: a study, never a profile change
             import dataclasses
@@ -244,6 +251,8 @@ def main():
     ap.add_argument("--blade-law", default="slip", help="slip (tier 1) or liftdrag (tier 2)")
     ap.add_argument("--ld-scale", type=float, default=1.0, help="scale on both tier 2 amplitudes")
     ap.add_argument("--added-mass", default="none", help="none or patton (lift-drag only)")
+    ap.add_argument("--depth", default=None,
+                    help="blade depth from his vertical angle: 'mean:0.0' or 'deep:0.02' (reference:zero offset m)")
     ap.add_argument("--balance", default="full", choices=["full", "oar"],
                     help="oar balance: oar + reflected crew inertia, or the oar alone (study)")
     ap.add_argument("--entry", default="arc", choices=["arc", "his"],
@@ -258,7 +267,8 @@ def main():
           % (hv.min(), hp[np.argmin(hv)], hv.max()))
     for b in a.builds.split(","):
         body, force = b.split(":")
-        r = run(body, force, a.strokes, a.catch, a.blade_law, a.ld_scale, a.added_mass, a.entry, a.balance)
+        r = run(body, force, a.strokes, a.catch, a.blade_law, a.ld_scale, a.added_mass, a.entry, a.balance,
+                (a.depth.split(':')[0], float(a.depth.split(':')[1])) if a.depth else None)
         print("%-10s body, %-5s force  speed %.3f  IVV %.1f%%  v min %.2f at %.3f s  v max %.2f  "
               "power %.0f W%s" % (body, force, r["speed"], 100 * r["ivv"], r["v_min"], r["t_min"],
                                   r["v_max"], r["power"], "  K %.3f" % r["K"] if r["K"] else ""), flush=True)
