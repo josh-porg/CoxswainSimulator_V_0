@@ -1,0 +1,29 @@
+# Grift, E. J. (2020) The hydrodynamics of rowing propulsion: an experimental study. PhD thesis, TU Delft (open access).
+# Fig. 2.4 (= Grift et al. 2019, JFM 866): steady-phase drag coefficient of an AR-2 flat plate (100 mm high), V = 0.30 m/s,
+# against depth of the plate's top edge below the surface. Read from the figure, not tabulated in the source: +-0.03 in C_D.
+# Negative depth = plate piercing the surface; C_D then uses the submerged frontal area (fence-like).
+# Reference lines in the figure: fence C_D = 1.10; deep plate (AR 2) C_D = 1.30.
+depth_mm,depth_over_plate_height,cd,marker
+-45,-0.45,1.13,partly submerged
+-40,-0.40,1.20,partly submerged
+-30,-0.30,1.19,partly submerged
+-20,-0.20,1.10,partly submerged
+-10,-0.10,1.05,partly submerged
+0,0.00,1.10,submerged
+5,0.05,1.20,submerged
+10,0.10,1.30,submerged
+15,0.15,1.50,submerged
+20,0.20,1.60,submerged
+25,0.25,1.57,submerged
+30,0.30,1.50,submerged
+35,0.35,1.42,submerged
+40,0.40,1.39,submerged
+50,0.50,1.37,submerged
+60,0.60,1.40,submerged
+80,0.80,1.43,submerged
+100,1.00,1.45,submerged
+110,1.10,1.50,submerged
+120,1.20,1.44,submerged
+130,1.30,1.30,submerged
+150,1.50,1.30,submerged
+200,2.00,1.30,submerged

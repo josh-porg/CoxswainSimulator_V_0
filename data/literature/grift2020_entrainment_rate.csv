@@ -1,0 +1,12 @@
+# Grift (2020) PhD thesis, TU Delft, Fig. 2.11c (= Grift et al. 2019, JFM 866): entrainment rate dm_h/dt of the wake of an
+# accelerating AR-2 plate (model scale, 100 mm high), against acceleration a, at three depths of the plate's top edge.
+# Model: F = m_p a + 1/2 rho V^2 C_D A + (dm_h/dt) a (t - t_sr) + m_h a   (thesis eq. 2.15).
+# Read from the figure, +-0.2 kg/s. No full-scale scaling law is given in the source.
+acceleration_mps2,dmh_dt_h0mm_kgps,dmh_dt_h20mm_kgps,dmh_dt_h100mm_kgps
+0.41,4.5,2.8,2.7
+0.61,5.4,3.2,3.0
+0.82,6.0,3.6,3.5
+1.02,6.2,4.0,3.5
+1.23,6.3,4.1,4.1
+1.43,6.2,4.1,4.3
+1.64,6.2,3.8,4.6

@@ -1,0 +1,21 @@
+# Kleshnev, V. (2005) Comparison of on-water rowing with its simulation on Concept2 and RowPerfect machines.
+# ISBS XXIII, Beijing, 130-133 (open access, ojs.ub.uni-konstanz.de/cpa/article/view/853). Table 1.
+# Five female rowers (1.80 m, 72.2 kg), single scull on water and both machines, training and racing rates.
+# Seat and trunk: potentiometer and line to the seat or trunk "at L1-C7 level". Values as printed; blank where the
+# printed table is illegible in the scanned PDF.
+parameter,unit,boat_training,boat_racing,rowperfect_training,rowperfect_racing,concept2_training,concept2_racing
+rate,spm,20.1,32.3,22.3,35.2,20.7,32.1
+rowing_power,W,247,391,247,401,237,375
+drive_time,s,1.26,1.00,1.13,0.92,1.21,0.97
+rhythm,%,42.0,54.0,42.0,53.9,41.7,51.9
+drive_length,m,1.60,1.59,1.42,1.43,1.44,1.41
+average_to_max_force,%,52.3,56.9,50.4,53.0,47.7,51.2
+position_of_max_force,% of drive,37.6,34.7,36.3,40.5,37.2,40.8
+catch_slip,m,0.04,0.04,0.07,0.09,0.12,0.13
+release_slip,m,0.22,0.20,0.24,0.25,0.22,0.21
+max_handle_velocity,m/s,2.06,2.36,1.73,1.94,1.70,1.89
+average_handle_velocity,m/s,1.28,1.59,1.26,1.55,1.19,1.45
+position_of_max_handle_velocity,% of drive,59.4,65.2,73.5,71.4,76.4,74.1
+legs_travel,m,0.52,0.51,0.52,0.52,0.55,0.53
+trunk_travel,m,0.50,0.48,0.48,0.48,0.47,0.46
+arms_travel,m,0.61,0.62,0.43,0.43,0.44,0.43
