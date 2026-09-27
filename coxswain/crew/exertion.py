@@ -233,8 +233,20 @@ def split_cost(split: float, power_per_rower: float, n_per_side: int = 4,
     raise ValueError("unknown split strategy %r" % (strategy,))
 
 
-def mean_handle_power(boat, samples: int = 360) -> float:
+def mean_handle_power(boat, samples: int = 360, definition: str = "oarlock") -> float:
     """Mean power per rower at the handle, W, at UNIT force scale.
+
+    ``definition`` chooses which force is dotted with the handle velocity:
+
+    * ``"oarlock"`` (the default, and what every shipped consumer calibrates against):
+      the oarlock force of eq. (15). Kept byte-for-byte, because the frozen trainer's
+      power scales are denominated in it.
+    * ``"handle"``: the force at the handle, which is what a rower's handle power is.
+      On the ideal lever [F09] sec. 4.3 the oarlock carries handle plus blade force, so
+      ``F_handle = (1 - gearing) F_oarlock`` with ``gearing = r_h / L``; the oarlock
+      definition therefore reads ``1 / (1 - gearing)`` high -- 1.44x for the catalogue
+      scull, 1.46x for [BR24]'s rig, whose measured handle power is 432 W
+      (SOURCES sec. 158). Research code should ask for this one.
 
     ``boat.power_scales`` is deliberately ignored: this is the reference a
     scale is calibrated against, and every caller uses it that way (the
@@ -269,8 +281,11 @@ def mean_handle_power(boat, samples: int = 360) -> float:
     times = np.linspace(0.0, period, int(samples), endpoint=False)
     dt = period / int(samples)
     total = 0.0
+    if definition not in ("oarlock", "handle"):
+        raise ValueError("definition must be 'oarlock' or 'handle', got %r" % (definition,))
     for seat in boat.rig.seats:
         for lock in seat.oarlocks:
+            share = 1.0 if definition == "oarlock" else 1.0 - float(lock.oar.gearing)
             for t in times:
                 force = oar_force(t, boat.timing, lock.side,
                                   boat.force_profile, boat.oar_sweep)
@@ -278,8 +293,8 @@ def mean_handle_power(boat, samples: int = 360) -> float:
                 ahead = handle_position(t + 1e-4, boat.timing, lock,
                                         boat.oar_sweep)
                 velocity = (ahead - here) / 1e-4
-                total += abs(float(np.dot(np.asarray(force)[:3],
-                                          velocity))) * dt
+                total += share * abs(float(np.dot(np.asarray(force)[:3],
+                                                  velocity))) * dt
     return total / period / boat.n_seats
 
 

@@ -514,3 +514,25 @@ def test_the_rower_swings_across_the_boat_as_a_sweep_rower_does():
                          dict(rower.skeleton(f * boat.timing.period)).values()]
                         for f in np.linspace(0.0, 1.0, 40, endpoint=False)])
     assert (lateral.max(axis=0) - lateral.min(axis=0)).max() > 0.05
+
+
+def test_handle_power_definition_is_the_lever_share_of_the_oarlock_one():
+    """The handle carries (1 - r_h/L) of the oarlock force on the ideal lever, so the
+    handle definition is exactly that share of the oarlock one, and the default is the
+    oarlock definition every shipped consumer is calibrated against (SOURCES sec. 158)."""
+    from coxswain.boats import catalog
+
+    boat = catalog.single_scull(rate=30.0)
+    gearing = boat.rig.seats[0].oarlocks[0].oar.gearing
+    oarlock = mean_handle_power(boat, samples=90)
+    handle = mean_handle_power(boat, samples=90, definition="handle")
+    assert mean_handle_power(boat, samples=90, definition="oarlock") == oarlock
+    assert handle == pytest.approx((1.0 - gearing) * oarlock, rel=1e-12)
+    assert 1.40 < oarlock / handle < 1.50
+
+
+def test_an_unknown_power_definition_is_refused():
+    from coxswain.boats import catalog
+
+    with pytest.raises(ValueError, match="definition"):
+        mean_handle_power(catalog.single_scull(rate=30.0), samples=10, definition="pin")

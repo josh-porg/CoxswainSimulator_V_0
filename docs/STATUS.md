@@ -102,7 +102,9 @@ every boat to the pairs figure would take the single further from him.
 ### 3.5 `mean_handle_power` overstates handle power
 It dots the oarlock force with the handle velocity; on the ideal lever that reads
 ~1.46× a measured handle power for [BR24]'s rig. It converts every power scale in
-the shipped trainer, so any fix is a promotion question.
+the shipped trainer, so any fix is a promotion question. *2026-09-27:* `definition="handle"`
+now gives true handle power, (1 − r_h/L) of the oarlock figure; the default is unchanged, so
+switching a consumer is the promotion decision.
 
 ### 3.6 Receding-horizon leg does not reach 850 m; Route C does not converge
 Both unchanged since mid-September (SOURCES §27–33). Route C's slide travel is short

@@ -4272,6 +4272,10 @@ to.
 
 The measured stroke is commercial and stays in `data/local/biorow/`; every script prints derived numbers only.
 
+| what | where | pinned by |
+|---|---|---|
+| **Handle power by its real definition** (sprint 1 #6): `mean_handle_power(boat, definition="handle")` dots the handle force, (1 − r_h/L) of the oarlock force on [F09]'s ideal lever, with the handle velocity. The default `"oarlock"` is unchanged for the frozen trainer. | `coxswain/crew/exertion.py` | `tests/test_crew_effort.py::test_handle_power_definition_is_the_lever_share_of_the_oarlock_one` |
+
 ## Fixed
 
 | what it was | how it was found |

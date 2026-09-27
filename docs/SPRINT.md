@@ -39,7 +39,7 @@ stays frozen.
 
 | to do | in progress | done this sprint |
 |---|---|---|
-| 1 Hands on the handle · 2 Blade depth · 3 On-water driver · 4 Knee/ankle · 5 Entrainment · 7 Tier 3 infra · 8 Importer · 9 Stream field · 10 Piers | 6 Handle power | — |
+| 1 Hands on the handle · 3 On-water driver · 4 Knee/ankle · 5 Entrainment · 7 Tier 3 infra · 8 Importer · 9 Stream field · 10 Piers | 2 Blade depth | 6 Handle power — `mean_handle_power(definition="handle")`, (1 − r_h/L) of the oarlock figure; default unchanged; 2 tests |
 
 ## Findings that may unblock downstream items
 
