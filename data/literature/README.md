@@ -8,6 +8,7 @@ accuracy. Where a value was read off a figure rather than a table, the file says
 |---|---|---|
 | `grift2020_cd_vs_depth.csv` | Grift (2020) thesis Fig. 2.4 — plate C_D against immersion depth | §159 |
 | `grift2020_entrainment_rate.csv` | Grift (2020) thesis Fig. 2.11c — wake entrainment rate against acceleration | §159 |
+| `cr06_fig3_measured.csv` | Cabrera, Ruina & Kleshnev (2006) Fig. 3 — one women's single's measured boat velocity, handle force, leg and back displacement and oar angle; extracted from the open preprint's vector figure by `research/cr06/extract_fig3.py` | §§45–60 |
 | `kleshnev2005_onwater_vs_machines.csv` | Kleshnev (2005) ISBS, Table 1 — on-water single against two machines | §159 |
 
 Not here, deliberately:

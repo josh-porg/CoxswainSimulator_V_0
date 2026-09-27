@@ -3049,7 +3049,9 @@ little authority or the missing mechanism is elsewhere, such as more than
 2° of trunk lean.  Neither the learning gain nor the test thresholds
 should be tuned to hide it.
 
-### The [CR06] digitised traces were lost with the session scratchpad (2026-09-27)
+### The [CR06] digitised traces were lost with the session scratchpad (2026-09-27) — **rebuilt the same day**
+*Resolved:* `research/cr06/extract_fig3.py` re-extracts Fig. 3 from the open preprint's vector figure into the committed `data/literature/cr06_fig3_measured.csv` (all five series in one file). It reproduces the recorded checks: mean boat speed 4.190 m/s, velocity 3.061–5.126, leg travel 0.582 m, turn-round −44.36°. The old study scripts in `data/local/cr06_study/` read the two former files and need their paths pointed at it when rerun.
+
 **Impact: medium — the one-athlete studies (SOURCES §§45–60, the finish fix, 4.3a) cannot be rerun until rebuilt.**
 
 `cr06_fig3_measured.csv`, `cr06_fig3_body.csv` and the extraction script
