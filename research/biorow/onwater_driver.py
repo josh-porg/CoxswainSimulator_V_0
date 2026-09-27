@@ -101,12 +101,17 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--strokes", type=int, default=16)
     ap.add_argument("--arrival", type=float, default=None)
+    ap.add_argument("--trunk-lag", type=float, default=0.1,
+                    help="trunk sequencing lag (fraction of cycle); 0.1 fits the shared recovery")
     a = ap.parse_args()
     arrival = a.arrival if a.arrival is not None else fit_arrival()
+    lag = a.trunk_lag
     print("\n[BR24] at %.0f W: speed 4.641, IVV 49.1%%, CoM travel 0.71-0.74" % L.POWER)
     for name, b in (("ergometer body", boat(StrokeTiming(L.RATE), 1.0)),
                     ("on-water drive length", boat(OnWaterTiming(L.RATE), 1.0)),
-                    ("on-water driver (+ arrival %.1f)" % arrival, boat(OnWaterTiming(L.RATE), arrival))):
+                    ("on-water driver (+ arrival %.1f)" % arrival, boat(OnWaterTiming(L.RATE), arrival)),
+                    ("drive length + trunk lag %.1f" % lag, boat(OnWaterTiming(L.RATE), 1.0, lag)),
+                    ("ergometer timing + trunk lag %.1f" % lag, boat(StrokeTiming(L.RATE), 1.0, lag))):
         v, ivv, p, com = settle(b, a.strokes)
         print("  %-34s speed %.3f  IVV %.1f%%  power %.0f W  CoM travel %.3f  drive %.3f"
               % (name, v, 100 * ivv, p, com, b.timing.drive_fraction), flush=True)

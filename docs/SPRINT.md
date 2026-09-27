@@ -39,7 +39,7 @@ stays frozen.
 
 | to do | in progress | done this sprint |
 |---|---|---|
-| 1 Hands on the handle · 3 On-water driver · 4 Knee/ankle · 5 Entrainment · 7 Tier 3 infra · 9 Stream field · 10 Piers | 2 Blade depth | 8 NK LiNK importer — `ingest.py session --export`, reproduces race 1's parse exactly, keeps Empower fields; test on a synthetic snippet · 6 Handle power — `mean_handle_power(definition="handle")`, (1 − r_h/L) of the oarlock figure; default unchanged; 2 tests |
+| 4 Knee/ankle · 7 Tier 3 infra · 9 Stream field · 10 Piers | 5 Unsteady blade (moved up) — target set: his blade load at his kinematics, `research/biorow/blade_law_check.py` · 1 Hands on the handle — kinematic-drive reference built (`kinematic_drive.py`) and found blade-limited (§162); the constraint goes on the force-driven model | 8 NK LiNK importer — `ingest.py session --export`, reproduces race 1's parse exactly, keeps Empower fields; test on a synthetic snippet · 6 Handle power — `mean_handle_power(definition="handle")`, (1 − r_h/L) of the oarlock figure; default unchanged; 2 tests · 2 Blade depth — `coxswain/crew/blade_depth.py` (`BladeDepth`, Grift curve, `zero_offset` and `reference` named and swept), `DynamicOarSimulator.blade_depth`; worth ≤0.2 IVV points on [BR24] (SOURCES §162); 8 tests · 3 On-water driver — `OnWaterTiming` ([K05], predicts both athletes to 0.006), `Boat(sequencing=)`, `research/biorow/onwater_driver.py`; the shared features move IVV <1 point, not the ~2 hoped (§162); 5 tests |
 
 ## Findings that may unblock downstream items
 
@@ -49,3 +49,20 @@ stays frozen.
   the lever for the catch, the finish turn-round and the stretcher shortfall at once.
 - 2026-09-27: [BR24] carries a vertical oar angle → unblocks blade depth (#2) and with it the
   immersion refit that PHYSICS_PROGRAMME had blocked on data.
+- 2026-09-27, #2: blade depth from his vertical oar angle changes IVV by ≤0.2 points and speed
+  by ≤0.4% across every zero offset and normalisation → depth is not the catch; the immersion
+  refit is done for the dynamic oar and needs no more data for this purpose (SOURCES §162).
+- 2026-09-27, #3: the drive fraction and recovery swing the two on-water scullers share move
+  the model's own IVV by under a point (60.6 → 60.0–62.4%) → §160's 2 transferable points are
+  in the *drive's* shape her curves carry, not in the shared timing; #3's driver stays a
+  research option and the crew-timing share goes with #1 (SOURCES §162).
+- 2026-09-27, #1 reference: with his oar angle, blade depth and body all prescribed, no blade
+  law reaches him — slip 4.37 m/s / 350 W / 59%, C2 ×2 4.52 / 388 W / 57%, tier 2 4.46 / 341 W /
+  57%, against 4.64 / 432 W / 49%; a deeper blade is slower. The body is worth 2 IVV points,
+  nothing in speed (SOURCES §162).
+- 2026-09-27, the blade at his kinematics (`blade_law_check.py`): the slip law gives 37 N·s of
+  his 105 N·s drive impulse per oar; the best constant C2 at any centre of pressure (1.795–2.01 m)
+  73 of 94, half his force at 0.1 s and none after 0.75 s. His C_N(α) sits below tier 2 at the
+  catch and far above a steady plate mid-drive → **#5 (unsteady blade) moves ahead of #1**;
+  [BR24] is the measured load-and-velocity pair the tier 2 coefficient item was blocked on
+  (PHYSICS_PROGRAMME); the late-loading blade and the model oar's 11.5° lead are one fact.

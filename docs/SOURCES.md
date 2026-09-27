@@ -11560,3 +11560,107 @@ its slip build late; the oar-only balance hands the rower's whole effort to the 
 truth is between, and it is what phase 4.3's hands-on-handle constraint decides: how the
 rower's effort splits between moving the body and pulling the handle. The catch is a 4.3
 problem, which is also where [CR06]'s remaining catch dip was assigned (§ one-athlete test).
+
+
+## 162. Sprint 1 groundwork: blade depth, the on-water driver, and his blade at his kinematics (2026-09-27)
+
+Three sprint items run on [BR24] (logs in `data/local/biorow/`). Two close with small effects;
+the third moves the catch problem from the body back to the blade law.
+
+**Blade depth (#2, `coxswain/crew/blade_depth.py`, `depth_sweep.log`).** His vertical oar
+angle → blade cover → Grift's immersion curve (`data/literature/grift2020_cd_vs_depth.csv`),
+as a factor on the dynamic oar's blade load. Swept over the two named choices, the zero offset
+(±0.03 m) and the normalisation (`mean` keeps the fitted C2's level, `deep` uses Grift's 1.30):
+
+| depth setting | model body, model force | his body, his force |
+|---|---|---|
+| none (§158, §161) | 4.652 m/s, 61.0% | 56.0% |
+| mean, z₀ 0 | 4.662, 60.9% | 4.688, 56.0% |
+| deep, z₀ 0 | 4.648, 61.0% | 4.673, 56.2% |
+| mean, z₀ +0.03 | 4.657, 61.0% | 4.676, 56.1% |
+| mean, z₀ −0.03 | 4.663, 60.9% | 4.693, 56.0% |
+
+Depth moves IVV by ≤0.2 points and speed by ≤0.4% under every choice: it does not shape the
+catch in the force-driven model. A by-product fixes the zero: at BioRow's convention (V = 0
+puts the blade centre at the water line) his feathered blade clears the water on the recovery
+by exactly its half-width (V ≥ 3.1° from 0.98 to 1.85 s), so a squared blade would touch
+at any z₀ below 0. The convention is consistent with his data; z₀ = 0 stays.
+
+**On-water driver (#3, `research/biorow/onwater_driver.py`, `onwater_driver.log`).** What the
+two on-water scullers share (§160), built into the model's own dynamics at his 432 W, model
+force, catalogue arc:
+
+| crew timing | speed | IVV | CoM travel |
+|---|---|---|---|
+| ergometer body (drive 0.470) | 4.703 | 60.6% | 0.799 |
+| on-water drive length, `OnWaterTiming` (0.541) | 4.708 | 61.1% | 0.799 |
+| + recovery arrival 1.2 (fitted) | 4.701 | 62.4% | 0.796 |
+| drive length + trunk lag 0.1 (fitted to the shared recovery) | 4.665 | 61.4% | 0.798 |
+| ergometer drive + trunk lag 0.1 | 4.676 | 60.0% | 0.799 |
+
+The shared features move IVV by under a point and not reliably down. So §160's two
+transferable points are carried by the *shape* of her drive curves (seat and trunk through
+the drive), not by the drive length or the recovery swing the two athletes share. The driver
+stays a research option; no profile takes it. `OnWaterTiming` itself is sourced ([K05]) and
+predicts both athletes' drive fractions to 0.006.
+
+**The kinematic-drive reference (#1, `research/biorow/kinematic_drive.py`, `kinematic_drive*.log`).**
+[CR06]'s architecture on [BR24]: his oar angle, his vertical angle (wetted fraction, blade
+squared only while the oar turns in the drive direction) and his body re-timed onto his curves
+are all prescribed; the model's blade and hull turn them into speed and power. If blade and
+hull were right this would reproduce him and leave only the effort split for #1.
+
+| blade | z₀ | speed | IVV | dip | handle power |
+|---|---|---|---|---|---|
+| slip, research C2 | 0 | 4.374 | 59.0% | 3.02 at 0.100 s | 350 W |
+| slip, C2 × 2 | 0 | 4.521 | 57.0% | 3.10 at 0.094 | 388 W |
+| slip, C2 × 1, deeper z₀ −0.03 / −0.06 / −0.10 | | 4.240 / 4.122 / 3.987 | 60.3 / 61.5 / 62.9% | | 375 / 398 / 424 W |
+| tier 2 lift/drag (Big Blade) | 0 | 4.464 | 57.3% | 3.06 at 0.088 | 341 W |
+| model body instead of his, slip | 0 | 4.361 | 61.1% | 2.63 at 0.231 | 349 W |
+| **[BR24]** | | **4.641** | **49.1%** | **3.46 at 0.111** | **432 W** |
+
+No blade law turns his oar motion into his speed; a deeper blade is *slower*, because it
+wets the late drive where the slip law brakes. His body against the model's is worth 2 IVV
+points and the dip's timing, and nothing in speed: the speed deficit is the blade.
+
+**Why: the slip law at his kinematics (`research/biorow/blade_law_check.py`,
+`blade_law_check.log`).** No simulation: his blade normal force from the oar's balance about
+the pin (l F_n = r_h H + I φ̈, with his handle radius read from the data as handle speed / oar
+rate, 0.849 m), against the research slip law at his angle, rate and boat speed:
+
+| t after catch, s | 0.10 | 0.20 | 0.30 | 0.50 | 0.70 | 0.80 |
+|---|---|---|---|---|---|---|
+| his F_n, N | 70 | 110 | 143 | 196 | 116 | 37 |
+| slip law (research C2, wetted) | 21 | 32 | 95 | 150 | 20 | −24 |
+| normal slip, m/s | −0.49 | −0.48 | −0.81 | −1.03 | −0.38 | +0.47 |
+
+Drive impulse per oar: his 105 N·s, the slip law 37. The C2 his blade implies is not a
+constant (185–819 through the drive). The blade's centre of pressure is not measured, so it
+was swept from the blade centre (1.795 m) to the tip (2.01 m) with C2 refitted at each: the
+best constant-C2 law recovers at most 73 of 94 N·s (rms 36 N), gives 29–34 N at 0.1 s
+against his 70, and never pulls after 0.75 s where he still pulls 37 N. **A normal-slip law
+with one coefficient cannot reproduce his blade at his kinematics, at any centre of
+pressure.** The model has reached his pace only by turning its oar faster than he does,
+which is the 11.5° lead the ledger records and the "blade loads late" of §158–159: one fact.
+
+His coefficient against angle of attack (C_N = F_n / ½ρA|w|², w the blade centre's velocity
+through the water) is not quasi-steady either: at 0–30° (catch and finish) it is at or below
+the tier 2 curve (0.17 against 0.39 at 0.1 s, the [CR06] failure again), and at mid-drive,
+60–90°, it reaches 5.6–7.9 against the flat plate's steady ~2 and Coppel's moving-blade
+ceiling of ~3.3 ([CO10], ×1.67). Caveat, stated: the normal slip is the small difference of
+two ~4 m/s terms (l φ̇ and v cos φ), so a 5% error in boat speed at the pin or in the lever
+moves it ~0.2 m/s; the mid-drive coefficient is the least certain number here. The timing
+pattern (too little at the ends for the slip, too much in the middle) holds at every lever.
+
+**What this unblocks and re-orders.**
+- **#1 (hands on handle):** the kinematic drive cannot serve as the body-split reference
+  until the blade reproduces his load at his kinematics. #1's constraint will still be
+  built on the force-driven model (§161's oar balance), where his force is an input.
+- **#5 (entrainment / unsteady blade)** moves up: the deficit is a blade that loads with little
+  normal slip, which is what an unsteady (added-mass, start-up vortex) load does; Labbé's
+  L_c ≈ 0.13 m says the first 0.1 m of blade travel is added-mass dominated. It is tested
+  first against `blade_law_check.py` (seconds, no simulation), not in the full model.
+- **Tier 2 coefficients** (PHYSICS_PROGRAMME: blocked on a measured blade load and velocity
+  together): [BR24] is one. The measured C_N(α) above is the first target a tier 2 or
+  unsteady law has to meet on the water, with the lever as a named, swept choice.
+- **Blade depth** is done for this purpose: no more data needed.

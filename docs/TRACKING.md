@@ -3281,6 +3281,16 @@ oar, his force loads the blade early and the catch dip matches his (3.44 vs 3.46
 0.10 vs 0.11 s), though the boat then runs 3.9% fast. The split of the rower's effort between
 body and handle — phase 4.3's hands-on-handle constraint — is the fix.
 
+*2026-09-27, sprint 1 groundwork (SOURCES §162):* blade depth from his vertical oar angle
+moves IVV ≤0.2 points; the timing the two on-water scullers share moves it <1 point (so §160's
+transferable 2 points are the drive curves' shape). With his oar angle, blade depth and body
+all prescribed, no blade law reaches his speed (slip 4.37, tier 2 4.46 m/s against 4.64). At
+his own kinematics the slip law gives 37 of his 105 N·s of drive impulse per oar, and no
+constant C2 at any centre of pressure gives more than 78% of it, or his catch, or his finish.
+The catch deficit is the blade law after all — a blade that loads with little normal slip —
+and the oar balance of §161 is how the force-driven model compensates (its oar turns faster
+than his). Next: an unsteady blade load (sprint #5) tested against `blade_law_check.py`.
+
 ### The eight is validated only by inference
 Holt measured singles and pairs. The boat this project cares about most
 has no measured counterpart in the comparison.
@@ -4275,6 +4285,10 @@ The measured stroke is commercial and stays in `data/local/biorow/`; every scrip
 | what | where | pinned by |
 |---|---|---|
 | **Handle power by its real definition** (sprint 1 #6): `mean_handle_power(boat, definition="handle")` dots the handle force, (1 − r_h/L) of the oarlock force on [F09]'s ideal lever, with the handle velocity. The default `"oarlock"` is unchanged for the frozen trainer. | `coxswain/crew/exertion.py` | `tests/test_crew_effort.py::test_handle_power_definition_is_the_lever_share_of_the_oarlock_one` |
+| **NK LiNK export importer** (sprint 1 #8): `ingest.py session --export` reads CoxBox Core / SpeedCoach / CBGPS per-stroke exports into a session's `boat.csv`, keeping Empower oarlock fields. | `research/callmodel/ingest.py` | `research/callmodel/test_ingest.py::test_nk_export_round_trip` |
+| **Blade depth from a measured vertical oar angle** (sprint 1 #2): `BladeDepth` with Grift's immersion curve; `zero_offset` and `reference` named and swept; `DynamicOarSimulator.blade_depth` (default `None`, arithmetic unchanged) reaches every slip-law path. Worth ≤0.2 IVV points on [BR24]. | `coxswain/crew/blade_depth.py`, `coxswain/sim/dynamic_oar.py` | `tests/unit/test_blade_depth.py` (8); SOURCES §162 |
+| **On-water single-scull timing and the on-water driver** (sprint 1 #3): `OnWaterTiming` ([K05], predicts [BR24] and [CR06] to 0.006); `Boat(sequencing=)`; the driver study. The shared timing moves IVV <1 point. Research option, no profile. | `coxswain/crew/stroke.py`, `coxswain/boats/boat.py`, `research/biorow/onwater_driver.py` | `tests/unit/test_onwater_timing.py` (5); SOURCES §162 |
+| **Kinematic-drive reference and the blade-law check** (sprint 1 #1 groundwork): his oar angle, blade depth and body prescribed ([CR06]'s architecture); and the slip law evaluated on his kinematics with no simulation, with the centre of pressure swept and his C_N against attack angle. | `research/biorow/kinematic_drive.py`, `research/biorow/blade_law_check.py` | SOURCES §162 |
 
 ## Fixed
 

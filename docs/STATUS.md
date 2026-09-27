@@ -34,8 +34,8 @@ run 2026-09-27). The full suite, with the strict xfails that pin known model err
 | workstream | state | most recent | next |
 |---|---|---|---|
 | **Released trainer** | v0.13 (2026-09-11). Physics profile `shipped`, **frozen**: no accuracy change reaches it without a scorecard that justifies promotion | leg-mass placement fixed for research only, shipped left on `legacy` (2026-09-26) | nothing scheduled |
-| **Physics programme** (`research` profile) | phase 2 gate passed (dynamic oar, slip blade, 6-DOF hull); phase 3 tier 2 lift/drag wired as a study; phase 4.1 closed, **4.3 next** | [BR24] like-for-like runs (SOURCES §156–159) | an on-water crew driver; phase 4.3 |
-| **Like-for-like validation** | first athlete where rig, rate, power and boat response are one person's ([BR24], elite M1x); [CR06] traces rebuilt into `data/literature` | pace passes (+0.2%); IVV 61% vs 49% decomposed; hull drag verified; on-water timing transfers ~2 points between athletes | close the catch deficit (§3.1 below) |
+| **Physics programme** (`research` profile) | phase 2 gate passed (dynamic oar, slip blade, 6-DOF hull); phase 3 tier 2 lift/drag wired as a study; phase 4.1 closed, **4.3 next** | [BR24] like-for-like runs (SOURCES §156–159) | sprint 1: unsteady blade load against his measured blade (#5), then 4.3's hands on the handle (#1) |
+| **Like-for-like validation** | first athlete where rig, rate, power and boat response are one person's ([BR24], elite M1x); [CR06] traces rebuilt into `data/literature` | pace passes (+0.2%); IVV 61% vs 49% decomposed; hull drag verified; on-water timing transfers ~2 points between athletes | the blade at his kinematics: a slip law gives 35% of his drive impulse (§162) |
 | **Charles trajectory optimisation** | deterministic receding-horizon leg stalled near 409 m at the station-450 pinch; stochastic machinery solves per block | not revisited since 2026-09-13 (research wave drag wired into the optimisers) | resume after the physics settles |
 | **Coxing research** | foundations paper frozen 2026-09-23 for IJSSC; working copy revised with a coupled-process section; call/boat transformer pipeline built and validated on synthetic data | first run: no coupling either way on 3 races + 35 transcripts; the catch-call effect is explained by the boat's own history | more synchronised races (the pipeline takes them as folders) |
 | **Data requests** | 14 letters sent 2026-09-19 | replies: Formaggia (§4), Kleshnev (§2, data received), Buckeridge (§11c, referred to McGregor — draft ready); Grift (§9) partly answered by his open thesis | send the Kleshnev and McGregor drafts |
@@ -81,12 +81,16 @@ the seat peaks lower ([K05], [BRM]); ~1 is the pull shape; <1 is stroke averagin
 he delivers 55–111 N, under every blade law tried (slip, lift/drag at any amplitude,
 with or without added mass). Hull drag is not the cause. **Located (§161):** not the entry rate but the oar balance — with the rower's reflected
 inertia off the oar, his force reproduces his catch dip (3.44 vs 3.46 m/s), though the boat
-runs 3.9% fast. The fix is phase 4.3's split of effort between body and handle.
+runs 3.9% fast. **Re-located (§162, 2026-09-27):** evaluated on his own oar motion and boat
+speed, the slip law gives 37 of his 105 N·s of drive impulse per oar, and no constant C2 at any
+centre of pressure gives his catch or his finish. The model reaches his pace only by turning its
+oar faster than he does; the oar balance of §161 is how it compensates. The blade law — a blade
+that loads with little normal slip, i.e. an unsteady load — is the fix, then the body split.
 
 ### 3.2 The crew is driven by ergometer kinematics
 The cause of 3.1's crew share, and the motivation for phase 4. A sourced on-water
 driver now exists: [K05]'s segment travels and timings and [BR24]'s seat and trunk
-curves. Re-timing the model's body onto his curves recovers 4–5 points, but only about 2 of those transfer: driven by the [CR06] athlete's on-water timing instead, it recovers ~2 (SOURCES §160). What the two on-water scullers share — a drive of 0.53–0.54 of the cycle (model 0.47) and a later body swing on the recovery — is what the driver should encode; the drive's shape is individual.
+curves. Re-timing the model's body onto his curves recovers 4–5 points, but only about 2 of those transfer: driven by the [CR06] athlete's on-water timing instead, it recovers ~2 (SOURCES §160). What the two on-water scullers share — a drive of 0.53–0.54 of the cycle (model 0.47) and a later body swing on the recovery — is what the driver should encode; the drive's shape is individual. *Built and run (§162):* the shared drive length and recovery swing move IVV under a point, so the transferable part is the drive curves' shape; the driver stays a research option.
 
 ### 3.3 The finish
 The slip-release fix validated on [CR06]'s athlete does not transfer to [BR24]: his
