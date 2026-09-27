@@ -39,7 +39,7 @@ stays frozen.
 
 | to do | in progress | done this sprint |
 |---|---|---|
-| 4 Knee/ankle · 7 Tier 3 infra · 9 Stream field · 10 Piers | 5 Unsteady blade (moved up) — target set: his blade load at his kinematics, `research/biorow/blade_law_check.py` · 1 Hands on the handle — kinematic-drive reference built (`kinematic_drive.py`) and found blade-limited (§162); the constraint goes on the force-driven model | 8 NK LiNK importer — `ingest.py session --export`, reproduces race 1's parse exactly, keeps Empower fields; test on a synthetic snippet · 6 Handle power — `mean_handle_power(definition="handle")`, (1 − r_h/L) of the oarlock figure; default unchanged; 2 tests · 2 Blade depth — `coxswain/crew/blade_depth.py` (`BladeDepth`, Grift curve, `zero_offset` and `reference` named and swept), `DynamicOarSimulator.blade_depth`; worth ≤0.2 IVV points on [BR24] (SOURCES §162); 8 tests · 3 On-water driver — `OnWaterTiming` ([K05], predicts both athletes to 0.006), `Boat(sequencing=)`, `research/biorow/onwater_driver.py`; the shared features move IVV <1 point, not the ~2 hoped (§162); 5 tests |
+| 4 Knee/ankle · 7 Tier 3 infra · 9 Stream field · 10 Piers | 5 Unsteady blade (moved up) — target: his blade load at his kinematics (`blade_law_check.py`); added mass rejected, tier 2 form with lift 0.40–0.76 fits 89–96%; centre of pressure the swept choice (§162) · 1 Hands on the handle — kinematic-drive reference built (`kinematic_drive.py`) and found blade-limited (§162); the constraint goes on the force-driven model | 8 NK LiNK importer — `ingest.py session --export`, reproduces race 1's parse exactly, keeps Empower fields; test on a synthetic snippet · 6 Handle power — `mean_handle_power(definition="handle")`, (1 − r_h/L) of the oarlock figure; default unchanged; 2 tests · 2 Blade depth — `coxswain/crew/blade_depth.py` (`BladeDepth`, Grift curve, `zero_offset` and `reference` named and swept), `DynamicOarSimulator.blade_depth`; worth ≤0.2 IVV points on [BR24] (SOURCES §162); 8 tests · 3 On-water driver — `OnWaterTiming` ([K05], predicts both athletes to 0.006), `Boat(sequencing=)`, `research/biorow/onwater_driver.py`; the shared features move IVV <1 point, not the ~2 hoped (§162); 5 tests |
 
 ## Findings that may unblock downstream items
 
@@ -66,3 +66,10 @@ stays frozen.
   catch and far above a steady plate mid-drive → **#5 (unsteady blade) moves ahead of #1**;
   [BR24] is the measured load-and-velocity pair the tier 2 coefficient item was blocked on
   (PHYSICS_PROGRAMME); the late-loading blade and the model oar's 11.5° lead are one fact.
+- 2026-09-27, #5 first tests: added mass on normal acceleration fits negative (rejected); the
+  tier 2 form refitted to his normal load captures 89–96% of it with lift 0.40–0.76 (both
+  on-water athletes want ≪ 1.25); strip theory (derived) moves the centre of pressure to
+  1.86–1.93 m, a quarter of the gap. With the load at the tip (chosen) his kinematics give
+  4.600 m/s at 420 W — the kinematic drive is usable as #1's reference again. His *measured*
+  blade force on the model's hull and his body gives IVV 50.8% (his 49.1) but runs 5–12% fast:
+  the handle-force channel's propulsive scale is open → question 3 added to the Kleshnev draft.

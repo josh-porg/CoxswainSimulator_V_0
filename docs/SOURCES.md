@@ -11664,3 +11664,43 @@ pattern (too little at the ends for the slip, too much in the middle) holds at e
   together): [BR24] is one. The measured C_N(α) above is the first target a tier 2 or
   unsteady law has to meet on the water, with the lever as a named, swept choice.
 - **Blade depth** is done for this purpose: no more data needed.
+
+### Sprint #5, first tests: what his blade load is made of (2026-09-27, later)
+
+All in `research/biorow/blade_law_check.py` (no simulation) and `kinematic_drive.py`; logs
+`blade_law_check.log`, `kinematic_drive_fitted.log`.
+
+1. **Added mass on the blade's normal acceleration: rejected.** Fitted together with C2 to his
+   load, it comes out *negative* (−3 to −11 kg across the lever sweep); a physical ~10 kg
+   ([LB19]) would add load at the catch but brake at the finish, where he still pulls.
+2. **Tier 2's form, amplitudes refitted to his normal load**, describes him far better than
+   any slip law: A_l 0.76 / 0.52 / 0.40 and A_d 3.39 / 2.73 / 1.75 at levers 1.795 / 1.90 /
+   2.01 m, rms 62 / 39 / 25 N, drive impulse 89–96% of his, 53–62 N at 0.1 s (his 70). Both
+   on-water athletes now want lift well below [CG07]'s flume 1.25 ([CR06]: 0.25, 2026-09-18;
+   [BR24]: 0.40–0.76). Only the normal load is measured; the shaft load is unconstrained.
+3. **Strip theory (derived, nothing fitted):** the research C2 spread over the blade's span,
+   each strip loaded by its own slip squared. It moves the centre of pressure out to
+   1.86–1.93 m and the impulse from 37 to 46 N·s (his 105): the right direction, a quarter
+   of the way.
+4. **The centre of pressure is the lever that matters.** With the load at the blade tip
+   (2.01 m, a *chosen* value) and C2 refitted there (81), his prescribed oar angle, depth and
+   body give **4.600 m/s at 420 W (his 4.641 at 432)**, IVV 56.6%, dip 3.24 at 0.100 s; the
+   refitted tier 2 on normal load alone the same (4.587, 416 W, 56.6%); tier 2's shaft load
+   costs 0.11 m/s and adds 80 W. Independently, §156's whole-cycle momentum fit on his data
+   gave a propulsive lever ratio of 0.41, which is r_h / 2.07 m.
+5. **His measured blade force on the model's hull and body** (`--blade his`): IVV **50.8%**
+   (his 49.1%), dip 3.79 at 0.094 s, with his body; 53.1% with the model's body. Given his
+   force, the hull and his re-timed body reproduce his fluctuation to 1.7 points, so the
+   remaining gap in every other run is the force's time course, i.e. the blade. But the boat
+   runs 12% fast (5.215 m/s) with the load taken at the blade centre and 5.4% fast at the tip
+   (4.892): the propulsive scale of his handle-force channel is not closed by the rig's
+   geometry. His own books (lever ratio 0.41 with k 4.1 fitted; k 3.5 from his recovery)
+   point the same way. Asked of Kleshnev (DATA_REQUESTS §2, question 3, draft).
+
+**For the sprint.** #5's target is now concrete: a blade law whose normal load follows his
+through the drive at his kinematics, with the centre of pressure (and so the handle-force
+scale) as the named, swept choice until the channel is confirmed. The tier 2 form with
+reduced lift is the lead; a pure acceleration term is out. With the load at the tip the
+kinematic drive becomes usable as #1's reference: it isolates 7.5 IVV points (56.6 against
+49.1) that neither the blade's impulse nor the body's inertia explains alone — the force's
+early rise (29–34 N at 0.1 s against his 70) is the candidate.

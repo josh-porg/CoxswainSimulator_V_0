@@ -92,6 +92,8 @@ class KinematicOarSim(DynamicOarSimulator):
     def blade(self, t, state, slot, lock, angle, rate):
         """``(F_n, F_t)`` on one blade, times the wetted fraction: tier 1 (slip, no tangential
         load) or tier 2 (lift and drag on the angle of attack), per ``blade_law``."""
+        if self.his_force is not None:          # his measured blade load, no law at all
+            return float(self.his_force(self._tau(t))), 0.0
         wet = self._wetted(t)
         if wet <= 0.0:
             return 0.0, 0.0
@@ -100,7 +102,15 @@ class KinematicOarSim(DynamicOarSimulator):
             return wet * float(self._oars[slot].blade.normal_force(angle, rate, speed)), 0.0
         velocity = self._lock_velocity(state, lock)
         f_n, f_t = self._liftdrag[slot].loads(angle, rate, velocity[:2], int(lock.side))
-        return wet * f_n, wet * f_t
+        return wet * f_n, (wet * f_t if self.tangential else 0.0)
+
+    #: tier 2's load along the shaft; [BR24] measures only the normal load, so it can be
+    #: switched off to see what the normal load alone does
+    tangential = True
+
+    #: his measured blade normal load against time from the catch (blade_law_check.py), in
+    #: place of any blade law: the hull then answers to his force and the model's body alone
+    his_force = None
 
     def _oar_loads(self, t, state):
         force = np.zeros(3)
@@ -121,20 +131,36 @@ class KinematicOarSim(DynamicOarSimulator):
         return force, moment
 
 
-def run(strokes, body, c2_scale=1.0, zero=0.0, blade_law="slip"):
+def run(strokes, body, c2_scale=1.0, zero=0.0, blade_law="slip", amplitudes=None, tangential=True, lever=None):
     boat = L.build("arc")
     boat.power_scales = np.ones(boat.n_seats)
     angle, vert, speed, power = his_traces()
     field = None if body == "model" else MB.body_field(boat, back=True)[0]
-    sim = KinematicOarSim(boat, peak_torque=1.0, catch="rest", blade_law=blade_law,
+    sim = KinematicOarSim(boat, peak_torque=1.0, catch="rest", blade_law="slip" if blade_law == "his" else blade_law,
                           coxswain=Coxswain(rudder_override=lambda t, s: 0.0), fast=True)
     lock = boat.rig.seats[0].oarlocks[0]
     if c2_scale != 1.0:
         import dataclasses
         sim._oars = [dataclasses.replace(o, blade=dataclasses.replace(o.blade, c2=o.blade.c2 * c2_scale))
                      for o in sim._oars]
+    if amplitudes is not None:                   # tier 2 with (A_l, A_d) fitted, e.g. to his blade
+        import dataclasses
+        sim._liftdrag = [dataclasses.replace(b, lift_amplitude=amplitudes[0], drag_amplitude=amplitudes[1])
+                         for b in sim._liftdrag]
+    sim.tangential = tangential
+    if blade_law == "his":
+        import blade_law_check as BL
+        g, f_his, _w, _d, fin, _o = BL.main(lever, verbose="alpha")   # load = torque / lever
+        f = np.where(fin, f_his, 0.0)            # his load through the drive, none on the recovery
+        sim.his_force = CubicSpline(np.append(g, T), np.append(f, f[0]), bc_type="periodic")
+    centre = float(sim._oars[0].outboard)       # wetted fraction: the blade's centre, always
+    if lever is not None:                        # centre of pressure (chosen): slip and force point
+        import dataclasses
+        sim._oars = [dataclasses.replace(o, outboard=lever, blade=dataclasses.replace(o.blade, outboard=lever))
+                     for o in sim._oars]
+        sim._liftdrag = [dataclasses.replace(b, outboard=lever) for b in sim._liftdrag]
     oar = sim._oars[0]
-    sim.setup(angle, vert, float(oar.outboard), float(lock.oar.blade_area) / float(lock.oar.blade_length), zero)
+    sim.setup(angle, vert, centre, float(lock.oar.blade_area) / float(lock.oar.blade_length), zero)
     if field is not None:
         sim.crew_field = field
     out = sim.run_strokes(int(strokes), surge_speed=4.6)
@@ -169,14 +195,21 @@ def main():
     ap.add_argument("--strokes", type=int, default=12)
     ap.add_argument("--body", default="his", choices=["his", "model"])
     ap.add_argument("--c2-scale", default="1.0", help="comma list; multiplies the research scull C2")
-    ap.add_argument("--blade", default="slip", choices=["slip", "liftdrag"],
+    ap.add_argument("--blade", default="slip", choices=["slip", "liftdrag", "his"],
                     help="tier 1 slip law (C2 scaled by --c2-scale) or tier 2 lift/drag")
+    ap.add_argument("--amplitudes", default=None,
+                    help="A_l,A_d for --blade liftdrag (default [CG07]'s 1.25,2.07); "
+                         "blade_law_check.py fits 0.76,3.39 to [BR24] at the blade centre")
+    ap.add_argument("--lever", type=float, default=None,
+                    help="centre of pressure, m from the pin (chosen; default the blade centre)")
+    ap.add_argument("--no-tangential", action="store_true", help="tier 2 without its shaft load")
     ap.add_argument("--zero", default="0.0",
                     help="comma list, m: blade centre height at V = 0, BladeDepth.zero_offset (chosen; 0 = BioRow convention)")
     a = ap.parse_args()
     for sc, z in [(float(x), float(y)) for x in a.c2_scale.split(",") for y in a.zero.split(",")]:
-        r = run(a.strokes, a.body, sc, z, a.blade)
-        print(("%-8s" % a.blade) + "C2 x%.2f zero %+.2f " % (sc, z) + "kinematic drive, %-5s body speed %.3f  IVV %.1f%%  v min %.2f at %.3f s  v max %.2f  handle power %.0f W"
+        amp = tuple(float(x) for x in a.amplitudes.split(",")) if a.amplitudes else None
+        r = run(a.strokes, a.body, sc, z, a.blade, amp, not a.no_tangential, a.lever)
+        print(("%-8s" % (a.blade + ("" if not amp else " %.2f/%.2f" % amp) + (" n-only" if a.no_tangential else "") + ("" if a.lever is None else " l %.2f" % a.lever))) + "C2 x%.2f zero %+.2f " % (sc, z) + "kinematic drive, %-5s body speed %.3f  IVV %.1f%%  v min %.2f at %.3f s  v max %.2f  handle power %.0f W"
               % (a.body, r["speed"], 100 * r["ivv"], r["v_min"], r["t_min"], r["v_max"], r["power"]), flush=True)
     print("BR24                                        speed 4.641  IVV 49.1%%  v min 3.46 at 0.111 s  v max 5.74  handle power %.0f W"
           % r["his_power"])

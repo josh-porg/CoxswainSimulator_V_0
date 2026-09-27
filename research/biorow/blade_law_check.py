@@ -120,7 +120,7 @@ def lever_sweep():
     """The blade's centre of pressure is not measured: sweep it from the blade centre to
     the tip (a named choice), refit C2 at each, and see whether any constant C2 follows him."""
     print("\ncentre-of-pressure sweep (C2 refitted at each; his drive impulse per oar in brackets)")
-    print("  lever m   fitted C2   rms N   impulse fit / his   F at 0.1 s   F at 0.8 s (his 70, 37)")
+    print("\nlever m   fitted C2   rms N   impulse fit / his   F at 0.1 s   F at 0.8 s (his 70, 37)")
     for lev in (1.795, 1.85, 1.90, 1.95, 2.01):
         r = main(lev, verbose=False)
         print("  %.3f     %7.0f    %5.0f     %5.0f / %.0f      %6.0f       %6.0f"
@@ -140,7 +140,7 @@ def attack_angle_table(lever=None):
     use = fin & (wet > 0.9) & (q > 1.0)
     cn = f_his / np.where(q > 0, q, np.nan)
     print("\nhis blade's C_N against attack angle (fully wet; lever %s)" % ("blade centre" if lever is None else "%.3f" % lever))
-    print("  alpha deg   n    his C_N   tier 2 C_N   when (s)       normal slip")
+    print("\nalpha deg   n    his C_N   tier 2 C_N   when (s)       normal slip")
     for lo in range(0, 90, 10):
         m = use & (np.degrees(alpha) >= lo) & (np.degrees(alpha) < lo + 10)
         if m.sum() < 5:
@@ -150,10 +150,110 @@ def attack_angle_table(lever=None):
                  np.median(wn[m])))
     for x in (0.10, 0.20, 0.50, 0.70, 0.80):
         i = int(x / T * len(g))
-        print("  at %.2f s: alpha %4.1f deg, his C_N %.2f, tier 2 %.2f" % (x, np.degrees(alpha[i]), cn[i], cn2[i]))
+        print("\nat %.2f s: alpha %4.1f deg, his C_N %.2f, tier 2 %.2f" % (x, np.degrees(alpha[i]), cn[i], cn2[i]))
+
+
+def added_mass_fit():
+    """Sprint 1 #5, first test: F_n = C2 slip|slip| (driving sign) + m_a * d(slip)/dt, both
+    fitted by least squares to his blade over the wetted drive, the lever swept. Labbe et al.
+    (2019) give m_a ~ 10 kg for a scull blade (C_m 0.7); if the fit wants that order and
+    follows his catch, an acceleration term is the missing load."""
+    print("\nslip drag + added mass, both fitted (his blade, wetted drive)")
+    print("\nlever m   C2 fit   m_a fit kg   rms N   impulse fit / his   F at 0.1 / 0.8 s (his 70 / 37)")
+    for lev in (1.795, 1.90, 2.01):
+        g, f_his, wet, drive, fin, out = main(lev, verbose="alpha")
+        slip = 0.5 * (out["1"]["slip"] + out["2"]["slip"])
+        dslip = np.gradient(slip, g)
+        use = fin & (wet > 0.05)
+        X = np.column_stack([-slip * np.abs(slip) * wet, -dslip * wet])[use]
+        coef, *_ = np.linalg.lstsq(X, f_his[use], rcond=None)
+        fit = np.zeros_like(f_his)
+        fit[use] = X @ coef
+        dt = T / len(g)
+        rms = float(np.sqrt(np.mean((fit[fin] - f_his[fin]) ** 2)))
+        i1, i8 = int(0.1 / T * len(g)), int(0.8 / T * len(g))
+        print("  %.3f    %6.0f     %6.1f      %5.0f     %5.0f / %.0f          %4.0f / %4.0f"
+              % (lev, coef[0], coef[1], rms, np.sum(fit[fin]) * dt, np.sum(f_his[fin]) * dt,
+                 fit[i1], fit[i8]))
+
+
+def tier2_fit():
+    """Tier 2's form, C_N = A_l sin(2a) cos(a) + A_d sin^3(a), with both amplitudes fitted to
+    his blade (linear least squares on F_n = q C_N, wetted drive), the lever swept. Against
+    [CG07]'s Big Blade, A_l 1.25 and A_d 2.07."""
+    print("\ntier 2 amplitudes fitted to his blade (wetted drive)")
+    print("\nlever m   A_l fit   A_d fit   rms N   impulse fit / his   F at 0.1 / 0.8 s (his 70 / 37)")
+    for lev in (1.795, 1.90, 2.01):
+        g, f_his, wet, drive, fin, out = main(lev, verbose="alpha")
+        cols, use = [], fin & (wet > 0.05)
+        basis = []
+        for side in ("1", "2"):
+            a, q = out[side + "ld"]["alpha"], out[side + "ld"]["q"]
+            basis.append(np.column_stack([q * np.sin(2 * a) * np.cos(a), q * np.sin(a) ** 3]) * wet[:, None])
+        X = 0.5 * (basis[0] + basis[1])
+        coef, *_ = np.linalg.lstsq(X[use], f_his[use], rcond=None)
+        fit = np.where(use, X @ coef, 0.0)
+        dt = T / len(g)
+        rms = float(np.sqrt(np.mean((fit[fin] - f_his[fin]) ** 2)))
+        i1, i8 = int(0.1 / T * len(g)), int(0.8 / T * len(g))
+        print("  %.3f     %5.2f     %5.2f     %5.0f     %5.0f / %.0f          %4.0f / %4.0f"
+              % (lev, coef[0], coef[1], rms, np.sum(fit[fin]) * dt, np.sum(f_his[fin]) * dt,
+                 fit[i1], fit[i8]))
+
+
+def strip_theory(strips=41):
+    """The slip law integrated across the blade's span instead of read at its centre.
+
+    The normal slip l*phi_dot + v cos(phi) varies along the blade (near zero at the root when
+    the centre's is small, largest at the tip), and the load goes as its square, so the
+    centre-point law understates the load and puts it too far in. Per unit span the research
+    C2 is spread evenly over the blade length (a rectangular blade: the one chosen shape
+    here); each strip carries C2/L_b * slip(r)^2, signed to oppose its slip, and its moment
+    about the pin is r times that. Nothing is fitted."""
+    g, f_his, wet, drive, fin, out = main(None, verbose="alpha")
+    D = np.genfromtxt(L.DATA, delimiter=",", names=True)[:-1]
+    boat = L.build("arc")
+    sim = DynamicOarSimulator(boat, peak_torque=1.0, fast=True)
+    blade = sim._oars[0].blade
+    centre = float(sim._oars[0].outboard)
+    span = float(boat.rig.seats[0].oarlocks[0].oar.blade_length)
+    r = np.linspace(centre - 0.5 * span, centre + 0.5 * span, strips)
+    n = len(D)
+    t = np.arange(n) * T / n
+    k = int(np.argmin(0.5 * (D["A1"] + D["A2"])))
+    ph = np.mod(t - t[k], T)
+    o = np.argsort(ph)
+    ph = ph[o]
+    v = periodic(ph, D["Vs"][o])(g)
+    moment = np.zeros_like(g)
+    force = np.zeros_like(g)
+    for side in ("1", "2"):
+        ang = periodic(ph, np.radians(-D["A" + side][o]))
+        a, w = ang(g), ang(g, 1)
+        slip = r[None, :] * w[:, None] + (v * np.cos(a))[:, None]
+        dF = -np.sign(slip) * blade.c2 / span * slip ** 2
+        force += 0.5 * np.trapezoid(dF, r, axis=1)
+        moment += 0.5 * np.trapezoid(dF * r[None, :], r, axis=1)
+    force *= wet
+    moment *= wet
+    f_equiv = moment / centre                  # the load at the centre with the same moment
+    dt = T / len(g)
+    cop = np.where(np.abs(force) > 5, moment / np.where(force != 0, force, 1), np.nan)
+    print("\nstrip theory, research C2 %.1f spread over %.2f m of blade, nothing fitted" % (float(blade.c2), span))
+    print("\nt s    his F_n (at centre)   strip load   same-moment load at centre   centre of pressure m")
+    for x in (0.10, 0.20, 0.30, 0.50, 0.70, 0.80):
+        i = int(x / T * len(g))
+        print("  %.2f       %5.0f               %5.0f          %5.0f                        %s"
+              % (x, f_his[i], force[i], f_equiv[i], "%.2f" % cop[i] if np.isfinite(cop[i]) else "  -"))
+    print("\ndrive impulse per oar, N s: his %.0f   strip %.0f   same-moment %.0f   (centre-point law 37)"
+          % (np.sum(f_his[fin]) * dt, np.sum(force[fin]) * dt, np.sum(f_equiv[fin]) * dt))
+    print("\nrms against his, N: %.0f" % float(np.sqrt(np.mean((f_equiv[fin] - f_his[fin]) ** 2))))
 
 
 if __name__ == "__main__":
+    strip_theory()
     main()
     lever_sweep()
     attack_angle_table()
+    added_mass_fit()
+    tier2_fit()

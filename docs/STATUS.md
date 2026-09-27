@@ -85,7 +85,11 @@ runs 3.9% fast. **Re-located (§162, 2026-09-27):** evaluated on his own oar mot
 speed, the slip law gives 37 of his 105 N·s of drive impulse per oar, and no constant C2 at any
 centre of pressure gives his catch or his finish. The model reaches his pace only by turning its
 oar faster than he does; the oar balance of §161 is how it compensates. The blade law — a blade
-that loads with little normal slip, i.e. an unsteady load — is the fix, then the body split.
+that loads with little normal slip — is the fix, then the body split. *Same day:* driven by his
+measured blade force, the model's hull and his body swing 50.8% against his 49.1%, so hull and
+body are right and the gap is the blade's force time course. Tier 2's form with reduced lift
+(0.40–0.76) fits his blade load best; added mass is rejected; the centre of pressure and the
+propulsive scale of his handle-force channel are open (question to Kleshnev drafted).
 
 ### 3.2 The crew is driven by ergometer kinematics
 The cause of 3.1's crew share, and the motivation for phase 4. A sourced on-water

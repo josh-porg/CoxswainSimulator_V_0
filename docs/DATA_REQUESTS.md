@@ -609,7 +609,9 @@ rig, rate, segment motion and boat response belong to one athlete.
 *No longer blocked:* the origins turned out not to matter, and the frame and tracked
 point were inferred from the data (SOURCES §156): rower centre-of-mass travel 0.71–0.74 m
 relative to the hull. The reply below asks him to confirm that reading rather than to
-supply it.
+supply it. *2026-09-27:* question 3 added (handle-force measurement point) after the
+blade-at-his-kinematics tests (SOURCES §162) found the propulsive scale of that channel
+open. Draft still unsent.
 
 > Subject: Re: seat and trunk kinematics — thank you, and a few questions
 >
@@ -631,10 +633,16 @@ supply it.
 >    where this athlete's shoulder joint would be. Is that right, and which point is it?
 > 2. On that reading the rower's centre of mass travels about 0.72 m relative to the
 >    boat. Does that match what you'd expect for him?
-> 3. Were the 51 samples resampled from a higher native rate?
-> 4. Do you have this athlete, or a comparable one, at **other stroke rates**? How the
+> 3. **Handle force**: how is it measured, and at what point along the handle? Is it
+>    the component normal to the oar? Taken with the oar angle, the boat's momentum over
+>    the cycle wants a propulsive force of about 0.41 of the handle force, which puts the
+>    blade's effective centre of pressure near its tip (about 2.07 m from the pin against
+>    a blade centre of 1.80). I'd like to know whether that is the blade or my reading of
+>    the channel.
+> 4. Were the 51 samples resampled from a higher native rate?
+> 5. Do you have this athlete, or a comparable one, at **other stroke rates**? How the
 >    fluctuation changes with rate is the test the model most needs.
-> 5. How would you like the data cited?
+> 6. How would you like the data cited?
 >
 > I'll send you the model's result against this stroke once it's run.
 >
