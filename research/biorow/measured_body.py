@@ -50,8 +50,34 @@ D = np.genfromtxt(L.DATA, delimiter=",", names=True)
 i_catch = int(np.argmin(D["A1"][:-1]))
 
 
+#: Whose time-law drives the body: "br24" (his own curves) or "cr06" (the [CR06] athlete's,
+#: carried onto his catch -> finish -> catch clock, with his own travel). The second is the
+#: transfer test: does another on-water sculler's timing do what his own does?
+TIMELAW = "br24"
+
+
+def transferred_channel(name):
+    import timelaw_compare as TC
+    his = TC.curves(TC.athlete_br24())
+    her = TC.curves(TC.athlete_cr06())
+    ch = "leg" if name == "Ls" else "back"
+    a = TC.athlete_br24()
+    drive = (a["t_finish"] - a["t_catch"]) % a["T"]
+    s = np.linspace(0.0, 1.0, 4001, endpoint=False)
+    t = s * T                                              # time since his catch
+    g = np.where(t < drive, 0.5 * t / drive, 0.5 + 0.5 * (t - drive) / (T - drive))
+    c = np.interp(g, TC.G, her[ch]["split"], period=1.0)
+    k = int(np.argmin(c))
+    m = s[k]                                               # phase of the minimum, catch clock
+    c = np.roll(c, -k)
+    y = D[name][:-1]
+    return m, s, (c - c.min()) / np.ptp(c), float(np.ptp(y))
+
+
 def measured_channel(name):
     """His curve on the catch clock: (phase of its minimum, phase grid since it, normalised curve)."""
+    if TIMELAW == "cr06":
+        return transferred_channel(name)
     y = D[name][:-1]
     n = len(y)
     t = np.mod(np.arange(n) * T / n - np.arange(n)[i_catch] * T / n, T)
@@ -190,7 +216,11 @@ def main():
     ap.add_argument("--blade-law", default="slip", help="slip (tier 1) or liftdrag (tier 2)")
     ap.add_argument("--ld-scale", type=float, default=1.0, help="scale on both tier 2 amplitudes")
     ap.add_argument("--added-mass", default="none", help="none or patton (lift-drag only)")
+    ap.add_argument("--timelaw", default="br24", choices=["br24", "cr06"],
+                    help="whose seat and trunk timing drives the body (his travel either way)")
     a = ap.parse_args()
+    global TIMELAW
+    TIMELAW = a.timelaw
     hp, hv, _hF, _hA = S.his()
     print("BR24                         speed 4.641  IVV 49.1%%  v min %.2f at %.3f s  v max %.2f"
           % (hv.min(), hp[np.argmin(hv)], hv.max()))

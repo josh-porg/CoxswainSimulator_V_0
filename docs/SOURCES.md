@@ -11504,3 +11504,35 @@ torque is shared between the oar and the rower's reflected inertia in the model'
 balance at the catch (the "his force" builds put his whole handle force through the
 default balance, whose reflected crew inertia absorbs torque while the legs accelerate),
 and the entry itself (the research sweep catch). Neither is a blade coefficient.
+
+
+## 160. Does on-water timing transfer between scullers? (2026-09-27)
+
+Two measured on-water strokes now sit in `data/`: [BR24] (elite man, 32.4 spm; local) and
+[CR06] Fig. 3 (woman, 30.9 spm; `data/literature/cr06_fig3_measured.csv`, re-extracted from
+the open preprint's vector figure by `research/cr06/extract_fig3.py` after the scratchpad copy
+was lost; it reproduces the recorded mean boat speed of 4.190 m/s). `research/biorow/timelaw_compare.py`
+normalises each athlete's leg (seat–foot) and back (shoulder–seat) channel to 0–1, timed from
+the catch, on a split clock (drive and recovery each scaled to their own length).
+
+**What the two athletes share, and the ergometer body lacks:**
+- a longer drive by oar angle: **0.539 and 0.525** of the cycle against the model's 0.470
+  (and [K05]'s 54% on the water);
+- a later body swing on the recovery: at 0.7 of the split clock their trunks have returned
+  0.55 and 0.53 of their travel, the model's 0.35; the slide likewise starts later (0.93 / 0.94
+  against 0.87).
+
+**What they do not share: the drive's shape.** Leg rms difference between them 0.040 of travel,
+between her and the model 0.027; back 0.102 against 0.089. His early drive (seat 0.34 of its
+travel at 0.1, trunk 0.03) is legs-first; hers (0.23, 0.23) opens the trunk earlier than even
+the ergometer body. With n = 2 the drive shape is individual.
+
+**The transfer test** (`measured_body.py --timelaw cr06`): his model driven by *her* timing at
+*his* travel gives IVV 59.2% (model force) and 57.5% (his force), against 57.0% and 56.0% with
+his own timing and 61.0% with the ergometer body. Her timing recovers about 2 of the 4 points
+his own did; the dip moves to 0.29 s instead of his 0.11 s. So roughly half of §158's "crew
+timing" share is on-water timing that transfers, and half is his individual style.
+
+**For the on-water driver:** build it from what is shared — the drive fraction and the later
+recovery body swing — not from one athlete's curves; expect about 2 of the 12 IVV points from
+it. The catch (§158–159) remains the larger item.

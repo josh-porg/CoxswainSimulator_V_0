@@ -3269,6 +3269,12 @@ The model's blade still loads late under every law (1/45/122 N at 0.1/0.2/0.3 s 
 his 55/111/174). Remaining suspects: the oar balance's share of his handle torque at the
 catch (reflected crew inertia) and the sweep entry. Not a blade coefficient.
 
+*2026-09-27, the crew share split (SOURCES §160):* driving his model with the [CR06] athlete's
+on-water timing recovers about 2 of the 4 crew-timing points; the rest is his own legs-first
+style. What the two on-water scullers share against the ergometer body is a longer drive
+(0.53–0.54 vs 0.47) and a later body swing on the recovery. That is what an on-water driver
+should encode.
+
 ### The eight is validated only by inference
 Holt measured singles and pairs. The boat this project cares about most
 has no measured counterpart in the comparison.
