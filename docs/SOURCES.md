@@ -11417,7 +11417,9 @@ by up to ~1.7× — less than the 2.4× ([CR06]) and ~4.8× (§158) that fits wa
 ### [LB19] Labbé, Boucher, Clanet & Benzaquen (2019), *Physics of rowing oars*, New J. Phys. 21 093050
 Open access. Blade force = pressure drag + added mass on a cylinder of blade-width
 diameter and blade-length height; fitted **C_d = 2.0 ± 0.2, C_m = 0.7 ± 0.1**. For a
-scull blade that is ~10 kg of added mass (the repo's Patton value is 13.1). The
+scull blade that is ~22 kg of added mass (the repo's Patton value is 13.1). *Corrected
+2026-09-27 (§163): read from the rendered page, Ω = π ℓ_b² h_b / 4 with ℓ_b the span
+(diameter) and h_b the height; the earlier ~10 kg used the width as the diameter.* The
 characteristic length L_c = 2 C_m Ω / (S C_d) ≈ 0.13 m for a scull: the first ~0.1 m of
 blade travel is added-mass dominated, the rest drag dominated. Lift neglected.
 
@@ -11701,3 +11703,73 @@ span, Grift's immersion curve — with Coppel's full-scale and moving-blade corr
 sourced range to sweep, not a knob. [CR06], [BR24] and Holt validate it; none of them tunes
 it. The research profile's sculling C2, itself fitted to [CR06] alone, is the thing this is
 meant to replace, and its exclusivity guard with added mass is a symptom of that fit.
+
+
+## 163. A blade from sourced physics, validated on two athletes (2026-09-27)
+
+Sprint 1 #5 under the rules added the same day (SPRINT rules 5–6): the blade is built only
+from sourced or derived physics, and [BR24] and [CR06] validate it without tuning it. Code in
+`4c05578`; harness `research/blade/validate_blade.py`; logs `data/local/blade/`.
+
+**The parts, each off by default in `DynamicOarSimulator`:**
+- **Tier 2 amplitudes.** [CG07]'s quarter-scale flume (A_l 1.25, A_d 2.07), or corrected to
+  full size: [CO10] §3.5, CFD of the Big Blade at full-size Reynolds number, drag 0.49 lower
+  at 90° (35%), 0.29 at 45°, 0.13 at 20°, lift within 0.08 at 45° → (×1.0, ×0.65);
+  [ST09]'s plates as [CO10] reports them, lift −20%, drag −30% → (×0.8, ×0.7), primary not yet
+  read. `blade_coefficients="cg07" | "coppel" | "sliasas_tullis"`.
+- **Added mass.** Patton's AR-2 plate (13.1 kg on a scull Big Blade, potential flow) or
+  [LB19] eq. (3b), read from the rendered page: ρ C_m Ω with Ω = π ℓ_b² h_b / 4, C_m 0.7 ± 0.1
+  (21.8 kg). [LB19] measured C_m on a 7.0 × 4.7 cm blade (span/height 1.5) near the surface
+  over whole accelerations; a Big Blade is 2.0, so this is a stated extrapolation. My earlier
+  "~10 kg" for [LB19] used the blade width as the cylinder's diameter and was wrong.
+  Allowed with tier 2 now; still refused with the slip law's [CR06]-fitted C2.
+- **Strip integration** (`coxswain/crew/blade_strips.py`, derived): the same law per strip
+  across the span (the rig's blade length), load applied at the centre of pressure.
+  Exact limits tested (no rotation → the centre-point law; pure rotation → the closed form
+  and r_cp = ¾(r₂⁴ − r₁⁴)/(r₂³ − r₁³)).
+
+**Validation.** Each athlete's own rig, at their own measured handle power ([CR06]: 261 W, her
+Fig. 3 force read as both hands summed, per the 2026-09-14 checks), the research profile's
+crew and pull. Speed error against measured:
+
+| blade | [BR24] | [CR06] | mean | BR24 − CR06 | IVV BR24 / CR06 |
+|---|---|---|---|---|---|
+| research (slip, C2 fitted to [CR06]) | +0.2% | −3.1% | −1.5% | 3.3 | 61.0 / 60.0% |
+| [CG07] | +2.5 | −1.2 | +0.7 | 3.7 | 59.5 / 58.6 |
+| [CG07] + Patton | +4.3 | −0.3 | +2.0 | 4.6 | 58.3 / 58.0 |
+| [CG07] + [LB19] | +4.7 | −0.3 | +2.2 | 5.0 | 58.0 / 58.0 |
+| [CG07] + strips | +1.5 | −2.6 | −0.6 | 4.1 | 59.9 / 59.3 |
+| [CG07] + Patton + strips | +3.1 | −1.7 | +0.7 | 4.8 | 58.8 / 58.7 |
+| [CG07] + [LB19] + strips | +3.6 | −1.6 | +1.0 | 5.2 | 58.5 / 58.6 |
+| Coppel full size | +4.0 | −0.5 | +1.8 | 4.5 | 58.5 / 58.2 |
+| [ST09] plates | +1.9 | −1.8 | +0.1 | 3.7 | 59.7 / 58.9 |
+| Coppel + Patton | +5.4 | +0.5 | +3.0 | 4.9 | 57.8 / 57.7 |
+| Coppel + [LB19] | +5.7 | +0.5 | +3.1 | 5.2 | 57.6 / 57.6 |
+| Coppel + strips | +3.1 | −1.5 | +0.8 | 4.6 | 58.9 / 58.7 |
+| Coppel + Patton + strips | +4.5 | −0.5 | +2.0 | 5.0 | 58.2 / 58.2 |
+| Coppel + [LB19] + strips | +4.9 | −0.5 | +2.2 | 5.4 | 58.0 / 58.1 |
+| [ST09] + [LB19] + strips | +3.4 | −1.8 | +0.8 | 5.2 | 58.6 / 58.7 |
+| **measured** | 4.641 m/s | 4.191 m/s | | | **49.1 / 49.4%** |
+
+**What it says.**
+1. **Every sourced blade is within ±3% of the two athletes' mean, with nothing fitted.** The
+   physics-complete ones (full-size or flume coefficients, added mass, strips) sit at +0.8 to
+   +2.2%. The research profile's [CR06]-fitted C2 is not better across both (−1.5% mean, and
+   −3.1% on the athlete it was fitted to, once driven by the model's crew).
+2. **The two athletes differ by 3.3–5.4 points in every row**, [BR24] always the faster. No
+   blade physics removes it, so it is not the blade: candidates are the two power definitions
+   (BioRow's handle force × handle velocity against a digitised Fig. 3 force × s φ̇), the two
+   rigs and hulls, and the crew model's fit to each body. With n = 2 and that offset, the
+   athletes cannot choose between sourced blades to better than about ±2%. Holt's scorecard
+   (singles and pairs, many rates) is the next validation source to add.
+3. **IVV is 57.6–61.0% everywhere against ~49%.** Added mass, which is validated physics,
+   moves it the right way by 1–1.5 points; nothing else in the blade moves it more. With
+   §162's robust result (his measured force on the model's hull and body gives 50.8%), the
+   remaining ~8 points are the crew's force time course, not the blade.
+4. **Added mass beyond Patton's value changes little** (Patton and [LB19] within 0.4 points
+   on both), so the extrapolation in [LB19]'s C_m does not matter at this level.
+
+**Decision.** No default changes: the research profile keeps its blade until a scorecard
+across more than two athletes justifies a promotion. The sourced options stay available and
+named. The IVV gap moves to #1 (how the crew's effort reaches the handle), and the athlete
+offset is a validation question, not a blade one.

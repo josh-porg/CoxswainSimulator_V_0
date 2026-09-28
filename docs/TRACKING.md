@@ -3297,6 +3297,12 @@ him (added mass negative, lift 0.40–0.76, a tip centre of pressure) are single
 diagnostics and enter nothing (SPRINT rules 5–6). Next: a blade from sourced physics only
 ([CG07] + [LB19] added mass + strip integration + immersion), validated on both athletes.
 
+*2026-09-27, the sourced blade (§163):* 15 configurations of sourced or derived blade physics
+(flume or full-size coefficients, Patton or [LB19] added mass, strip integration), none
+fitted, settled at each athlete's measured power: all within ±3% of the two athletes' mean
+speed, and IVV 57.6–61% against ~49% in every one. Added mass moves IVV the right way by
+1–1.5 points. The blade is not where the IVV gap is; the crew's force time course is (#1).
+
 ### The eight is validated only by inference
 Holt measured singles and pairs. The boat this project cares about most
 has no measured counterpart in the comparison.
@@ -4295,6 +4301,7 @@ The measured stroke is commercial and stays in `data/local/biorow/`; every scrip
 | **Blade depth from a measured vertical oar angle** (sprint 1 #2): `BladeDepth` with Grift's immersion curve; `zero_offset` and `reference` named and swept; `DynamicOarSimulator.blade_depth` (default `None`, arithmetic unchanged) reaches every slip-law path. Worth ≤0.2 IVV points on [BR24]. | `coxswain/crew/blade_depth.py`, `coxswain/sim/dynamic_oar.py` | `tests/unit/test_blade_depth.py` (8); SOURCES §162 |
 | **On-water single-scull timing and the on-water driver** (sprint 1 #3): `OnWaterTiming` ([K05], predicts [BR24] and [CR06] to 0.006); `Boat(sequencing=)`; the driver study. The shared timing moves IVV <1 point. Research option, no profile. | `coxswain/crew/stroke.py`, `coxswain/boats/boat.py`, `research/biorow/onwater_driver.py` | `tests/unit/test_onwater_timing.py` (5); SOURCES §162 |
 | **Kinematic-drive reference and the blade-law check** (sprint 1 #1 groundwork): his oar angle, blade depth and body prescribed ([CR06]'s architecture); and the slip law evaluated on his kinematics with no simulation, with the centre of pressure swept and his C_N against attack angle. | `research/biorow/kinematic_drive.py`, `research/biorow/blade_law_check.py` | SOURCES §162 |
+| **Sourced blade options** (sprint 1 #5): [LB19] added mass beside Patton's (a sourced range), allowed with tier 2; strip integration across the span with the load at the centre of pressure; Coppel / [ST09] full-size tier 2 coefficients. All off by default, in the matched-torque cache key. Validation harness on [BR24] and [CR06], nothing fitted. | `coxswain/crew/blade_added_mass.py`, `coxswain/crew/blade_strips.py`, `coxswain/crew/liftdrag.py`, `coxswain/sim/dynamic_oar.py`, `research/blade/validate_blade.py` | `tests/test_blade_added_mass.py`, `tests/unit/test_blade_strips.py`, `test_blade_strips_sim.py`, `test_blade_coefficients.py`; SOURCES §163 |
 
 ## Fixed
 

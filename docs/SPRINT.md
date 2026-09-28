@@ -43,7 +43,7 @@ stays frozen.
 
 | to do | in progress | done this sprint |
 |---|---|---|
-| 4 Knee/ankle · 7 Tier 3 infra · 9 Stream field · 10 Piers | 5 Sourced blade (moved up) — [CG07] lift/drag + [LB19] added mass + strip integration + Grift immersion, nothing fitted; validated on [CR06], [BR24], Holt (§162, corrected) · 1 Hands on the handle — kinematic-drive reference built (`kinematic_drive.py`) and found blade-limited (§162); the constraint goes on the force-driven model | 8 NK LiNK importer — `ingest.py session --export`, reproduces race 1's parse exactly, keeps Empower fields; test on a synthetic snippet · 6 Handle power — `mean_handle_power(definition="handle")`, (1 − r_h/L) of the oarlock figure; default unchanged; 2 tests · 2 Blade depth — `coxswain/crew/blade_depth.py` (`BladeDepth`, Grift curve, `zero_offset` and `reference` named and swept), `DynamicOarSimulator.blade_depth`; worth ≤0.2 IVV points on [BR24] (SOURCES §162); 8 tests · 3 On-water driver — `OnWaterTiming` ([K05], predicts both athletes to 0.006), `Boat(sequencing=)`, `research/biorow/onwater_driver.py`; the shared features move IVV <1 point, not the ~2 hoped (§162); 5 tests |
+| 4 Knee/ankle · 7 Tier 3 infra · 9 Stream field · 10 Piers | 1 Hands on the handle — now carries the IVV gap (§163) · Holt scorecard as a third validation source for the sourced blade | 5 Sourced blade — built as options (`4c05578`): [LB19]/Patton added mass, strip integration, Coppel/[ST09] full-size coefficients; every sourced blade within ±3% of the two athletes' mean, nothing fitted; IVV untouched beyond 1.5 points (§163) ·  8 NK LiNK importer — `ingest.py session --export`, reproduces race 1's parse exactly, keeps Empower fields; test on a synthetic snippet · 6 Handle power — `mean_handle_power(definition="handle")`, (1 − r_h/L) of the oarlock figure; default unchanged; 2 tests · 2 Blade depth — `coxswain/crew/blade_depth.py` (`BladeDepth`, Grift curve, `zero_offset` and `reference` named and swept), `DynamicOarSimulator.blade_depth`; worth ≤0.2 IVV points on [BR24] (SOURCES §162); 8 tests · 3 On-water driver — `OnWaterTiming` ([K05], predicts both athletes to 0.006), `Boat(sequencing=)`, `research/biorow/onwater_driver.py`; the shared features move IVV <1 point, not the ~2 hoped (§162); 5 tests |
 
 ## Findings that may unblock downstream items
 
@@ -76,3 +76,8 @@ stays frozen.
   50.8% against 49.1% — hull and body are right; the blade's force time course is the gap.
   Derived: strip integration moves the centre of pressure to 1.86–1.93 m. Open: his handle-force
   scale (question 3 in the Kleshnev draft). #5 proceeds as a blade built only from sourced physics.
+- 2026-09-27, #5 built from sourced physics (§163): 15 configurations, none fitted, all within
+  ±3% of the mean of [BR24] and [CR06]; the athletes differ by 3.3–5.4 points in every row, so
+  n = 2 cannot choose between sourced blades → add Holt's scorecard as a third source. IVV stays
+  57.6–61% (measured ~49%): with §162's robust result, the gap is the crew's force time course →
+  **#1 carries it**. No default changed.

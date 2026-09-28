@@ -22,7 +22,7 @@ work studies coxing itself: what a coxswain's calls do to the boat.
 | [DATA_REQUESTS.md](DATA_REQUESTS.md) | letters to authors and labs, and their replies |
 | [SOURCES.md](SOURCES.md) | the evidence, numbered by section |
 
-Test suite: **1875 passing, 0 failing** in the fast lane (`pytest -m "not slow"`, 7 min 47 s,
+Test suite: **1916 passing, 0 failing** in the fast lane (`pytest -m "not slow"`, 11 min 17 s,
 run 2026-09-27). The full suite, with the strict xfails that pin known model errors
 (drive duration against on-water pairs, race pace without controlled power), was last run
 2026-09-12: 1771 passing, 14 expected failures.
@@ -34,7 +34,7 @@ run 2026-09-27). The full suite, with the strict xfails that pin known model err
 | workstream | state | most recent | next |
 |---|---|---|---|
 | **Released trainer** | v0.13 (2026-09-11). Physics profile `shipped`, **frozen**: no accuracy change reaches it without a scorecard that justifies promotion | leg-mass placement fixed for research only, shipped left on `legacy` (2026-09-26) | nothing scheduled |
-| **Physics programme** (`research` profile) | phase 2 gate passed (dynamic oar, slip blade, 6-DOF hull); phase 3 tier 2 lift/drag wired as a study; phase 4.1 closed, **4.3 next** | [BR24] like-for-like runs (SOURCES §156–159) | sprint 1: unsteady blade load against his measured blade (#5), then 4.3's hands on the handle (#1) |
+| **Physics programme** (`research` profile) | phase 2 gate passed (dynamic oar, slip blade, 6-DOF hull); phase 3 tier 2 lift/drag wired as a study; phase 4.1 closed, **4.3 next** | [BR24] like-for-like runs (SOURCES §156–159) | sprint 1: 4.3's hands on the handle (#1) for the IVV gap; Holt's scorecard as a third validation source for the sourced blade |
 | **Like-for-like validation** | first athlete where rig, rate, power and boat response are one person's ([BR24], elite M1x); [CR06] traces rebuilt into `data/literature` | pace passes (+0.2%); IVV 61% vs 49% decomposed; hull drag verified; on-water timing transfers ~2 points between athletes | the blade at his kinematics: a slip law gives 35% of his drive impulse (§162) |
 | **Charles trajectory optimisation** | deterministic receding-horizon leg stalled near 409 m at the station-450 pinch; stochastic machinery solves per block | not revisited since 2026-09-13 (research wave drag wired into the optimisers) | resume after the physics settles |
 | **Coxing research** | foundations paper frozen 2026-09-23 for IJSSC; working copy revised with a coupled-process section; call/boat transformer pipeline built and validated on synthetic data | first run: no coupling either way on 3 races + 35 transcripts; the catch-call effect is explained by the boat's own history | more synchronised races (the pipeline takes them as folders) |
@@ -90,7 +90,10 @@ measured blade force, the model's hull and his body swing 50.8% against his 49.1
 body are right and the gap is the blade's force time course. The fix is a blade built from
 sourced physics only ([CG07] lift/drag, [LB19] added mass, strip integration, immersion) and
 validated on both athletes — not coefficients fitted to one (the research sculling C2 is
-already a [CR06]-only fit). His handle-force scale is open (question to Kleshnev drafted).
+already a [CR06]-only fit). His handle-force scale is open (question to Kleshnev drafted). *Built and validated (§163):* every blade made from sourced physics
+(flume or full-size coefficients, Patton or [LB19] added mass, strip integration) settles within
+±3% of the two athletes' mean speed with nothing fitted, and none moves IVV more than 1.5 points.
+The IVV gap is the crew's force time course; phase 4.3 (#1) carries it.
 
 ### 3.2 The crew is driven by ergometer kinematics
 The cause of 3.1's crew share, and the motivation for phase 4. A sourced on-water
