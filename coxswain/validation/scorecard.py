@@ -201,7 +201,8 @@ def settle_dynamic(boat, watts: float, start: float,
                    blade_law: str = "slip",
                    blade_added_mass: str = "none",
                    blade_span: float = None,
-                   blade_coefficients: str = "cg07") -> Settled:
+                   blade_coefficients: str = "cg07",
+                   blade_depth=None) -> Settled:
     """Settle a dynamic-oar boat at a stated handle power per rower.
 
     Driven dead straight, as :func:`settle` is.  ``power_scales`` is set to
@@ -223,11 +224,11 @@ def settle_dynamic(boat, watts: float, start: float,
     torque = DynamicOarSimulator.torque_for_power(
         boat, float(watts), catch=catch, blade_law=blade_law, start=start,
         blade_added_mass=blade_added_mass, blade_span=blade_span,
-        blade_coefficients=blade_coefficients)
+        blade_coefficients=blade_coefficients, blade_depth=blade_depth)
     sim = DynamicOarSimulator(
         boat, peak_torque=torque, blade_law=blade_law, catch=catch,
         blade_added_mass=blade_added_mass, blade_span=blade_span,
-        blade_coefficients=blade_coefficients,
+        blade_coefficients=blade_coefficients, blade_depth=blade_depth,
         coxswain=Coxswain(rudder_override=lambda t, s: 0.0), fast=True)
     run = sim.run_strokes(int(strokes), surge_speed=float(start))
 

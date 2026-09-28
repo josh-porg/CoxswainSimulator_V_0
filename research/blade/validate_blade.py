@@ -53,16 +53,23 @@ BASES = {                       # blade law, tier 2 amplitudes
     "plates": ("liftdrag", "sliasas_tullis"),   # full-size correction, Sliasas & Tullis plates
 }
 MODIFIERS = ("patton", "labbe", "strips")
+#: "coverNN": the blade's top edge NN mm below the still surface through the whole drive, with
+#: Grift's measured C_D at that cover relative to his deep plate (data/literature). Meant for the
+#: coefficient sets measured without a free surface (Coppel's rigid-lid CFD); [CG07]'s flume
+#: already had its blade's top edge at the surface, so cover on "cg07" counts the surface twice.
 
 
 def parse(config):
     base, *mods = config.split("+")
-    if base not in BASES or any(m not in MODIFIERS for m in mods):
+    cover = [m for m in mods if m.startswith("cover")]
+    mods = [m for m in mods if not m.startswith("cover")]
+    if base not in BASES or any(m not in MODIFIERS for m in mods) or len(cover) > 1:
         raise SystemExit("unknown configuration %r: bases %s, modifiers %s"
                          % (config, ", ".join(BASES), ", ".join(MODIFIERS)))
     law, coefficients = BASES[base]
     mass = "patton" if "patton" in mods else ("labbe" if "labbe" in mods else "none")
-    return law, coefficients, mass, "strips" in mods
+    cover_m = float(cover[0][5:]) / 1000.0 if cover else None
+    return law, coefficients, mass, "strips" in mods, cover_m
 
 # [CR06] Table 1 and appendix A.5, singles
 CR06_T = 1.94
@@ -159,10 +166,18 @@ ATHLETES = {"br24": (br24_measured, br24_boat), "cr06": (cr06_measured, cr06_boa
 
 
 def row(boat, power, config, strokes):
-    law, coefficients, mass, strips = parse(config)
-    span = float(boat.rig.seats[0].oarlocks[0].oar.blade_length) if strips else None
+    law, coefficients, mass, strips, cover = parse(config)
+    oar = boat.rig.seats[0].oarlocks[0].oar
+    span = float(oar.blade_length) if strips else None
+    depth = None
+    if cover is not None:
+        from coxswain.crew.blade_depth import BladeDepth
+        depth = BladeDepth.constant_cover(cover, lever=float(oar.blade_centre_outboard),
+                                          width=float(oar.blade_area) / float(oar.blade_length),
+                                          reference="deep")
     s = settle_dynamic(boat, power, start=4.4, strokes=strokes, blade_law=law,
-                       blade_added_mass=mass, blade_span=span, blade_coefficients=coefficients)
+                       blade_added_mass=mass, blade_span=span, blade_coefficients=coefficients,
+                       blade_depth=depth)
     return s
 
 

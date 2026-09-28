@@ -86,6 +86,22 @@ class BladeDepth:
                    float(lever), float(width), **kw)
 
     @classmethod
+    def constant_cover(cls, cover: float, lever: float, width: float, **kw):
+        """A blade held at one cover through the whole drive: the top edge ``cover`` metres
+        below the still surface (0: at the surface; negative: piercing it)."""
+        centre = -(float(cover) + 0.5 * float(width))
+        if abs(centre) >= float(lever):
+            raise ValueError("a cover of %.3f m is not reachable on a %.3f m lever" % (cover, lever))
+        v = float(np.arcsin(centre / float(lever)))
+        return cls(np.array([0.0, 1.0]), np.array([v, v]), float(lever), float(width), **kw)
+
+    def key(self) -> tuple:
+        """Everything the factor depends on, for a cache key."""
+        return (np.asarray(self.progress, float).tobytes(),
+                np.asarray(self.vertical_angle, float).tobytes(), float(self.lever),
+                float(self.width), float(self.zero_offset), str(self.reference))
+
+    @classmethod
     def for_oar(cls, oar, progress, vertical_angle_deg, **kw):
         """From a rig ``Oar``: lever = blade centre, width = blade area / blade length."""
         width = float(oar.blade_area) / float(oar.blade_length)

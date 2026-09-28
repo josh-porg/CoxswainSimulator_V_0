@@ -83,6 +83,7 @@ Reference for one part of the code. Updated when that part changes.
 | *What the Boat Answers* — [artifact](https://claude.ai/artifact/228aScVzR5tgsQKNDrzizq) | the coxing paper's web version (2026-09-21, before the freeze and the coupled-process revision) | no — the paper's source is the reference |
 | *Mid-Morning Eight Forecast* — [artifact](https://claude.ai/artifact/C6SPydDt2jsSAgL89uRuqG) | race forecast for the crew | as needed for the crew |
 | *Four Weeks to the Charles* — [artifact](https://claude.ai/artifact/4Kxujd2tu1QsKSEFrtNEku) | the crew's training plan to the Head of the Charles — **not** the project plan | as needed for the crew |
+| *Model Compatibility Map* — [artifact](https://claude.ai/artifact/K9uBbGqnAHUW8ah1YveSjE) | every source, the code that implements it, whether a printed result is reproduced, and which catch, finish and blade options can run together (SOURCES §163–164) | **yes** — update when an option, a guard or a validation changes; source in `data/local/artifacts/model_compatibility_map.html` |
 | *Shell Model Validation* — [artifact](https://claude.ai/artifact/8pD9EBLo7VfVCvsSRnQv1m) | August validation snapshot | no — superseded by the ledger's checks table |
 | *Stroke-Resolved Steering* — [artifact](https://claude.ai/artifact/PKnatD2JmNp6t93YVScmqo) | August steering study | no — snapshot |
 

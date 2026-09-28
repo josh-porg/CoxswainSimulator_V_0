@@ -76,7 +76,8 @@ Limits, stated before they are measured
   a torque-driven state from there with the sweep's angle and rate.  On the
   eight at rate 28 that is about 4.7 degrees past the catch at -1.15 rad/s.
   With ``release="slip"`` both of [CR06]'s transitions run.  A study; clock
-  crew only, and not with blade added mass.
+  crew only.  It runs with blade added mass (angle release only; see
+  ``tests/test_blade_added_mass.py``).
 * ``blade_contact`` (the lost stroke length of an unset boat) is not wired
   here, and is refused rather than silently ignored.
 """
@@ -227,7 +228,7 @@ class DynamicOarSimulator(RowingSimulator):
                  crew: str = "clock", release: str = "angle",
                  blade_added_mass: str = "none", catch: str = "rest",
                  blade_span: float = None, blade_coefficients: str = "cg07",
-                 **kwargs):
+                 blade_depth=None, **kwargs):
         if blade_law not in self.BLADE_LAWS:
             raise ValueError("unknown blade law %r; this simulator runs %s"
                              % (blade_law, ", ".join(self.BLADE_LAWS)))
@@ -279,6 +280,8 @@ class DynamicOarSimulator(RowingSimulator):
             raise ValueError("blade coefficients apply to the tier 2 law only; "
                              "blade_law=%r" % (blade_law,))
         self.blade_coefficients = blade_coefficients
+        if blade_depth is not None:
+            self.blade_depth = blade_depth
         self.crew = crew
         self.release = release
         super().__init__(boat, **kwargs)
@@ -420,7 +423,8 @@ class DynamicOarSimulator(RowingSimulator):
                          strokes: int = 12, iterations: int = 3,
                          blade_added_mass: str = "none",
                          blade_span: float = None,
-                         blade_coefficients: str = "cg07") -> float:
+                         blade_coefficients: str = "cg07",
+                         blade_depth=None) -> float:
         """The peak handle torque at which each rower does ``watts``.
 
         Under the rest catch this is :meth:`peak_torque_for_power`, exactly:
@@ -444,7 +448,7 @@ class DynamicOarSimulator(RowingSimulator):
         if catch == "rest":
             return closed
         key = _match_key(boat, watts, catch, blade_law, blade_added_mass,
-                         blade_span, blade_coefficients)
+                         blade_span, blade_coefficients, blade_depth)
         if key in cls._MATCHED:
             return cls._MATCHED[key]
         from .control import Coxswain
@@ -456,6 +460,7 @@ class DynamicOarSimulator(RowingSimulator):
                       blade_law=blade_law, blade_added_mass=blade_added_mass,
                       blade_span=blade_span,
                       blade_coefficients=blade_coefficients,
+                      blade_depth=blade_depth,
                       coxswain=Coxswain(rudder_override=lambda t, s: 0.0),
                       fast=True)
             run = sim.run_strokes(int(strokes), surge_speed=speed)
@@ -1354,7 +1359,7 @@ def simulator_for(boat, **kwargs):
 
 
 def _match_key(boat, watts, catch, blade_law, added_mass="none",
-               blade_span=None, coefficients="cg07") -> tuple:
+               blade_span=None, coefficients="cg07", depth=None) -> tuple:
     """Everything a matched sweep-catch torque depends on, as a cache key.
 
     Two boats share a torque only if they would row the same stroke: same
@@ -1405,4 +1410,5 @@ def _match_key(boat, watts, catch, blade_law, added_mass="none",
             type(getattr(boat, "wave_table", None)).__name__,
             float(getattr(shallow, "depth", float("inf"))),
             float(watts), str(catch), str(blade_law), crew, str(added_mass),
-            None if blade_span is None else float(blade_span), str(coefficients))
+            None if blade_span is None else float(blade_span), str(coefficients),
+            None if depth is None else depth.key())

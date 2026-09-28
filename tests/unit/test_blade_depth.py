@@ -96,3 +96,26 @@ def test_a_depth_profile_reaches_the_hull_and_the_oar():
     sim.blade_depth = None
     _, acc_wet = sim._oar_rates(0.1, y[:STATE_SIZE], angles, rates)
     assert not np.allclose(acc_dry, acc_wet)
+
+
+def test_a_constant_cover_holds_its_cover_and_reads_grifts_value():
+    d = BladeDepth.constant_cover(0.0, lever=1.795, width=0.193, reference="deep")
+    assert float(d.cover(0.2)) == pytest.approx(0.0, abs=1e-12)
+    assert float(d.cover(0.9)) == pytest.approx(0.0, abs=1e-12)
+    assert float(d.factor(0.5)) == pytest.approx(1.10 / 1.30, rel=1e-9)   # top edge at the surface
+    with pytest.raises(ValueError):
+        BladeDepth.constant_cover(3.0, lever=1.795, width=0.193)
+
+
+def test_the_depth_is_a_constructor_option_and_in_the_cache_key():
+    from coxswain import physics
+    from coxswain.boats import catalog
+    from coxswain.sim.dynamic_oar import DynamicOarSimulator, _match_key
+    single = physics.resolve("research").apply(catalog.single_scull(rate=32.0))
+    d = BladeDepth.constant_cover(0.0, lever=1.795, width=0.193, reference="deep")
+    assert DynamicOarSimulator(single, peak_torque=100.0, blade_depth=d).blade_depth is d
+    assert DynamicOarSimulator(single, peak_torque=100.0).blade_depth is None
+    base = _match_key(single, 300.0, "sweep", "slip")
+    assert base != _match_key(single, 300.0, "sweep", "slip", "none", None, "cg07", d)
+    e = BladeDepth.constant_cover(0.01, lever=1.795, width=0.193, reference="deep")
+    assert d.key() != e.key()

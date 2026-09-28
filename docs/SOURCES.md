@@ -11773,3 +11773,46 @@ crew and pull. Speed error against measured:
 across more than two athletes justifies a promotion. The sourced options stay available and
 named. The IVV gap moves to #1 (how the crew's effort reaches the handle), and the athlete
 offset is a validation question, not a blade one.
+
+
+## 164. The blade near the surface: the puddle, and what the sources cover (2026-09-27)
+
+**Observation (Joshua, on the water):** a blade is not buried half a blade width. A puddle
+forms where the surface dips behind it, but the rear face is not exposed. [CO10] §3.6 says
+the same: "while the blade is completely submerged during a rowing stroke, it comes very
+close to the surface (within a few millimetres)", and cites Hoerner for surface-piercing
+plates having lower drag and lift coefficients (ventilation and wave formation).
+
+**What each source assumes about the surface.**
+- [G20] Fig. 2.4 (C_D against cover): Froude 0.2–0.3 by any length scale, "only very small
+  capillary waves" — no puddle. Top edge at the surface 1.10, 0.2 heights 1.60, deep 1.30.
+- [CG07]: quarter-scale flume, top edge at the surface, Froude ~1 at the flume speed.
+- [CO10] full size (Table 3.7): symmetry (rigid-lid) boundary at the surface — no free
+  surface at all. His free-surface CFD (§3.6) under-predicts the flume by 0.25–0.46 in C_D,
+  which he attributes to exaggerated ventilation.
+- A rowing blade: normal slip 0.5–1 m/s over a 0.215 m blade, Froude 0.35–0.7, surface drop
+  of order v²/2g = 1–5 cm: a visible puddle that does not uncover a 20 cm face. **No source
+  measures this regime.**
+- The shipped `BladeModel.cover` default of half a blade width (called Kleshnev's optimum)
+  is contradicted by both; it is used only when a study sets `boat.blade_cover`.
+
+**Test (`research/blade/validate_blade.py`, `coverNN` modifier; depth now a constructor
+option in the cache key).** Grift's cover factor relative to his deep plate, applied to
+Coppel's rigid-lid coefficients — the one set that carries no surface. Not applied to [CG07]
+(its flume already had the surface) or to the fitted C2 (fitted at her real depth).
+
+| configuration | no cover | top edge at surface | 10 mm cover |
+|---|---|---|---|
+| Coppel | +4.0 / −0.5 (mean +1.8) | +3.2 / −1.2 (**+1.0**) | +3.6 / −0.8 (+1.4) |
+| Coppel + Patton + strips | +4.5 / −0.5 (+2.0) | +4.0 / −1.0 (+1.5) | — |
+| Coppel + [LB19] + strips | +4.9 / −0.5 (+2.2) | +4.4 / −0.9 (+1.8) | +4.6 / −0.7 (+2.0) |
+
+Speed error [BR24] / [CR06]. The surface lowers the drive force the way the observation
+predicts, by 0.5–0.8 points of speed, and IVV by ≤0.3. It does not touch the 4–5 point gap
+between the athletes or the IVV gap. The factor is steep near the surface (0.85 at 0 mm,
+0.93 at 10 mm, 1.01 at 20 mm, 1.23 at Grift's 40 mm peak), so "within a few millimetres"
+matters to ±4%, and Grift's low-Froude curve is the only measured shape. A measurement at
+rowing Froude with a free surface is the data this needs (a DATA_REQUESTS candidate).
+
+**Map.** `Model Compatibility Map` (artifact): every source, its code, whether a printed result
+is reproduced, and which catch, finish and blade options can run together.
