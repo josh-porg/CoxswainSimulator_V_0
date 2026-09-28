@@ -3290,12 +3290,12 @@ constant C2 at any centre of pressure gives more than 78% of it, or his catch, o
 The catch deficit is the blade law after all — a blade that loads with little normal slip —
 and the oar balance of §161 is how the force-driven model compensates (its oar turns faster
 than his). Next: an unsteady blade load (sprint #5) tested against `blade_law_check.py`.
-*Later the same day (§162, #5 first tests):* added mass is rejected (fits negative); tier 2's
-form refitted to his normal load captures 89–96% of it (lift 0.40–0.76 against the flume's
-1.25); the centre of pressure is the lever that matters — at the tip his kinematics give
-4.600 m/s at 420 W. Driven by his *measured* blade force, the model's hull and his body swing
-50.8% against his 49.1%: body and hull are right to 1.7 points, and the gap is the blade's
-force time course. Open: his handle-force channel's propulsive scale (that run is 5–12% fast).
+*Later the same day (§162, #5 first tests, corrected):* the robust result needs no fit —
+driven by his *measured* blade force, the model's hull and his body swing 50.8% against his
+49.1%, so hull and body are right and the gap is the blade's force time course. The fits to
+him (added mass negative, lift 0.40–0.76, a tip centre of pressure) are single-athlete
+diagnostics and enter nothing (SPRINT rules 5–6). Next: a blade from sourced physics only
+([CG07] + [LB19] added mass + strip integration + immersion), validated on both athletes.
 
 ### The eight is validated only by inference
 Holt measured singles and pairs. The boat this project cares about most

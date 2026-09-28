@@ -87,9 +87,10 @@ centre of pressure gives his catch or his finish. The model reaches his pace onl
 oar faster than he does; the oar balance of §161 is how it compensates. The blade law — a blade
 that loads with little normal slip — is the fix, then the body split. *Same day:* driven by his
 measured blade force, the model's hull and his body swing 50.8% against his 49.1%, so hull and
-body are right and the gap is the blade's force time course. Tier 2's form with reduced lift
-(0.40–0.76) fits his blade load best; added mass is rejected; the centre of pressure and the
-propulsive scale of his handle-force channel are open (question to Kleshnev drafted).
+body are right and the gap is the blade's force time course. The fix is a blade built from
+sourced physics only ([CG07] lift/drag, [LB19] added mass, strip integration, immersion) and
+validated on both athletes — not coefficients fitted to one (the research sculling C2 is
+already a [CR06]-only fit). His handle-force scale is open (question to Kleshnev drafted).
 
 ### 3.2 The crew is driven by ergometer kinematics
 The cause of 3.1's crew share, and the motivation for phase 4. A sourced on-water
