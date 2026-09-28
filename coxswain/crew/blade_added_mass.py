@@ -59,3 +59,33 @@ def patton_added_mass(length: float, width: float, density: float) -> float:
             "Patton's coefficient is for an aspect-ratio-2 plate; this blade "
             "is %.2f (%.3f x %.3f m)" % (aspect, length, width))
     return PATTON_AR2 * np.pi * density / 4.0 * length * width ** 2
+
+
+#: Labbe, Boucher, Clanet & Benzaquen (2019) [LB19], eq. (3b): added-mass
+#: coefficient fitted to a blade driven at constant force in a basin,
+#: C_m = 0.7 +- 0.1 (appendix A, figure A1(d)).
+LABBE_CM = 0.7
+LABBE_CM_UNCERTAINTY = 0.1
+
+
+def labbe_added_mass(length: float, width: float, density: float,
+                     c_m: float = LABBE_CM) -> float:
+    r"""``rho C_m Omega`` with ``Omega = pi S l_b / 4`` and ``S = l_b h_b``, kg.
+
+    [LB19] eq. (3b), read from the rendered page: ``Omega`` is the volume of
+    the cylinder whose diameter is the blade's span ``l_b`` (here the rig's
+    ``blade_length``, along the shaft) and whose height is the blade's
+    height ``h_b`` (the face width).  On a scull Big Blade, 0.43 x 0.215 m,
+    that is about 22 kg against Patton's 13.
+
+    **Stated extrapolation.**  C_m was measured on a 7.0 x 4.7 cm blade,
+    span-to-height 1.5, near the free surface and over whole accelerations,
+    so it includes whatever entrainment built up in that time; a Big Blade
+    is 2.0.  Patton's coefficient is potential flow at exactly this aspect
+    ratio in unbounded fluid.  The two bracket the sourced range and are
+    swept, not chosen between.
+    """
+    length, width, density = float(length), float(width), float(density)
+    if length <= 0.0 or width <= 0.0 or density <= 0.0:
+        raise ValueError("blade length, width and water density must be positive")
+    return float(c_m) * density * np.pi * length * length * width / 4.0

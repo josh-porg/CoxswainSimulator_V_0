@@ -93,6 +93,26 @@ class LiftDragBlade:
                   density: float = 1000.0) -> "LiftDragBlade":
         return cls(1.25, 2.07, area, outboard, density)
 
+    #: Full-size corrections to the quarter-scale flume amplitudes, (lift, drag) factors.
+    #: ``"coppel"``: [CO10] Table 3.7, CFD of the Big Blade itself at full-size Reynolds
+    #: number -- drag 0.49 lower at 90 deg (35%), lift within 0.08 at 45 deg, so (1.0, 0.65).
+    #: ``"sliasas_tullis"``: [ST09]'s flat plates sized as quarter-scale and full-size
+    #: blades -- 20% lower lift and 30% lower drag, so (0.8, 0.7) -- as reported by [CO10]
+    #: section 3.5; the primary is not yet read against it. The two are the sourced range;
+    #: neither is chosen over the other.
+    FULL_SCALE = {"coppel": (1.0, 0.65), "sliasas_tullis": (0.8, 0.7)}
+
+    @classmethod
+    def big_blade_full_scale(cls, outboard: float, area: float = 0.11,
+                             density: float = 1000.0,
+                             source: str = "coppel") -> "LiftDragBlade":
+        """The Big Blade's [CG07] amplitudes corrected to full size by ``source``."""
+        if source not in cls.FULL_SCALE:
+            raise ValueError("unknown full-scale source %r; known: %s"
+                             % (source, ", ".join(cls.FULL_SCALE)))
+        lift, drag = cls.FULL_SCALE[source]
+        return cls(1.25 * lift, 2.07 * drag, area, outboard, density)
+
     @classmethod
     def macon(cls, outboard: float, area: float = 0.11,
               density: float = 1000.0) -> "LiftDragBlade":

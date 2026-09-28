@@ -160,3 +160,58 @@ def test_added_mass_changes_the_oar_mid_drive(eight):
     without = default.derivative(0.1, y)[STATE_SIZE + n]
     with_mass = coupled.derivative(0.1, y)[STATE_SIZE + n]
     assert abs(with_mass - without) > 0.05 * abs(without), (without, with_mass)
+
+
+# -- the sourced range: Labbe et al. (2019) beside Patton -------------------
+
+def test_labbes_added_mass_is_their_cylinder_volume():
+    """[LB19] eq. (3b): rho C_m pi l_b^2 h_b / 4, span l_b, height h_b."""
+    from coxswain.crew.blade_added_mass import LABBE_CM, labbe_added_mass
+
+    scull = labbe_added_mass(0.43, BIG_BLADE_WIDTH["scull"], 999.1)
+    assert scull == pytest.approx(LABBE_CM * 999.1 * np.pi * 0.43 ** 2 * 0.215 / 4)
+    assert scull == pytest.approx(21.8, abs=0.1)
+    # their own test blade, 7.0 x 4.7 cm: the coefficient's home
+    assert labbe_added_mass(0.070, 0.047, 1000.0) == pytest.approx(
+        0.7 * 1000.0 * np.pi * 0.070 ** 2 * 0.047 / 4)
+    with pytest.raises(ValueError):
+        labbe_added_mass(0.43, 0.0, 999.1)
+
+
+def test_the_two_sources_bracket_a_range_on_a_big_blade():
+    from coxswain.crew.blade_added_mass import labbe_added_mass
+
+    patton = patton_added_mass(0.43, BIG_BLADE_WIDTH["scull"], 999.1)
+    labbe = labbe_added_mass(0.43, BIG_BLADE_WIDTH["scull"], 999.1)
+    assert 1.5 < labbe / patton < 1.9
+
+
+def test_labbe_is_a_simulator_option(eight):
+    sim = DynamicOarSimulator(eight, peak_torque=600.0, blade_added_mass="labbe")
+    patton = DynamicOarSimulator(eight, peak_torque=600.0, blade_added_mass="patton")
+    assert sim._blade_mass[0] > patton._blade_mass[0] > 0.0
+
+
+def test_the_fitted_scull_c2_excludes_added_mass_only_under_the_slip_law():
+    """The fitted C2 absorbed [CR06]'s whole load, so the slip law may not
+    add a blade mass on top of it; tier 2 does not use that C2, so it may."""
+    from coxswain import physics
+    from coxswain.boats import catalog
+
+    single = physics.resolve("research").apply(catalog.single_scull(rate=32.0))
+    assert getattr(single, "scull_c2", None)
+    with pytest.raises(ValueError, match="exclusive"):
+        DynamicOarSimulator(single, peak_torque=100.0, blade_added_mass="labbe")
+    sim = DynamicOarSimulator(single, peak_torque=100.0, blade_law="liftdrag",
+                              blade_added_mass="labbe")
+    assert sim._blade_mass[0] > 0.0
+
+
+def test_matched_torques_do_not_share_a_cache_entry_across_added_mass(eight):
+    from coxswain.sim.dynamic_oar import _match_key
+
+    base = _match_key(eight, 380.0, "sweep", "slip")
+    assert base == _match_key(eight, 380.0, "sweep", "slip", "none")
+    assert base != _match_key(eight, 380.0, "sweep", "slip", "patton")
+    assert (_match_key(eight, 380.0, "sweep", "liftdrag", "patton")
+            != _match_key(eight, 380.0, "sweep", "liftdrag", "labbe"))

@@ -198,7 +198,10 @@ def _drag_at(sim, boat, speed: float) -> float:
 
 def settle_dynamic(boat, watts: float, start: float,
                    strokes: int = SETTLE_STROKES,
-                   blade_law: str = "slip") -> Settled:
+                   blade_law: str = "slip",
+                   blade_added_mass: str = "none",
+                   blade_span: float = None,
+                   blade_coefficients: str = "cg07") -> Settled:
     """Settle a dynamic-oar boat at a stated handle power per rower.
 
     Driven dead straight, as :func:`settle` is.  ``power_scales`` is set to
@@ -218,9 +221,13 @@ def settle_dynamic(boat, watts: float, start: float,
     boat.power_scales = np.ones(boat.n_seats)
     catch = physics.resolve(getattr(boat, "physics_profile", None)).catch
     torque = DynamicOarSimulator.torque_for_power(
-        boat, float(watts), catch=catch, blade_law=blade_law, start=start)
+        boat, float(watts), catch=catch, blade_law=blade_law, start=start,
+        blade_added_mass=blade_added_mass, blade_span=blade_span,
+        blade_coefficients=blade_coefficients)
     sim = DynamicOarSimulator(
         boat, peak_torque=torque, blade_law=blade_law, catch=catch,
+        blade_added_mass=blade_added_mass, blade_span=blade_span,
+        blade_coefficients=blade_coefficients,
         coxswain=Coxswain(rudder_override=lambda t, s: 0.0), fast=True)
     run = sim.run_strokes(int(strokes), surge_speed=float(start))
 
