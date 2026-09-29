@@ -11816,3 +11816,65 @@ rowing Froude with a free surface is the data this needs (a DATA_REQUESTS candid
 
 **Map.** `Model Compatibility Map` (artifact): every source, its code, whether a printed result
 is reproduced, and which catch, finish and blade options can run together.
+
+
+## 165. Reproducing the sources, and closing the map's clashes (2026-09-29)
+
+The Model Compatibility Map (§164) listed which paper-derived models were only transcribed
+and which combinations ran with contradictory assumptions. This pass checks each model against
+a number its source prints, and turns the clashes into refusals.
+
+**Reproduced against the paper** (tests in `tests/unit/test_paper_reproduction_blade.py` and
+`test_paper_reproduction_cr06.py`; data in `data/literature/`):
+
+| source | printed | ours |
+|---|---|---|
+| [CR06] Model 1, trial (c): leg, back and oar motion prescribed, Table 2.7 constants | 3.83 m/s (measured 4.18) | **3.80 m/s** on her measured stroke; 3.797–3.800 for 8–16 Fourier harmonics (`research/cr06/reproduce_model1.py`) |
+| [CR06], their fitted C2 (2.4×, p. 1045) | better fit | 4.13 m/s against her 4.19 |
+| [CG07] Big Blade, measured C_L and C_D (Coppel's replot, Figs 3.19–3.20, digitised by marker centroid) | peaks 1.24 at 45°, 2.06 at 90° | tier 2 (A_l 1.25, A_d 2.07): rms 0.07 in C_L, 0.10 in C_D over 0–90° |
+| [CO10] Table 3.7, full size against quarter scale | differences 0.13 / 0.29 / 0.49 in C_D at 20 / 45 / 90° | Figs 3.25–3.26 read at those angles reproduce them to 0.03 |
+| [G20] abstract and Fig. 2.4 | +45% at 1/5 plate height; fence 1.10, deep 1.30 | 1.45, 1.10, 1.30 |
+| Patton, as [G20] eq. 2.4 prints it | 1.3 kg for a 0.2 × 0.1 m plate | 1.319 kg |
+| [LB19] eq. 3b | no value printed | formula checked on their own blade; their coxless-four results need hull data we lack |
+
+**Two findings from reproducing.**
+1. **The tier 2 shapes reproduce the flume.** The [CG06a] sine interpolation is within the
+   spread of Coppel's own CFD at every angle [CG07] measured. What fails is the on-water catch:
+   the flume has no point below 20°, and both [CR06] and [BR24] load less there than the
+   shapes predict. The failure is recorded as on-water, not as a transcription error.
+2. **My full-size correction was misread.** [CO10]'s "35%" at 90° is 0.49 of the *full-size*
+   value (1.36), so full size is 0.735 of quarter scale, not 0.65; and lift falls most at small
+   angles (0.73 at 20°, 0.93 at 45°), which a scalar cannot carry. `FULL_SCALE["coppel"]` is
+   now the per-angle ratio table from the digitised curves. Rerun on both athletes:
+
+| Coppel configuration | [BR24] | [CR06] | mean |
+|---|---|---|---|
+| Coppel | +2.1% | −1.7% | +0.2 |
+| + Patton | +3.8 | −0.9 | +1.5 |
+| + [LB19] | +4.1 | −1.0 | +1.6 |
+| + strips | +1.2 | −2.7 | −0.8 |
+| + [LB19] + strips | +3.4 | −1.9 | +0.8 |
+| + top edge at the surface | +1.3 | −2.4 | −0.6 |
+| + [LB19] + strips + surface | +2.5 | −2.4 | +0.1 |
+
+These replace the Coppel rows of §163 and §164. The surface still lowers the mean by about
+0.7 points; the athletes still differ by 3.7–5 points; IVV stays 58–60%.
+
+**One more sourced near-surface value.** [CR06]'s nominal C2 is Hoerner's drag coefficient
+(1.3) for a flat plate "completely submerged but the top edge of the plate just below the
+free surface", at Froude 0.64 — the condition of §164's observation, at rowing Froude number.
+It is a single value, not a curve, but it is the only measured near-surface number in hand.
+
+**Clashes now refused by the code** (`DynamicOarSimulator`; `blade_depth` is now a checked
+property, so assignment after construction is refused too):
+- a deep-referenced depth on the fitted sculling C2, on [CG07], or on [ST09] (each already
+  carries a surface); a shape-only (`"mean"`) depth is allowed;
+- strip integration with the fitted sculling C2 (fitted with the centre-point read).
+
+**Stale records fixed.** The [CR06] finish-fix study is ported to `research/cr06/` on the
+committed data (it read files lost with the old scratchpad). Rerun: release 0.905 s at −38.7°
+against her 0.894 s, −39.1°; turn-round 1.075 s against her 1.025 s; oar angle rms 2.3° over
+0.80–1.10 s (was 9.0°); hull 4.113 m/s (−1.9%). The release is closer than recorded on
+14 Sep, the turn-round 0.05 s later; the data and the model have both moved since. The paper
+test's pointer to a missing `docs/validation.md` now points to the map; the
+`BladeModel.cover` comment no longer presents half a blade width as typical.

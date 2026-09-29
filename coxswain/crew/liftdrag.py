@@ -87,20 +87,32 @@ class LiftDragBlade:
     #: Outboard, pin to centre of pressure, m.
     outboard: float = 2.28
     density: float = 1000.0
+    #: Optional per-angle correction, ``(angles_deg, lift_ratios, drag_ratios)``: the lift and
+    #: drag coefficients are multiplied by ratios interpolated linearly in the attack angle and
+    #: held flat outside the table. ``None``: no correction.
+    correction: tuple = None
 
     @classmethod
     def big_blade(cls, outboard: float, area: float = 0.11,
                   density: float = 1000.0) -> "LiftDragBlade":
         return cls(1.25, 2.07, area, outboard, density)
 
-    #: Full-size corrections to the quarter-scale flume amplitudes, (lift, drag) factors.
-    #: ``"coppel"``: [CO10] Table 3.7, CFD of the Big Blade itself at full-size Reynolds
-    #: number -- drag 0.49 lower at 90 deg (35%), lift within 0.08 at 45 deg, so (1.0, 0.65).
-    #: ``"sliasas_tullis"``: [ST09]'s flat plates sized as quarter-scale and full-size
-    #: blades -- 20% lower lift and 30% lower drag, so (0.8, 0.7) -- as reported by [CO10]
-    #: section 3.5; the primary is not yet read against it. The two are the sourced range;
-    #: neither is chosen over the other.
-    FULL_SCALE = {"coppel": (1.0, 0.65), "sliasas_tullis": (0.8, 0.7)}
+    #: Full-size corrections to the quarter-scale flume coefficients, per attack angle,
+    #: ``(angles_deg, lift_ratios, drag_ratios)``.
+    #: ``"coppel"``: [CO10] section 3.5, the Big Blade's own CFD at full size (5 m/s) over the
+    #: same CFD at the flume's quarter scale (0.75 m/s), read from Figs 3.25 / 3.26 at the
+    #: computed angles and checked against Table 3.7
+    #: (``data/literature/coppel2010_fullsize_vs_quarterscale.csv``): lift 0.73 / 0.93 / 1.0 and
+    #: drag 0.70 / 0.74 / 0.735 at 20 / 45 / 90 deg. Table 3.7's "35%" at 90 deg is relative to
+    #: the full-size value (0.49 of 1.36); an earlier reading as 0.65 of quarter scale was wrong.
+    #: ``"sliasas_tullis"``: [ST09]'s flat plates sized as quarter-scale and full-size blades --
+    #: 20% lower lift and 30% lower drag -- as reported by [CO10] section 3.5; the primary is not
+    #: yet read against it. The two are the sourced range; neither is chosen over the other.
+    FULL_SCALE = {
+        "coppel": ((20.0, 45.0, 90.0), (0.57 / 0.78, 1.12 / 1.20, 1.0),
+                   (0.31 / 0.44, 0.82 / 1.11, 1.36 / 1.85)),
+        "sliasas_tullis": ((0.0, 90.0), (0.8, 0.8), (0.7, 0.7)),
+    }
 
     @classmethod
     def big_blade_full_scale(cls, outboard: float, area: float = 0.11,
@@ -110,8 +122,7 @@ class LiftDragBlade:
         if source not in cls.FULL_SCALE:
             raise ValueError("unknown full-scale source %r; known: %s"
                              % (source, ", ".join(cls.FULL_SCALE)))
-        lift, drag = cls.FULL_SCALE[source]
-        return cls(1.25 * lift, 2.07 * drag, area, outboard, density)
+        return cls(1.25, 2.07, area, outboard, density, cls.FULL_SCALE[source])
 
     @classmethod
     def macon(cls, outboard: float, area: float = 0.11,
@@ -135,11 +146,23 @@ class LiftDragBlade:
         return float(np.arctan2(abs(w_n), abs(w_a)))
 
     # -- coefficients ------------------------------------------------------
-    def coefficients(self, alpha):
-        """``(C_N, C_T)`` on the blade's own axes at attack angle ``alpha``."""
+    def lift_drag(self, alpha):
+        """``(C_L, C_D)`` at attack angle(s) ``alpha`` (radians; scalars or arrays)."""
+        alpha = np.asarray(alpha, dtype=float)
         s, c = np.sin(alpha), np.cos(alpha)
         lift = self.lift_amplitude * 2.0 * s * c
         drag = self.drag_amplitude * s * s
+        if self.correction is not None:
+            angles, lift_ratio, drag_ratio = (np.asarray(x, dtype=float) for x in self.correction)
+            deg = np.degrees(alpha)
+            lift = lift * np.interp(deg, angles, lift_ratio)
+            drag = drag * np.interp(deg, angles, drag_ratio)
+        return lift, drag
+
+    def coefficients(self, alpha):
+        """``(C_N, C_T)`` on the blade's own axes at attack angle ``alpha``."""
+        s, c = np.sin(alpha), np.cos(alpha)
+        lift, drag = self.lift_drag(alpha)
         return float(lift * c + drag * s), float(drag * c - lift * s)
 
     # -- loads -------------------------------------------------------------

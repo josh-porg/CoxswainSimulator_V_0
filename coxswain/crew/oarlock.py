@@ -414,7 +414,11 @@ class BladeModel:
     blade_width: float = 0.25
     #: Depth of water covering the top edge of the blade, in metres.  The
     #: default is half a blade width, which is where Kleshnev puts the
-    #: optimum -- see :meth:`immersion_factor`.
+    #: optimum -- see :meth:`immersion_factor`.  Used only when a study sets
+    #: ``boat.blade_cover``.  A real blade's top edge runs within millimetres
+    #: of the surface ([CO10] section 3.6; on-water observation; [CR06]'s C2
+    #: is Hoerner's plate "just below the free surface"), so this default is
+    #: not a typical depth (SOURCES sec. 164).
     cover: float = 0.125
     #: Steepness of the ventilation roll-off, dimensionless.  Set so that a
     #: cover of half a blade width recovers 90% of the deep-blade force.

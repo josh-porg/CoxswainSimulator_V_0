@@ -3303,6 +3303,13 @@ fitted, settled at each athlete's measured power: all within ±3% of the two ath
 speed, and IVV 57.6–61% against ~49% in every one. Added mass moves IVV the right way by
 1–1.5 points. The blade is not where the IVV gap is; the crew's force time course is (#1).
 
+*2026-09-29, sources reproduced (§165):* [CR06]'s Model 1 on her measured stroke gives 3.80 m/s
+against their printed 3.83; tier 2 reproduces [CG07]'s measured Big Blade (rms 0.07 / 0.10);
+Coppel's Table 3.7, Grift's printed numbers and Patton's 1.3 kg all reproduce. The full-size
+correction had been misread (0.65 instead of 0.735, and lift is reduced most at small angles):
+now per angle, and the Coppel rows rerun. Deep depth on a surface-carrying set, and strips on
+the fitted C2, are now refused by the code.
+
 ### The eight is validated only by inference
 Holt measured singles and pairs. The boat this project cares about most
 has no measured counterpart in the comparison.
@@ -4302,6 +4309,7 @@ The measured stroke is commercial and stays in `data/local/biorow/`; every scrip
 | **On-water single-scull timing and the on-water driver** (sprint 1 #3): `OnWaterTiming` ([K05], predicts [BR24] and [CR06] to 0.006); `Boat(sequencing=)`; the driver study. The shared timing moves IVV <1 point. Research option, no profile. | `coxswain/crew/stroke.py`, `coxswain/boats/boat.py`, `research/biorow/onwater_driver.py` | `tests/unit/test_onwater_timing.py` (5); SOURCES §162 |
 | **Kinematic-drive reference and the blade-law check** (sprint 1 #1 groundwork): his oar angle, blade depth and body prescribed ([CR06]'s architecture); and the slip law evaluated on his kinematics with no simulation, with the centre of pressure swept and his C_N against attack angle. | `research/biorow/kinematic_drive.py`, `research/biorow/blade_law_check.py` | SOURCES §162 |
 | **Sourced blade options** (sprint 1 #5): [LB19] added mass beside Patton's (a sourced range), allowed with tier 2; strip integration across the span with the load at the centre of pressure; Coppel / [ST09] full-size tier 2 coefficients. All off by default, in the matched-torque cache key. Validation harness on [BR24] and [CR06], nothing fitted. | `coxswain/crew/blade_added_mass.py`, `coxswain/crew/blade_strips.py`, `coxswain/crew/liftdrag.py`, `coxswain/sim/dynamic_oar.py`, `research/blade/validate_blade.py` | `tests/test_blade_added_mass.py`, `tests/unit/test_blade_strips.py`, `test_blade_strips_sim.py`, `test_blade_coefficients.py`; SOURCES §163 |
+| **Paper reproductions and clash guards** (map follow-up): [CR06] Model 1 reproduced (3.80 vs 3.83 m/s); [CG07] Big Blade, Coppel Table 3.7, Grift's printed values and Patton's 1.3 kg reproduced from committed digitisations; Coppel's full-size correction corrected to per-angle ratios; deep depth refused on the fitted C2, [CG07] and [ST09], strips refused on the fitted C2; the [CR06] finish-fix study ported into the repo. | `research/cr06/reproduce_model1.py`, `research/coppel/extract_coppel.py`, `research/cr06/finish_fix_cr06_unclipped.py`, `coxswain/crew/liftdrag.py`, `coxswain/sim/dynamic_oar.py`, `data/literature/cg07_*`, `coppel2010_*` | `tests/unit/test_paper_reproduction_blade.py`, `test_paper_reproduction_cr06.py`, `test_blade_coefficients.py`; SOURCES §165 |
 
 ## Fixed
 

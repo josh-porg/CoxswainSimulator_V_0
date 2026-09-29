@@ -280,11 +280,16 @@ class DynamicOarSimulator(RowingSimulator):
             raise ValueError("blade coefficients apply to the tier 2 law only; "
                              "blade_law=%r" % (blade_law,))
         self.blade_coefficients = blade_coefficients
-        if blade_depth is not None:
-            self.blade_depth = blade_depth
+        if self.blade_span is not None and self._fitted_scull_c2(boat):
+            raise ValueError(
+                "strip integration and the fitted sculling C2 are exclusive: the C2 was "
+                "fitted to [CR06] with the load read at the blade centre, so integrating "
+                "the same law across the span changes the level it was fitted at")
         self.crew = crew
         self.release = release
         super().__init__(boat, **kwargs)
+        if blade_depth is not None:
+            self.blade_depth = blade_depth              # checked against the coefficients
         offsets = np.asarray(boat.phase_offsets, dtype=float)
         if offsets.size and np.ptp(offsets) > 1e-12:
             raise ValueError(
@@ -587,8 +592,47 @@ class DynamicOarSimulator(RowingSimulator):
 
     #: Optional :class:`~coxswain.crew.blade_depth.BladeDepth`: the blade's depth through
     #: the drive, scaling its load by Grift's immersion curve. ``None`` (the default) is
-    #: depth-blind, exactly as before. A study hook; no profile sets it.
-    blade_depth = None
+    #: depth-blind, exactly as before. A study hook; no profile sets it. Checked on every
+    #: assignment against the coefficient set it would multiply (see ``_check_depth``).
+    _blade_depth = None
+
+    @property
+    def blade_depth(self):
+        return self._blade_depth
+
+    @blade_depth.setter
+    def blade_depth(self, depth):
+        if depth is not None:
+            self._check_depth(depth)
+        self._blade_depth = depth
+
+    def _fitted_scull_c2(self, boat=None) -> bool:
+        """Whether the slip law here runs on the sculling C2 fitted to [CR06]."""
+        boat = self.boat if boat is None else boat
+        return (self.blade_law == "slip" and bool(getattr(boat, "scull_c2", None))
+                and not bool(boat.rig.is_sweep))
+
+    def _check_depth(self, depth):
+        """Refuse a depth level on a coefficient set that already carries a surface.
+
+        With ``reference="deep"`` Grift's factor sets the load's level relative to a deep
+        plate, which is right only for coefficients measured or computed with no free
+        surface. ``"mean"`` keeps the level and changes only the shape, and is allowed.
+        """
+        if getattr(depth, "reference", "mean") != "deep":
+            return
+        if self._fitted_scull_c2():
+            raise ValueError(
+                "a deep-referenced depth on the fitted sculling C2 counts the surface twice: "
+                "it was fitted to [CR06] at whatever depth she rowed")
+        if self.blade_law == "liftdrag" and self.blade_coefficients == "cg07":
+            raise ValueError(
+                "a deep-referenced depth on [CG07] counts the surface twice: the flume blade "
+                "had its top edge at the surface; use a rigid-lid set (coppel) or reference='mean'")
+        if self.blade_law == "liftdrag" and self.blade_coefficients == "sliasas_tullis":
+            raise ValueError(
+                "a deep-referenced depth on [ST09] may count the surface twice: their CFD "
+                "modelled the free surface; use coppel or reference='mean'")
 
     def _depth_factor(self, slot, angle):
         """Depth factor at this oar's progress through the drive, catch 0 -> finish 1."""

@@ -12,7 +12,10 @@ Anything checked here is a number that appears in a paper or in published
 towing/on-water data, not a number this code produced.  Where the model
 knowingly departs from [F09] the test says so and pins the departure.
 
-See ``docs/validation.md`` for the full correspondence table.
+The source-by-source correspondence -- which paper each model comes from and whether a
+printed result is reproduced -- is the Model Compatibility Map, indexed in
+``docs/PROJECT_MANAGEMENT.md``; blade-side reproductions are in
+``tests/unit/test_paper_reproduction_blade.py`` and ``test_paper_reproduction_cr06.py``.
 """
 
 import numpy as np

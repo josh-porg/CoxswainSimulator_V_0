@@ -81,3 +81,9 @@ stays frozen.
   n = 2 cannot choose between sourced blades → add Holt's scorecard as a third source. IVV stays
   57.6–61% (measured ~49%): with §162's robust result, the gap is the crew's force time course →
   **#1 carries it**. No default changed.
+- 2026-09-29, the map's follow-up (§165): every blade source now checked against a number it
+  prints; [CR06]'s own model reproduced (3.80 vs 3.83 m/s); the Coppel correction had been
+  misread and is fixed; the map's unguarded clashes are refused in code; the finish-fix study
+  is back in the repo. Still open from the map: the pull shape's ends, hands off the handle,
+  the ergometer drive fraction (all phase 4.3 / #1), and printed-result checks for the hull's
+  radiation, roll and fin models and for Sretenskii (papers not in hand).

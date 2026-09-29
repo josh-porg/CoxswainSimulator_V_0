@@ -1,0 +1,15 @@
+# Caplan & Gardner (2007) measured lift and drag coefficients of the (curved) Big Blade, quarter scale,
+# flume at 0.75 m/s, blade top edge at the surface -- as replotted by Coppel (2010) PhD thesis
+# (Birmingham), Figs 3.19 and 3.20 ("Caplan and Gardner" markers). Digitised from the embedded raster
+# figures by marker centroid (research/coppel/extract_coppel.py): +-0.02 in C_L, +-0.01 in C_D.
+# No drag marker is plotted at 0 deg.
+angle_deg,cl,cd
+0,0.038,
+20,0.754,0.260
+45,1.237,1.192
+70,0.672,1.701
+90,0.040,2.062
+115,-0.806,1.819
+135,-1.208,1.263
+160,-0.845,0.339
+180,-0.167,0.026

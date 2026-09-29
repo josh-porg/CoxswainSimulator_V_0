@@ -13,6 +13,12 @@ def single():
     return physics.resolve("research").apply(catalog.single_scull(rate=32.0))
 
 
+@pytest.fixture(scope="module")
+def nominal():
+    """A single on [CR06]'s nominal sculling C2: strips are refused on the fitted one."""
+    return catalog.single_scull(rate=32.0)
+
+
 def _mid_drive(sim, surge=4.6, angle=np.radians(5.0), rate=-2.8):
     n = sim.n_oar_states
     y = sim.augmented_initial_state(surge)
@@ -31,15 +37,17 @@ def test_a_bad_span_is_refused(single):
 
 
 @pytest.mark.parametrize("law", ["slip", "liftdrag"])
-def test_a_vanishing_span_is_the_centre_point_law(single, law):
-    base = DynamicOarSimulator(single, peak_torque=100.0, blade_law=law)
-    thin = DynamicOarSimulator(single, peak_torque=100.0, blade_law=law, blade_span=1e-5)
+def test_a_vanishing_span_is_the_centre_point_law(single, nominal, law):
+    boat = nominal if law == "slip" else single
+    base = DynamicOarSimulator(boat, peak_torque=100.0, blade_law=law)
+    thin = DynamicOarSimulator(boat, peak_torque=100.0, blade_law=law, blade_span=1e-5)
     y = _mid_drive(base)
     np.testing.assert_allclose(thin.derivative(0.1, y), base.derivative(0.1, y),
                                rtol=1e-6, atol=1e-8)
 
 
-def test_a_real_span_loads_further_out_mid_drive(single):
+def test_a_real_span_loads_further_out_mid_drive(nominal):
+    single = nominal
     sim = DynamicOarSimulator(single, peak_torque=100.0, blade_span=0.43)
     oar = sim._oars[0]
     assert float(oar.blade.outboard) == pytest.approx(float(oar.outboard))

@@ -22,8 +22,8 @@ work studies coxing itself: what a coxswain's calls do to the boat.
 | [DATA_REQUESTS.md](DATA_REQUESTS.md) | letters to authors and labs, and their replies |
 | [SOURCES.md](SOURCES.md) | the evidence, numbered by section |
 
-Test suite: **1916 passing, 0 failing** in the fast lane (`pytest -m "not slow"`, 11 min 17 s,
-run 2026-09-27). The full suite, with the strict xfails that pin known model errors
+Test suite: **1932 passing, 0 failing** in the fast lane (`pytest -m "not slow"`, 8 min 34 s,
+run 2026-09-29). The full suite, with the strict xfails that pin known model errors
 (drive duration against on-water pairs, race pace without controlled power), was last run
 2026-09-12: 1771 passing, 14 expected failures.
 
@@ -93,7 +93,9 @@ validated on both athletes — not coefficients fitted to one (the research scul
 already a [CR06]-only fit). His handle-force scale is open (question to Kleshnev drafted). *Built and validated (§163):* every blade made from sourced physics
 (flume or full-size coefficients, Patton or [LB19] added mass, strip integration) settles within
 ±3% of the two athletes' mean speed with nothing fitted, and none moves IVV more than 1.5 points.
-The IVV gap is the crew's force time course; phase 4.3 (#1) carries it.
+The IVV gap is the crew's force time course; phase 4.3 (#1) carries it. *29 Sep (§165):* each blade source is now checked against a number it prints —
+[CR06]'s own model on her stroke gives 3.80 m/s against their 3.83 — and the map's contradictory
+combinations are refused in code.
 
 ### 3.2 The crew is driven by ergometer kinematics
 The cause of 3.1's crew share, and the motivation for phase 4. A sourced on-water

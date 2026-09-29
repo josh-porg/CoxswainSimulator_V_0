@@ -79,8 +79,7 @@ def liftdrag_strips(blade, angle: float, rate: float, lock_velocity, side: int, 
     speed2 = w_n ** 2 + w_a ** 2
     alpha = np.arctan2(np.abs(w_n), np.abs(w_a))
     s, c = np.sin(alpha), np.cos(alpha)
-    lift = blade.lift_amplitude * 2.0 * s * c
-    drag = blade.drag_amplitude * s * s
+    lift, drag = blade.lift_drag(alpha)
     c_n, c_t = lift * c + drag * s, drag * c - lift * s
     q = 0.5 * blade.density * blade.area / float(span) * speed2
     dF_n = -np.sign(w_n) * q * c_n

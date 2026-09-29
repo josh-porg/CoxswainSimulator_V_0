@@ -113,7 +113,8 @@ def test_the_depth_is_a_constructor_option_and_in_the_cache_key():
     from coxswain.sim.dynamic_oar import DynamicOarSimulator, _match_key
     single = physics.resolve("research").apply(catalog.single_scull(rate=32.0))
     d = BladeDepth.constant_cover(0.0, lever=1.795, width=0.193, reference="deep")
-    assert DynamicOarSimulator(single, peak_torque=100.0, blade_depth=d).blade_depth is d
+    assert DynamicOarSimulator(single, peak_torque=100.0, blade_law="liftdrag",
+                               blade_coefficients="coppel", blade_depth=d).blade_depth is d
     assert DynamicOarSimulator(single, peak_torque=100.0).blade_depth is None
     base = _match_key(single, 300.0, "sweep", "slip")
     assert base != _match_key(single, 300.0, "sweep", "slip", "none", None, "cg07", d)
