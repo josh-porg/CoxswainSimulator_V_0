@@ -93,13 +93,15 @@ def trunk_dataset(base):
                                trunk=tuple(new.tolist()))
 
 
-def build(variant):
+def build(variant, timing=None):
+    """His boat. ``timing`` (a StrokeTiming) overrides the variant's, e.g. [K05]'s on-water rhythm."""
     subs = {"base": set(), "arc": {"arc"}, "trunk": {"trunk"}, "legs": {"legs"},
             "drive": {"drive"}, "all": {"arc", "trunk", "legs", "drive"}}[variant]
     dataset = CAPLAN_GARDNER_2010
     if "trunk" in subs:
         dataset = trunk_dataset(dataset)
-    timing = MeasuredTiming(RATE, DRIVE_FRACTION) if "drive" in subs else StrokeTiming(RATE)
+    if timing is None:
+        timing = MeasuredTiming(RATE, DRIVE_FRACTION) if "drive" in subs else StrokeTiming(RATE)
     sweep = (OarAngleSweep(catch_angle=np.radians(CATCH_DEG), finish_angle=np.radians(-FINISH_DEG))
              if "arc" in subs else catalog.SCULLING_ARC)
     anthro = RowerAnthropometry(mass=MASS, stature=STATURE)

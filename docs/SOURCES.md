@@ -11878,3 +11878,88 @@ against her 0.894 s, −39.1°; turn-round 1.075 s against her 1.025 s; oar angl
 14 Sep, the turn-round 0.05 s later; the data and the model have both moved since. The paper
 test's pointer to a missing `docs/validation.md` now points to the map; the
 `BladeModel.cover` comment no longer presents half a blade width as typical.
+
+
+## 166. The hull's sources, checked where the papers allow (2026-09-29)
+
+Fetched or found locally (gitignored `data/local/literature/`): Falzarano, Somayajula & Seah
+(2015), *An overview of the prediction methods for roll damping of ships*, Ocean Systems
+Engineering 5(2) 55–76 (open access, techno-press) — reprints Ikeda's and Kato's formulas;
+[D11] (Day et al. 2011, the user's copy); the Lazauskas thesis (2009, no finite-depth results);
+a partial Wehausen & Laitone (no wave-resistance chapter). Whicker & Fehlner's DTMB Report 933
+is on DTIC (ADA014272) but DTIC was under maintenance and blocks scripted downloads; not yet read.
+
+- **Ikeda's lift damping had its OG² term wrong.** Printed (review eq. 12):
+  B_L = 0.075 ρ U L D³ k_N [1 + 2.8 OG/D + 4.667 (OG/D)²], i.e. l₀ l_R (1 + 1.4 OG/l_R +
+  0.7 OG²/(l₀ l_R)). Ours divided the last term by l_R² (2.8 instead of 4.667). Every caller
+  passes OG = 0, so no result moved; fixed and pinned (`tests/unit/test_paper_reproduction_roll.py`).
+- **Kato's friction was not Kato's.** Printed (eqs. 6–9, 11): S = L(1.7d + C_B B),
+  r_e = [(0.887 + 0.145 C_B)(S/L) + 2 OG]/π, C_f = 1.328 (3.22 r_e² R₀² ω/ν)^−½,
+  B_f0 = (4/3π) ρ S r_e³ R₀ ω C_f, B_F = B_f0 (1 + 4.1 U/(ωL)). The shipped form used a
+  geometric radius and a Reynolds number linear in amplitude. Kato's gives ~0.4× on a shell, a
+  term already small beside the lift (single: 0.05 against 0.52 N m s/rad at 4.5 m/s). New
+  `roll_friction="kato"` in the research and learned profiles; the shipped game keeps its form.
+  The review prints only figures for its Series 60 check, so this is the formula reproduced,
+  not a worked example.
+- **The heave and sway radiation** use a chosen amplitude ratio (0.55, from Faltinsen's book
+  curves, not in hand): stays `chosen`.
+- **Sretenskii against [D11].** [D11] Fig. 5b's steady thin-ship curve ("QS") for their Wigley
+  hull (L 3.0, B 0.3, T 0.1875 m) reads ≈5.3×10⁻³ of model weight at Fr 0.30; our code gives
+  5.15×10⁻³ in deep water. Their text puts the run at depth Froude ≈ 1.0 (h ≈ 0.27 m), where our
+  finite-depth code gives 30–76×10⁻³ and linear theory in general predicts a large peak; the
+  QS curve's small range is only consistent with deeper water. The figure cannot settle the
+  finite-depth code: the tank depth is in Doctors, Day & Clelland (2010), not in hand.
+
+
+## 167. Phase 4.3, rung 1: hands on the handle (2026-09-29)
+
+`DynamicOarSimulator(crew="handle")`: the research profile's prescribed body, hands held on the
+handle. The constraint fixes the oar angle to the hands' sweep for the whole stroke; the blade
+enters and leaves at zero normal velocity ([CR06] eq. 16, the only consistent release once the
+oar is prescribed — the angle release left the blade braking as the hands slowed into the
+finish); the handle force is the constraint's reaction, I_oar φ̈ − l F_n per oar, and handle
+power is an output. [CR06]'s architecture, whose own printed result §165 reproduced. Nothing is
+imposed: speed, IVV and power are predictions (`research/crew/handle_rung1.py`):
+
+| | timing | speed | IVV | handle power | speed at measured power (cube law) |
+|---|---|---|---|---|---|
+| [BR24] measured | | 4.641 | 49.1% | 432 W | |
+| model, his arc | ergometer (0.470) | 5.405 | **48.7%** | 654 W | 4.708 (+1.4%) |
+| model, his arc | on-water [K05] (0.541) | 4.772 | 55.1% | 458 W | 4.681 (+0.8%) |
+| [CR06] measured | | 4.191 | 49.4% | 261 W | |
+| model, her arc | ergometer (0.462) | 5.088 | **46.1%** | 488 W | 4.130 (−1.5%) |
+| model, her arc | on-water [K05] (0.531) | 4.494 | 51.1% | 341 W | 4.108 (−2.0%) |
+
+**What it fixes.** Hands on the handle removes the free oar that carried the rower's reflected
+inertia while the hands were up to 0.74 m away (the map's "hands off the handle"). IVV falls
+from 58–61% (every force-driven configuration, §163) to 46–55% against 49%. At equal power the
+speed is within ±2% on both athletes, nothing fitted.
+
+**What it exposes.** The handle force, now an output, has the wrong time course: it starts at
+~0.01–0.02 of peak at entry (the [LE26] population: ~0.17 at the catch), peaks 0.16–0.20 s after
+entry (population: 0.38–0.43 s, [LE26] and [H20]) and too sharply (peak / mean 2.2–2.4 against
+1.6–1.9). The prescribed hands come from ergometer motion capture and accelerate the oar early;
+on the water the blade resists and the oar speeds up gradually. Power is over-predicted
+(+6% on him with the on-water timing, +31% on her). So the IVV match is not yet earned by the
+right force history: the hands' time law is the open item, and it is what rung 2 decides — a
+body driven by joint torques against the handle load instead of replaying the ergometer.
+The old pull-shape "ends failing" item is moot in this mode (the force is an output) and becomes
+this time-course check.
+
+**Where the early force peak comes from.** The hands' sweep is a chosen raised cosine in time
+(`OarAngleSweep`, flatness 0), not measured timing: the body is four keyframes (Caplan & Gardner
+2010, ergometer) and the oar angle a smooth function of drive progress. Against [BR24]'s measured
+oar, the sweep turns at −124°/s at 0.2 s where he turns at −80°/s, and peaks at mid-drive
+(−182°/s at 0.5 s) where his rate keeps rising to −156°/s at about 0.65 s. At 0.2 s his blade is
+barely driving (normal slip +0.16 m/s); the model's drives hard (−1.2 m/s). The hands' time law
+is therefore the input rung 1 still takes on trust, and the one rung 2 should produce.
+
+**Checked against his own time law (the continuous [BR24] channels between the keyframes).**
+With his measured oar angle and body prescribed instead of the model's sweep — the kinematic
+drive of §162, the same hands-on-handle architecture — the model rows 4.37–4.46 m/s at
+341–350 W with IVV 57–59% (slip law, tier 2). So rung 1's IVV agreement with the model's own
+sweep is partly compensation: the raised-cosine hands load the blade early, which masks how
+little the blade laws load at the small normal slip of his real early drive (§162). Both
+pieces — the hands' time law and the blade's small-slip load — have to be right together; a
+single athlete's time law cannot be the model's default (SPRINT rule 5), which is why the time
+law has to come out of rung 2's dynamics and be checked against both measured athletes.

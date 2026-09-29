@@ -107,7 +107,7 @@ def cr06_measured():
                 t_min=float(g[i]), power=float(power.mean()), leg_travel=float(np.ptp(leg)))
 
 
-def cr06_boat(measured):
+def cr06_boat(measured, timing=None):
     """Her rig from [CR06]; her stature is not published, so it is set so the model's leg
     travel equals her measured leg travel (her own measurement, not a blade parameter)."""
     from coxswain.boats import catalog
@@ -123,7 +123,8 @@ def cr06_boat(measured):
         rig = build_sculling_rig(n_seats=1, spacing=1.22, stern_station=-0.35, span=0.80,
                                  oarlock_height=0.32, oar=oar)
         return Boat(name="1x [CR06]", offsets=base.offsets, rig=rig, hull_mass=CR06_HULL,
-                    hull_inertia=base.hull_inertia, timing=base.timing, appendages=base.appendages,
+                    hull_inertia=base.hull_inertia, timing=timing or base.timing,
+                    appendages=base.appendages,
                     water=base.water, force_profile=base.force_profile, oar_sweep=arc,
                     default_anthropometry=catalog.RowerAnthropometry(mass=CR06_MASS, stature=stature,
                                                                      sex="female"))

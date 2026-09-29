@@ -43,7 +43,7 @@ stays frozen.
 
 | to do | in progress | done this sprint |
 |---|---|---|
-| 4 Knee/ankle · 7 Tier 3 infra · 9 Stream field · 10 Piers | 1 Hands on the handle — now carries the IVV gap (§163) · Holt scorecard as a third validation source for the sourced blade | 5 Sourced blade — built as options (`4c05578`): [LB19]/Patton added mass, strip integration, Coppel/[ST09] full-size coefficients; every sourced blade within ±3% of the two athletes' mean, nothing fitted; IVV untouched beyond 1.5 points (§163) ·  8 NK LiNK importer — `ingest.py session --export`, reproduces race 1's parse exactly, keeps Empower fields; test on a synthetic snippet · 6 Handle power — `mean_handle_power(definition="handle")`, (1 − r_h/L) of the oarlock figure; default unchanged; 2 tests · 2 Blade depth — `coxswain/crew/blade_depth.py` (`BladeDepth`, Grift curve, `zero_offset` and `reference` named and swept), `DynamicOarSimulator.blade_depth`; worth ≤0.2 IVV points on [BR24] (SOURCES §162); 8 tests · 3 On-water driver — `OnWaterTiming` ([K05], predicts both athletes to 0.006), `Boat(sequencing=)`, `research/biorow/onwater_driver.py`; the shared features move IVV <1 point, not the ~2 hoped (§162); 5 tests |
+| 4 Knee/ankle · 7 Tier 3 infra · 9 Stream field · 10 Piers | 1 Hands on the handle — **rung 1 built** (`crew="handle"`, §167): IVV 46–55% against 49%, speed within ±2% at equal power on both athletes; the handle force's time course is wrong (peaks too early) → rung 2, a torque-driven body · Holt scorecard as a third validation source for the sourced blade | 5 Sourced blade — built as options (`4c05578`): [LB19]/Patton added mass, strip integration, Coppel/[ST09] full-size coefficients; every sourced blade within ±3% of the two athletes' mean, nothing fitted; IVV untouched beyond 1.5 points (§163) ·  8 NK LiNK importer — `ingest.py session --export`, reproduces race 1's parse exactly, keeps Empower fields; test on a synthetic snippet · 6 Handle power — `mean_handle_power(definition="handle")`, (1 − r_h/L) of the oarlock figure; default unchanged; 2 tests · 2 Blade depth — `coxswain/crew/blade_depth.py` (`BladeDepth`, Grift curve, `zero_offset` and `reference` named and swept), `DynamicOarSimulator.blade_depth`; worth ≤0.2 IVV points on [BR24] (SOURCES §162); 8 tests · 3 On-water driver — `OnWaterTiming` ([K05], predicts both athletes to 0.006), `Boat(sequencing=)`, `research/biorow/onwater_driver.py`; the shared features move IVV <1 point, not the ~2 hoped (§162); 5 tests |
 
 ## Findings that may unblock downstream items
 
@@ -87,3 +87,11 @@ stays frozen.
   is back in the repo. Still open from the map: the pull shape's ends, hands off the handle,
   the ergometer drive fraction (all phase 4.3 / #1), and printed-result checks for the hull's
   radiation, roll and fin models and for Sretenskii (papers not in hand).
+- 2026-09-29, hull sources (§166): Ikeda's lift had its OG² term wrong (inert: OG = 0 everywhere);
+  Kato's friction implemented as printed for the research profile; Sretenskii's deep limit
+  agrees with [D11]'s steady code, its finite depth cannot be settled from [D11]; Whicker &
+  Fehlner waits on DTIC.
+- 2026-09-29, #1 rung 1 (§167): hands on the handle brings IVV from 58–61% to 46–55% (measured
+  49%) and holds speed within ±2% at equal power on both athletes, with power predicted, not
+  imposed. The handle force it produces peaks at 0.16–0.20 s (population 0.38–0.43 s): the
+  ergometer hands accelerate the oar too early → rung 2 (torque-driven body) is the next item.

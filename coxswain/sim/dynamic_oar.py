@@ -211,8 +211,15 @@ class DynamicOarSimulator(RowingSimulator):
     #: the hands follow the old sweep while the oar follows its own
     #: dynamics.  ``"follows"``: phase 4.1, the body slaved to the oar angle
     #: through the drive and retimed through the recovery; see
-    #: :mod:`coxswain.crew.follow`.
-    CREW_MODES = ("clock", "follows")
+    #: :mod:`coxswain.crew.follow`.  ``"handle"``: phase 4.3, rung 1 -- the
+    #: hands stay on the handle.  The body is prescribed (as the clock crew)
+    #: and its hands ride the prescribed sweep, so the constraint fixes the
+    #: oar angle to the sweep for the whole stroke, [CR06]'s architecture.
+    #: The blade enters and leaves by their eq. 16 (zero normal velocity); the
+    #: handle force is the constraint's reaction, I_oar phi_ddot - l F_n per
+    #: oar, and handle power is an output, not an input.  Needs
+    #: ``catch="sweep"`` (the entry rule) and the angle release.
+    CREW_MODES = ("clock", "follows", "handle")
 
     #: How the oar enters the drive.  ``"rest"``: reset to the catch angle
     #: at rest with the blade loaded at once -- as before, which lets the
@@ -258,10 +265,15 @@ class DynamicOarSimulator(RowingSimulator):
         if catch not in self.CATCH_RULES:
             raise ValueError("unknown catch rule %r; this simulator runs %s"
                              % (catch, ", ".join(self.CATCH_RULES)))
-        if catch != "rest" and crew != "clock":
+        if catch != "rest" and crew not in ("clock", "handle"):
             raise ValueError(
                 "the sweep catch is built for the clock crew; crew=%r"
                 % (crew,))
+        if crew == "handle" and (catch != "sweep" or release != "angle"):
+            raise ValueError(
+                "hands on the handle move the oar from the catch and enter the "
+                "blade by [CR06] eq. 16: catch='sweep' and release='angle' are "
+                "required; catch=%r, release=%r" % (catch, release))
         self.catch = catch
         self.blade_added_mass = blade_added_mass
         self.blade_law = blade_law
@@ -746,6 +758,12 @@ class DynamicOarSimulator(RowingSimulator):
         state = State.from_vector(hull)
         angle_rate = np.zeros(self.n_oar_states)
         rate_rate = np.zeros(self.n_oar_states)
+        if self.crew == "handle":
+            # Hands on the handle: the oar is wherever the hands put it.
+            rate_now, accel_now = self._sweep_motion(t - self._stroke_start)
+            angle_rate[:] = rate_now
+            rate_rate[:] = accel_now
+            return angle_rate, rate_rate
         for slot, seat in enumerate(self._seats):
             oar, angle, rate = self._oars[slot], float(angles[slot]), \
                 float(rates[slot])
@@ -939,14 +957,32 @@ class DynamicOarSimulator(RowingSimulator):
         if self._in_air is None:
             self._in_air = np.zeros(n, dtype=bool)
         times[0], states[:, 0], air[:, 0] = t, y, self._in_air
+        handle = self.crew == "handle"
+        finishes = np.array([oar.finish_angle for oar in self._oars])
         for i in range(n_steps):
             step = min(dt, t_end - t)
             y = integrators.rk4_step(self.derivative, t, y, step)
             t += step
-            if self._in_air.any():
+            if handle:
+                # the constraint, exactly: every oar on the sweep, every step
+                angle, rate = self._sweep_pose(t - self._stroke_start)
+                y[STATE_SIZE:STATE_SIZE + n] = angle
+                y[STATE_SIZE + n:STATE_SIZE + 2 * n] = rate
+                # With the oar prescribed, the angle release would leave the blade
+                # braking while the hands slow into the finish; the consistent rule is
+                # [CR06]'s, and the blade stays out for the rest of the stroke.
+                state_now = State.from_vector(y[:STATE_SIZE])
+                driving = np.array([self._normal_velocity(k, angle, rate, state_now) < 0.0
+                                    for k in range(n)])
+                # [CR06]'s release, eq. 16 again: once the blade stops driving it is out
+                out = (~self._in_air) & ((angle <= finishes + 1e-12) | ~driving)
+                self._handle_done |= out
+                self._in_air |= out
+            if (self._in_air & ~self._handle_done).any() if handle else self._in_air.any():
                 angle, rate = self._sweep_pose(t - self._stroke_start)
                 state = State.from_vector(y[:STATE_SIZE])
-                for slot in np.flatnonzero(self._in_air):
+                waiting = (self._in_air & ~self._handle_done) if handle else self._in_air
+                for slot in np.flatnonzero(waiting):
                     y[STATE_SIZE + slot] = angle
                     y[STATE_SIZE + n + slot] = rate
                     if self._normal_velocity(slot, angle, rate, state) <= 0.0:
@@ -957,6 +993,34 @@ class DynamicOarSimulator(RowingSimulator):
             air[:, i + 1] = self._in_air
         self._air_mask = air
         return times, states
+
+    def _handle_power(self, times, states):
+        """Hands on the handle: the rower's power into the oars, summed over seats, W.
+
+        Per oar the handle torque is the constraint's reaction,
+        ``I_oar phi_ddot - l F_n`` on the angle coordinate (catch positive), and the power
+        is that times ``phi_dot``; the oar's own inertia is included through the whole
+        stroke, the blade load only while it is in the water.
+        """
+        n = self.n_oar_states
+        power = np.zeros_like(times)
+        air = self._air_mask
+        for k in range(times.size):
+            state = State.from_vector(states[:STATE_SIZE, k])
+            tau = float(times[k]) - self._stroke_start
+            rate, accel = self._sweep_motion(tau)
+            angle = float(states[STATE_SIZE, k])
+            for slot, seat in enumerate(self._seats):
+                oar = self._oars[slot]
+                inertia = float(getattr(oar.inertia, "oar_inertia", 0.0))
+                wet = not (air is not None and air[slot, k]) and angle > oar.finish_angle
+                for lock in self.boat.rig.seats[seat].oarlocks:
+                    torque = inertia * accel
+                    if wet:
+                        f_n, _f_t, arm = self._blade_loads_arm(slot, angle, rate, state, lock)
+                        torque -= arm * f_n
+                    power[k] += torque * rate
+        return power
 
     def _catch(self, t0, y, index):
         """Reset every oar to the catch; hand the crew's jump to the hull."""
@@ -971,6 +1035,7 @@ class DynamicOarSimulator(RowingSimulator):
         # reset state is already on it.
         self._in_air = (np.ones(n, dtype=bool) if self.catch == "sweep"
                         else None)
+        self._handle_done = np.zeros(n, dtype=bool)
         if self.crew == "follows" and index > 0:
             after = self._hand_jump_to_hull(t0, before, self._stroke_start,
                                             after, t0)
@@ -1329,7 +1394,11 @@ class DynamicOarSimulator(RowingSimulator):
                 else period
 
             power = np.zeros_like(times)
+            if self.crew == "handle":
+                power = self._handle_power(times, states)
             for slot, seat in enumerate(self._seats):
+                if self.crew == "handle":
+                    break
                 n_locks = len(self.boat.rig.seats[seat].oarlocks)
                 for k in range(times.size):
                     angle = float(angles[slot, k])
@@ -1345,7 +1414,7 @@ class DynamicOarSimulator(RowingSimulator):
             per_rower = float(np.trapezoid(power, times)) / period / rowers
             # Sweep catch: the energy the sweep carried into the water is
             # the rower's work too, or the comparison is at unequal power.
-            entry_work = sum(
+            entry_work = 0.0 if self.crew == "handle" else sum(
                 self._entry_energy(slot, angle, rate)
                 for slot, when, angle, rate in self.entries
                 if t0 - 1e-9 <= when < t0 + period - 1e-9) / rowers

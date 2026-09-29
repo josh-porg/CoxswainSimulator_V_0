@@ -159,6 +159,10 @@ class PhysicsProfile:
     #: foot held on the stretcher: +0.9-1.0 cm of crew centre-of-mass
     #: travel (SOURCES sec. 157).
     segment_com: str = "legacy"
+    #: Roll friction damping; see :class:`~coxswain.hydro.radiation.StripDamping`.
+    #: ``"legacy"`` ships; ``"kato"`` is Kato's printed formula with Schmitke's speed
+    #: factor (SOURCES sec. 166).
+    roll_friction: str = "legacy"
     #: Frozen profiles may not be altered, and the game may resolve only
     #: a frozen one.
     frozen: bool = False
@@ -177,6 +181,8 @@ class PhysicsProfile:
         if self.segment_com not in ("legacy", "de_leva"):
             raise ValueError(
                 f"unknown segment placement {self.segment_com!r}")
+        if self.roll_friction not in ("legacy", "kato"):
+            raise ValueError(f"unknown roll friction form {self.roll_friction!r}")
         if self.catch not in ("rest", "sweep"):
             raise ValueError(f"unknown catch rule {self.catch!r}")
         if self.scull_mass is not None and not self.scull_mass > 0.0:
@@ -282,6 +288,8 @@ class PhysicsProfile:
             boat.scull_c2 = float(self.scull_c2)
         if self.segment_com != "legacy":
             _set_segment_com(boat, self.segment_com)
+        if self.roll_friction != "legacy":
+            boat.roll_friction = self.roll_friction
         boat.physics_profile = self.name
         return boat
 
@@ -399,6 +407,9 @@ PROFILES: Dict[str, PhysicsProfile] = {
         # legacy placement measured both from the distal end and cost the
         # crew 0.9-1.0 cm of centre-of-mass travel (SOURCES sec. 157).
         segment_com="de_leva",
+        # Kato's roll friction as printed, with Schmitke's speed factor, since
+        # 2026-09-29 (SOURCES sec. 166); the shipped form differed from the printed one.
+        roll_friction="kato",
     ),
     # Declared so the shape of the programme is visible in the code and not
     # only in the plan.  NOTHING behind it exists yet: there is no tier 2
@@ -419,6 +430,7 @@ PROFILES: Dict[str, PhysicsProfile] = {
         scull_mass=1.2,
         scull_c2=140.88,
         segment_com="de_leva",
+        roll_friction="kato",
     ),
 }
 

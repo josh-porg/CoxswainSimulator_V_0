@@ -34,7 +34,7 @@ run 2026-09-29). The full suite, with the strict xfails that pin known model err
 | workstream | state | most recent | next |
 |---|---|---|---|
 | **Released trainer** | v0.13 (2026-09-11). Physics profile `shipped`, **frozen**: no accuracy change reaches it without a scorecard that justifies promotion | leg-mass placement fixed for research only, shipped left on `legacy` (2026-09-26) | nothing scheduled |
-| **Physics programme** (`research` profile) | phase 2 gate passed (dynamic oar, slip blade, 6-DOF hull); phase 3 tier 2 lift/drag wired as a study; phase 4.1 closed, **4.3 next** | [BR24] like-for-like runs (SOURCES §156–159) | sprint 1: 4.3's hands on the handle (#1) for the IVV gap; Holt's scorecard as a third validation source for the sourced blade |
+| **Physics programme** (`research` profile) | phase 2 gate passed (dynamic oar, slip blade, 6-DOF hull); phase 3 tier 2 lift/drag wired as a study; phase 4.1 closed, **4.3 next** | [BR24] like-for-like runs (SOURCES §156–159) | phase 4.3 rung 2: a torque-driven body against the handle load (rung 1, hands on the handle, is built: IVV 46–55% vs 49%) |
 | **Like-for-like validation** | first athlete where rig, rate, power and boat response are one person's ([BR24], elite M1x); [CR06] traces rebuilt into `data/literature` | pace passes (+0.2%); IVV 61% vs 49% decomposed; hull drag verified; on-water timing transfers ~2 points between athletes | the blade at his kinematics: a slip law gives 35% of his drive impulse (§162) |
 | **Charles trajectory optimisation** | deterministic receding-horizon leg stalled near 409 m at the station-450 pinch; stochastic machinery solves per block | not revisited since 2026-09-13 (research wave drag wired into the optimisers) | resume after the physics settles |
 | **Coxing research** | foundations paper frozen 2026-09-23 for IJSSC; working copy revised with a coupled-process section; call/boat transformer pipeline built and validated on synthetic data | first run: no coupling either way on 3 races + 35 transcripts; the catch-call effect is explained by the boat's own history | more synchronised races (the pipeline takes them as folders) |
@@ -95,7 +95,10 @@ already a [CR06]-only fit). His handle-force scale is open (question to Kleshnev
 ±3% of the two athletes' mean speed with nothing fitted, and none moves IVV more than 1.5 points.
 The IVV gap is the crew's force time course; phase 4.3 (#1) carries it. *29 Sep (§165):* each blade source is now checked against a number it prints —
 [CR06]'s own model on her stroke gives 3.80 m/s against their 3.83 — and the map's contradictory
-combinations are refused in code.
+combinations are refused in code. *Rung 1 of phase 4.3 (§167):* with the hands held on the handle the model's IVV is
+46–55% against 49%, and speed is within ±2% at equal power on both athletes, power predicted
+rather than imposed. The remaining gap is the hands' time law (the handle force peaks too early),
+which rung 2's torque-driven body is for.
 
 ### 3.2 The crew is driven by ergometer kinematics
 The cause of 3.1's crew share, and the motivation for phase 4. A sourced on-water

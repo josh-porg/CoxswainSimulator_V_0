@@ -144,7 +144,16 @@ class StripDamping:
     Michell calculation.
     """
 
-    def __init__(self, offsets, n_strips: int = 41):
+    #: How roll friction is computed. ``"legacy"``: the form this module shipped with
+    #: (a geometric bilge radius and a Reynolds number linear in amplitude). ``"kato"``:
+    #: Kato's formula as printed in [HK12] (Falzarano et al. 2015) eqs. (6)-(9), with
+    #: Schmitke's forward-speed factor, eq. (11). Research profile only.
+    ROLL_FRICTION_FORMS = ("legacy", "kato")
+
+    def __init__(self, offsets, n_strips: int = 41, roll_friction: str = "legacy"):
+        if roll_friction not in self.ROLL_FRICTION_FORMS:
+            raise ValueError("unknown roll friction form %r" % (roll_friction,))
+        self.roll_friction_form = roll_friction
         x = np.asarray(offsets.station, dtype=float)
         self.station = np.linspace(float(x[0]), float(x[-1]), int(n_strips))
         self.beam = np.interp(self.station, x,
@@ -211,13 +220,49 @@ class StripDamping:
         lever_0 = 0.3 * draft
         lever_r = 0.5 * draft
         og = float(vertical_centre)
-        shape = (lever_0 * lever_r
-                 + 1.4 * og * lever_0
-                 + 0.7 * og ** 2 * lever_0 / max(lever_r, 1e-9))
+        # l_0 l_R (1 + 1.4 OG / l_R + 0.7 OG^2 / (l_0 l_R)), [HK12] eq. (12). The OG^2 term
+        # was divided by l_R^2 until 2026-09-29; every caller passes OG = 0, so no result moved.
+        shape = lever_0 * lever_r + 1.4 * og * lever_0 + 0.7 * og ** 2
         return 0.5 * rho * speed * length * draft * k_n * shape
 
+    @property
+    def block_coefficient(self) -> float:
+        """C_B from semi-elliptical sections, as the added-mass module assumes."""
+        volume = float(np.trapezoid(0.25 * np.pi * self.beam * self.draft, self.station))
+        return volume / max(self.length * self.max_beam * self.max_draft, 1e-12)
+
     def roll_friction(self, frequency: float, amplitude: float, rho: float,
-                      viscosity: float = 1.0e-6) -> float:
+                      viscosity: float = 1.0e-6, speed: float = 0.0) -> float:
+        """Roll friction damping, N m s/rad, in the form this hull was built with."""
+        if self.roll_friction_form == "kato":
+            return self.roll_friction_kato(frequency, amplitude, rho, viscosity, speed)
+        return self.roll_friction_legacy(frequency, amplitude, rho, viscosity)
+
+    def roll_friction_kato(self, frequency: float, amplitude: float, rho: float,
+                           viscosity: float = 1.0e-6, speed: float = 0.0,
+                           og: float = 0.0) -> float:
+        """Kato's skin-friction roll damping, [HK12] eqs. (6)-(9) and (11).
+
+        S = L (1.7 d + C_B B); r_e = [(0.887 + 0.145 C_B)(S/L) + 2 OG] / pi;
+        C_f = 1.328 (3.22 r_e^2 R0^2 omega / nu)^-1/2;
+        B_f0 = (4 / 3 pi) rho S r_e^3 R0 omega C_f; B_F = B_f0 (1 + 4.1 U / (omega L)).
+        Laminar (the model-scale form); the turbulent correction, eq. (10), is not applied.
+        """
+        if frequency <= 0.0 or amplitude <= 0.0:
+            return 0.0
+        length, beam, draft = self.length, self.max_beam, self.max_draft
+        cb = self.block_coefficient
+        area = length * (1.7 * draft + cb * beam)
+        radius = ((0.887 + 0.145 * cb) * area / length + 2.0 * float(og)) / np.pi
+        reynolds = 3.22 * radius ** 2 * amplitude ** 2 * frequency / viscosity
+        if reynolds <= 0.0 or radius <= 0.0:
+            return 0.0
+        c_f = 1.328 / np.sqrt(reynolds)
+        b_f0 = (4.0 / (3.0 * np.pi)) * rho * area * radius ** 3 * amplitude * frequency * c_f
+        return float(b_f0 * (1.0 + 4.1 * abs(float(speed)) / (frequency * length)))
+
+    def roll_friction_legacy(self, frequency: float, amplitude: float, rho: float,
+                             viscosity: float = 1.0e-6) -> float:
         """Kato's friction component of roll damping, N m s/rad.
 
         Small, and the only component that survives at zero speed.

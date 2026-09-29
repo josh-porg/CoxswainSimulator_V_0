@@ -167,7 +167,8 @@ class RowingSimulator:
         #: Station table for the distributed cross-flow integral.
         self._cross_flow = CrossFlowHull(boat.offsets)
         self._heave_flow = HeaveFlowHull(boat.offsets)
-        self._strip_damping = StripDamping(boat.offsets)
+        self._strip_damping = StripDamping(
+            boat.offsets, roll_friction=getattr(boat, "roll_friction", "legacy"))
         self._heave_frequency = None
         self._damping_matrix = None
         if added_mass is True:
@@ -563,6 +564,14 @@ class RowingSimulator:
         # is so much harder to balance than a moving one.
         linear[3, 3] = linear[3, 3] + self._strip_damping.roll_lift(
             float(velocity_hull[0]), boat.water.density)
+        if self._strip_damping.roll_friction_form == "kato":
+            # Schmitke's forward-speed factor on Kato's friction, per step like the lift;
+            # the cached matrix holds the zero-speed part at the same frequency.
+            strip, omega = self._strip_damping, self._roll_frequency
+            linear[3, 3] = linear[3, 3] + (
+                strip.roll_friction(omega, np.radians(2.0), boat.water.density,
+                                    speed=float(velocity_hull[0]))
+                - strip.roll_friction(omega, np.radians(2.0), boat.water.density))
         rates = np.concatenate([velocity_hull, np.asarray(state.omega_hull)])
         # Surge is deliberately zero in the matrix: the longitudinal wave
         # making is already Michell's integral above, and adding a
@@ -774,6 +783,9 @@ class RowingSimulator:
             matrix[2, 2] = at_heave[2, 2]
             matrix[5, 5] = at_heave[5, 5]
             matrix[3, 3] = at_heave[3, 3]
+            # The frequency the roll entry was evaluated at (the heave one, as it has
+            # always been), kept for the per-step speed term.
+            self._roll_frequency = heave
             matrix[4, 4] = at_pitch[4, 4]
             # Coupling at the mean of the two, which is the honest
             # compromise for a term that belongs to both modes.

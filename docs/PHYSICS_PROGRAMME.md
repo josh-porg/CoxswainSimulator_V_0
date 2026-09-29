@@ -1065,6 +1065,16 @@ the boat speeds that go with their drive durations).
 
 ---
 
+## Phase 4.3 progress (2026-09-29)
+
+- **Rung 1, hands on the handle** (`crew="handle"`, SOURCES §167): the constraint on the
+  prescribed body; oar angle from the hands, handle force as the reaction, power an output.
+  IVV 46–55% against the athletes' 49%; speed within ±2% at equal power. Open: the handle force
+  peaks 0.16–0.20 s after entry against the population's 0.38–0.43 s.
+- **Rung 2, next:** relax the body — joint torques move it against the handle load, so the
+  hands' time law is an output. The trunk rungs (TRACKING: hip moment, trunk forward dynamics,
+  delayed PD) are its pieces; knee and ankle wait on the foot-force direction (sprint #4).
+
 ## Decisions taken
 
 | date | decision | why |
