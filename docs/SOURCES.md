@@ -11963,3 +11963,40 @@ little the blade laws load at the small normal slip of his real early drive (§1
 pieces — the hands' time law and the blade's small-slip load — have to be right together; a
 single athlete's time law cannot be the model's default (SPRINT rule 5), which is why the time
 law has to come out of rung 2's dynamics and be checked against both measured athletes.
+
+
+## 168. Doctors, Day & Clelland (2010) and Whicker & Fehlner (1958), read (2026-09-29)
+
+Both supplied by the user (rowing folder; copies in `data/local/literature/`).
+
+**Doctors, Day & Clelland (2010)**, *Resistance of a ship undergoing oscillatory motion*,
+J. Ship Res. 54(2) 120–132. The same Wigley tests as [D11]. It states the tank: **d/L = 0.7767**
+(2.33 m) for the "deep" series and **0.25** (0.75 m) for the "shallow" one, width w/L = 1.524.
+So [D11] Fig. 5's run was at depth Froude 0.34, not the ≈1.0 [D11]'s text states; §166's
+"cannot be settled" is withdrawn. Their Figs 4c and 7c give the steady wave resistance at zero
+oscillation frequency (their linear theory, which includes walls and bottom):
+
+| d/L | depth Froude | theirs (theory) | experiment | ours (Sretenskii, open water) |
+|---|---|---|---|---|
+| 0.7767 | 0.34 | 5.15×10⁻³ | 4.1–4.5×10⁻³ | **5.150×10⁻³** |
+| 0.25 | 0.60 | ≈5.15×10⁻³ | 5.25×10⁻³ | **5.219×10⁻³** |
+
+Reproduced within the reading (`data/literature/doctors2010_steady_wigley.csv`, test in
+`test_paper_reproduction_blade.py`). Their shallowest steady case is depth Froude 0.60, so the
+near-critical range the Charles reaches is still unchecked against a printed curve.
+
+**Whicker & Fehlner (1958)**, DTMB Report 933 (DTIC ADA014272), 131 pp. Eq. [1], read from the
+rendered page 28:
+C_L = [a₀ a_e / (cos Ω √(a_e²/cos⁴Ω + 4) + 57.3 a₀/π)] α + (C_Dc/a_e)(α/57.3)², α in degrees,
+a₀ = 0.9 (2π/57.3), C_Dc 0.80 (square tips) or 0.40 (faired), and **a_e = b²/S of the surface
+with its image on the ground board** — twice the geometric aspect ratio of the half-span.
+The shipped fin law differs in three ways: a 2π section (not 0.9 × 2π), the geometric aspect
+ratio (no reflection), and the cross-flow term not divided by a_e (with Hoerner's 0.85). With the
+hull as a full reflection plane, [WF58] gives the eight's skeg and rudder **~1.7× the lift**
+(skeg at 25°: 0.875 against 0.512). That is the direction of the known steering discrepancy
+(§36 area: turn rate too insensitive to rudder, `munk_factor = 0.35` "absorbing an error that
+belongs to the rudder"). Eq. [1] is now `LiftingSurface(lift_model="whicker_fehlner",
+reflection=1..2)` and pinned by `tests/unit/test_paper_reproduction_fins.py`; **no profile uses
+it yet**, because the fitted `munk_factor` would go stale. Follow-up: a steering study that
+refits it against the sourced fin law, with the reflection factor swept (a narrow round hull
+over a small fin is only a partial reflection plane).

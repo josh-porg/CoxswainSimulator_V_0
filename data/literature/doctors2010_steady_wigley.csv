@@ -1,0 +1,8 @@
+# Doctors, Day & Clelland (2010), J. Ship Res. 54(2) 120-132: Wigley model L 3.0 m, B 0.300 m, T 0.1875 m,
+# mean Froude number 0.3, towing tank of width w/L 1.524. Steady wave resistance over model weight at zero
+# oscillation frequency (tau = 0), read from Fig. 4c (deep, d/L 0.7767, Tests 5 and 9) and Fig. 7c (shallow,
+# d/L 0.25, Test 11): their unsteady linear theory ("US", which includes the tank walls and bottom) and the
+# experiment. Read by eye from the rendered figures, +-0.1e-3.
+d_over_L,fr,theory_rw_over_w,experiment_rw_over_w
+0.7767,0.3,5.15e-3,4.3e-3
+0.25,0.3,5.15e-3,5.25e-3

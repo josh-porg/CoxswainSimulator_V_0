@@ -98,3 +98,21 @@ def test_labbe_is_their_eq_3b_on_their_own_blade():
     from coxswain.crew.blade_added_mass import labbe_added_mass
     S = 0.070 * 0.047
     assert labbe_added_mass(0.070, 0.047, 1000.0) == pytest.approx(1000.0 * 0.7 * np.pi * S * 0.070 / 4)
+
+
+# -- Sretenskii (finite depth) against Doctors, Day & Clelland (2010) -------------------------
+
+@pytest.mark.parametrize("d_over_l", [0.7767, 0.25])
+def test_finite_depth_michell_reproduces_doctors_steady_wigley(d_over_l):
+    """Their Wigley model at Fr 0.3 in their tank's depth (depth Froude 0.34 and 0.60): the
+    steady wave resistance their linear theory prints, within the reading (+-0.1e-3 of 5.15e-3)."""
+    from coxswain.hydro.finite_depth_michell import FiniteDepthMichell
+    from coxswain.hydro.michell import wigley_offsets
+    row = {float(r["d_over_L"]): r for r in _rows("doctors2010_steady_wigley.csv")}[d_over_l]
+    L, B, T = 3.0, 0.3, 0.1875
+    x, z, half = wigley_offsets(L, B, T, stations=161, levels=41)
+    model = FiniteDepthMichell(station=x, level=z, half_beam=half, depth=d_over_l * L,
+                               density=1000.0, quadrature="trapezoid")
+    speed = 0.3 * np.sqrt(9.81 * L)
+    weight = 1000.0 * 9.81 * (4.0 / 9.0) * L * B * T
+    assert model.resistance([speed])[0] / weight == pytest.approx(float(row["theory_rw_over_w"]), abs=0.12e-3)

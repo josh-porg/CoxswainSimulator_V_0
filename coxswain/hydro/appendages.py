@@ -176,8 +176,25 @@ class LiftingSurface:
     #: low-aspect-ratio control surfaces.  Set to 0.0 to recover the old
     #: purely linear surface.
     crossflow_coefficient: float = 0.85
+    #: Which lift law. ``"legacy"``: the form above (Helmbold slope with a 2 pi section,
+    #: geometric aspect ratio, Hoerner's cross-flow term) -- what ships. ``"whicker_fehlner"``:
+    #: [WF58] eq. [1] as printed (read from the rendered report, p. 28):
+    #: ``C_L = a0 a_e / (cos W sqrt(a_e^2 / cos^4 W + 4) + 57.3 a0 / pi) alpha
+    #: + (C_Dc / a_e) alpha^2``, a0 = 0.9 (2 pi / 57.3) per degree, a_e the effective aspect
+    #: ratio. Not switched on by any profile yet: the fitted ``munk_factor`` was set against the
+    #: legacy fins, so a steering study must refit it first (SOURCES sec. 168).
+    lift_model: str = "legacy"
+    #: [WF58]'s a_e is b^2/S of the surface *with its image* on a ground board, twice the
+    #: geometric aspect ratio of the half-span. Under a shell the hull is the reflection plane,
+    #: but a narrow round hull over a small fin is only a partial one: this factor (1 to 2) is
+    #: the named choice, 2 being their definition.
+    reflection: float = 2.0
 
     def __post_init__(self) -> None:
+        if self.lift_model not in ("legacy", "whicker_fehlner"):
+            raise ValueError("unknown lift model %r" % (self.lift_model,))
+        if not 1.0 <= float(self.reflection) <= 2.0:
+            raise ValueError("reflection must be between 1 and 2, got %r" % (self.reflection,))
         if self.span <= 0 or self.chord <= 0:
             raise ValueError("span and chord must be positive")
         if np.asarray(self.position).shape != (3,):
@@ -295,6 +312,21 @@ def flap_effectiveness_ratio(chord_ratio: float) -> float:
 FLAP_VISCOUS_FACTOR = 0.85
 
 
+def whicker_fehlner_lift(surface: LiftingSurface, angle):
+    """[WF58] eq. [1], angle in radians, antisymmetric in the angle.
+
+    Equivalent to the printed form with alpha in degrees: the (alpha / 57.3)^2 term is
+    alpha_rad^2, and a0 per degree times alpha in degrees is a0 per radian times alpha_rad.
+    """
+    angle = np.asarray(angle, dtype=float)
+    a_e = float(surface.reflection) * surface.aspect_ratio
+    omega = float(surface.sweep)
+    a0 = 0.9 * 2.0 * np.pi                          # section slope per radian
+    slope = a0 * a_e / (np.cos(omega) * np.sqrt(a_e ** 2 / np.cos(omega) ** 4 + 4.0)
+                        + 57.3 * (a0 / 57.3) / np.pi)
+    return slope * angle + surface.crossflow_coefficient / a_e * angle * np.abs(angle)
+
+
 def lift_coefficient_at(surface: LiftingSurface, angle):
     """Lift coefficient of ``surface`` at angle of attack ``angle``.
 
@@ -303,6 +335,8 @@ def lift_coefficient_at(surface: LiftingSurface, angle):
     growing without limit.  Reduces to ``C_L_alpha * angle`` as the angle
     goes to zero, so no linearised derivative anywhere in the model moves.
     """
+    if getattr(surface, "lift_model", "legacy") == "whicker_fehlner":
+        return whicker_fehlner_lift(surface, angle)
     angle = np.asarray(angle, dtype=float)
     sin_a, cos_a = np.sin(angle), np.cos(angle)
     potential = surface.lift_curve_slope * sin_a * cos_a
