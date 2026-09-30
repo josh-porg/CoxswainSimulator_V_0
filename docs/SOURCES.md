@@ -4424,6 +4424,10 @@ instability, and the honest reading is that `munk_factor` is currently
 absorbing an error that belongs to the rudder.  Fixing the rudder would
 change the calibrated factor.
 
+*Resolved (§60, §169):* the 1.7× was the sweep rig's zero-helm yaw counted as rudder authority;
+net of it the rudder scales 3.7×. The factor is now 0.50 (literature, checked not fitted), and
+refitting it on the research eight against Whicker & Fehlner's fin law returns 0.49–0.50.
+
 ### That the sign is negative is now a test
 
 `test_weathervane_is_stabilising` asserted ``yaw_from_sway > 0`` and now
@@ -12000,3 +12004,100 @@ reflection=1..2)` and pinned by `tests/unit/test_paper_reproduction_fins.py`; **
 it yet**, because the fitted `munk_factor` would go stale. Follow-up: a steering study that
 refits it against the sourced fin law, with the reflection factor swept (a narrow round hull
 over a small fin is only a partial reflection plane).
+
+*Done (§169):* the "fitted 0.35" above was stale (0.50 since the photographed fin). Refitted
+on the research eight at every reflection 1–2: 0.49–0.50. The research profile now runs eq. [1]
+at reflection 2; Ω corrected to the quarter-chord sweep.
+
+## 169. The research eight on Whicker & Fehlner's fins: the Munk factor refitted, the reflection swept (2026-09-29)
+
+§168 left eq. [1] unused because "the fitted `munk_factor = 0.35`" would go stale. **That premise
+was itself stale.** 0.35 was retired long ago: `DEFAULT_MUNK_FACTOR` has been **0.50** since the
+fin was taken from a photograph (a 39° swept delta, not the old rectangle), set as the
+slender-body literature value and *checked*, not fitted, against the coxswain's rate (docstring
+of `hydro/addedmass.py`). And §60 had already found that the "1.7× for 5× the rudder" was the
+sweep rig's zero-helm yaw counted as rudder authority; net of it the rudder scaled 3.7×. The
+study below was still worth running, because it is the first time the Munk factor has been
+refitted on the **research** boat (dynamic oar, [CR06] sweep catch) and against a sourced fin law.
+
+### One correction to eq. [1] as wired in §168
+
+[WF58] define Ω as the sweep of the **quarter-chord line** (p. 20). `whicker_fehlner_lift` was
+passed the leading-edge sweep. The same angle on §168's rectangular test fins, so §168's tests
+did not see it; on the eight's delta fin (with its rudder chord, AR 1.354, taper 0.027) the
+leading edge is at 39° and the quarter chord at **24.3°**. `LiftingSurface.quarter_chord_sweep`
+now supplies Ω (straight-tapered half-span: tan Λ_c/4 = tan Λ_LE − (c_r − c_t)/4b). The legacy
+law, which ships, is untouched. The fin is also far outside [WF58]'s tested planforms (taper
+0.45, Ω −8° to +11°), and C_Dc = 0.80 is their square-tip value; their Fig. 28 gives C_Dc
+against taper only from 0.2 up. Both are stated limits, not fixed.
+
+### Procedure
+
+`scripts/steering_study.py`, one process per case (each Munk trial is a new matched-torque key,
+so a new settle). The research eight at rate 28 and 260 W per rower (a `scorecard.DYNAMIC_POINTS`
+point; 5.17 m/s straight), fins on eq. [1] with C_Dc 0.80, reflection 1.0–2.0; the legacy law
+for scale. **The refit is §36's procedure as corrected in §60**: full-helm (45°) rudder
+authority, the turn rate over the rig's zero-helm yaw as `scripts/validate.py` measures it,
+secant-solved for the coxswain's ~3 deg/s (15° in 5 s). Nothing athlete-specific enters; the
+target is one coxswain's report, and the reflection factor is swept, not fitted. Twelve strokes
+per run, rate fitted over the last six. Radius R = U/r from the total yaw rate at the settled
+speed U. Output: `data/local/steering_study/*.json`.
+
+### Result
+
+| fin law | reflection | Munk refit | auth. 5° | 25° | 45° (deg/s) | 25°/5° | R 25° | R 45° (m) | C (×10⁶) | N_v |
+|---|---|---|---|---|---|---|---|---|---|---|
+| legacy | — | 0.492 | 0.51 | 1.95 | 2.98 | 3.82 | 159 | 99 | 6.7 | 364 |
+| eq. [1] | 1.00 | 0.493 | 0.51 | 1.95 | 2.98 | 3.84 | 159 | 99 | 6.8 | 376 |
+| eq. [1] | 1.25 | 0.500 | 0.45 | 1.90 | 2.99 | 4.24 | 161 | 98 | 9.8 | 685 |
+| eq. [1] | 1.50 | 0.501 | 0.42 | 1.87 | 3.00 | 4.50 | 164 | 98 | 12.4 | 963 |
+| eq. [1] | 1.75 | 0.501 | 0.39 | 1.84 | 3.00 | 4.69 | 166 | 97 | 14.7 | 1203 |
+| **eq. [1]** | **2.00** | **0.501** | 0.38 | 1.82 | 3.00 | **4.78** | 167 | 97 | 16.6 | 1408 |
+
+(At the default 0.50 every row is within 0.02 deg/s of the fitted one.) Also, at every case:
+zero-helm yaw **0.08–0.12 deg/s** on the research eight, against ~1 deg/s on the shipped oar
+(§60), so the rig bias that confused §36 is small here; speed falls 1.7% at 25° and 4.1% at 45°;
+the skeg-and-rudder-lost drift is **68.7–68.9° in 25 s** (ACRAs band 20–90°), which depends on
+the Munk factor alone.
+
+### What it says
+
+1. **The Munk factor does not move.** The refit gives 0.49–0.50 at every reflection, the
+   literature value. Full-helm turn rate is nearly blind to the fin law (2.98–3.00 deg/s at
+   fixed Munk) because the rudder is a flap on the same fin: its control moment and the fin's
+   yaw damping and weathervane all scale with the same lift slope, so a stronger fin steers
+   and resists turning in proportion. What sets the rate is the fin against the *hull* (Munk
+   and cross-flow), and the fin is dominant.
+2. **What the fin law does move is the small-helm response and the stability margin.** A
+   stronger fin (higher reflection) weathervanes harder (N_v 4×), so 5° buys less and the
+   response goes more non-linear: 25°/5° from 3.8 to 4.8, all above the coxswain's "about 3".
+   C stays positive everywhere and rises 6.7 → 16.6.
+3. **Reflection 1 reproduces the legacy law** within 0.01 deg/s: the 0.9 section factor and
+   the geometric aspect ratio nearly cancel the other two differences at this fin's small
+   effective angles (τ = 0.263, so 45° of helm is 11.8° of incidence).
+4. **The coxswain's ratio would prefer a low reflection**, but it is one person's rough report
+   ("roughly 3×") and the 5° rate sits where the zero-helm bias and the stroke average are
+   largest relative to the signal. It is not used to choose.
+
+### Wired
+
+`PhysicsProfile.fin_law / fin_reflection / fin_crossflow / munk_factor`, applied to the boat
+(`_set_fin_law`, `boat.munk_factor`, which `RowingSimulator` and the CasADi `SixDofModel` read
+when not passed a factor). `research` and `learned`: `fin_law="whicker_fehlner"`,
+**reflection 2.0** ([WF58]'s own definition — the only sourced value; named, not fitted),
+C_Dc 0.80, `munk_factor=0.50` (pinned: it moves with the fin law). `shipped` is unchanged:
+legacy fins, no `boat.munk_factor`, simulators on the default (`tests/unit/test_research_fin_law.py`).
+The CasADi fin (`river/hydro_casadi.py`) now follows eq. [1] too, from the same coefficients,
+so the optimiser and the simulator fly one fin (§64's hazard).
+
+**Cache keys.** `_match_key` now carries the fins (law, reflection, C_Dc, geometry), the Munk
+factor and `roll_friction` — the last had been missing since §166. The settle is driven
+straight, but the fins are loaded by the rig's yaw and their induced drag is on the speed.
+`kinematics_signature` is crew motion only and correctly carries none of them.
+
+### Open
+
+The 25°/5° ratio (4.8 at the chosen reflection, against a reported ~3) and the reflection
+factor itself. A measured turning circle or a rudder-step heading trace from a coxed eight
+(IMU heading plus rudder angle) would settle both; the fin depth is still the one unmeasured
+dimension (`FIN_DEPTH`, from a spanner in a photograph).

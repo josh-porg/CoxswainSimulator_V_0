@@ -298,6 +298,11 @@ def lift_coefficient_at(surface, angle):
     """
     import casadi as ca
 
+    if getattr(surface, "lift_model", "legacy") == "whicker_fehlner":
+        # [WF58] eq. [1]; the numbers are the NumPy path's, so the two cannot drift.
+        from ..hydro.appendages import whicker_fehlner_coefficients
+        slope, curvature = whicker_fehlner_coefficients(surface)
+        return slope * angle + curvature * angle * ca.fabs(angle)
     sin_a, cos_a = ca.sin(angle), ca.cos(angle)
     potential = surface.lift_curve_slope * sin_a * cos_a
     crossflow = (surface.crossflow_coefficient * sin_a * ca.fabs(sin_a)

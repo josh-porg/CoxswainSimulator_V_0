@@ -1515,6 +1515,20 @@ def _match_key(boat, watts, catch, blade_law, added_mass="none",
     # same gap let crews of equal mass but different stature share one.
     crew = tuple(member.rower.kinematics_signature()
                  for member in getattr(boat, "crew", ()))
+    # The fins and the Munk moment: the settle is driven straight, but the rig's
+    # yaw bias still loads the fins, and their induced drag is on the speed.  The
+    # roll friction form changes the roll energy lost.  All three are switched by
+    # a profile and none were in the key (fin law and Munk factor 2026-09-29, and
+    # roll friction, SOURCES sec. 166, had been missing since it went in).
+    fins = tuple((surface.lift_model, float(surface.reflection),
+                  float(surface.crossflow_coefficient), float(surface.span),
+                  float(surface.chord), float(surface.taper_ratio),
+                  float(surface.sweep),
+                  tuple(np.round(np.asarray(surface.position, float), 9)))
+                 for surface in getattr(boat, "appendages", ()))
+    from ..hydro.addedmass import DEFAULT_MUNK_FACTOR
+    munk = float(getattr(boat, "munk_factor", DEFAULT_MUNK_FACTOR))
+    roll = str(getattr(boat, "roll_friction", "legacy"))
     shallow = getattr(boat, "shallow", None)
     return (str(boat.name), hull, pull, float(boat.timing.period),
             float(boat.timing.drive_fraction), round(float(boat.total_mass), 9),
@@ -1524,4 +1538,4 @@ def _match_key(boat, watts, catch, blade_law, added_mass="none",
             float(getattr(shallow, "depth", float("inf"))),
             float(watts), str(catch), str(blade_law), crew, str(added_mass),
             None if blade_span is None else float(blade_span), str(coefficients),
-            None if depth is None else depth.key())
+            None if depth is None else depth.key(), fins, munk, roll)

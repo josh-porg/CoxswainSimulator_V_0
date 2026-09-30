@@ -1,6 +1,6 @@
 # Project status
 
-*Last reviewed 2026-09-27. Update this file whenever work finishes or a priority moves;
+*Last reviewed 2026-09-30. Update this file whenever work finishes or a priority moves;
 it is the one-page answer to "where are we, and what is next".*
 
 Rowing shell simulator: full 6-DOF rigid-body dynamics, a released trainer, and an
@@ -22,8 +22,8 @@ work studies coxing itself: what a coxswain's calls do to the boat.
 | [DATA_REQUESTS.md](DATA_REQUESTS.md) | letters to authors and labs, and their replies |
 | [SOURCES.md](SOURCES.md) | the evidence, numbered by section |
 
-Test suite: **1932 passing, 0 failing** in the fast lane (`pytest -m "not slow"`, 8 min 34 s,
-run 2026-09-29). The full suite, with the strict xfails that pin known model errors
+Test suite: **1967 passing, 0 failing** in the fast lane (`pytest -m "not slow"`, run
+2026-09-30; 8 min 34 s when last timed on 2026-09-29, and this run's wall time is not usable because the machine slept). The full suite, with the strict xfails that pin known model errors
 (drive duration against on-water pairs, race pace without controlled power), was last run
 2026-09-12: 1771 passing, 14 expected failures.
 
@@ -34,7 +34,7 @@ run 2026-09-29). The full suite, with the strict xfails that pin known model err
 | workstream | state | most recent | next |
 |---|---|---|---|
 | **Released trainer** | v0.13 (2026-09-11). Physics profile `shipped`, **frozen**: no accuracy change reaches it without a scorecard that justifies promotion | leg-mass placement fixed for research only, shipped left on `legacy` (2026-09-26) | nothing scheduled |
-| **Physics programme** (`research` profile) | phase 2 gate passed (dynamic oar, slip blade, 6-DOF hull); phase 3 tier 2 lift/drag wired as a study; phase 4.1 closed, **4.3 next** | [BR24] like-for-like runs (SOURCES §156–159) | phase 4.3 rung 2: a torque-driven body against the handle load (rung 1, hands on the handle, is built: IVV 46–55% vs 49%) |
+| **Physics programme** (`research` profile) | phase 2 gate passed (dynamic oar, slip blade, 6-DOF hull); phase 3 tier 2 lift/drag wired as a study; phase 4.1 closed, **4.3 next** | fins on Whicker & Fehlner's eq. [1], Munk factor refitted (0.50, unchanged), SOURCES §169 (2026-09-30); [BR24] like-for-like runs (§156–159) | phase 4.3 rung 2: a torque-driven body against the handle load (rung 1, hands on the handle, is built: IVV 46–55% vs 49%) |
 | **Like-for-like validation** | first athlete where rig, rate, power and boat response are one person's ([BR24], elite M1x); [CR06] traces rebuilt into `data/literature` | pace passes (+0.2%); IVV 61% vs 49% decomposed; hull drag verified; on-water timing transfers ~2 points between athletes | the blade at his kinematics: a slip law gives 35% of his drive impulse (§162) |
 | **Charles trajectory optimisation** | deterministic receding-horizon leg stalled near 409 m at the station-450 pinch; stochastic machinery solves per block | not revisited since 2026-09-13 (research wave drag wired into the optimisers) | resume after the physics settles |
 | **Coxing research** | foundations paper frozen 2026-09-23 for IJSSC; working copy revised with a coupled-process section; call/boat transformer pipeline built and validated on synthetic data | first run: no coupling either way on 3 races + 35 transcripts; the catch-call effect is explained by the boat's own history | more synchronised races (the pipeline takes them as folders) |
@@ -54,6 +54,11 @@ C2) that holds pace on the full hull, and a tier 2 lift/drag blade as a study.
 **Validation against a real stroke** ([BR24], SOURCES §156–159): at his measured
 432 W the research model rows **4.652 m/s against his 4.641**; its hull drag matches
 the drag his own recovery implies (75.4 N against 73–79 N at 4.64 m/s).
+
+**Steering (research).** Fins on Whicker & Fehlner's eq. [1] (reflection 2.0, a named
+choice), Munk factor 0.50 refitted and unchanged: full helm 3.0 deg/s, radius 167 m at 25°
+and 97 m at 45°, directionally stable, and the skeg-loss slew inside the reported band
+(SOURCES §169).
 
 **Crew.** Phase-dependent balance authority, learned stroke-to-stroke trim,
 coupled-oscillator synchronisation, blades-on-water contact. Leg masses placed from
@@ -151,6 +156,10 @@ Charles is raced in has no like-for-like target.
   arches is not yet a constraint.
 * **Stream field** — discharge data loaded, current uniform.
 * **Crew fatigue over 4.8 km** — reserve state exists, depletion model does not.
-* **Steering study conclusions** — machinery, no written answer.
+* **Steering: the rudder response ratio and the fin's reflection factor** — the research eight
+  now runs Whicker & Fehlner's fin law (SOURCES §169). Refitting the Munk factor returns the
+  literature 0.50 at every reflection, and full helm gives 3.0 deg/s with a 97–99 m radius.
+  But 25° buys 3.8–4.8× what 5° does, where a coxswain reports ~3×. Needs a measured
+  rudder-step heading trace from a coxed eight.
 * **Visualisation of a whole leg.**
 * **Route C as a frozen rower model** — blocked on 3.6.

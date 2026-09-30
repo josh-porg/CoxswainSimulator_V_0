@@ -1094,6 +1094,7 @@ the boat speeds that go with their drive durations).
 | 2026-09-12 | PPO is the baseline; **short-horizon analytic gradients (SHAC family)** run alongside it | The CasADi path already gives analytic derivatives, which most RL problems lack. Also: one shared policy with a seat embedding and a centralised critic (MAPPO), and GRU and temporal-convolution baselines so the transformer has to earn its place |
 | 2026-09-12 | Reward is **distance over a fixed number of stroke cycles**, under the existing `WPrimeBalance` energy budget | Instantaneous speed invites transient exploits; without an energy budget a policy produces unbounded power |
 | 2026-09-12 | Broken regression tests are xfail-strict with the reason, never loosened or deleted | Four of today's findings were sitting in failing tests. A loosened test would have hidden all four; a deleted one would have lost the evidence |
+| 2026-09-30 | Research fins on Whicker & Fehlner eq. [1] at **reflection 2.0**, C_Dc 0.80, Munk factor 0.50 | 2 is [WF58]'s own definition, the only sourced value; the sweep 1–2 is recorded (SOURCES §169). The Munk refit returned 0.49–0.50 at every reflection, so the literature value is kept. The coxswain's ~3× response ratio would prefer a lower reflection but is one rough report and was not used to choose |
 
 ## Open questions
 

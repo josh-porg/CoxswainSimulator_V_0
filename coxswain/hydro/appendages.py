@@ -181,8 +181,9 @@ class LiftingSurface:
     #: [WF58] eq. [1] as printed (read from the rendered report, p. 28):
     #: ``C_L = a0 a_e / (cos W sqrt(a_e^2 / cos^4 W + 4) + 57.3 a0 / pi) alpha
     #: + (C_Dc / a_e) alpha^2``, a0 = 0.9 (2 pi / 57.3) per degree, a_e the effective aspect
-    #: ratio. Not switched on by any profile yet: the fitted ``munk_factor`` was set against the
-    #: legacy fins, so a steering study must refit it first (SOURCES sec. 168).
+    #: ratio. Written before any profile used it: ``munk_factor`` had been set against the
+    #: legacy fins, so a steering study must refit it first (SOURCES sec. 168). Switched on
+    #: by the research profile's ``fin_law`` since 2026-09-29 (SOURCES sec. 169).
     lift_model: str = "legacy"
     #: [WF58]'s a_e is b^2/S of the surface *with its image* on a ground board, twice the
     #: geometric aspect ratio of the half-span. Under a shell the hull is the reflection plane,
@@ -229,6 +230,20 @@ class LiftingSurface:
             return 1.0
         return (flap_effectiveness_ratio(self.flap_chord_ratio)
                 * FLAP_VISCOUS_FACTOR * float(self.flap_span_ratio))
+
+    @property
+    def quarter_chord_sweep(self) -> float:
+        """Sweep of the quarter-chord line, radians -- [WF58]'s Omega.
+
+        :attr:`sweep` is the leading edge's.  For a straight-tapered half-span
+        running from root chord ``c_r`` to tip chord ``c_t`` over ``b``,
+        ``tan L_c/4 = tan L_LE - (c_r - c_t) / (4 b)``; the same angle for an
+        untapered surface.  The eight's photographed fin is a 39 degree delta,
+        whose quarter chord is swept about 24.
+        """
+        root = float(self.chord)
+        tip = root * float(self.taper_ratio)
+        return float(np.arctan(np.tan(self.sweep) - (root - tip) / (4.0 * self.span)))
 
     @property
     def lift_curve_slope(self) -> float:
@@ -312,19 +327,27 @@ def flap_effectiveness_ratio(chord_ratio: float) -> float:
 FLAP_VISCOUS_FACTOR = 0.85
 
 
-def whicker_fehlner_lift(surface: LiftingSurface, angle):
-    """[WF58] eq. [1], angle in radians, antisymmetric in the angle.
+def whicker_fehlner_coefficients(surface: LiftingSurface):
+    """``(slope, curvature)`` of [WF58] eq. [1] per radian: ``C_L = slope a + curvature a|a|``.
 
     Equivalent to the printed form with alpha in degrees: the (alpha / 57.3)^2 term is
     alpha_rad^2, and a0 per degree times alpha in degrees is a0 per radian times alpha_rad.
+    Omega is the quarter-chord sweep, as [WF58] define it (p. 20), not the leading edge's.
+    Shared with the CasADi mirror so the two paths cannot drift.
     """
-    angle = np.asarray(angle, dtype=float)
     a_e = float(surface.reflection) * surface.aspect_ratio
-    omega = float(surface.sweep)
+    omega = surface.quarter_chord_sweep
     a0 = 0.9 * 2.0 * np.pi                          # section slope per radian
     slope = a0 * a_e / (np.cos(omega) * np.sqrt(a_e ** 2 / np.cos(omega) ** 4 + 4.0)
                         + 57.3 * (a0 / 57.3) / np.pi)
-    return slope * angle + surface.crossflow_coefficient / a_e * angle * np.abs(angle)
+    return float(slope), float(surface.crossflow_coefficient / a_e)
+
+
+def whicker_fehlner_lift(surface: LiftingSurface, angle):
+    """[WF58] eq. [1], angle in radians, antisymmetric in the angle."""
+    angle = np.asarray(angle, dtype=float)
+    slope, curvature = whicker_fehlner_coefficients(surface)
+    return slope * angle + curvature * angle * np.abs(angle)
 
 
 def lift_coefficient_at(surface: LiftingSurface, angle):

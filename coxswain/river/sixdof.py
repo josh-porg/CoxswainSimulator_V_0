@@ -47,6 +47,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from typing import Optional
+
 import numpy as np
 from ..core.frames import cross3
 
@@ -275,7 +277,7 @@ class SixDofModel:
     def __init__(self, boat, surrogate=None, crew=None, oars=None,
                  relative_tolerance: float = 0.01, gravity: float = 9.80665,
                  water_level: float = 0.0, blade=None,
-                 added_mass=True, munk_factor: float = DEFAULT_MUNK_FACTOR):
+                 added_mass=True, munk_factor: Optional[float] = None):
         from ..crew.balance import BalanceRig
         from ..hydro.addedmass import AddedMass
         from ..hydro.crossflow import CrossFlowHull
@@ -293,6 +295,9 @@ class SixDofModel:
             self.added_mass = None
         else:
             self.added_mass = added_mass
+        # ``None``: the boat's own, which a physics profile may set, else the default.
+        if munk_factor is None:
+            munk_factor = getattr(boat, "munk_factor", DEFAULT_MUNK_FACTOR)
         self.munk_factor = float(munk_factor)
         self._cross_flow = CrossFlowHull(boat.offsets)
         self.gravity = float(gravity)

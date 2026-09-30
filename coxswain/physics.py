@@ -163,6 +163,20 @@ class PhysicsProfile:
     #: ``"legacy"`` ships; ``"kato"`` is Kato's printed formula with Schmitke's speed
     #: factor (SOURCES sec. 166).
     roll_friction: str = "legacy"
+    #: Lift law of the skeg and rudder; see
+    #: :func:`~coxswain.hydro.appendages.lift_coefficient_at`.  ``"legacy"`` ships;
+    #: ``"whicker_fehlner"`` is [WF58] eq. [1] as printed (SOURCES sec. 168-169).
+    fin_law: str = "legacy"
+    #: Under ``"whicker_fehlner"``: how much of a reflection plane the hull is, 1 (none) to 2
+    #: ([WF58]'s ground board).  A named choice, not a fit (SOURCES sec. 169).
+    fin_reflection: float = 2.0
+    #: Under ``"whicker_fehlner"``: the cross-flow drag coefficient, [WF58]'s 0.80 for square
+    #: tips.  Ignored under ``"legacy"``, which keeps each surface's own.
+    fin_crossflow: float = 0.80
+    #: Strength of the added-mass Munk moment, or ``None`` for
+    #: :data:`~coxswain.hydro.addedmass.DEFAULT_MUNK_FACTOR`.  It sets directional stability
+    #: against the fins, so a fin law and its Munk factor move together.
+    munk_factor: Optional[float] = None
     #: Frozen profiles may not be altered, and the game may resolve only
     #: a frozen one.
     frozen: bool = False
@@ -183,6 +197,13 @@ class PhysicsProfile:
                 f"unknown segment placement {self.segment_com!r}")
         if self.roll_friction not in ("legacy", "kato"):
             raise ValueError(f"unknown roll friction form {self.roll_friction!r}")
+        if self.fin_law not in ("legacy", "whicker_fehlner"):
+            raise ValueError(f"unknown fin lift law {self.fin_law!r}")
+        if not 1.0 <= float(self.fin_reflection) <= 2.0:
+            raise ValueError(
+                f"fin_reflection must be between 1 and 2; got {self.fin_reflection!r}")
+        if self.munk_factor is not None and not 0.0 <= self.munk_factor <= 1.0:
+            raise ValueError(f"munk_factor must be between 0 and 1; got {self.munk_factor!r}")
         if self.catch not in ("rest", "sweep"):
             raise ValueError(f"unknown catch rule {self.catch!r}")
         if self.scull_mass is not None and not self.scull_mass > 0.0:
@@ -290,6 +311,12 @@ class PhysicsProfile:
             _set_segment_com(boat, self.segment_com)
         if self.roll_friction != "legacy":
             boat.roll_friction = self.roll_friction
+        if self.fin_law != "legacy":
+            _set_fin_law(boat, self.fin_law, float(self.fin_reflection),
+                         float(self.fin_crossflow))
+        if self.munk_factor is not None:
+            # Read by the simulators when no factor is passed explicitly.
+            boat.munk_factor = float(self.munk_factor)
         boat.physics_profile = self.name
         return boat
 
@@ -334,6 +361,16 @@ def _set_segment_com(boat, mode):
         member.rower.segment_com = mode
     boat._crew_group_cache = None
     boat.__dict__.pop("_stroke_tables", None)
+
+
+def _set_fin_law(boat, law, reflection, crossflow):
+    """Put every skeg and rudder on ``boat`` on ``law``; geometry untouched."""
+    import dataclasses
+
+    boat.appendages = tuple(
+        dataclasses.replace(surface, lift_model=law, reflection=reflection,
+                            crossflow_coefficient=crossflow)
+        for surface in getattr(boat, "appendages", ()))
 
 
 def _outboard_of(boat):
@@ -410,6 +447,15 @@ PROFILES: Dict[str, PhysicsProfile] = {
         # Kato's roll friction as printed, with Schmitke's speed factor, since
         # 2026-09-29 (SOURCES sec. 166); the shipped form differed from the printed one.
         roll_friction="kato",
+        # Whicker & Fehlner's eq. [1] for the fins, since 2026-09-29 (SOURCES sec. 169).
+        # Reflection 2 is their definition (the ground board); the hull as a full image
+        # plane is a named choice, swept 1-2 in the study. Refitting the Munk factor by
+        # sec. 36/60's procedure gave 0.49-0.50 at every reflection, so the literature 0.50
+        # stands, and is pinned here because it moves with the fin law.
+        fin_law="whicker_fehlner",
+        fin_reflection=2.0,
+        fin_crossflow=0.80,
+        munk_factor=0.50,
     ),
     # Declared so the shape of the programme is visible in the code and not
     # only in the plan.  NOTHING behind it exists yet: there is no tier 2
@@ -431,6 +477,10 @@ PROFILES: Dict[str, PhysicsProfile] = {
         scull_c2=140.88,
         segment_com="de_leva",
         roll_friction="kato",
+        fin_law="whicker_fehlner",
+        fin_reflection=2.0,
+        fin_crossflow=0.80,
+        munk_factor=0.50,
     ),
 }
 

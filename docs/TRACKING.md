@@ -3316,12 +3316,19 @@ the model's own prescribed body, IVV is 48.7% on [BR24]'s arc (his 49.1%) and 46
 imposed; at equal power (cube law) speed is within ±2%. The handle force peaks too early and too
 sharply against the [LE26] / [H20] populations: the hands' time law is the remaining item.
 
-### The shipped fin law is not Whicker & Fehlner's (2026-09-29)
-[WF58] eq. [1] (read from the report) with the hull as a reflection plane gives the eight's skeg
-and rudder ~1.7× the shipped lift — the direction of the known discrepancy that turn rate is too
-insensitive to rudder, currently absorbed by the fitted `munk_factor = 0.35` (SOURCES §168).
-*Next:* a steering study that switches the research profile to eq. [1], sweeps the reflection
-factor (1–2), refits `munk_factor`, and checks turn rate against helm. The shipped game stays.
+### The shipped fin law is not Whicker & Fehlner's (2026-09-29) — research switched; two things left
+[WF58] eq. [1] (read from the report) with the hull as a reflection plane gives the eight's fin
+up to ~1.55× the shipped lift (SOURCES §168). *Study done (§169):* the research profile runs
+eq. [1] (C_Dc 0.80, reflection 2.0, Ω the quarter-chord sweep). The "fitted `munk_factor =
+0.35`" was stale (0.50 since the photographed fin), and refitting it on the research eight
+at every reflection 1–2 returns **0.49–0.50**. Full helm gives 3.0 deg/s whatever the fin law,
+because the rudder is a flap on the fin and control and damping scale together. Steady radius
+is 157–167 m at 25° and 97–99 m at 45°, and C stays positive everywhere. The shipped game stays
+on the legacy law.
+*Still open:* (a) the response ratio 25°/5° is **3.8 (reflection 1) to 4.8 (reflection 2)**
+against the coxswain's "roughly 3"; (b) the reflection factor is a named choice (2 = [WF58]'s
+definition). Both need a measured rudder-step heading trace or turning circle from a coxed eight.
+The fin sits outside [WF58]'s tested planforms (taper 0.027 vs 0.45; Ω 24° vs −8 to +11°).
 
 ### The eight is validated only by inference
 Holt measured singles and pairs. The boat this project cares about most
@@ -4323,6 +4330,7 @@ The measured stroke is commercial and stays in `data/local/biorow/`; every scrip
 | **Kinematic-drive reference and the blade-law check** (sprint 1 #1 groundwork): his oar angle, blade depth and body prescribed ([CR06]'s architecture); and the slip law evaluated on his kinematics with no simulation, with the centre of pressure swept and his C_N against attack angle. | `research/biorow/kinematic_drive.py`, `research/biorow/blade_law_check.py` | SOURCES §162 |
 | **Sourced blade options** (sprint 1 #5): [LB19] added mass beside Patton's (a sourced range), allowed with tier 2; strip integration across the span with the load at the centre of pressure; Coppel / [ST09] full-size tier 2 coefficients. All off by default, in the matched-torque cache key. Validation harness on [BR24] and [CR06], nothing fitted. | `coxswain/crew/blade_added_mass.py`, `coxswain/crew/blade_strips.py`, `coxswain/crew/liftdrag.py`, `coxswain/sim/dynamic_oar.py`, `research/blade/validate_blade.py` | `tests/test_blade_added_mass.py`, `tests/unit/test_blade_strips.py`, `test_blade_strips_sim.py`, `test_blade_coefficients.py`; SOURCES §163 |
 | **Finite depth and fin lift against their papers** (§168): Sretenskii reproduces Doctors, Day & Clelland's steady Wigley at depth Froude 0.34 and 0.60; Whicker & Fehlner's eq. [1] added as an unused fin-law option (`lift_model="whicker_fehlner"`, `reflection`). | `coxswain/hydro/appendages.py`, `data/literature/doctors2010_steady_wigley.csv` | `tests/unit/test_paper_reproduction_fins.py`, `test_paper_reproduction_blade.py`; SOURCES §168 |
+| **Steering study on Whicker & Fehlner's fins** (§169): `PhysicsProfile.fin_law / fin_reflection / fin_crossflow / munk_factor`; research and learned on eq. [1] at reflection 2.0, C_Dc 0.80, Munk 0.50 (refitted 0.49–0.50 at every reflection 1–2); Ω corrected to the quarter-chord sweep; the CasADi fin follows the law; fins, Munk factor and `roll_friction` added to `_match_key`. Shipped unchanged. | `coxswain/physics.py`, `coxswain/hydro/appendages.py`, `coxswain/river/hydro_casadi.py`, `coxswain/sim/dynamic_oar.py`, `coxswain/sim/simulator.py`, `coxswain/river/sixdof.py`, `scripts/steering_study.py` | `tests/unit/test_research_fin_law.py`; SOURCES §169 |
 | **Phase 4.3 rung 1, hands on the handle**: `DynamicOarSimulator(crew="handle")` — oar on the hands' sweep all stroke, blade in and out by [CR06] eq. 16, handle force as the constraint reaction, power an output; harness on both athletes. | `coxswain/sim/dynamic_oar.py`, `research/crew/handle_rung1.py` | `tests/unit/test_handle_mode.py`; SOURCES §167 |
 | **Hull roll damping against the printed formulas**: Ikeda's lift OG² term fixed (inert); Kato's friction as printed, research profile (`roll_friction="kato"`). | `coxswain/hydro/radiation.py`, `coxswain/physics.py`, `coxswain/sim/simulator.py` | `tests/unit/test_paper_reproduction_roll.py`; SOURCES §166 |
 | **Paper reproductions and clash guards** (map follow-up): [CR06] Model 1 reproduced (3.80 vs 3.83 m/s); [CG07] Big Blade, Coppel Table 3.7, Grift's printed values and Patton's 1.3 kg reproduced from committed digitisations; Coppel's full-size correction corrected to per-angle ratios; deep depth refused on the fitted C2, [CG07] and [ST09], strips refused on the fitted C2; the [CR06] finish-fix study ported into the repo. | `research/cr06/reproduce_model1.py`, `research/coppel/extract_coppel.py`, `research/cr06/finish_fix_cr06_unclipped.py`, `coxswain/crew/liftdrag.py`, `coxswain/sim/dynamic_oar.py`, `data/literature/cg07_*`, `coppel2010_*` | `tests/unit/test_paper_reproduction_blade.py`, `test_paper_reproduction_cr06.py`, `test_blade_coefficients.py`; SOURCES §165 |

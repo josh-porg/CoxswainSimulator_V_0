@@ -121,7 +121,7 @@ class RowingSimulator:
                  rudder: Optional[Callable[[float, State], float]] = None,
                  water_level: float = 0.0, gravity: float = GRAVITY,
                  course=None, wind=None, aero=None, blade_contact=None,
-                 added_mass=True, munk_factor: float = DEFAULT_MUNK_FACTOR,
+                 added_mass=True, munk_factor: Optional[float] = None,
                  fast: bool = False):
         self.boat = boat
         #: Geometry linking the crew's balance effort to the hull load.
@@ -160,6 +160,9 @@ class RowingSimulator:
         #: Strength of the added-mass Munk moment, 0 to 1.  Off by
         #: default and deliberately so; see
         #: :meth:`coxswain.hydro.addedmass.AddedMass.coriolis`.
+        # ``None``: the boat's own, which a physics profile may set, else the default.
+        if munk_factor is None:
+            munk_factor = getattr(boat, "munk_factor", DEFAULT_MUNK_FACTOR)
         self.munk_factor = float(munk_factor)
         from ..hydro.crossflow import CrossFlowHull
         from ..hydro.heaveflow import HeaveFlowHull
