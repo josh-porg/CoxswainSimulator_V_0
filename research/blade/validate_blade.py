@@ -107,7 +107,7 @@ def cr06_measured():
                 t_min=float(g[i]), power=float(power.mean()), leg_travel=float(np.ptp(leg)))
 
 
-def cr06_boat(measured, timing=None):
+def cr06_boat(measured, timing=None, dataset=None, footboard_shift=0.0, stature=None):
     """Her rig from [CR06]; her stature is not published, so it is set so the model's leg
     travel equals her measured leg travel (her own measurement, not a blade parameter)."""
     from coxswain.boats import catalog
@@ -122,12 +122,20 @@ def cr06_boat(measured, timing=None):
         base = catalog.single_scull(rate=60.0 / CR06_T, rower_mass=CR06_MASS, rower_stature=stature)
         rig = build_sculling_rig(n_seats=1, spacing=1.22, stern_station=-0.35, span=0.80,
                                  oarlock_height=0.32, oar=oar)
+        if footboard_shift:
+            # moving the footboard toward the bow by d is moving the oarlock toward the stern by d
+            from coxswain.boats.rig import Oarlock, Rig, Seat
+            seat = rig.seats[0]
+            locks = tuple(Oarlock(position=np.asarray(k.position, float) - np.array([footboard_shift, 0, 0]),
+                                  side=k.side, oar=k.oar) for k in seat.oarlocks)
+            rig = Rig(seats=(Seat(station_x=seat.station_x, oarlocks=locks, label=seat.label),))
         return Boat(name="1x [CR06]", offsets=base.offsets, rig=rig, hull_mass=CR06_HULL,
                     hull_inertia=base.hull_inertia, timing=timing or base.timing,
                     appendages=base.appendages,
                     water=base.water, force_profile=base.force_profile, oar_sweep=arc,
                     default_anthropometry=catalog.RowerAnthropometry(mass=CR06_MASS, stature=stature,
-                                                                     sex="female"))
+                                                                     sex="female"),
+                    stroke_dataset=dataset)
 
     def leg_travel(b):
         r = b.crew[0].rower
@@ -135,11 +143,13 @@ def cr06_boat(measured, timing=None):
         ch = r._chain(t)
         return float(np.ptp(ch["hip"][0].value - ch["ankle"][0].value))
 
-    lo, hi = 1.55, 2.00
-    for _ in range(14):
-        mid = 0.5 * (lo + hi)
-        lo, hi = (mid, hi) if leg_travel(build(mid)) < measured["leg_travel"] else (lo, mid)
-    b = build(0.5 * (lo + hi))
+    if stature is None:
+        lo, hi = 1.55, 2.00
+        for _ in range(14):
+            mid = 0.5 * (lo + hi)
+            lo, hi = (mid, hi) if leg_travel(build(mid)) < measured["leg_travel"] else (lo, mid)
+        stature = 0.5 * (lo + hi)
+    b = build(stature)
     physics.resolve("research").apply(b)
     return b
 

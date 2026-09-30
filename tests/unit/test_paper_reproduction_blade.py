@@ -116,3 +116,26 @@ def test_finite_depth_michell_reproduces_doctors_steady_wigley(d_over_l):
     speed = 0.3 * np.sqrt(9.81 * L)
     weight = 1000.0 * 9.81 * (4.0 / 9.0) * L * B * T
     assert model.resistance([speed])[0] / weight == pytest.approx(float(row["theory_rw_over_w"]), abs=0.12e-3)
+
+
+# -- [K05] Fig. 1: the digitised on-water patterns reproduce [K05]'s own table ---------------
+
+def test_k05_fig1_digitisation_reproduces_their_segment_travels():
+    """Travel = integral of v_segment / v_handle over the 1.59 m drive: the curves, digitised,
+    give [K05]'s tabulated legs 0.51, trunk 0.48, arms 0.62 m -- never fitted to them."""
+    rows = _rows("k05_fig1_onwater.csv")
+    pct = np.array([float(r["length_pct"]) for r in rows])
+    h = np.array([float(r["handle_speed"]) for r in rows])
+    path = pct / 100.0 * 1.59
+    for column, printed, tol in (("legs_velocity", 0.51, 0.03), ("trunk_velocity", 0.48, 0.04),
+                                 ("arms_velocity", 0.62, 0.03)):
+        v = np.array([float(r[column]) for r in rows])
+        assert np.trapezoid(v / h, path) == pytest.approx(printed, abs=tol)
+
+
+def test_k05_fig1_peak_handle_speed_is_their_table():
+    rows = _rows("k05_fig1_onwater.csv")
+    h = np.array([float(r["handle_speed"]) for r in rows])
+    pct = np.array([float(r["length_pct"]) for r in rows])
+    assert h.max() == pytest.approx(2.36, abs=0.06)                     # racing rate, table row 12
+    assert pct[np.argmax(h)] == pytest.approx(65.2, abs=6.0)             # table row 14

@@ -72,6 +72,7 @@ __all__ = [
     "DATASETS",
     "default_dataset",
     "scale_leg_amplitude",
+    "scale_trunk_amplitude",
 ]
 
 #: The four instants at which the source studies report angles.
@@ -300,6 +301,29 @@ def scale_leg_amplitude(dataset: "StrokeKinematicsDataset",
                "about its mean to match Kleshnev's published segment "
                "amplitude split (legs 33% of stroke length); see "
                "docs/SOURCES.md section 25."),
+    )
+
+
+def scale_trunk_amplitude(dataset: "StrokeKinematicsDataset",
+                          factor: float,
+                          name: str = None) -> "StrokeKinematicsDataset":
+    """Scale the trunk angle excursion about its own mean, as :func:`scale_leg_amplitude`
+    does the shank's: the rower leans as far on average, and swings ``factor`` times as far.
+
+    For matching an on-water trunk travel ([K05]: 0.48-0.50 m for 1.80 m scullers) where the
+    ergometer keyframes swing further (SOURCES sec. 169).
+    """
+    import numpy as np
+
+    trunk = np.asarray(dataset.trunk, dtype=float)
+    centre = 0.5 * (trunk.max() + trunk.min())
+    scaled = centre + factor * (trunk - centre)
+    return dataclasses.replace(
+        dataset,
+        name=name or f"{dataset.name}_trunk{factor:.3f}",
+        trunk=tuple(scaled.tolist()),
+        notes=(dataset.notes + f"  Trunk excursion scaled by {factor:.3f} about its mean "
+               "(on-water segment travel; docs/SOURCES.md section 169)."),
     )
 
 

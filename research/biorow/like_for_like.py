@@ -93,11 +93,13 @@ def trunk_dataset(base):
                                trunk=tuple(new.tolist()))
 
 
-def build(variant, timing=None):
-    """His boat. ``timing`` (a StrokeTiming) overrides the variant's, e.g. [K05]'s on-water rhythm."""
+def build(variant, timing=None, dataset=None, footboard_shift=None):
+    """His boat. ``timing`` (a StrokeTiming) overrides the variant's, e.g. [K05]'s on-water rhythm;
+    ``dataset`` the body keyframes; ``footboard_shift`` (m, + toward the bow) fixes the rig instead of
+    searching the nearest reachable oarlock."""
     subs = {"base": set(), "arc": {"arc"}, "trunk": {"trunk"}, "legs": {"legs"},
             "drive": {"drive"}, "all": {"arc", "trunk", "legs", "drive"}}[variant]
-    dataset = CAPLAN_GARDNER_2010
+    dataset = dataset or CAPLAN_GARDNER_2010
     if "trunk" in subs:
         dataset = trunk_dataset(dataset)
     if timing is None:
@@ -147,6 +149,10 @@ def build(variant, timing=None):
             else:
                 lo_f = f
         dataset = scale_leg_amplitude(dataset, 0.5 * (lo_f + hi_f))
+    if footboard_shift is not None:
+        boat, work = make(dataset, WORK_THROUGH - footboard_shift), WORK_THROUGH - footboard_shift
+        boat.work_through = work
+        return boat
     boat, work = feasible(dataset)
     boat.work_through = work
     return boat
