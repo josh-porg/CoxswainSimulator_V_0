@@ -12132,3 +12132,21 @@ the body (shoulders, straight arms until the arm draw), a catch posture that rea
 catch angle with straight arms, and an arm-draw law — replacing the chosen raised-cosine sweep.
 Sources in hand: [K05]'s on-water segment travels (legs 0.51, trunk 0.48, arms 0.62 m) and the
 two measured athletes' continuous channels for validation (never for fitting).
+
+**Deriving the catch, then moving the footboard (user's direction, 2026-09-30).**
+1. *The catch angle straight arms reach*, from each boat's own body and rig: the eight 66.3°
+   (prescribed 56°, [H20]'s pairs catch at 48.8°); on the single, [BR24]'s and [CR06]'s rigs,
+   **none** — the keyframed shoulders are so far aft that straight arms would need the oar past
+   90°.
+2. *Moving the footboard toward the bow* until straight arms catch at the rig's catch angle:
+   0.10 m (eight), 0.22 m (single), 0.24 m ([BR24]), 0.30 m ([CR06]) — within the ~0.6 m a
+   stretcher adjusts. But then at the finish the hands sit 53–86% of arm length from the
+   shoulders ([BR24]: 86%, arms nearly straight), where a finish draws the handle to the body.
+3. *Why:* the ergometer body's segment travels against [K05]'s on-water ones (five women,
+   racing rate) — legs 0.58–0.62 m against 0.51–0.52, trunk 0.52–0.55 against 0.48–0.50,
+   arms 0.16–0.42 against 0.61–0.62. The keyframed legs and trunk do ~20% and ~10% too much of
+   the stroke and leave too little for the arms: [K05]'s own machine-versus-water finding
+   (longer legs drive, 30% shorter arms drive on machines), and the source of the crew's
+   centre-of-mass travel excess (0.799 m against [BR24]'s 0.71–0.74, TRACKING). No footboard
+   position gives a straight-arm catch and a drawn finish together until the body's leg and
+   trunk travel is on-water travel.
