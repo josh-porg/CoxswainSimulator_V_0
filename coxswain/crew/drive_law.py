@@ -87,12 +87,14 @@ class PopulationDriveSweep(OarAngleSweep):
 
     #: ``(length_fraction, handle_speed)``; default [K05] Fig. 1.
     profile: tuple = field(default=None, repr=False, compare=False)
+    #: the speed error the smoothing is weighted by, m/s; the digitisation's by default
+    speed_error: float = K05_SPEED_ERROR
 
     def _law(self):
         cached = getattr(self, "_cached", None)
         if cached is None:
             cached = smooth_progress(*(self.profile if self.profile is not None
-                                       else k05_handle_speed()))
+                                       else k05_handle_speed()), error=self.speed_error)
             object.__setattr__(self, "_cached", cached)
         return cached
 

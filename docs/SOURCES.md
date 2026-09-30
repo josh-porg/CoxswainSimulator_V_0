@@ -12256,12 +12256,57 @@ The water still moves energy between handle and hull: 14–33 J a stroke off the
 IVV moves 2–4 points toward the athletes (and past [CR06]'s), but the handle force *peaks at
 entry*: a constant added mass switched on whole while the blade accelerates from rest puts
 550–1200 N on the handle where [LE26] measure 17% of peak. Refuted as a constant from entry, not
-as physics: Grift's entrainment grows from zero with the plate's travel (eq. 2.15, 7–8 plate
-heights), and a real blade takes time to immerse. The constant options stay study options, not
-defaults.
+as physics: a real blade takes time to immerse. The constant options stay study options, not
+defaults. (*Corrected in §172:* this section first said Grift's entrainment "grows from zero";
+it does not — his eq. 2.15 keeps the potential-flow mass from the first instant and adds the
+entrainment on top.)
 
-**Open.** (1) A growing entrained mass: Grift's rate is model-scale (2.7–6.2 kg/s) with no
-full-scale law; the blade's immersion through the entry is the other half, measured only on
-[BR24] (vertical angle). (2) The early-drive overload at small attack angles. Rung 2 (the
-torque-driven body) waits on neither.
+**Open.** (1) The blade's immersion through the entry (§172). (2) The early-drive overload at
+small attack angles. Rung 2 (the torque-driven body) waits on neither.
+
+
+## 172. What sets the entry force: smoothing, hull, or the added-mass model (2026-09-30)
+
+**Question (from the review of §171):** is the entry spike under blade added mass an artefact
+of smoothing the [K05] table, whose catch end the scan does not resolve? And is Grift's
+entrainment the way to remove it?
+
+**Split at entry** (`research/crew/entry_sensitivity.py`): the blade's normal acceleration
+ẇ_n = g·Ẍ_h + ℓφ̈ + c, with Patton's mass on. At the first wet sample the hands' part ℓφ̈ is
+−16 to −24 m/s² on both athletes at every smoothing; the hull's part is +1 m/s². So the spike is
+the hands accelerating the blade, of the order of the ~16 m/s² a blade sees at the catch (ledger,
+"Blade added mass") — not the hull, and not a smoothing artefact:
+
+| smoothing σ, m/s | [BR24] none: entry/peak, catch→peak, peak/mean | Patton peak | [CR06] none | Patton peak |
+|---|---|---|---|---|
+| 0.02 | 0.21, 0.14 s, 1.90 | 739 N (entry/peak 1.00) | 0.10, 0.16 s, 1.71 | 472 N (1.00) |
+| **0.03** (the digitisation's) | 0.23, 0.11 s, 1.94 | 745 N (1.00) | 0.17, 0.28 s, 1.71 | 551 N (1.00) |
+| 0.05 | 0.12, 0.13 s, 2.19 | 717 N (0.92) | 0.19, 0.14 s, 2.03 | 538 N (0.95) |
+
+IVV moves ≤0.7 points across σ. Within the digitisation's error (0.02–0.03) the force width is
+stable (peak/mean 1.90–1.94, 1.71); at 0.05 the spline no longer honours the data and the width
+drifts. **Catch-to-peak is ill-conditioned** on these curves: the force has a broad plateau
+(450–500 N from 0.075 to 0.30 s on [BR24]), so the argmax jumps (0.14 / 0.28 / 0.14 s on [CR06]).
+A plateau-robust descriptor (e.g. the time to 90% of peak, or the force centroid) should replace
+it before any conclusion rests on it.
+
+**Grift, re-read** (thesis ch. 2–3, `data/local/literature/grift.txt`):
+- Eq. 2.15, F = m_p a + ½ρV²C_D A + m_h a + (dm_h/dt) a (t − t_sr): the potential-flow m_h acts
+  from the first instant ("constant for small t*, matches Yu"); entrainment is added on top. It
+  would make the entry spike *larger*, not remove it. §171's "grows from zero" was wrong.
+- With the plate's top edge at the surface the added-mass response is much weaker: the initial
+  force drop is 20–40% against 50–70% submerged, and the residual force "acts more like a
+  history force than a force due to added mass". Patton's unbounded-fluid constant overstates a
+  surface blade.
+- Chapter 3's realistic stroke (1:2 blade on a robot, M4− kinematics, a finite-time catch and
+  release): "Directly after the catch the propulsive component F_x is small", rising steadily to
+  its maximum near −10° of oar angle.
+
+**So:** the smoothed table is the right input (the linear table's acceleration was simply
+wrong), and it matters within its stated error only for the plateau's argmax. A constant added
+mass on it is not the right model, and neither is eq. 2.15 as a fix. What removes the spike is
+what starts from zero on a real blade — its **immersion**: the added mass scales with the wetted
+blade (Patton's l_a l_b², with l_b the wetted height), with a surface-reduced coefficient. That
+needs a sourced immersion history through the entry; [BR24]'s vertical oar angle is one athlete,
+so a population source is needed before it enters anything.
 

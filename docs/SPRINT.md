@@ -103,4 +103,7 @@ stays frozen.
   spikes on the oar); smoothed within the digitisation's ±0.03 m/s, peak/mean 1.94 / 1.71 sits in
   the populations' band, but the force peaks early (0.11 / 0.28 s vs 0.38–0.43). Blade added mass
   now runs with hands on the handle: IVV 2–4 points better, but constant from entry it spikes the
-  handle (550–1200 N) — the entrained mass must grow (Grift). Nothing defaults.
+  handle (550–1200 N). Nothing defaults.
+- 2026-09-30, #1 (§172): the entry spike is the hands' blade acceleration (16–24 m/s²), stable across
+  the smoothing; Grift's eq. 2.15 keeps the potential mass from the first instant, so it is not the
+  fix — immersion-scaled added mass is. Catch-to-peak is ill-conditioned on the force plateau.

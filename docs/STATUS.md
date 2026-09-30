@@ -110,7 +110,9 @@ the tier 2 blade, IVV is 54% and 50% against 49% on both athletes. *§171:* the 
 interpolation had put acceleration spikes on the oar); the force curve's width now agrees with the populations
 (peak/mean 1.94 / 1.71 against 1.6–1.9) but it peaks early (0.11 / 0.28 s against 0.38–0.43). Blade added mass now
 runs with the hands on the handle: IVV moves 2–4 points the right way, but held constant from entry it spikes the
-handle at entry (550–1200 N) — a growing entrained mass (Grift) is what the data want.
+handle at entry (550–1200 N). *§172:* that spike is the hands' blade acceleration, not the smoothing; Grift's
+entrainment would not remove it, and his realistic stroke shows a small force after the catch — the blade's
+immersion is what starts from zero, and is next.
 
 ### 3.2 The crew is driven by ergometer kinematics
 The cause of 3.1's crew share, and the motivation for phase 4. A sourced on-water

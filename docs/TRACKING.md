@@ -3330,8 +3330,17 @@ option (§169) is still a study, not wired into a profile.
 Blade added mass now runs with the hands on the handle (§171; consistency tests in
 `tests/unit/test_handle_mode.py`). Patton / [LB19] move IVV 2–4 points toward the athletes, but
 held constant from the instant of entry they put 550–1200 N on the handle there (entry/peak 1.00
-against [LE26]'s 0.17). *Next:* an entrained mass that grows from zero — Grift eq. 2.15's rate is
-model-scale only — and the blade's immersion through the entry. Study options; nothing defaults.
+against [LE26]'s 0.17). The spike is the hands' blade acceleration (ℓφ̈ 16–24 m/s²), stable
+across the drive law's smoothing, not a smoothing artefact (§172). Grift's eq. 2.15 would not
+remove it (the potential mass acts at once; entrainment is on top); at the surface his added-mass
+response is weaker, and in his realistic stroke the force just after the catch is small. *Next:*
+an added mass scaled by the blade's immersion, with a surface-reduced coefficient — needs a
+population immersion history. Study options; nothing defaults.
+
+### Catch-to-peak is ill-conditioned on a plateau (2026-09-30)
+Rung 1's force has a broad plateau, so its argmax moves 0.14 → 0.28 → 0.14 s on [CR06] as the
+drive law's smoothing goes 0.02 → 0.03 → 0.05 m/s (§172). Replace it with a plateau-robust
+descriptor (time to 90% of peak, or the force centroid) before comparing with [LE26] / [H20].
 
 ### The body and the oar disagree kinematically (2026-09-30)
 Hands on the sweep's handle, arms solved from the keyframed shoulders: bent at the catch

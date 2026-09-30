@@ -1075,7 +1075,8 @@ the boat speeds that go with their drive durations).
   within its digitisation error, reproduces [BR24]'s oar angle unfitted. Rung 1 with it and the
   tier 2 blade: IVV 54 / 50% against 49%; force width in the populations' band (peak/mean
   1.94 / 1.71), peak early (0.11 / 0.28 s). Blade added mass runs with the hands on the handle;
-  held constant from entry it spikes the handle — a growing entrained mass is open.
+  held constant from entry it spikes the handle; the cure is immersion-scaled added mass (§172),
+  not Grift's entrainment, which keeps the potential mass from the first instant.
 - **Rung 2, next:** relax the body — joint torques move it against the handle load, so the
   hands' time law is an output. The trunk rungs (TRACKING: hip moment, trunk forward dynamics,
   delayed PD) are its pieces; knee and ankle wait on the foot-force direction (sprint #4).
