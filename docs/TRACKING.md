@@ -3316,6 +3316,14 @@ the model's own prescribed body, IVV is 48.7% on [BR24]'s arc (his 49.1%) and 46
 imposed; at equal power (cube law) speed is within ±2%. The handle force peaks too early and too
 sharply against the [LE26] / [H20] populations: the hands' time law is the remaining item.
 
+### The body and the oar disagree kinematically (2026-09-30)
+Hands on the sweep's handle, arms solved from the keyframed shoulders: bent at the catch
+(71–86% of arm length) and stretched past their length early in the eight's drive (103–106%),
+SOURCES §169. The chosen raised-cosine sweep outruns the body; the catch posture sits too far
+aft for the rig's catch angle. *Next (rung 2a):* the oar angle from the body — straight arms
+until the arm draw, a catch posture that reaches the catch angle with straight arms — in place
+of the chosen sweep.
+
 ### The shipped fin law is not Whicker & Fehlner's (2026-09-29) — research switched; two things left
 [WF58] eq. [1] (read from the report) with the hull as a reflection plane gives the eight's fin
 up to ~1.55× the shipped lift (SOURCES §168). *Study done (§169):* the research profile runs

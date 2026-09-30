@@ -12101,3 +12101,34 @@ The 25°/5° ratio (4.8 at the chosen reflection, against a reported ~3) and the
 factor itself. A measured turning circle or a rudder-step heading trace from a coxed eight
 (IMU heading plus rudder angle) would settle both; the fin depth is still the one unmeasured
 dimension (`FIN_DEPTH`, from a spanner in a photograph).
+
+
+## 169. The body and the oar do not agree kinematically (2026-09-30)
+
+Before any dynamics: the model's hands are placed on the handle of the prescribed sweep, and the
+arms are solved to reach it from the shoulders the keyframed body provides. The hand–shoulder
+distance over the drive, as a fraction of arm length (upper arm + forearm), research profile:
+
+| boat | catch | 0.05 T | 0.10 T | 0.20 T | 0.30 T | 0.40 T |
+|---|---|---|---|---|---|---|
+| eight, rate 32 (catalogue arc) | 86% | 92% | **103%** | **106%** | 71% | 48% |
+| single, rate 30 (catalogue arc) | 71% | 78% | 91% | 98% | 68% | 52% |
+| [BR24]'s rig and arc, on-water timing | 66% | 70% (0.1 s) | 84% (0.2 s) | straight 0.3–0.5 s | | |
+
+Two contradictions with how a stroke is rowed: **the arms are bent at the catch** (rowers catch
+with straight arms), and on the eight they are **stretched past their length** early in the drive
+(no arm can be). The chosen raised-cosine sweep moves the handle away from the shoulders faster
+than the ergometer keyframes move the shoulders, and the catch posture sits too far to the stern
+for the rig's catch angle (on [BR24]'s rig, about 0.25 m; the like-for-like already had to move
+his oarlock 2 cm aft to make the arc reachable at all).
+
+Where the arms *are* straight (0.3–0.5 s on his rig), the oar angle the model's shoulders imply
+agrees with his measured angle to a few degrees (46.9° against 46.1° at 0.3 s). So the hands'
+time law can come from the body, as it does on the water — if the catch posture and the rig
+agree, and the arms stay straight until they start to draw.
+
+**For rung 2.** The first step is kinematic consistency, not dynamics: the oar angle taken from
+the body (shoulders, straight arms until the arm draw), a catch posture that reaches the rig's
+catch angle with straight arms, and an arm-draw law — replacing the chosen raised-cosine sweep.
+Sources in hand: [K05]'s on-water segment travels (legs 0.51, trunk 0.48, arms 0.62 m) and the
+two measured athletes' continuous channels for validation (never for fitting).
