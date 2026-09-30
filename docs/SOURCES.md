@@ -12150,3 +12150,57 @@ two measured athletes' continuous channels for validation (never for fitting).
    centre-of-mass travel excess (0.799 m against [BR24]'s 0.71–0.74, TRACKING). No footboard
    position gives a straight-arm catch and a drawn finish together until the body's leg and
    trunk travel is on-water travel.
+
+
+## 170. The hands' drive time law from an on-water population (2026-09-30)
+
+User's direction: check the rowers' heights, scale to on-water values, move the footboard, and
+look for published data where issues remain. The published data were [K05] Fig. 1.
+
+**Heights.** [K05]'s five women: 1.80 m, 72.2 kg. [BR24]: 1.91 m (measured). [CR06]'s athlete is
+not given; [LE26]'s world-class women's mean, 1.787 m, is used and stated. Segment travel scales
+with stature. At 1.91 m the sources agree on shoulder travel (legs + trunk): [K05] 1.07 m scaled,
+[BR24] 1.03, [CR06] scaled 1.07 — against the ergometer body's 1.17 (+10%), the same excess as
+the crew's centre-of-mass travel. They split it differently between legs and trunk (the trunk is
+measured at different points).
+
+**[K05] Fig. 1 digitised** (`research/k05/extract_fig1.py`, `data/literature/k05_fig1_onwater.csv`):
+on-water handle, legs, trunk and arms velocity against drive length, the black curves of a
+300 dpi scan. Checks, none fitted: the segments sum to the handle speed within 0.07 m/s rms;
+the implied travels are legs 0.510, trunk 0.456, arms 0.621 m against [K05]'s own table 0.51,
+0.48, 0.62; peak handle speed 2.39 m/s at 60–70% against the table's 2.36 at 65%. The ends of the
+drive are not resolved (implied drive time 0.88 s against 1.00 s), so only the shape is used.
+
+**The population drive law** (`coxswain/crew/drive_law.py`, `PopulationDriveSweep`): time along the
+handle path from dt = ds/v with [K05]'s handle speed, the drive's duration from the boat's own
+timing ([K05]'s on-water rhythm), recovery unchanged. On [BR24]'s arc it reproduces his measured
+oar angle, never fitted to him:
+
+| t, s | 0.1 | 0.2 | 0.3 | 0.4 | 0.5 | 0.6 | 0.7 | 0.8 |
+|---|---|---|---|---|---|---|---|---|
+| population law | 62.1° | 54.3° | 45.4° | 34.8° | 22.5° | 9.0° | −5.2° | −18.9° |
+| his measured | 62.4° | 55.3° | 46.1° | 34.5° | 20.7° | 5.2° | −10.8° | −25.0° |
+| chosen raised cosine (§169) | 63.9° | 54.3°* | 39.7° | 31.8° | 15.5° | −0.1° | −14.8° | |
+
+(*ergometer timing row of §167; the raised cosine is 5–25° off through the mid-drive.)
+
+**Rung 1 with it** (hands on the handle, `research/crew/handle_rung1.py`): with the realistic
+hands, the slip law under-loads (BR24 274 W, IVV 62%; CR06 218 W, 57%) — §162's small-slip
+deficit, now isolated from the hand timing. With the sourced tier 2 blade ([CG07] + strips):
+
+| | IVV | speed | handle power | speed at measured power |
+|---|---|---|---|---|
+| [BR24] measured | 49.1% | 4.641 | 432 W | |
+| model | 54.4% | 4.374 | 301 W | +6.3% |
+| [CR06] measured | 49.4% | 4.191 | 261 W | |
+| model | 50.5% | 4.157 | 238 W | +2.3% |
+
+Force: peak at 35% of the blade-in phase on [BR24] (K05's on-water peak force position 34.7%);
+catch to peak 0.28–0.30 s (populations 0.38–0.43); peak / mean 2.1–2.2 ([K05] on water 1.76;
+[LE26] 1.61–1.68; [H20] 1.87–1.90) — the model's force is still peakier than the "more
+rectangular" on-water curve. Power is under-predicted on [BR24] by 30%, consistent with §162's
+open question about his handle-force channel's scale; on [CR06] by 9%.
+
+**Where rung 2 stands.** The body's travel (§169) and the hands' time law (here) now come from
+on-water sources and agree with the measured athletes; hands are on the handle. What remains is
+the blade's load at small normal slip (early and late drive), which shapes the force curve.

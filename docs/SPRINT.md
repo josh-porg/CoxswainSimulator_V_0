@@ -95,3 +95,7 @@ stays frozen.
   49%) and holds speed within ±2% at equal power on both athletes, with power predicted, not
   imposed. The handle force it produces peaks at 0.16–0.20 s (population 0.38–0.43 s): the
   ergometer hands accelerate the oar too early → rung 2 (torque-driven body) is the next item.
+- 2026-09-30, #1 rung 2a (§169–170): the ergometer body's legs + trunk travel 10% too far and its
+  arms bend at the catch; [K05] Fig. 1 digitised gives an on-water drive law that reproduces
+  [BR24]'s oar angle unfitted. Hands on the handle with it and the tier 2 blade: IVV 54% / 51%
+  against 49% / 49%. Remaining: the force curve's peakiness (the blade at small slip).

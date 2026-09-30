@@ -107,7 +107,7 @@ def cr06_measured():
                 t_min=float(g[i]), power=float(power.mean()), leg_travel=float(np.ptp(leg)))
 
 
-def cr06_boat(measured, timing=None, dataset=None, footboard_shift=0.0, stature=None):
+def cr06_boat(measured, timing=None, dataset=None, footboard_shift=0.0, stature=None, drive_law=False):
     """Her rig from [CR06]; her stature is not published, so it is set so the model's leg
     travel equals her measured leg travel (her own measurement, not a blade parameter)."""
     from coxswain.boats import catalog
@@ -117,6 +117,9 @@ def cr06_boat(measured, timing=None, dataset=None, footboard_shift=0.0, stature=
               blade_area=0.0903, blade_length=0.43, mass=1.2)
     arc = catalog.SCULLING_ARC.__class__(catch_angle=np.radians(CR06_ARC_DEG[0]),
                                          finish_angle=np.radians(CR06_ARC_DEG[1]))
+    if drive_law:
+        from coxswain.crew.drive_law import PopulationDriveSweep
+        arc = PopulationDriveSweep(catch_angle=arc.catch_angle, finish_angle=arc.finish_angle)
 
     def build(stature):
         base = catalog.single_scull(rate=60.0 / CR06_T, rower_mass=CR06_MASS, rower_stature=stature)

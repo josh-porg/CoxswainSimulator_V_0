@@ -31,14 +31,14 @@ from coxswain.sim.control import Coxswain                        # noqa: E402
 from coxswain.sim.dynamic_oar import DynamicOarSimulator         # noqa: E402
 
 
-def boat_for(name, measured, timing_kind):
+def boat_for(name, measured, timing_kind, drive_law=False):
     if name == "br24":
         import like_for_like as L
         timing = OnWaterTiming(L.RATE) if timing_kind == "on-water" else StrokeTiming(L.RATE)
-        return L.build("arc", timing=timing)
+        return L.build("arc", timing=timing, drive_law=drive_law)
     rate = 60.0 / V.CR06_T
     timing = OnWaterTiming(rate) if timing_kind == "on-water" else StrokeTiming(rate)
-    return V.cr06_boat(measured, timing)
+    return V.cr06_boat(measured, timing, drive_law=drive_law)
 
 
 def predict(boat, strokes, **options):
@@ -62,16 +62,18 @@ def main():
         measure, _build = V.ATHLETES[name]
         m = measure()
         print("\n%s measured: %.3f m/s, IVV %.1f%%, %.0f W" % (name, m["speed"], 100 * m["ivv"], m["power"]))
-        for kind in ("ergometer", "on-water"):
-            r = predict(boat_for(name, m, kind), a.strokes)
+        for kind, law in (("ergometer", False), ("on-water", False), ("on-water", True)):
+            r = predict(boat_for(name, m, kind, law), a.strokes)
+            if law:
+                kind = "K05 law"
+            d = force_descriptors(r)
             at_power = r["speed"] * (m["power"] / r["power"]) ** (1.0 / 3.0)
-            print("  %-9s timing (drive %.3f): %.3f m/s, IVV %.1f%%, %.0f W; at his/her %.0f W: %.3f m/s (%+.1f%%)"
+            print("  %-9s timing (drive %.3f): %.3f m/s, IVV %.1f%%, %.0f W; at his/her %.0f W: %.3f m/s (%+.1f%%); "
+                  "force: entry/peak %.2f, entry-to-peak %.2f s, peak/mean %.2f"
                   % (kind, r["drive_fraction"], r["speed"], 100 * r["ivv"], r["power"], m["power"],
-                     at_power, 100 * (at_power / m["speed"] - 1)), flush=True)
+                     at_power, 100 * (at_power / m["speed"] - 1), d["entry_fraction"], d["entry_to_peak"],
+                     d["peak_over_mean"]), flush=True)
 
-
-if __name__ == "__main__":
-    main()
 
 
 def force_descriptors(result):
@@ -101,5 +103,10 @@ def force_descriptors(result):
     fw = force[wet]
     k_peak = int(np.argmax(fw))
     return dict(entry_fraction=float(fw[0] / fw[k_peak]), entry_to_peak=float(tw[k_peak] - tw[0]),
+                catch_to_peak=float(tw[k_peak] - start),
                 peak_over_mean=float(fw[k_peak] / fw.mean()), peak_at=float((tw[k_peak] - tw[0]) / (tw[-1] - tw[0])),
                 peak=float(fw[k_peak]))
+
+
+if __name__ == "__main__":
+    main()

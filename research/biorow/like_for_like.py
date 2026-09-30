@@ -93,7 +93,7 @@ def trunk_dataset(base):
                                trunk=tuple(new.tolist()))
 
 
-def build(variant, timing=None, dataset=None, footboard_shift=None):
+def build(variant, timing=None, dataset=None, footboard_shift=None, drive_law=False):
     """His boat. ``timing`` (a StrokeTiming) overrides the variant's, e.g. [K05]'s on-water rhythm;
     ``dataset`` the body keyframes; ``footboard_shift`` (m, + toward the bow) fixes the rig instead of
     searching the nearest reachable oarlock."""
@@ -106,6 +106,10 @@ def build(variant, timing=None, dataset=None, footboard_shift=None):
         timing = MeasuredTiming(RATE, DRIVE_FRACTION) if "drive" in subs else StrokeTiming(RATE)
     sweep = (OarAngleSweep(catch_angle=np.radians(CATCH_DEG), finish_angle=np.radians(-FINISH_DEG))
              if "arc" in subs else catalog.SCULLING_ARC)
+    if drive_law:
+        # the hands' drive from [K05]'s on-water population (coxswain.crew.drive_law)
+        from coxswain.crew.drive_law import PopulationDriveSweep
+        sweep = PopulationDriveSweep(catch_angle=sweep.catch_angle, finish_angle=sweep.finish_angle)
     anthro = RowerAnthropometry(mass=MASS, stature=STATURE)
 
     def make(ds, work=WORK_THROUGH):

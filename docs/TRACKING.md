@@ -3316,6 +3316,13 @@ the model's own prescribed body, IVV is 48.7% on [BR24]'s arc (his 49.1%) and 46
 imposed; at equal power (cube law) speed is within ±2%. The handle force peaks too early and too
 sharply against the [LE26] / [H20] populations: the hands' time law is the remaining item.
 
+### The hands' drive law is now sourced (2026-09-30)
+[K05] Fig. 1 digitised; `PopulationDriveSweep` reproduces [BR24]'s measured oar angle to 1–6°
+through the drive (SOURCES §170). With hands on the handle and the tier 2 blade: IVV 54.4% / 50.5%
+against 49.1% / 49.4%, power 301 / 238 W against 432 / 261 W. *Open:* the force curve is too
+peaky (peak/mean 2.1–2.2 against 1.6–1.9) — the blade at small slip; the body's leg/trunk travel
+option (§169) is still a study, not wired into a profile.
+
 ### The body and the oar disagree kinematically (2026-09-30)
 Hands on the sweep's handle, arms solved from the keyframed shoulders: bent at the catch
 (71–86% of arm length) and stretched past their length early in the eight's drive (103–106%),
@@ -4337,6 +4344,8 @@ The measured stroke is commercial and stays in `data/local/biorow/`; every scrip
 | **On-water single-scull timing and the on-water driver** (sprint 1 #3): `OnWaterTiming` ([K05], predicts [BR24] and [CR06] to 0.006); `Boat(sequencing=)`; the driver study. The shared timing moves IVV <1 point. Research option, no profile. | `coxswain/crew/stroke.py`, `coxswain/boats/boat.py`, `research/biorow/onwater_driver.py` | `tests/unit/test_onwater_timing.py` (5); SOURCES §162 |
 | **Kinematic-drive reference and the blade-law check** (sprint 1 #1 groundwork): his oar angle, blade depth and body prescribed ([CR06]'s architecture); and the slip law evaluated on his kinematics with no simulation, with the centre of pressure swept and his C_N against attack angle. | `research/biorow/kinematic_drive.py`, `research/biorow/blade_law_check.py` | SOURCES §162 |
 | **Sourced blade options** (sprint 1 #5): [LB19] added mass beside Patton's (a sourced range), allowed with tier 2; strip integration across the span with the load at the centre of pressure; Coppel / [ST09] full-size tier 2 coefficients. All off by default, in the matched-torque cache key. Validation harness on [BR24] and [CR06], nothing fitted. | `coxswain/crew/blade_added_mass.py`, `coxswain/crew/blade_strips.py`, `coxswain/crew/liftdrag.py`, `coxswain/sim/dynamic_oar.py`, `research/blade/validate_blade.py` | `tests/test_blade_added_mass.py`, `tests/unit/test_blade_strips.py`, `test_blade_strips_sim.py`, `test_blade_coefficients.py`; SOURCES §163 |
+| **Population drive law** ([K05] Fig. 1 digitised; hands' drive time law from the on-water population; reproduces [BR24]'s oar angle unfitted). | `research/k05/extract_fig1.py`, `coxswain/crew/drive_law.py`, `data/literature/k05_fig1_onwater.csv` | `tests/unit/test_drive_law.py`, `test_paper_reproduction_blade.py`; SOURCES §170 |
+| **On-water body study** (stature-scaled [K05] segment travel, footboard for a straight-arm catch). | `research/crew/onwater_body.py`, `coxswain/crew/stroke_data.py` (`scale_trunk_amplitude`) | SOURCES §169 |
 | **Finite depth and fin lift against their papers** (§168): Sretenskii reproduces Doctors, Day & Clelland's steady Wigley at depth Froude 0.34 and 0.60; Whicker & Fehlner's eq. [1] added as an unused fin-law option (`lift_model="whicker_fehlner"`, `reflection`). | `coxswain/hydro/appendages.py`, `data/literature/doctors2010_steady_wigley.csv` | `tests/unit/test_paper_reproduction_fins.py`, `test_paper_reproduction_blade.py`; SOURCES §168 |
 | **Steering study on Whicker & Fehlner's fins** (§169): `PhysicsProfile.fin_law / fin_reflection / fin_crossflow / munk_factor`; research and learned on eq. [1] at reflection 2.0, C_Dc 0.80, Munk 0.50 (refitted 0.49–0.50 at every reflection 1–2); Ω corrected to the quarter-chord sweep; the CasADi fin follows the law; fins, Munk factor and `roll_friction` added to `_match_key`. Shipped unchanged. | `coxswain/physics.py`, `coxswain/hydro/appendages.py`, `coxswain/river/hydro_casadi.py`, `coxswain/sim/dynamic_oar.py`, `coxswain/sim/simulator.py`, `coxswain/river/sixdof.py`, `scripts/steering_study.py` | `tests/unit/test_research_fin_law.py`; SOURCES §169 |
 | **Phase 4.3 rung 1, hands on the handle**: `DynamicOarSimulator(crew="handle")` — oar on the hands' sweep all stroke, blade in and out by [CR06] eq. 16, handle force as the constraint reaction, power an output; harness on both athletes. | `coxswain/sim/dynamic_oar.py`, `research/crew/handle_rung1.py` | `tests/unit/test_handle_mode.py`; SOURCES §167 |
