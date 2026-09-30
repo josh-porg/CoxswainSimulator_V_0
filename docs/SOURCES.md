@@ -12024,7 +12024,7 @@ refitted on the **research** boat (dynamic oar, [CR06] sweep catch) and against 
 
 [WF58] define Ω as the sweep of the **quarter-chord line** (p. 20). `whicker_fehlner_lift` was
 passed the leading-edge sweep. The same angle on §168's rectangular test fins, so §168's tests
-did not see it; on the eight's delta fin (with its rudder chord, AR 1.354, taper 0.027) the
+did not see it; on the eight's delta fin (with its rudder chord: AR 1.354, taper 0.017; the fin alone tapers to 0.027) the
 leading edge is at 39° and the quarter chord at **24.3°**. `LiftingSurface.quarter_chord_sweep`
 now supplies Ω (straight-tapered half-span: tan Λ_c/4 = tan Λ_LE − (c_r − c_t)/4b). The legacy
 law, which ships, is untouched. The fin is also far outside [WF58]'s tested planforms (taper
@@ -12198,9 +12198,70 @@ deficit, now isolated from the hand timing. With the sourced tier 2 blade ([CG07
 Force: peak at 35% of the blade-in phase on [BR24] (K05's on-water peak force position 34.7%);
 catch to peak 0.28–0.30 s (populations 0.38–0.43); peak / mean 2.1–2.2 ([K05] on water 1.76;
 [LE26] 1.61–1.68; [H20] 1.87–1.90) — the model's force is still peakier than the "more
-rectangular" on-water curve. Power is under-predicted on [BR24] by 30%, consistent with §162's
+rectangular" on-water curve. **Corrected in §171:** these force descriptors were an artefact of
+the linearly interpolated law (acceleration spikes at the table's nodes on the oar's inertia,
+536 N at 0.300 s on [BR24]); with the law smoothed, peak / mean is 1.94 / 1.71, inside the
+populations' band. Speed, IVV and power stand. Power is under-predicted on [BR24] by 30%, consistent with §162's
 open question about his handle-force channel's scale; on [CR06] by 9%.
 
 **Where rung 2 stands.** The body's travel (§169) and the hands' time law (here) now come from
 on-water sources and agree with the measured athletes; hands are on the handle. What remains is
 the blade's load at small normal slip (early and late drive), which shapes the force curve.
+
+
+## 171. The drive law smoothed; blade added mass on the handle (2026-09-30)
+
+**A defect in §170, found by the next step.** `PopulationDriveSweep` interpolated the digitised
+[K05] table linearly, so the oar's rate was piecewise constant and its acceleration a train of
+spikes at the table's nodes (central differences 2×10⁻⁴ T wide). On a 1.2 kg scull the spikes
+reached the handle as 100–1900 N at the samples they happened to hit; they made §170's "peak at
+35% of the drive" (536 N at 0.300 s, a node) and its peak / mean 2.1–2.2. With the blade's
+entrained water on the same acceleration they reached 3–5 kN.
+
+**Fix, sourced:** the digitised handle speed, placed in time by dt = ds/v, is a cubic smoothing
+spline weighted by the digitisation's own ±0.03 m/s (the standard s = m choice; residual 0.030
+m/s rms, turning points pinned at zero), and the angle is its integral (`smooth_progress`). The
+drive's progress moves by at most 0.26% of the arc (≤0.3° on [BR24]'s); the rate is the
+angle's derivative and the acceleration is continuous (`tests/unit/test_drive_law.py`).
+
+**Rung 1, corrected** (hands on the handle, [K05] rhythm and law, [CG07] tier 2 with strips;
+`research/crew/handle_added_mass.py`, "none" rows):
+
+| | IVV | handle power | at measured power | entry / peak | catch to peak | peak / mean |
+|---|---|---|---|---|---|---|
+| [BR24] model | 54.3% | 301 W | +6.4% | 0.23 | 0.11 s | 1.94 |
+| [CR06] model | 50.1% | 237 W | +2.6% | 0.17 | 0.28 s | 1.71 |
+| populations | 49.1 / 49.4% | 432 / 261 W | | 0.17 [LE26] | 0.38–0.43 s | 1.61–1.90 |
+
+The force curve's *width* now agrees with the populations; its *timing* does not. On [BR24] the
+load reaches 435 N by 0.075 s and plateaus at 450–500 N to 0.30 s: an early-drive overload at
+the small angles of attack where tier 2's lift interpolation already failed [CR06]'s catch load
+(246 N against 31 N at 0.10 s, §163).
+
+**Blade added mass with the hands on the handle** (`DynamicOarSimulator(crew="handle",
+blade_added_mass=...)`, newly allowed): the oar's acceleration is the hands', so only the hull
+row is coupled, and [CR06]'s rule puts the blade in and out at zero normal velocity, so the
+entrained momentum is zero at both switches (within one step: <1 N·s). Checked, none fitted:
+the solve's normal acceleration g·Ẍ + ℓφ̈ + c is the time derivative of w_n along the run (to
+3% of its range) and the water's net work, −m[w_n²/2], vanishes (`tests/unit/test_handle_mode.py`).
+The water still moves energy between handle and hull: 14–33 J a stroke off the handle.
+
+| | IVV | handle power | at measured power | entry / peak | peak |
+|---|---|---|---|---|---|
+| [BR24] Patton 13 kg | 52.4% | 276 W | +8.5% | 1.00 | 745 N |
+| [BR24] [LB19] 22 kg | 50.8% | 261 W | +10.0% | 1.00 | 1194 N |
+| [CR06] Patton | 48.1% | 221 W | +3.8% | 1.00 | 551 N |
+| [CR06] [LB19] | 46.9% | 212 W | +4.6% | 1.00 | 844 N |
+
+IVV moves 2–4 points toward the athletes (and past [CR06]'s), but the handle force *peaks at
+entry*: a constant added mass switched on whole while the blade accelerates from rest puts
+550–1200 N on the handle where [LE26] measure 17% of peak. Refuted as a constant from entry, not
+as physics: Grift's entrainment grows from zero with the plate's travel (eq. 2.15, 7–8 plate
+heights), and a real blade takes time to immerse. The constant options stay study options, not
+defaults.
+
+**Open.** (1) A growing entrained mass: Grift's rate is model-scale (2.7–6.2 kg/s) with no
+full-scale law; the blade's immersion through the entry is the other half, measured only on
+[BR24] (vertical angle). (2) The early-drive overload at small attack angles. Rung 2 (the
+torque-driven body) waits on neither.
+

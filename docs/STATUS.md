@@ -22,8 +22,8 @@ work studies coxing itself: what a coxswain's calls do to the boat.
 | [DATA_REQUESTS.md](DATA_REQUESTS.md) | letters to authors and labs, and their replies |
 | [SOURCES.md](SOURCES.md) | the evidence, numbered by section |
 
-Test suite: **1967 passing, 0 failing** in the fast lane (`pytest -m "not slow"`, run
-2026-09-30; 8 min 34 s when last timed on 2026-09-29, and this run's wall time is not usable because the machine slept). The full suite, with the strict xfails that pin known model errors
+Test suite: **1976 passing, 0 failing** in the fast lane (`pytest -m "not slow"`, run
+2026-09-30, 8 min 14 s). The full suite, with the strict xfails that pin known model errors
 (drive duration against on-water pairs, race pace without controlled power), was last run
 2026-09-12: 1771 passing, 14 expected failures.
 
@@ -34,7 +34,7 @@ Test suite: **1967 passing, 0 failing** in the fast lane (`pytest -m "not slow"`
 | workstream | state | most recent | next |
 |---|---|---|---|
 | **Released trainer** | v0.13 (2026-09-11). Physics profile `shipped`, **frozen**: no accuracy change reaches it without a scorecard that justifies promotion | leg-mass placement fixed for research only, shipped left on `legacy` (2026-09-26) | nothing scheduled |
-| **Physics programme** (`research` profile) | phase 2 gate passed (dynamic oar, slip blade, 6-DOF hull); phase 3 tier 2 lift/drag wired as a study; phase 4.1 closed, **4.3 next** | fins on Whicker & Fehlner's eq. [1], Munk factor refitted (0.50, unchanged), SOURCES §169 (2026-09-30); [BR24] like-for-like runs (§156–159) | phase 4.3 rung 2: a torque-driven body against the handle load (rung 1, hands on the handle, is built: IVV 46–55% vs 49%) |
+| **Physics programme** (`research` profile) | phase 2 gate passed (dynamic oar, slip blade, 6-DOF hull); phase 3 tier 2 lift/drag wired as a study; phase 4.1 closed, **4.3 next** | fins on Whicker & Fehlner's eq. [1], Munk factor refitted (0.50, unchanged), SOURCES §169 (2026-09-30); [BR24] like-for-like runs (§156–159) | phase 4.3 rung 2: a torque-driven body against the handle load (rung 1 with the [K05] drive law: IVV 54 / 50% vs 49%, force width in band, peak early; §171) |
 | **Like-for-like validation** | first athlete where rig, rate, power and boat response are one person's ([BR24], elite M1x); [CR06] traces rebuilt into `data/literature` | pace passes (+0.2%); IVV 61% vs 49% decomposed; hull drag verified; on-water timing transfers ~2 points between athletes | the blade at his kinematics: a slip law gives 35% of his drive impulse (§162) |
 | **Charles trajectory optimisation** | deterministic receding-horizon leg stalled near 409 m at the station-450 pinch; stochastic machinery solves per block | not revisited since 2026-09-13 (research wave drag wired into the optimisers) | resume after the physics settles |
 | **Coxing research** | foundations paper frozen 2026-09-23 for IJSSC; working copy revised with a coupled-process section; call/boat transformer pipeline built and validated on synthetic data | first run: no coupling either way on 3 races + 35 transcripts; the catch-call effect is explained by the boat's own history | more synchronised races (the pipeline takes them as folders) |
@@ -103,7 +103,14 @@ The IVV gap is the crew's force time course; phase 4.3 (#1) carries it. *29 Sep 
 combinations are refused in code. *Rung 1 of phase 4.3 (§167):* with the hands held on the handle the model's IVV is
 46–55% against 49%, and speed is within ±2% at equal power on both athletes, power predicted
 rather than imposed. The remaining gap is the hands' time law (the handle force peaks too early),
-which rung 2's torque-driven body is for.
+which rung 2's torque-driven body is for. *30 Sep (§169–170):* the ergometer body's legs and trunk
+travel 10% too far and its arms bend at the catch; [K05]'s on-water population patterns, digitised,
+give a drive law that reproduces [BR24]'s measured oar angle unfitted. With it, hands on the handle and
+the tier 2 blade, IVV is 54% and 50% against 49% on both athletes. *§171:* the law smoothed (its linear
+interpolation had put acceleration spikes on the oar); the force curve's width now agrees with the populations
+(peak/mean 1.94 / 1.71 against 1.6–1.9) but it peaks early (0.11 / 0.28 s against 0.38–0.43). Blade added mass now
+runs with the hands on the handle: IVV moves 2–4 points the right way, but held constant from entry it spikes the
+handle at entry (550–1200 N) — a growing entrained mass (Grift) is what the data want.
 
 ### 3.2 The crew is driven by ergometer kinematics
 The cause of 3.1's crew share, and the motivation for phase 4. A sourced on-water

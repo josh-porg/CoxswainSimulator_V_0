@@ -15,6 +15,12 @@ duration is the boat's own timing (e.g. [K05]'s on-water rhythm), because the sc
 resolve the handle speed at the two turning points, where the time integral is most sensitive;
 there the speed is set to zero. The recovery keeps the parent's raised cosine.
 
+The law is smooth to its acceleration: the digitised speed, in time, is a cubic smoothing spline
+weighted by the digitisation's own +-0.03 m/s (residual 0.030 m/s rms, the standard s = m
+choice), and the angle is its integral. Interpolating the table linearly instead made the rate
+piecewise constant and the acceleration a train of spikes at the table's nodes, harmless on a
+1.2 kg oar but kilonewtons at the handle once the blade carries its entrained water.
+
 A research option; nothing in the shipped game uses it.
 """
 from __future__ import annotations
@@ -48,34 +54,64 @@ def progress_in_time(s, v):
     return t / t[-1], s
 
 
+#: the digitisation's stated uncertainty in handle speed, m/s (k05_fig1_onwater.csv header)
+K05_SPEED_ERROR = 0.03
+
+
+def smooth_progress(s, v, error: float = K05_SPEED_ERROR):
+    """``(progress, speed, acceleration)`` callables of the drive's time fraction, smooth.
+
+    ``progress`` runs 0 -> 1 as the handle covers the drive; ``speed`` and ``acceleration`` are
+    its first two derivatives. The speed along the path, placed in time by dt = ds / v, is fitted
+    with a cubic smoothing spline weighted by ``error`` (turning points pinned at zero), and the
+    progress is its integral scaled to end at 1 (a 0.1% rescale on [K05]).
+    """
+    from scipy.interpolate import UnivariateSpline
+
+    mid = 0.5 * (v[1:] + v[:-1])
+    total = float(np.sum(np.diff(s) / np.maximum(mid, 1e-6)))
+    tf, _pf = progress_in_time(s, v)
+    rate = np.asarray(v, dtype=float) * total             # d(progress) / d(time fraction)
+    weights = np.full(rate.size, 1.0 / (error * total))
+    weights[0] = weights[-1] = 100.0 / (error * total)
+    spline = UnivariateSpline(tf, rate, w=weights, k=3, s=float(rate.size))
+    integral = spline.antiderivative()
+    scale = 1.0 / float(integral(1.0))
+    accel = spline.derivative()
+    return (lambda x: scale * integral(x), lambda x: scale * spline(x), lambda x: scale * accel(x))
+
+
 @dataclass(frozen=True)
 class PopulationDriveSweep(OarAngleSweep):
     """An oar sweep whose drive follows a measured on-water handle-speed profile."""
 
-    #: ``(time_fraction, length_fraction)``; default [K05] Fig. 1.
+    #: ``(length_fraction, handle_speed)``; default [K05] Fig. 1.
     profile: tuple = field(default=None, repr=False, compare=False)
 
-    def _table(self):
-        if self.profile is not None:
-            return self.profile
+    def _law(self):
         cached = getattr(self, "_cached", None)
         if cached is None:
-            cached = progress_in_time(*k05_handle_speed())
+            cached = smooth_progress(*(self.profile if self.profile is not None
+                                       else k05_handle_speed()))
             object.__setattr__(self, "_cached", cached)
         return cached
 
     def __call__(self, t, timing):
         phase = np.asarray(timing.phase(t), dtype=float)
         drive = timing.drive_fraction
-        tf, pf = self._table()
+        progress = self._law()[0]
         on_drive = phase < drive
         span = self.finish_angle - self.catch_angle
         drive_progress = np.clip(phase / drive, 0.0, 1.0)
-        during_drive = self.catch_angle + span * np.interp(drive_progress, tf, pf)
+        during_drive = self.catch_angle + span * progress(drive_progress)
         during_recovery = super().__call__(t, timing)
         return np.where(on_drive, during_drive, during_recovery)
 
     def rate(self, t, timing):
-        step = 1e-4 * float(timing.period)
-        return (np.asarray(self(np.asarray(t) + step, timing))
-                - np.asarray(self(np.asarray(t) - step, timing))) / (2.0 * step)
+        phase = np.asarray(timing.phase(t), dtype=float)
+        drive = timing.drive_fraction
+        speed = self._law()[1]
+        span = self.finish_angle - self.catch_angle
+        duration = drive * float(timing.period)
+        during_drive = span * speed(np.clip(phase / drive, 0.0, 1.0)) / duration
+        return np.where(phase < drive, during_drive, super().rate(t, timing))

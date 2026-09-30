@@ -38,3 +38,27 @@ def test_the_recovery_is_the_parents(sweep):
     base = OarAngleSweep(catch_angle=np.radians(67.2), finish_angle=np.radians(-36.4))
     t = timing.drive_duration + 0.3
     assert float(sweep(t, timing)) == pytest.approx(float(base(t, timing)), abs=1e-12)
+
+
+def test_the_law_is_smooth_to_its_acceleration(sweep):
+    """No spikes at the digitised table's nodes: the rate is the angle's derivative and the
+    acceleration, differenced on a fine grid, changes by a small step between neighbours."""
+    timing = OnWaterTiming(32.4)
+    t = np.linspace(0.01, 0.99 * timing.drive_duration, 4001)
+    rate = np.asarray(sweep.rate(t, timing), dtype=float)
+    angle = np.array([float(sweep(x, timing)) for x in t])
+    assert np.max(np.abs(np.gradient(angle, t) - rate)) < 0.01 * np.max(np.abs(rate))
+    accel = np.gradient(rate, t)
+    assert np.max(np.abs(np.diff(accel))) < 0.01 * np.max(np.abs(accel))
+
+
+def test_the_smoothing_leaves_the_digitisation_error():
+    """The spline sits within the digitisation's +-0.03 m/s of the table, no closer (s = m)."""
+    from coxswain.crew.drive_law import smooth_progress
+    s, v = k05_handle_speed()
+    tf, pf = progress_in_time(s, v)
+    progress, speed, _accel = smooth_progress(s, v)
+    assert np.max(np.abs(progress(tf) - pf)) < 0.005
+    assert progress(0.0) == pytest.approx(0.0, abs=1e-12)
+    assert progress(1.0) == pytest.approx(1.0, abs=1e-12)
+    assert np.min(speed(np.linspace(0.0, 1.0, 501))) > -1e-3

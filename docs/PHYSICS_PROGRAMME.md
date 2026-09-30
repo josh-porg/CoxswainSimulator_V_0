@@ -1071,6 +1071,11 @@ the boat speeds that go with their drive durations).
   prescribed body; oar angle from the hands, handle force as the reaction, power an output.
   IVV 46–55% against the athletes' 49%; speed within ±2% at equal power. Open: the handle force
   peaks 0.16–0.20 s after entry against the population's 0.38–0.43 s.
+- **Rung 2a, sourced hands** (SOURCES §169–171): [K05] Fig. 1's on-water drive law, smoothed
+  within its digitisation error, reproduces [BR24]'s oar angle unfitted. Rung 1 with it and the
+  tier 2 blade: IVV 54 / 50% against 49%; force width in the populations' band (peak/mean
+  1.94 / 1.71), peak early (0.11 / 0.28 s). Blade added mass runs with the hands on the handle;
+  held constant from entry it spikes the handle — a growing entrained mass is open.
 - **Rung 2, next:** relax the body — joint torques move it against the handle load, so the
   hands' time law is an output. The trunk rungs (TRACKING: hip moment, trunk forward dynamics,
   delayed PD) are its pieces; knee and ankle wait on the foot-force direction (sprint #4).

@@ -84,19 +84,12 @@ def force_descriptors(result):
     sim, run = result["sim"], result["run"]
     t, y = run.last_time, run.last_states
     start = t[0]
-    oar = sim._oars[0]
     lock = sim.boat.rig.seats[sim._seats[0]].oarlocks[0]
-    inertia = float(getattr(oar.inertia, "oar_inertia", 0.0))
     inboard = float(lock.oar.inboard)
-    from coxswain.core.state import State
     force = np.zeros_like(t)
     for k in range(t.size):
-        rate, accel = sim._sweep_motion(t[k] - start)
-        angle = sim._sweep_pose(t[k] - start)[0]
-        torque = inertia * accel
-        if not sim._air_mask[0, k]:
-            f_n, _f, arm = sim._blade_loads_arm(0, angle, rate, State.from_vector(y[:len(y) - 2 * sim.n_oar_states, k]), lock)
-            torque -= arm * f_n
+        # the constraint's reaction, blade added mass included when it is on
+        torque = sim.handle_torques(t[k], y[:, k], sim._air_mask[:, k])[0, 0]
         force[k] = -torque / inboard                    # pull on the handle, N per oar
     wet = ~sim._air_mask[0]
     tw = t[wet]

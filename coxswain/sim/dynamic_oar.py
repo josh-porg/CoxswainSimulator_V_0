@@ -204,7 +204,11 @@ class DynamicOarSimulator(RowingSimulator):
     #: upper bound -- solved together with the hull; see
     #: :mod:`coxswain.crew.blade_added_mass`.  ``"labbe"``: [LB19]'s measured
     #: C_m on their cylinder volume, about 1.7x Patton's on a Big Blade.  The
-    #: two are a sourced range.  A study.
+    #: two are a sourced range.  A study.  With the hands on the handle the
+    #: oar's acceleration is the hands', so only the hull row is coupled; the
+    #: blade goes in and out at zero normal velocity, so no momentum is left
+    #: out at either switch.  Held constant from entry it puts 550-1200 N on
+    #: the handle there, where [LE26] measure 17% of peak (SOURCES sec. 171).
     ADDED_MASS_MODELS = ("none", "patton", "labbe")
 
     #: How the crew moves.  ``"clock"``: prescribed in time, as before --
@@ -217,7 +221,8 @@ class DynamicOarSimulator(RowingSimulator):
     #: oar angle to the sweep for the whole stroke, [CR06]'s architecture.
     #: The blade enters and leaves by their eq. 16 (zero normal velocity); the
     #: handle force is the constraint's reaction, I_oar phi_ddot - l F_n per
-    #: oar, and handle power is an output, not an input.  Needs
+    #: oar (:meth:`handle_torques`, with the blade's entrained water when blade
+    #: added mass is on), and handle power is an output, not an input.  Needs
     #: ``catch="sweep"`` (the entry rule) and the angle release.
     CREW_MODES = ("clock", "follows", "handle")
 
@@ -257,11 +262,12 @@ class DynamicOarSimulator(RowingSimulator):
                 "load her stroke wants m_a = -1.5 +- 0.15 kg against Patton's "
                 "13.1 and leaves C2 at 140.3, so it admits the large "
                 "quasi-steady coefficient or the added mass, not both")
-        if blade_added_mass != "none" and (crew != "clock"
+        if blade_added_mass != "none" and (crew not in ("clock", "handle")
                                            or release != "angle"):
             raise ValueError(
-                "blade added mass is solved with the clock crew and the finish-"
-                "angle release only; crew=%r, release=%r" % (crew, release))
+                "blade added mass is solved with the clock crew or the hands on "
+                "the handle, and the finish-angle release only; crew=%r, "
+                "release=%r" % (crew, release))
         if catch not in self.CATCH_RULES:
             raise ValueError("unknown catch rule %r; this simulator runs %s"
                              % (catch, ", ".join(self.CATCH_RULES)))
@@ -1006,20 +1012,9 @@ class DynamicOarSimulator(RowingSimulator):
         power = np.zeros_like(times)
         air = self._air_mask
         for k in range(times.size):
-            state = State.from_vector(states[:STATE_SIZE, k])
-            tau = float(times[k]) - self._stroke_start
-            rate, accel = self._sweep_motion(tau)
-            angle = float(states[STATE_SIZE, k])
-            for slot, seat in enumerate(self._seats):
-                oar = self._oars[slot]
-                inertia = float(getattr(oar.inertia, "oar_inertia", 0.0))
-                wet = not (air is not None and air[slot, k]) and angle > oar.finish_angle
-                for lock in self.boat.rig.seats[seat].oarlocks:
-                    torque = inertia * accel
-                    if wet:
-                        f_n, _f_t, arm = self._blade_loads_arm(slot, angle, rate, state, lock)
-                        torque -= arm * f_n
-                    power[k] += torque * rate
+            rate = self._sweep_motion(float(times[k]) - self._stroke_start)[0]
+            mask = air[:, k] if air is not None else np.zeros(n, dtype=bool)
+            power[k] = float(np.sum(self.handle_torques(times[k], states[:, k], mask))) * rate
         return power
 
     def _catch(self, t0, y, index):
@@ -1170,10 +1165,22 @@ class DynamicOarSimulator(RowingSimulator):
         omega_abs = np.asarray(state.omega, dtype=float)
         omega_hull = np.asarray(state.omega_hull, dtype=float)
 
+        handle = self.crew == "handle"
         for slot, seat in enumerate(self._seats):
             row = 6 + slot
             oar, angle, rate = self._oars[slot], float(angles[slot]), \
                 float(rates[slot])
+            if handle:
+                # Hands on the handle: phi_ddot is the hands', so the oar row is an
+                # identity and its known acceleration moves to the hull's right side.
+                system[row, row] = 1.0
+                rhs[row] = self._sweep_motion(t - self._stroke_start)[1]
+                if (self._in_air is not None and self._in_air[slot]) \
+                        or angle <= oar.finish_angle:
+                    continue
+                self._add_blade_mass(system, rhs, slot, seat, angle, rate, state,
+                                     rot, omega_abs, omega_hull, known=rhs[row])
+                continue
             if angle <= oar.finish_angle:
                 system[row, row] = 1.0            # held until the catch
                 continue
@@ -1190,41 +1197,109 @@ class DynamicOarSimulator(RowingSimulator):
                                                   state, locks, slot)
             system[row, row] += inertia
             rhs[row] += balance
+            self._add_blade_mass(system, rhs, slot, seat, angle, rate, state,
+                                 rot, omega_abs, omega_hull)
+        return system, rhs
 
-            mass, arm = float(self._blade_mass[slot]), float(oar.outboard)
-            for lock in locks:
-                side = int(lock.side)
-                normal = np.array([np.cos(angle), -side * np.sin(angle), 0.0])
-                axis = np.array([np.sin(angle), side * np.cos(angle), 0.0])
-                point = np.asarray(lock.position, dtype=float) + arm * axis
-                normal_abs, point_abs = rot @ normal, rot @ point
-                g = np.concatenate([normal_abs, np.cross(point_abs, normal_abs)])
+    def _blade_mass_terms(self, slot, lock, angle, rate, state, rot, omega_abs,
+                          omega_hull):
+        """``(m, l, g, c, w_n, h)`` for one blade: its normal acceleration is
+        ``g . X_h + l phi_ddot + c`` (see :meth:`_coupled_system`)."""
+        mass, arm = float(self._blade_mass[slot]), float(self._oars[slot].outboard)
+        side = int(lock.side)
+        normal = np.array([np.cos(angle), -side * np.sin(angle), 0.0])
+        axis = np.array([np.sin(angle), side * np.cos(angle), 0.0])
+        point = np.asarray(lock.position, dtype=float) + arm * axis
+        normal_abs, point_abs = rot @ normal, rot @ point
+        g = np.concatenate([normal_abs, np.cross(point_abs, normal_abs)])
+        water = self._lock_velocity(state, lock) + arm * rate * normal
+        w_n = float(water @ normal)
+        normal_dot = -rate * axis + np.cross(omega_hull, normal)
+        c = (float(normal_abs @ np.cross(omega_abs, np.cross(
+            omega_abs, point_abs))) + float(water @ normal_dot))
+        normal_dot_abs = rot @ normal_dot
+        h = np.concatenate([normal_dot_abs, np.cross(point_abs, normal_dot_abs)])
+        return mass, arm, g, c, w_n, h
 
-                water = self._lock_velocity(state, lock) + arm * rate * normal
-                w_n = float(water @ normal)
-                normal_dot = -rate * axis + np.cross(omega_hull, normal)
-                c = (float(normal_abs @ np.cross(omega_abs, np.cross(
-                    omega_abs, point_abs))) + float(water @ normal_dot))
-                normal_dot_abs = rot @ normal_dot
-                h = np.concatenate([normal_dot_abs,
-                                    np.cross(point_abs, normal_dot_abs)])
+    def _add_blade_mass(self, system, rhs, slot, seat, angle, rate, state, rot,
+                        omega_abs, omega_hull, known=None):
+        """Each of a seat's blades adds its entrained water to the system.
 
-                system[:6, :6] += mass * np.outer(g, g)
+        ``known``: the oar's acceleration when the hands prescribe it; its
+        coupling then moves to the right-hand side and the oar row is left alone.
+        """
+        row = 6 + slot
+        for lock in self.boat.rig.seats[seat].oarlocks:
+            mass, arm, g, c, w_n, h = self._blade_mass_terms(
+                slot, lock, angle, rate, state, rot, omega_abs, omega_hull)
+            system[:6, :6] += mass * np.outer(g, g)
+            rhs[:6] -= mass * (c * g + w_n * h)
+            if known is None:
                 system[:6, row] += mass * arm * g
                 system[row, :6] += mass * arm * g
                 system[row, row] += mass * arm * arm
-                rhs[:6] -= mass * (c * g + w_n * h)
                 rhs[row] -= mass * arm * c
-        return system, rhs
+            else:
+                rhs[:6] -= mass * arm * g * float(known)
+
+    def handle_torques(self, t: float, y, air) -> np.ndarray:
+        """Hands on the handle: the handle torque per blade, ``(n_oars, locks)``, N m.
+
+        The constraint's reaction on the angle coordinate (catch positive): the oar's
+        own inertia, minus the blade's normal load times its arm, and with blade added
+        mass minus the entrained water's normal force ``-m (g . X_h + l phi_ddot + c)``
+        times the arm, ``X_h`` solved from the coupled system at this instant.
+        ``air``: which oars have their blade out at ``t``.
+        """
+        n = self.n_oar_states
+        y = np.asarray(y, dtype=float)
+        state = State.from_vector(y[:STATE_SIZE])
+        rate, accel = self._sweep_motion(float(t) - self._stroke_start)
+        angle = float(y[STATE_SIZE])
+        air = np.asarray(air, dtype=bool)
+        locks_max = max(len(self.boat.rig.seats[s].oarlocks) for s in self._seats)
+        out = np.zeros((n, locks_max))
+        hull_accel = None
+        if self.blade_added_mass != "none" and not np.all(air):
+            saved = self._in_air
+            self._in_air = air.copy()
+            try:
+                system, rhs = self._coupled_system(
+                    float(t), state, y[STATE_SIZE:STATE_SIZE + n],
+                    y[STATE_SIZE + n:STATE_SIZE + 2 * n])
+            finally:
+                self._in_air = saved
+            hull_accel = solve_accelerations(system, rhs)[:6]
+            rot = state.rot_hull_to_abs
+            omega_abs = np.asarray(state.omega, dtype=float)
+            omega_hull = np.asarray(state.omega_hull, dtype=float)
+        for slot, seat in enumerate(self._seats):
+            oar = self._oars[slot]
+            inertia = float(getattr(oar.inertia, "oar_inertia", 0.0))
+            wet = not air[slot] and angle > oar.finish_angle
+            for j, lock in enumerate(self.boat.rig.seats[seat].oarlocks):
+                torque = inertia * accel
+                if wet:
+                    f_n, _f_t, arm = self._blade_loads_arm(slot, angle, rate, state, lock)
+                    torque -= arm * f_n
+                    if hull_accel is not None:
+                        mass, arm_m, g, c, _w, _h = self._blade_mass_terms(
+                            slot, lock, angle, rate, state, rot, omega_abs, omega_hull)
+                        torque += arm_m * mass * (float(g @ hull_accel) + arm_m * accel + c)
+                out[slot, j] = torque
+        return out
 
     def _coupled_derivative(self, t: float, hull, angles, rates):
         state = State.from_vector(hull)
         system, rhs = self._coupled_system(t, state, angles, rates)
         accel = solve_accelerations(system, rhs)
         n = self.n_oar_states
-        angle_rate = np.array([float(rates[k]) if float(angles[k])
-                               > self._oars[k].finish_angle else 0.0
-                               for k in range(n)])
+        if self.crew == "handle":
+            angle_rate = np.full(n, self._sweep_motion(t - self._stroke_start)[0])
+        else:
+            angle_rate = np.array([float(rates[k]) if float(angles[k])
+                                   > self._oars[k].finish_angle else 0.0
+                                   for k in range(n)])
         return np.concatenate([state.velocity,
                                euler_rates(state.attitude, state.omega),
                                accel[0:3], accel[3:6], angle_rate,

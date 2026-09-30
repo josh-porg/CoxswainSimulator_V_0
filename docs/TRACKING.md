@@ -3318,10 +3318,20 @@ sharply against the [LE26] / [H20] populations: the hands' time law is the remai
 
 ### The hands' drive law is now sourced (2026-09-30)
 [K05] Fig. 1 digitised; `PopulationDriveSweep` reproduces [BR24]'s measured oar angle to 1–6°
-through the drive (SOURCES §170). With hands on the handle and the tier 2 blade: IVV 54.4% / 50.5%
-against 49.1% / 49.4%, power 301 / 238 W against 432 / 261 W. *Open:* the force curve is too
-peaky (peak/mean 2.1–2.2 against 1.6–1.9) — the blade at small slip; the body's leg/trunk travel
+through the drive (SOURCES §170). With hands on the handle and the tier 2 blade: IVV 54.3% / 50.1%
+against 49.1% / 49.4%, power 301 / 237 W against 432 / 261 W. *Corrected (§171):* the "too peaky"
+force was the law's linear interpolation (acceleration spikes on the oar); smoothed within the
+digitisation's ±0.03 m/s, peak/mean is 1.94 / 1.71, inside the populations' 1.6–1.9, and entry/peak
+0.23 / 0.17 against [LE26]'s 0.17. *Open:* the force peaks early (catch to peak 0.11 / 0.28 s
+against 0.38–0.43) — an early-drive overload at small attack angles; the body's leg/trunk travel
 option (§169) is still a study, not wired into a profile.
+
+### Constant blade added mass spikes the handle at entry (2026-09-30)
+Blade added mass now runs with the hands on the handle (§171; consistency tests in
+`tests/unit/test_handle_mode.py`). Patton / [LB19] move IVV 2–4 points toward the athletes, but
+held constant from the instant of entry they put 550–1200 N on the handle there (entry/peak 1.00
+against [LE26]'s 0.17). *Next:* an entrained mass that grows from zero — Grift eq. 2.15's rate is
+model-scale only — and the blade's immersion through the entry. Study options; nothing defaults.
 
 ### The body and the oar disagree kinematically (2026-09-30)
 Hands on the sweep's handle, arms solved from the keyframed shoulders: bent at the catch
@@ -3343,7 +3353,7 @@ on the legacy law.
 *Still open:* (a) the response ratio 25°/5° is **3.8 (reflection 1) to 4.8 (reflection 2)**
 against the coxswain's "roughly 3"; (b) the reflection factor is a named choice (2 = [WF58]'s
 definition). Both need a measured rudder-step heading trace or turning circle from a coxed eight.
-The fin sits outside [WF58]'s tested planforms (taper 0.027 vs 0.45; Ω 24° vs −8 to +11°).
+The fin sits outside [WF58]'s tested planforms (taper 0.017 vs 0.45; Ω 24° vs −8 to +11°).
 
 ### The eight is validated only by inference
 Holt measured singles and pairs. The boat this project cares about most
@@ -4345,6 +4355,7 @@ The measured stroke is commercial and stays in `data/local/biorow/`; every scrip
 | **Kinematic-drive reference and the blade-law check** (sprint 1 #1 groundwork): his oar angle, blade depth and body prescribed ([CR06]'s architecture); and the slip law evaluated on his kinematics with no simulation, with the centre of pressure swept and his C_N against attack angle. | `research/biorow/kinematic_drive.py`, `research/biorow/blade_law_check.py` | SOURCES §162 |
 | **Sourced blade options** (sprint 1 #5): [LB19] added mass beside Patton's (a sourced range), allowed with tier 2; strip integration across the span with the load at the centre of pressure; Coppel / [ST09] full-size tier 2 coefficients. All off by default, in the matched-torque cache key. Validation harness on [BR24] and [CR06], nothing fitted. | `coxswain/crew/blade_added_mass.py`, `coxswain/crew/blade_strips.py`, `coxswain/crew/liftdrag.py`, `coxswain/sim/dynamic_oar.py`, `research/blade/validate_blade.py` | `tests/test_blade_added_mass.py`, `tests/unit/test_blade_strips.py`, `test_blade_strips_sim.py`, `test_blade_coefficients.py`; SOURCES §163 |
 | **Population drive law** ([K05] Fig. 1 digitised; hands' drive time law from the on-water population; reproduces [BR24]'s oar angle unfitted). | `research/k05/extract_fig1.py`, `coxswain/crew/drive_law.py`, `data/literature/k05_fig1_onwater.csv` | `tests/unit/test_drive_law.py`, `test_paper_reproduction_blade.py`; SOURCES §170 |
+| **Drive law smoothed; blade added mass with hands on the handle** (cubic smoothing spline at the digitisation's ±0.03 m/s; `handle_torques`, coupled hull row with the oar prescribed; w_n-derivative consistency check). | `coxswain/crew/drive_law.py` `smooth_progress`, `coxswain/sim/dynamic_oar.py`, `research/crew/handle_added_mass.py` | `tests/unit/test_drive_law.py`, `tests/unit/test_handle_mode.py`; SOURCES §171 |
 | **On-water body study** (stature-scaled [K05] segment travel, footboard for a straight-arm catch). | `research/crew/onwater_body.py`, `coxswain/crew/stroke_data.py` (`scale_trunk_amplitude`) | SOURCES §169 |
 | **Finite depth and fin lift against their papers** (§168): Sretenskii reproduces Doctors, Day & Clelland's steady Wigley at depth Froude 0.34 and 0.60; Whicker & Fehlner's eq. [1] added as an unused fin-law option (`lift_model="whicker_fehlner"`, `reflection`). | `coxswain/hydro/appendages.py`, `data/literature/doctors2010_steady_wigley.csv` | `tests/unit/test_paper_reproduction_fins.py`, `test_paper_reproduction_blade.py`; SOURCES §168 |
 | **Steering study on Whicker & Fehlner's fins** (§169): `PhysicsProfile.fin_law / fin_reflection / fin_crossflow / munk_factor`; research and learned on eq. [1] at reflection 2.0, C_Dc 0.80, Munk 0.50 (refitted 0.49–0.50 at every reflection 1–2); Ω corrected to the quarter-chord sweep; the CasADi fin follows the law; fins, Munk factor and `roll_friction` added to `_match_key`. Shipped unchanged. | `coxswain/physics.py`, `coxswain/hydro/appendages.py`, `coxswain/river/hydro_casadi.py`, `coxswain/sim/dynamic_oar.py`, `coxswain/sim/simulator.py`, `coxswain/river/sixdof.py`, `scripts/steering_study.py` | `tests/unit/test_research_fin_law.py`; SOURCES §169 |

@@ -99,3 +99,8 @@ stays frozen.
   arms bend at the catch; [K05] Fig. 1 digitised gives an on-water drive law that reproduces
   [BR24]'s oar angle unfitted. Hands on the handle with it and the tier 2 blade: IVV 54% / 51%
   against 49% / 49%. Remaining: the force curve's peakiness (the blade at small slip).
+- 2026-09-30, #1 (§171): the "peakiness" was the drive law's linear interpolation (acceleration
+  spikes on the oar); smoothed within the digitisation's ±0.03 m/s, peak/mean 1.94 / 1.71 sits in
+  the populations' band, but the force peaks early (0.11 / 0.28 s vs 0.38–0.43). Blade added mass
+  now runs with hands on the handle: IVV 2–4 points better, but constant from entry it spikes the
+  handle (550–1200 N) — the entrained mass must grow (Grift). Nothing defaults.
