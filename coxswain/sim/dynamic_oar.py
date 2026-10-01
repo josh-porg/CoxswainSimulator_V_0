@@ -240,7 +240,7 @@ class DynamicOarSimulator(RowingSimulator):
                  crew: str = "clock", release: str = "angle",
                  blade_added_mass: str = "none", catch: str = "rest",
                  blade_span: float = None, blade_coefficients: str = "cg07",
-                 blade_depth=None, **kwargs):
+                 blade_depth=None, blade_immersion=None, **kwargs):
         if blade_law not in self.BLADE_LAWS:
             raise ValueError("unknown blade law %r; this simulator runs %s"
                              % (blade_law, ", ".join(self.BLADE_LAWS)))
@@ -298,6 +298,13 @@ class DynamicOarSimulator(RowingSimulator):
             raise ValueError("blade coefficients apply to the tier 2 law only; "
                              "blade_law=%r" % (blade_law,))
         self.blade_coefficients = blade_coefficients
+        #: Optional :class:`~coxswain.crew.blade_immersion.EntryImmersion`: the blade goes in
+        #: over a few degrees of oar travel after entry (BioRow's norm), scaling its load by
+        #: the wetted fraction and its added mass by the wetted height squared. Hands on the
+        #: handle only, where the entry is [CR06]'s and the oar travel since it is known.
+        if blade_immersion is not None and crew != "handle":
+            raise ValueError("blade immersion is built for crew='handle' only; crew=%r" % (crew,))
+        self.blade_immersion = blade_immersion
         if self.blade_span is not None and self._fitted_scull_c2(boat):
             raise ValueError(
                 "strip integration and the fitted sculling C2 are exclusive: the C2 was "
@@ -352,6 +359,8 @@ class DynamicOarSimulator(RowingSimulator):
                 boat, inertia=shared[key][0], seat=index))
             self._followers.append(shared[key][1])
         self.n_oar_states = len(self._seats)
+        #: the oar angle at which each blade entered this stroke; nan while it is out
+        self._entry_angle = np.full(self.n_oar_states, np.nan)
         self._oar_state = None
         #: Sweep catch only: which oars are still on the sweep with their
         #: blade out; the same mask for every step of the stroke just run,
@@ -578,6 +587,8 @@ class DynamicOarSimulator(RowingSimulator):
             loads = blade.loads(angle, rate, velocity[:2], int(lock.side))
         if self.blade_depth is not None:
             loads = tuple(f * self._depth_factor(slot, angle) for f in loads)
+        if self.blade_immersion is not None:
+            loads = tuple(f * self._wetted(slot, angle) for f in loads)
         return tuple(loads) + (arm,)
 
     def _strip_loads(self, slot, angle, rate, state, lock):
@@ -605,6 +616,9 @@ class DynamicOarSimulator(RowingSimulator):
                                             int(lock.side), self.blade_span)
         if self.blade_depth is not None:
             factor = self._depth_factor(slot, angle)
+            f_n, f_t = f_n * factor, f_t * factor
+        if self.blade_immersion is not None:
+            factor = self._wetted(slot, angle)
             f_n, f_t = f_n * factor, f_t * factor
         return float(f_n), float(f_t), float(arm)
 
@@ -652,6 +666,27 @@ class DynamicOarSimulator(RowingSimulator):
                 "a deep-referenced depth on [ST09] may count the surface twice: their CFD "
                 "modelled the free surface; use coppel or reference='mean'")
 
+    def _travel_since_entry(self, slot, angle) -> float:
+        """Oar travel since this blade entered, rad (the angle falls through the drive)."""
+        entry = float(self._entry_angle[slot]) if self._entry_angle is not None else np.nan
+        return float(entry - angle) if np.isfinite(entry) else np.inf
+
+    def _wetted(self, slot, angle) -> float:
+        """Wetted fraction of the blade's height; 1 without an immersion law."""
+        if self.blade_immersion is None:
+            return 1.0
+        return self.blade_immersion.wetted(self._travel_since_entry(slot, angle))
+
+    def _blade_mass_now(self, slot, angle, rate):
+        """``(m_a, dm_a/dt)`` of one blade's entrained water, kg and kg/s."""
+        full = float(self._blade_mass[slot])
+        if self.blade_immersion is None:
+            return full, 0.0
+        travel = self._travel_since_entry(slot, angle)
+        law = self.blade_immersion
+        # travel grows as the angle falls: d(travel)/dt = -rate
+        return full * law.mass_fraction(travel), full * law.mass_fraction_slope(travel) * (-rate)
+
     def _depth_factor(self, slot, angle):
         """Depth factor at this oar's progress through the drive, catch 0 -> finish 1."""
         oar = self._oars[slot]
@@ -697,7 +732,7 @@ class DynamicOarSimulator(RowingSimulator):
                 normal = np.array([np.cos(angle), -side * np.sin(angle), 0.0])
                 axis = np.array([np.sin(angle), side * np.cos(angle), 0.0])
                 if (self.blade_law == "slip" and self.release == "angle"
-                        and self.blade_depth is None
+                        and self.blade_depth is None and self.blade_immersion is None
                         and self.blade_span is None):
                     speed = self._lock_speed_on_normal(state, lock, angle)
                     normal_force = float(oar.blade.normal_force(angle, rate,
@@ -784,7 +819,7 @@ class DynamicOarSimulator(RowingSimulator):
             locks = self.boat.rig.seats[seat].oarlocks
             angle_rate[slot] = rate
             if (len(locks) == 1 and self.blade_law == "slip"
-                    and self.release == "angle" and self.blade_depth is None
+                    and self.release == "angle" and self.blade_depth is None and self.blade_immersion is None
                     and self.blade_span is None):
                 # A sweep seat: one rower, one oar -- exactly the balance the
                 # unit was validated on, arithmetic unchanged.
@@ -993,6 +1028,7 @@ class DynamicOarSimulator(RowingSimulator):
                     y[STATE_SIZE + n + slot] = rate
                     if self._normal_velocity(slot, angle, rate, state) <= 0.0:
                         self._in_air[slot] = False
+                        self._entry_angle[slot] = float(angle)
                         self.entries.append((int(slot), float(t),
                                              float(angle), float(rate)))
             times[i + 1], states[:, i + 1] = t, y
@@ -1031,6 +1067,7 @@ class DynamicOarSimulator(RowingSimulator):
         self._in_air = (np.ones(n, dtype=bool) if self.catch == "sweep"
                         else None)
         self._handle_done = np.zeros(n, dtype=bool)
+        self._entry_angle = np.full(n, np.nan)
         if self.crew == "follows" and index > 0:
             after = self._hand_jump_to_hull(t0, before, self._stroke_start,
                                             after, t0)
@@ -1115,7 +1152,7 @@ class DynamicOarSimulator(RowingSimulator):
         oar_inertia = float(getattr(oar.inertia, "oar_inertia", 0.0))
         seat_inertia = moment + (len(locks) - 1) * oar_inertia
         if (self.blade_law == "slip" and self.release == "angle"
-                and self.blade_depth is None and self.blade_span is None):
+                and self.blade_depth is None and self.blade_immersion is None and self.blade_span is None):
             blade = sum(float(oar.blade_torque(
                 angle, rate, self._lock_speed_on_normal(state, lock, angle)))
                 for lock in locks)
@@ -1205,7 +1242,8 @@ class DynamicOarSimulator(RowingSimulator):
                           omega_hull):
         """``(m, l, g, c, w_n, h)`` for one blade: its normal acceleration is
         ``g . X_h + l phi_ddot + c`` (see :meth:`_coupled_system`)."""
-        mass, arm = float(self._blade_mass[slot]), float(self._oars[slot].outboard)
+        mass = self._blade_mass_now(slot, angle, rate)[0]
+        arm = float(self._oars[slot].outboard)
         side = int(lock.side)
         normal = np.array([np.cos(angle), -side * np.sin(angle), 0.0])
         axis = np.array([np.sin(angle), side * np.cos(angle), 0.0])
@@ -1232,13 +1270,15 @@ class DynamicOarSimulator(RowingSimulator):
         for lock in self.boat.rig.seats[seat].oarlocks:
             mass, arm, g, c, w_n, h = self._blade_mass_terms(
                 slot, lock, angle, rate, state, rot, omega_abs, omega_hull)
+            # water picked up as the blade goes in: -dm/dt w_n along the normal
+            mdot = self._blade_mass_now(slot, angle, rate)[1]
             system[:6, :6] += mass * np.outer(g, g)
-            rhs[:6] -= mass * (c * g + w_n * h)
+            rhs[:6] -= mass * (c * g + w_n * h) + mdot * w_n * g
             if known is None:
                 system[:6, row] += mass * arm * g
                 system[row, :6] += mass * arm * g
                 system[row, row] += mass * arm * arm
-                rhs[row] -= mass * arm * c
+                rhs[row] -= mass * arm * c + mdot * w_n * arm
             else:
                 rhs[:6] -= mass * arm * g * float(known)
 
@@ -1283,9 +1323,11 @@ class DynamicOarSimulator(RowingSimulator):
                     f_n, _f_t, arm = self._blade_loads_arm(slot, angle, rate, state, lock)
                     torque -= arm * f_n
                     if hull_accel is not None:
-                        mass, arm_m, g, c, _w, _h = self._blade_mass_terms(
+                        mass, arm_m, g, c, w_n, _h = self._blade_mass_terms(
                             slot, lock, angle, rate, state, rot, omega_abs, omega_hull)
-                        torque += arm_m * mass * (float(g @ hull_accel) + arm_m * accel + c)
+                        mdot = self._blade_mass_now(slot, angle, rate)[1]
+                        torque += arm_m * (mass * (float(g @ hull_accel) + arm_m * accel + c)
+                                           + mdot * w_n)
                 out[slot, j] = torque
         return out
 
