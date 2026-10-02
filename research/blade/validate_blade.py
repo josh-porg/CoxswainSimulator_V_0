@@ -107,9 +107,11 @@ def cr06_measured():
                 t_min=float(g[i]), power=float(power.mean()), leg_travel=float(np.ptp(leg)))
 
 
-def cr06_boat(measured, timing=None, dataset=None, footboard_shift=0.0, stature=None, drive_law=False):
+def cr06_boat(measured, timing=None, dataset=None, footboard_shift=0.0, stature=None, drive_law=False,
+              mass=None):
     """Her rig from [CR06]; her stature is not published, so it is set so the model's leg
-    travel equals her measured leg travel (her own measurement, not a blade parameter)."""
+    travel equals her measured leg travel (her own measurement, not a blade parameter).
+    ``mass``: the rower's mass, kg (default hers); for another crew on her rig."""
     from coxswain.boats import catalog
     from coxswain.boats.boat import Boat
     from coxswain.boats.rig import Oar, build_sculling_rig
@@ -122,7 +124,7 @@ def cr06_boat(measured, timing=None, dataset=None, footboard_shift=0.0, stature=
         arc = PopulationDriveSweep(catch_angle=arc.catch_angle, finish_angle=arc.finish_angle)
 
     def build(stature):
-        base = catalog.single_scull(rate=60.0 / CR06_T, rower_mass=CR06_MASS, rower_stature=stature)
+        base = catalog.single_scull(rate=60.0 / CR06_T, rower_mass=mass or CR06_MASS, rower_stature=stature)
         rig = build_sculling_rig(n_seats=1, spacing=1.22, stern_station=-0.35, span=0.80,
                                  oarlock_height=0.32, oar=oar)
         if footboard_shift:
@@ -136,7 +138,7 @@ def cr06_boat(measured, timing=None, dataset=None, footboard_shift=0.0, stature=
                     hull_inertia=base.hull_inertia, timing=timing or base.timing,
                     appendages=base.appendages,
                     water=base.water, force_profile=base.force_profile, oar_sweep=arc,
-                    default_anthropometry=catalog.RowerAnthropometry(mass=CR06_MASS, stature=stature,
+                    default_anthropometry=catalog.RowerAnthropometry(mass=mass or CR06_MASS, stature=stature,
                                                                      sex="female"),
                     stroke_dataset=dataset)
 

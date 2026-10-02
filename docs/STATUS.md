@@ -22,8 +22,8 @@ work studies coxing itself: what a coxswain's calls do to the boat.
 | [DATA_REQUESTS.md](DATA_REQUESTS.md) | letters to authors and labs, and their replies |
 | [SOURCES.md](SOURCES.md) | the evidence, numbered by section |
 
-Test suite: **1981 passing, 0 failing** in the fast lane (`pytest -m "not slow"`, run
-2026-10-02, 8 min 32 s). The full suite, with the strict xfails that pin known model errors
+Test suite: **1986 passing, 0 failing** in the fast lane (`pytest -m "not slow"`, run
+2026-10-02, 8 min 18 s). The full suite, with the strict xfails that pin known model errors
 (drive duration against on-water pairs, race pace without controlled power), was last run
 2026-09-12: 1771 passing, 14 expected failures.
 
@@ -115,6 +115,9 @@ entrainment would not remove it, and his realistic stroke shows a small force af
 immersion is what starts from zero. *2 Oct (§173):* built from BioRow's norms (wetting when the blade turns
 driving, buried 4° later); it predicts BioRow's catch-to-buried and entry timing unimposed, and the population
 force curves bound the entrained water at entry below ~0.1 of Patton. Best model: immersion, no added mass.
+*§174:* a population test from [K05]'s own hands, body and force: with the population's body the slip law
+reproduces the population's force shape and catch dip; tier 2 fails it; the drive law now has physical
+turning points. Open: the blade unloads early late in the drive (rig gearing).
 
 ### 3.2 The crew is driven by ergometer kinematics
 The cause of 3.1's crew share, and the motivation for phase 4. A sourced on-water

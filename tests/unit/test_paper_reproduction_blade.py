@@ -139,3 +139,39 @@ def test_k05_fig1_peak_handle_speed_is_their_table():
     pct = np.array([float(r["length_pct"]) for r in rows])
     assert h.max() == pytest.approx(2.36, abs=0.06)                     # racing rate, table row 12
     assert pct[np.argmax(h)] == pytest.approx(65.2, abs=6.0)             # table row 14
+
+
+def test_k05_fig1_handle_force_is_their_table():
+    """The on-water force panel, digitised the same way: max 602 N at 34.7% of the drive length
+    and average / max 56.9% over the drive's time (table rows 6, 8, 9), never fitted to them."""
+    rows = _rows("k05_fig1_onwater.csv")
+    pct = np.array([float(r["length_pct"]) for r in rows])
+    h = np.array([float(r["handle_speed"]) for r in rows])
+    f = np.array([float(r["handle_force_N"]) for r in rows])
+    assert f.max() == pytest.approx(602.0, rel=0.03)
+    assert pct[np.argmax(f)] == pytest.approx(34.7, abs=2.0)
+    ok = h > 0.2                                                         # dt = ds / v, ends unresolved
+    dt = np.where(ok, 1.0 / np.where(ok, h, 1.0), 0.0)
+    assert np.sum(f * dt) / np.sum(dt) / f.max() == pytest.approx(0.569, abs=0.025)
+
+
+def test_k05_fig1_recovery_returns_the_segments_by_their_table_travel():
+    """The recovery branch, digitised separately: legs and trunk return by [K05]'s 0.51 and 0.48 m.
+    (The arms come back 0.56 m against 0.62: their return is at the finish, where the handle's
+    turning point is unresolved; the body uses legs and trunk only.)"""
+    rows = _rows("k05_fig1_recovery.csv")
+    pct = np.array([float(r["length_pct"]) for r in rows])
+    h = np.array([float(r["handle_speed"]) for r in rows])
+    ok = h < -0.2
+    path = pct / 100.0 * 1.59
+    for column, printed in (("legs_velocity", 0.51), ("trunk_velocity", 0.48)):
+        v = np.array([float(r[column]) for r in rows])
+        travel = np.trapezoid(np.where(ok, v / np.where(ok, h, -1.0), 0.0), path)
+        assert travel == pytest.approx(printed, abs=0.03)
+
+
+def test_k05_fig1_boat_acceleration_extremes_are_their_table():
+    rows = _rows("k05_fig1_boat_acceleration.csv")
+    a = np.array([float(r["acceleration_mps2"]) for r in rows])
+    assert a.min() == pytest.approx(-7.92, abs=0.3)                      # table row 15, racing
+    assert a.max() == pytest.approx(3.39, abs=0.3)                       # table row 16

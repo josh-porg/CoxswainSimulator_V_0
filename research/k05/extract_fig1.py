@@ -36,6 +36,11 @@ OUT = os.path.join(ROOT, "data", "literature", "k05_fig1_onwater.csv")
 #: per panel: y-axis column, the panel's right frame, zero-line row, pixels per m/s (from the label fits), rows
 #: that may carry data (titles and legends outside), and masked boxes (x0, x1, y0, y1)
 PANELS = {
+    # force panel: scale in px per newton (label fit 800 ... 0 N); its drive end dips below zero,
+    # so the far end is looked for down to 60 px under the zero line
+    "handle_force": dict(axis=984, right=1655, zero=1674.6, scale=0.51592, rows=(1250, 1672),
+                         mask=[(1010, 1330, 1185, 1250), (1340, 1650, 1185, 1345),
+                               (1340, 1560, 1600, 1660)], below=60),
     "handle_speed": dict(axis=1780, right=2445, zero=1468.0, scale=86.5, rows=(1255, 1466),
                          mask=[(2020, 2330, 1340, 1440)]),
     "legs_velocity": dict(axis=974, right=1655, zero=2050.0, scale=168.0, rows=(1840, 2048),
@@ -52,14 +57,14 @@ def page_image(pdf, tmp):
     return np.asarray(Image.open(stem + "-000.png").convert("L")).astype(int)
 
 
-def trace(a, axis, right, zero, scale, rows, mask):
+def trace(a, axis, right, zero, scale, rows, mask, below=None):
     ink = a < BLACK
     for x0, x1, y0, y1 in mask:
         ink[y0:y1, x0:x1] = False
     band = ink[rows[0]:rows[1], :]
     # the drive ends where the loop closes: the far end of either branch, which may sit on or
     # below the zero line, so look at both branches (down to 1.2 units below zero)
-    both = ink[rows[0]:int(zero + 1.2 * scale), :]
+    both = ink[rows[0]:int(zero + (1.2 * scale if below is None else below)), :]
     cols = np.flatnonzero(both.any(axis=0))
     cols = cols[(cols > axis + 2) & (cols < right)]          # inside this panel's frame
     right = cols.max()
@@ -92,6 +97,13 @@ def main():
     inner = (grid >= 10) & (grid <= 90)
     print("segments sum against handle speed, 10-90%% of the drive: rms %.3f m/s, mean %+.3f m/s"
           % (np.sqrt(np.mean((total - h)[inner] ** 2)), np.mean((total - h)[inner])))
+    f = table["handle_force"]
+    k = int(np.argmax(f))
+    ok_v = h > 0.2
+    dt = np.where(ok_v, 1.0 / np.where(ok_v, h, 1.0), 0.0)
+    print("handle force: max %.0f N at %.1f%% of length ([K05] table 602 N at 34.7%%)" % (f[k], grid[k]))
+    print("  average / max over length %.1f%%, over time %.1f%% ([K05] table 56.9%%)"
+          % (100 * f.mean() / f[k], 100 * np.sum(f * dt) / np.sum(dt) / f[k]))
     length = 1.59
     ok = h > 0.2
     for seg, printed in (("legs_velocity", 0.51), ("trunk_velocity", 0.48), ("arms_velocity", 0.62)):
@@ -103,11 +115,13 @@ def main():
         f.write("# Kleshnev (2005) ISBS XXIII 130-133, Fig. 1, on-water ('Boat') drive branch: five female\n"
                 "# scullers, 1.80 m, 72.2 kg, racing rate (32.3 spm), drive length 1.59 m. Digitised from the\n"
                 "# 300 dpi scan by research/k05/extract_fig1.py (darkest ink, topmost run per column); velocities\n"
-                "# in m/s against drive length in %; about +-0.03 m/s from the pixel scale and the line width.\n")
-        f.write("length_pct,handle_speed,legs_velocity,trunk_velocity,arms_velocity\n")
+                "# in m/s against drive length in %; about +-0.03 m/s from the pixel scale and the line width.\n"
+                "# handle_force_N: the on-water handle force panel, same digitisation, about +-10 N.\n")
+        f.write("length_pct,handle_speed,legs_velocity,trunk_velocity,arms_velocity,handle_force_N\n")
         for i in range(grid.size):
-            f.write("%.0f,%.3f,%.3f,%.3f,%.3f\n" % tuple(table[k][i] for k in
-                    ("length_pct", "handle_speed", "legs_velocity", "trunk_velocity", "arms_velocity")))
+            f.write("%.0f,%.3f,%.3f,%.3f,%.3f,%.1f\n" % tuple(table[k][i] for k in
+                    ("length_pct", "handle_speed", "legs_velocity", "trunk_velocity", "arms_velocity",
+                     "handle_force")))
     print("wrote", OUT)
 
 

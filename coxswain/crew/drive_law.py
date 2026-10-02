@@ -58,6 +58,60 @@ def progress_in_time(s, v):
 K05_SPEED_ERROR = 0.03
 
 
+#: where the scan's turning points stop being resolved, fraction of the path (swept 0.02-0.05)
+K05_TURNING_EDGE = 0.03
+
+
+def turning_samples(s, v, edge: float = K05_TURNING_EDGE, n_end: int = 12):
+    """``(time, path, speed)`` samples of a half-stroke whose turning points are physical.
+
+    The scan resolves the handle speed between ``edge`` and ``1 - edge`` of the path; there it is
+    kept as measured, placed in time by dt = ds / v. Into each turning point the handle is taken
+    to start from rest (or come to rest) at constant acceleration, the simplest physical turning:
+    from the edge speed v_e over the edge path s_e that takes 2 s_e / v_e. On [K05] this gives a
+    0.95 s drive against the table's 1.00 s and a 0.91 s recovery against 0.86 s, where pinning
+    the speed to zero and stretching the whole profile (``smooth_progress``) put 12% of the drive's
+    time into the middle and slowed every speed by that much. Path in fractions, speed in
+    fraction / unit time of the input."""
+    s = np.asarray(s, float)
+    v = np.asarray(v, float)
+    lo = int(np.searchsorted(s, edge))
+    hi = int(np.searchsorted(s, 1.0 - edge, side="right")) - 1
+    mid = 0.5 * (v[lo + 1:hi + 1] + v[lo:hi])
+    t_mid = np.concatenate([[0.0], np.cumsum(np.diff(s[lo:hi + 1]) / mid)])
+    t_c = 2.0 * s[lo] / v[lo]
+    t_f = 2.0 * (1.0 - s[hi]) / v[hi]
+    tc = np.linspace(0.0, t_c, n_end, endpoint=False)
+    a_c = v[lo] / t_c
+    tf = np.linspace(0.0, t_f, n_end + 1)[1:]
+    a_f = v[hi] / t_f
+    t = np.concatenate([tc, t_c + t_mid, t_c + t_mid[-1] + tf])
+    path = np.concatenate([0.5 * a_c * tc ** 2, s[lo:hi + 1],
+                           s[hi] + v[hi] * tf - 0.5 * a_f * tf ** 2])
+    speed = np.concatenate([a_c * tc, v[lo:hi + 1], v[hi] - a_f * tf])
+    return t, path, speed
+
+
+def turning_progress(s, v, edge: float = K05_TURNING_EDGE, error: float = K05_SPEED_ERROR):
+    """As :func:`smooth_progress`, but with physical turning points (:func:`turning_samples`):
+    the resolved speeds keep their measured share of the time. The speed, in time, is a cubic
+    smoothing spline weighted by the digitisation's ``error``; its ends are the constant
+    accelerations, so they are weighted as data, not pinned."""
+    from scipy.interpolate import UnivariateSpline
+
+    t, path, speed = turning_samples(s, v, edge)
+    total = float(t[-1])
+    tau = t / total
+    rate = speed * total                                  # d(path fraction) / d(time fraction)
+    weights = np.full(rate.size, 1.0 / (error * total))
+    weights[0] = weights[-1] = 100.0 / (error * total)
+    spline = UnivariateSpline(tau, rate, w=weights, k=3, s=float(rate.size))
+    integral = spline.antiderivative()
+    scale = 1.0 / float(integral(1.0))
+    accel = spline.derivative()
+    return (lambda x: scale * integral(x), lambda x: scale * spline(x), lambda x: scale * accel(x))
+
+
 def smooth_progress(s, v, error: float = K05_SPEED_ERROR):
     """``(progress, speed, acceleration)`` callables of the drive's time fraction, smooth.
 
@@ -89,12 +143,22 @@ class PopulationDriveSweep(OarAngleSweep):
     profile: tuple = field(default=None, repr=False, compare=False)
     #: the speed error the smoothing is weighted by, m/s; the digitisation's by default
     speed_error: float = K05_SPEED_ERROR
+    #: the turning points: ``"turning"`` (constant acceleration into and out of rest, the
+    #: resolved speeds kept; the default since SOURCES sec. 174) or ``"pinned"`` (speed pinned to
+    #: zero and the whole profile stretched to the drive's time, sec. 171)
+    ends: str = "turning"
+    turning_edge: float = K05_TURNING_EDGE
 
     def _law(self):
         cached = getattr(self, "_cached", None)
         if cached is None:
-            cached = smooth_progress(*(self.profile if self.profile is not None
-                                       else k05_handle_speed()), error=self.speed_error)
+            profile = self.profile if self.profile is not None else k05_handle_speed()
+            if self.ends == "pinned":
+                cached = smooth_progress(*profile, error=self.speed_error)
+            elif self.ends == "turning":
+                cached = turning_progress(*profile, edge=self.turning_edge, error=self.speed_error)
+            else:
+                raise ValueError("ends must be 'turning' or 'pinned', got %r" % (self.ends,))
             object.__setattr__(self, "_cached", cached)
         return cached
 

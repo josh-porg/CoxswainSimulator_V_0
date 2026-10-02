@@ -12386,3 +12386,73 @@ force before entry cannot show. **Separately:** [BR24]'s finish slip is 42–46�
 14–18° — the model's force collapses after mid-drive on his arc (43 N at 0.65 s against his
 116 N at 0.7 s) — while [CR06]'s passes (16–19° against 18.1°): the [K05] women's drive law on a
 1.91 m man's 106° arc, open. Longer burial raises IVV by 0.6–2 points, away from the athletes.
+
+
+## 174. A population test of the blade and hull: [K05]'s own hands, body and force (2026-10-02)
+
+**The rest of [K05] Fig. 1, digitised** (`research/k05/extract_fig1.py`, `extract_fig1_cycle.py`;
+`data/literature/k05_fig1_onwater.csv`, `k05_fig1_recovery.csv`, `k05_fig1_boat_acceleration.csv`),
+each checked against the paper's own table, nothing fitted:
+- on-water **handle force** against drive length: max 612 N at 34.0% (table 602 N at 34.7%),
+  average / max over the drive's time 58.4% (table 56.9%);
+- the **recovery** branches: legs and trunk return 0.507 / 0.485 m (table 0.51 / 0.48); the arms
+  0.557 against 0.62 (their return is at the unresolved finish turning point; not used);
+- the **boat's acceleration** over the cycle: min −7.91, max 3.47 m/s² (table −7.92, 3.39). Its
+  time origin is not the catch (the dip is near 27%), so comparisons align the dip.
+- *Caveats:* the table's force and power are not mutually consistent (∫F ds over the drive is
+  ~330 W per oar against 391 W stated), so the force *shape* is the test, not its level; and a
+  five-rower average smears the extremes, so its acceleration dip and velocity swing are lower
+  bounds on any individual's.
+
+**The test** (`research/crew/k05_population_test.py`): the population's hands on the handle
+([K05] rhythm and drive law), in a single like theirs ([CR06]'s women's rig, arc 104.8°, with
+[K05]'s 1.80 m, 72.2 kg crew), and the force and hull that come out compared with theirs.
+
+**1. The hands alone are not enough.** With the ergometer keyframe body on a clock, every blade
+law front-loads the force: peak at 16–22% of the drive against 34%, 0.2–0.6 of peak at mid-drive
+against 0.88. The hull feels a body moving out of step with the hands, so the blade's slip is
+wrong.
+
+**2. The population's body** (`research/crew/k05_body.py`): [K05]'s legs (seat on boat) and
+trunk (shoulder on seat), integrated along the handle path on both half-strokes, re-time the
+model's postures through `measured_body`'s warp (back travel scaled to [K05]'s 0.48 m). With it
+the slip law's force shape matches theirs (shape rms 0.158 of peak; peak at 33% against 34%).
+
+**3. A defect in the drive law, found by the body.** The pinned law (§171) stretched every speed
+by the 12% of the drive's time the scan does not resolve (digitised drive 0.88 s, table 1.00 s):
+mid-drive hands 7–12% slow, and the turning points as sharp as the spline allowed — the K05
+body's catch dip came out −17.8 m/s² against −7.9. **Physical turning points** replace it
+(`turning_progress`, now the default): the resolved speeds kept as measured between 3% and 97% of
+the path, and the handle starting from and coming to rest at constant acceleration across the
+ends. Nothing fitted; it gives a 0.95 s drive against the table's 1.00 s and a 0.91 s recovery
+against 0.86 s, peak hand speed 2.28 m/s at 64% (table 2.36 at 65%), and a hand acceleration at
+the catch of 12.7 m/s² (the pinned law 26), [CR06]'s measured seat reversal being 12–15.
+
+**4. Result, population hands and body, physical turning points:**
+
+| | force/max at 10/20/35/50/70/90% of length | shape rms | catch dip | accel. rms | swing |
+|---|---|---|---|---|---|
+| [K05] measured | 0.58 0.88 1.00 0.88 0.54 0.24 | — | −7.9 | — | 1.91 m/s |
+| ergometer body, slip | 0.79 0.93 0.66 0.61 0.51 −0.02 | 0.208 | −6.7 | 1.81 | |
+| **[K05] body, slip** | 0.69 0.75 0.94 1.00 0.34 −0.04 | **0.164** | **−9.3** | **1.38** | 2.40 m/s |
+| [K05] body, tier 2 Coppel + strips + immersion | 0.99 0.85 0.73 0.50 0.40 −0.03 | 0.255 | −9.3 | 1.38 | 2.37 m/s |
+| ([K05] body, slip, pinned law) | 0.50 0.73 0.98 0.90 0.40 −0.03 | 0.158 | −17.8 | 1.78 | |
+
+(Individual swings: [CR06] 2.07, [BR24] 2.28 m/s; the average's 1.91 is smeared.)
+
+**What it settles.**
+- *The body was the force-shape defect, not the blade law:* with the population's hands and body
+  the slip law reproduces the population's force shape and its catch dip lies between the
+  population average and the individuals.
+- *Tier 2's small-angle lift fails on a population* as it failed on [CR06] (§163): it loads the
+  early drive (0.99 of peak at 10% against 0.58) under any coefficient set tried. The slip law's
+  C2 is [CR06]'s fit, and [CR06]'s athlete and [K05]'s rowers are both Kleshnev's data on elite
+  Australian women — not fully independent, so this is a consistency check on the fitted C2, not
+  an out-of-sample one.
+- *The drive law's ends are now physical* and the K05 body's catch is realistic.
+
+**What it does not.** Late in the drive the blade still unloads early: 0.34 of peak at 70% against
+0.54, zero by 90% against 0.24. The blade comes out when its normal velocity returns to zero,
+which depends on the rig's gearing ([K05]'s rig is not published; [CR06]'s is used). The model's
+power (260 W) cannot be compared with the table's 391 W given the table's own inconsistency.
+The athlete runs of §170–173 used the pinned law; their rung-1 numbers move and are to be rerun.

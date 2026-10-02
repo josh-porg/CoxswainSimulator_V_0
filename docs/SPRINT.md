@@ -111,3 +111,7 @@ stays frozen.
   (catch-to-buried 5.3–5.9° vs 6°, entry 44–56 ms vs ~65 ms, unimposed); added mass at entry
   bounded below ~0.1 of Patton by the population force curves. Open: [H20] catch slip short;
   [BR24]'s late-drive force collapse.
+- 2026-10-02, #1 (§174): population test from [K05] Fig. 1 (force, recovery, acceleration digitised
+  and table-checked): the population's hands + body + slip law give its force shape (rms 0.164) and
+  catch dip (−9.3 vs −7.9); tier 2 fails; drive law gets physical turning points (pinned law slowed
+  mid-drive hands 7–12%). Next: rerun the athletes; late-drive unloading; body as a sim option.
