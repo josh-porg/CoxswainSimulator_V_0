@@ -117,7 +117,9 @@ driving, buried 4° later); it predicts BioRow's catch-to-buried and entry timin
 force curves bound the entrained water at entry below ~0.1 of Patton. Best model: immersion, no added mass.
 *§174:* a population test from [K05]'s own hands, body and force: with the population's body the slip law
 reproduces the population's force shape and catch dip; tier 2 fails it; the drive law now has physical
-turning points. Open: the blade unloads early late in the drive (rig gearing).
+turning points. Open: the blade unloads early late in the drive (rig gearing). *§175:* with the population's
+leg travel too (the model's legs travel 17% too far) the population's catch dip, acceleration and velocity
+swing are reproduced; the two athletes still swing 12–20% too much (IVV 55–59% vs 49%).
 
 ### 3.2 The crew is driven by ergometer kinematics
 The cause of 3.1's crew share, and the motivation for phase 4. A sourced on-water

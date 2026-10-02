@@ -115,3 +115,6 @@ stays frozen.
   and table-checked): the population's hands + body + slip law give its force shape (rms 0.164) and
   catch dip (−9.3 vs −7.9); tier 2 fails; drive law gets physical turning points (pinned law slowed
   mid-drive hands 7–12%). Next: rerun the athletes; late-drive unloading; body as a sim option.
+- 2026-10-02, #1 (§175): the population's leg travel (model 17% over) closes its boat motion (dip −8.2
+  vs −7.9, accel rms 1.17, swing in the individual range). Athletes rerun: speed at power within 3%,
+  IVV still 55–59% vs 49%.

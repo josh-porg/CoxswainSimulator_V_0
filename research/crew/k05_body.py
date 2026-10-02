@@ -34,6 +34,7 @@ from coxswain.crew.drive_law import turning_progress          # noqa: E402
 DRIVE = os.path.join(ROOT, "data", "literature", "k05_fig1_onwater.csv")
 RECOVERY = os.path.join(ROOT, "data", "literature", "k05_fig1_recovery.csv")
 K05_TRUNK_TRAVEL = 0.48            # m, table row 18, racing rate
+K05_LEG_TRAVEL = 0.51              # m, table row 17, racing rate (seat on boat)
 LENGTH = 1.59                      # m, drive length, table row 5
 
 
@@ -102,16 +103,51 @@ def channel(seg, drive_fraction, n=4001):
     return m, phase, (c - c.min()) / np.ptp(c), travel_d
 
 
-def body_field(boat):
-    """The model's body re-timed onto [K05]'s legs and trunk, back travel scaled to [K05]'s."""
+def leg_weights(boat):
+    """Per segment, the slope of its fore-aft position on the lower trunk's over the model's own
+    cycle: how much of the seat's travel each segment carries (feet 0, trunk 1)."""
+    P = float(boat.timing.period)
+    t = np.linspace(0.0, P, 400, endpoint=False)
+    x = np.array([np.asarray(boat.crew_field(float(u), exact=True)[1], float)[:, 0] for u in t])
+    ref = x[:, MB.REF] - x[:, MB.REF].mean()
+    w = (x - x.mean(axis=0)).T @ ref / (ref @ ref)
+    return w, float(x[:, MB.REF].mean())
+
+
+def body_field(boat, leg_travel=None, trunk_travel=K05_TRUNK_TRAVEL):
+    """The model's body re-timed onto [K05]'s legs and trunk, back travel scaled to [K05]'s.
+
+    ``leg_travel`` (m): also scale the seat's travel to it, each segment's fore-aft motion by its
+    share of the seat's (``leg_weights``), about the cycle mean. Linear in the motion, so the
+    velocities and accelerations scale with it and the momentum books still close. ``None``
+    keeps the model's own leg travel (0.60 m for a 1.80 m body, against [K05]'s 0.51).
+    ``trunk_travel`` (m): the back's travel, shoulder on seat; [K05]'s 0.48 by default."""
     D = float(boat.timing.drive_fraction)
     m_l, s_l, c_l, _ = channel("legs_velocity", D)
-    mm_l, tau_l, cm_l, _ = MB.model_channel(boat, lambda j: j["hip"][0] - j["ankle"][0])
-    leg = MB.channel_field(boat, MB.warp(s_l, c_l, tau_l, cm_l), m_l, mm_l)
+    mm_l, tau_l, cm_l, model_leg = MB.model_channel(boat, lambda j: j["hip"][0] - j["ankle"][0])
+    leg_raw = MB.channel_field(boat, MB.warp(s_l, c_l, tau_l, cm_l), m_l, mm_l)
+    if leg_travel is None:
+        leg = leg_raw
+    else:
+        k_leg = float(leg_travel) / model_leg
+        w, ref_mean = leg_weights(boat)
+
+        def leg(t):
+            mass, pos, vel, acc = leg_raw(t)
+            pos, vel, acc = np.array(pos, float), np.array(vel, float), np.array(acc, float)
+            n = pos.shape[0] - pos.shape[0] % 12
+            for off in range(0, n, 12):
+                r = off + MB.REF
+                d, dv, da = pos[r, 0] - ref_mean, vel[r, 0], acc[r, 0]
+                for i in range(12):
+                    pos[off + i, 0] -= (1.0 - k_leg) * w[off + i] * d
+                    vel[off + i, 0] -= (1.0 - k_leg) * w[off + i] * dv
+                    acc[off + i, 0] -= (1.0 - k_leg) * w[off + i] * da
+            return mass, pos, vel, acc
     m_b, s_b, c_b, _ = channel("trunk_velocity", D)
     mm_b, tau_b, cm_b, model_travel = MB.model_channel(boat, lambda j: j["shoulder"][0] - j["hip"][0])
     bk = MB.channel_field(boat, MB.warp(s_b, c_b, tau_b, cm_b), m_b, mm_b)
-    K = K05_TRUNK_TRAVEL / model_travel
+    K = float(trunk_travel) / model_travel
 
     def field(t, exact=False):
         mass, pos, vel, acc = leg(t)

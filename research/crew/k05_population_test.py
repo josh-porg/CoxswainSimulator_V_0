@@ -39,6 +39,8 @@ K05_RATE, K05_MASS, K05_STATURE = 32.3, 72.2, 1.80
 CONFIGS = [
     ("slip, research C2 (one-athlete fit)", dict()),
     ("K05 body + slip, research C2", dict(body=True)),
+    ("K05 body, legs 0.51 m + slip, research C2", dict(body=0.51)),
+    ("K05 body, legs 0.51 m + slip + immersion", dict(body=0.51, immersion=True)),
     ("K05 body + tier 2 [CG07] + strips + immersion", dict(body=True, blade_law="liftdrag", strips=True,
                                                           immersion=True)),
     ("K05 body + tier 2 Coppel + strips + immersion", dict(body=True, blade_law="liftdrag",
@@ -114,7 +116,12 @@ def predict(boat, strokes, body=False, **options):
                               coxswain=Coxswain(rudder_override=lambda t, s: 0.0), fast=True, **options)
     if body:
         import k05_body
-        sim.crew_field, _K = k05_body.body_field(boat)
+        # body=True: [K05]'s legs and trunk timing; a number: also the seat's travel, m
+        if isinstance(body, tuple):            # (leg travel, trunk travel), m
+            sim.crew_field, _K = k05_body.body_field(boat, leg_travel=body[0], trunk_travel=body[1])
+        else:
+            leg = None if body is True else float(body)
+            sim.crew_field, _K = k05_body.body_field(boat, leg_travel=leg)
     run = sim.run_strokes(int(strokes), surge_speed=4.3)
     last = run.strokes[-3:]
     return dict(speed=float(np.mean([s.mean_speed for s in last])),

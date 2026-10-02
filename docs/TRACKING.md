@@ -3337,6 +3337,13 @@ response is weaker, and in his realistic stroke the force just after the catch i
 an added mass scaled by the blade's immersion, with a surface-reduced coefficient — needs a
 population immersion history. Study options; nothing defaults.
 
+### The population's kinematics close its boat motion; the athletes still swing too much (2026-10-02)
+With [K05]'s leg travel (0.51 m; the model's legs travel 17% too far) the population test gives
+[K05]'s catch dip within 0.3 m/s², acceleration to 1.2 m/s² rms and a velocity swing inside the
+individual range (SOURCES §175). On the two athletes, with [K05]'s timing and their own measured
+travels, speed at equal power holds within 3% but IVV stays 6–10 points high (swing 12–20% over).
+*Next:* where the athletes' extra swing comes from; the late-drive unloading.
+
 ### Population test of the blade and hull from [K05] (2026-10-02)
 [K05] Fig. 1's force, recovery branches and boat acceleration digitised and checked against its
 table; with the population's hands **and body** the slip law reproduces the population's force
@@ -4386,6 +4393,7 @@ The measured stroke is commercial and stays in `data/local/biorow/`; every scrip
 | **Drive law smoothed; blade added mass with hands on the handle** (cubic smoothing spline at the digitisation's ±0.03 m/s; `handle_torques`, coupled hull row with the oar prescribed; w_n-derivative consistency check). | `coxswain/crew/drive_law.py` `smooth_progress`, `coxswain/sim/dynamic_oar.py`, `research/crew/handle_added_mass.py` | `tests/unit/test_drive_law.py`, `tests/unit/test_handle_mode.py`; SOURCES §171 |
 | **Blade immersion at the catch** (BioRow norms: wetting at w_n = 0, buried over 4° of oar travel; load × wetted fraction; added mass ∝ wetted height², F_a = −d(m_a w_n)/dt; population sweep). | `coxswain/crew/blade_immersion.py`, `coxswain/sim/dynamic_oar.py`, `research/crew/immersion_study.py`, `data/literature/biorow_catch_norms.csv` | `tests/unit/test_blade_immersion.py`; SOURCES §173 |
 | **[K05] Fig. 1 completed** (handle force, recovery branches, boat acceleration; each checked against the paper's table) and the **population test** (population hands + body, `k05_body.py`); **physical turning points** in the drive law (`turning_progress`, default). | `research/k05/extract_fig1*.py`, `research/crew/k05_body.py`, `research/crew/k05_population_test.py`, `coxswain/crew/drive_law.py`, `data/literature/k05_fig1_*.csv` | `tests/unit/test_paper_reproduction_blade.py`, `tests/unit/test_drive_law.py`; SOURCES §174 |
+| **Population leg and trunk travel in the K05 body** (`leg_weights`, momentum-consistent scaling) and the **athlete rerun** on population kinematics. | `research/crew/k05_body.py`, `research/crew/athletes_population_body.py` | SOURCES §175 |
 | **On-water body study** (stature-scaled [K05] segment travel, footboard for a straight-arm catch). | `research/crew/onwater_body.py`, `coxswain/crew/stroke_data.py` (`scale_trunk_amplitude`) | SOURCES §169 |
 | **Finite depth and fin lift against their papers** (§168): Sretenskii reproduces Doctors, Day & Clelland's steady Wigley at depth Froude 0.34 and 0.60; Whicker & Fehlner's eq. [1] added as an unused fin-law option (`lift_model="whicker_fehlner"`, `reflection`). | `coxswain/hydro/appendages.py`, `data/literature/doctors2010_steady_wigley.csv` | `tests/unit/test_paper_reproduction_fins.py`, `test_paper_reproduction_blade.py`; SOURCES §168 |
 | **Steering study on Whicker & Fehlner's fins** (§169): `PhysicsProfile.fin_law / fin_reflection / fin_crossflow / munk_factor`; research and learned on eq. [1] at reflection 2.0, C_Dc 0.80, Munk 0.50 (refitted 0.49–0.50 at every reflection 1–2); Ω corrected to the quarter-chord sweep; the CasADi fin follows the law; fins, Munk factor and `roll_friction` added to `_match_key`. Shipped unchanged. | `coxswain/physics.py`, `coxswain/hydro/appendages.py`, `coxswain/river/hydro_casadi.py`, `coxswain/sim/dynamic_oar.py`, `coxswain/sim/simulator.py`, `coxswain/river/sixdof.py`, `scripts/steering_study.py` | `tests/unit/test_research_fin_law.py`; SOURCES §169 |

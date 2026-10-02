@@ -12456,3 +12456,40 @@ the catch of 12.7 m/s² (the pinned law 26), [CR06]'s measured seat reversal bei
 which depends on the rig's gearing ([K05]'s rig is not published; [CR06]'s is used). The model's
 power (260 W) cannot be compared with the table's 391 W given the table's own inconsistency.
 The athlete runs of §170–173 used the pinned law; their rung-1 numbers move and are to be rerun.
+
+
+## 175. The population's leg travel closes its boat motion; the athletes do not follow (2026-10-02)
+
+**The model's legs travel too far.** A 1.80 m model body moves its seat 0.595 m against [K05]'s
+measured 0.51 m for the same population (table row 17), 17% over; [BR24]'s model 0.622 against his
+0.597, [CR06]'s 0.583 against her 0.582 (her stature was set from it). `k05_body.body_field` now
+takes the seat's and the back's travel: each segment's fore-aft motion is scaled by its share of
+the seat's (`leg_weights`, its regression slope on the lower trunk over the model's own cycle,
+not chosen), linear in the motion so the momentum books close.
+
+**The population test with the population's travels** ([K05] hands, legs 0.51 m, trunk 0.48 m,
+slip law, physical turning points):
+
+| | catch dip | accel. rms vs [K05] | velocity swing | force shape rms |
+|---|---|---|---|---|
+| [K05] measured | −7.9 | — | 1.91 m/s (average; individuals 2.07–2.28) | — |
+| model legs (0.60 m) | −9.3 | 1.38 | 2.40 | 0.164 |
+| **legs 0.51 m** | **−8.2** | **1.17** | **2.13** | 0.178 |
+
+With the population's hands, legs and trunk (timing and travel) the model gives the population's
+catch dip within 0.3 m/s², its acceleration curve to 1.2 m/s² rms, a velocity swing inside the
+individual range, and its force shape — nothing fitted.
+
+**The two athletes** (their own rig, arc and rate; [K05] rhythm, hands and body timing):
+
+| | IVV | speed at measured power | peak/mean | [H20] slips |
+|---|---|---|---|---|
+| [BR24]: ergometer body / K05 body / K05 timing + his travels | 60.5 / 61.4 / 59.2% (49.1) | +2.8 / +3.2 / +2.9% | 1.99 / 1.48 / 1.50 | 4.0–4.4 / 25–32° |
+| [CR06]: same | 55.7 / 56.0 / 55.3% (49.4) | −0.4 / −0.2 / −0.5% | 1.70 / 1.64 / 1.57 | 6.9–7.4 / 18–27° |
+
+Speed at equal power holds within 3%, but IVV stays 6–10 points high: [CR06]'s model swing is
+2.31 m/s against her measured 2.07. A population's timing on an individual does not carry the
+individual's swing (§160 found the same with the ergometer body: only ~2 of 4–5 points transfer).
+Immersion moves nothing here (±0.2 points). *Open:* the athletes' swing excess (12–20%), and the
+late-drive unloading (finish slip 27–32° against 14–18° with the K05 body).
+

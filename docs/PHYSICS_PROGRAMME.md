@@ -1080,7 +1080,8 @@ the boat speeds that go with their drive durations).
   BioRow's burial norm validates (catch-to-buried, entry timing); population force curves bound
   the entrained water at entry below ~0.1 of Patton, so the best catch is immersion without it.
   *Population test (§174):* [K05]'s hands **and body** with the slip law reproduce [K05]'s own force
-  shape and catch dip; tier 2 fails; the drive law's turning points are now physical.
+  shape and catch dip; tier 2 fails; the drive law's turning points are now physical. With the
+  population's leg travel its boat motion is reproduced (§175); the athletes still swing 12–20% over.
 - **Rung 2, next:** relax the body — joint torques move it against the handle load, so the
   hands' time law is an output. The trunk rungs (TRACKING: hip moment, trunk forward dynamics,
   delayed PD) are its pieces; knee and ankle wait on the foot-force direction (sprint #4).
