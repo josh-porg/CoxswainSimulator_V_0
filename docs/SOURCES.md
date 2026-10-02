@@ -12310,3 +12310,79 @@ blade (Patton's l_a l_b², with l_b the wetted height), with a surface-reduced c
 needs a sourced immersion history through the entry; [BR24]'s vertical oar angle is one athlete,
 so a population source is needed before it enters anything.
 
+
+## 173. Blade immersion at the catch, from BioRow's population norms (2026-10-02)
+
+**The data.** No paper publishes a population-average vertical oar angle through the catch. What
+is published, from BioRow's database (Kleshnev's public row2k articles; numbers in
+`data/literature/biorow_catch_norms.csv`, derived only — the database is commercial):
+- *Convention:* vertical angle 0° puts the blade centre at the water line; "fully buried" is
+  −3° (top edge at the surface); half a blade width is about 3°.
+- *A clean catch* ("Visualisation of Catch Factor and Blade Slip"): the blade's velocity
+  relative to the water turns driving about **65 ms** after the catch, and only then can "the
+  bottom of the blade ... touch the water without backsplash"; it then takes "another 60-70ms
+  or 6cm= 4deg of the oar movement to bury the blade completely", against a **target catch slip
+  of 6°** (catch to −3°).
+- *The approach* ("Blade work profile during recovery", n > 37 000): blade at 2.5° mid-recovery
+  (8–10 cm), skied to 5–6° before a sculling catch, handle dipped 2–3° (SD 1.25°) just before it.
+- Also read: Millar et al. (2015, *Sports* 3:335), eight NZ development scullers at 20 spm, catch
+  measures only in time (to 30% peak pin force, to 196 N, to positive boat acceleration); and
+  Grift (2020) ch. 3, whose robot holds the blade's top edge at the surface throughout (no
+  entry), so its small post-catch force is a surface-blade result, not an immersion history.
+
+**[BR24], one athlete, a check only:** his blade's lower edge touches (+3°) 0.025 s and 0.9° after
+the catch, is half in (0°) at 4.4°, fully buried (−3°) at 0.144 s and 8.4°: 7.5° and 0.12 s of
+burial against the 4° / 65 ms target, catch slip 8.4° against 6°. The 4° is a target for good
+technique, not a database mean; the mean is asked of Kleshnev (DATA_REQUESTS §2, question 7).
+
+**The model** (`coxswain/crew/blade_immersion.py`, `DynamicOarSimulator(blade_immersion=...)`,
+hands on the handle): first wetting at [CR06]'s entry (w_n = 0, which is BioRow's clean catch),
+wetted fraction η rising linearly to 1 over `bury_deg` of oar travel. Fully buried is [CG07]'s
+flume condition (top edge at the surface), so the quasi-steady load scales by η and nothing is
+counted twice. Added mass, when on, goes as the wetted height squared (Patton's l_a l_b², the
+height the smaller dimension), m_a = κ m_P η², with F_a = −d(m_a w_n)/dt: the pickup term m_a′w_n
+is water picked up by the entering blade. Checked: the impulse of F_a over the wet interval
+vanishes (m_a = 0 at entry, w_n ≈ 0 at release; `tests/unit/test_blade_immersion.py`).
+
+**Against the populations** (`research/crew/immersion_study.py`; [K05] rhythm and drive law,
+[CG07] tier 2 with strips; targets [LE26] entry/peak 0.17, [H20] catch / finish slip 7.7–9.7 /
+14.1–18.1°, peak/mean 1.61–1.90, BioRow 65 ms and 6°):
+
+| | entry/peak | peak/mean [BR24] / [CR06] | [H20] catch slip | catch → buried | entry | IVV |
+|---|---|---|---|---|---|---|
+| instant, no mass | 0.23 / 0.17 | 1.94 / 1.71 | 1.6 / 2.7° | — | 44 / 56 ms | 54.3 / 50.1% |
+| **immersion 4°** | 0.04 / 0.04 | 2.05 / **1.77** | 2.8 / 4.0° | **5.3 / 5.9°** | 44 / 56 ms | 55.2 / 50.7% |
+| immersion 6° | 0.04 | 2.04 / 1.82 | 3.2 / 4.9° | 7.3 / 7.9° | | 55.8 / 51.2% |
+| immersion 8° | 0.04 | 2.02 / 1.87 | 3.6 / 5.3° | 9.3 / 9.9° | | 56.5 / 51.8% |
+| 4° + Patton ×0.1 | 0.03 / 0.04 | 2.22 / 1.97 | 2.8 / 4.0° | | | 54.9 / 50.5% |
+| 4° + Patton ×0.2 | 0.03 | 2.53 / 2.25 | 2.4 / 3.5° | | | 54.7 / 50.3% |
+| 4° + Patton ×0.5 | 0.02 | 3.49 / 3.10 | | | | 54.0 / 49.6% |
+| 4° + Patton | 0.02 | 5.06 / 4.42 | | | | 52.9 / 48.5% |
+| 4° + [LB19] | 0.01 | 6.90 / 6.04 | | | | 51.5 / 47.1% |
+| instant + Patton | 1.00 | 2.99 / 2.91 | | | | 52.4 / 48.1% |
+
+(Speed at the athletes' measured power stays within +2.4 to +10% throughout; [BR24]'s power
+question is §162's.)
+
+**What it settles.**
+1. *Immersion is the physically right catch and it validates:* the model predicts BioRow's
+   catch-to-buried (5.3–5.9° against 6°) and the blade turning driving 44–56 ms after the catch
+   (≈65 ms), neither imposed, and keeps the force width in band on [CR06].
+2. *The entrained water at the catch is small.* Every added mass on an entering blade spikes the
+   handle when it is buried, the pickup term m_a′w_n doing most of it (13 kg picked up in ~58 ms
+   at |w_n| ≈ 0.7 m/s is ~300 N at the blade). The population force curves bound κ below about
+   0.1 — under ~1.3 kg on a scull blade — consistent with Grift's surface plate behaving "more
+   like a history force", and with a zero-pressure free surface at high frequency, which
+   suppresses a surface-piercing plate's sway added mass. Under prescribed hands the model must
+   pay any added mass at the hands' acceleration; rung 2's torque-driven body will reopen that
+   argument, but the populations' own kinematics were recorded under the real load.
+3. *Best model now:* immersion at BioRow's 4° (swept 4–8°), no blade added mass (bound κ < 0.1).
+
+**What it does not.** [H20]'s catch slip stays short (2.8–5.3° against 7.7–9.7°): once in, the
+force still rises too fast, the small-attack-angle overload of tier 2 (§163, §171); [LE26]'s 0.17
+of peak *at* the catch is force on the pin before the blade loads (oar turning, Millar et al.'s
+caveat about force "applied ... while it is changing direction"), which a model with no handle
+force before entry cannot show. **Separately:** [BR24]'s finish slip is 42–46° against [H20]'s
+14–18° — the model's force collapses after mid-drive on his arc (43 N at 0.65 s against his
+116 N at 0.7 s) — while [CR06]'s passes (16–19° against 18.1°): the [K05] women's drive law on a
+1.91 m man's 106° arc, open. Longer burial raises IVV by 0.6–2 points, away from the athletes.

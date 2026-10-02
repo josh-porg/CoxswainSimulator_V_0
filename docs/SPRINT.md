@@ -107,3 +107,7 @@ stays frozen.
 - 2026-09-30, #1 (§172): the entry spike is the hands' blade acceleration (16–24 m/s²), stable across
   the smoothing; Grift's eq. 2.15 keeps the potential mass from the first instant, so it is not the
   fix — immersion-scaled added mass is. Catch-to-peak is ill-conditioned on the force plateau.
+- 2026-10-02, #1 (§173): blade immersion from BioRow's population norms built and validated
+  (catch-to-buried 5.3–5.9° vs 6°, entry 44–56 ms vs ~65 ms, unimposed); added mass at entry
+  bounded below ~0.1 of Patton by the population force curves. Open: [H20] catch slip short;
+  [BR24]'s late-drive force collapse.

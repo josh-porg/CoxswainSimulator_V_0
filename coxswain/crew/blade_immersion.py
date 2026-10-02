@@ -1,7 +1,8 @@
 """The blade going into the water at the catch: its wetted fraction and its entrained water.
 
 A blade does not enter the water whole. BioRow's on-water norms (Kleshnev, "Visualisation of
-Catch Factor and Blade Slip", row2k 2023; database n > 37 000) put a clean catch in two parts:
+Catch Factor and Blade Slip", row2k features/6267; ``data/literature/biorow_catch_norms.csv``)
+put a clean catch in two parts:
 
 * the blade's velocity relative to the water turns driving about 65 ms after the catch, and only
   then can "the bottom of the blade ... touch the water without backsplash" -- the instant
@@ -22,6 +23,11 @@ of the plate's smaller dimension, which here is its height, so m_a = kappa * m_P
 edge at the surface against 50-70% submerged, a ratio 0.3-0.8 (about 0.5). The force is the rate
 of change of the entrained momentum, F_a = -d(m_a w_n)/dt = -m_a w_n' - m_a' w_n: water picked
 up by the entering blade costs momentum (von Karman's water-entry form).
+
+Validated against populations (SOURCES sec. 173): with the immersion alone the model predicts
+BioRow's catch-to-buried 6 deg (5.3-5.9) and the blade turning driving 44-56 ms after the catch
+(norm ~65 ms), and keeps the force width in band. Any added mass on top spikes the handle once
+the blade is buried; the population force curves bound ``surface_factor`` below about 0.1.
 
 A research option for the hands-on-the-handle crew; nothing in the shipped game uses it.
 """

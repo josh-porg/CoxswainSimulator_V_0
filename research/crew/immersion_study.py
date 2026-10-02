@@ -46,6 +46,15 @@ CONFIGS = [
     ("instant + Patton", "patton", None),
 ]
 
+#: second pass: how much added mass the population force curves tolerate, and how the catch
+#: slip responds to a longer burial ([BR24]'s own is 7.5 deg, one athlete)
+FOLLOWUP = [
+    ("immersion 6 deg", "none", EntryImmersion(6.0, 1.0)),
+    ("immersion 8 deg", "none", EntryImmersion(8.0, 1.0)),
+    ("immersion 4 deg + Patton x0.1", "patton", EntryImmersion(4.0, 0.1)),
+    ("immersion 4 deg + Patton x0.2", "patton", EntryImmersion(4.0, 0.2)),
+]
+
 
 def descriptors(result):
     """Population measures from the last stroke, per oar."""
@@ -88,7 +97,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--strokes", type=int, default=10)
     ap.add_argument("--athletes", default="br24,cr06")
+    ap.add_argument("--followup", action="store_true", help="run the second-pass configurations")
     a = ap.parse_args()
+    configs = FOLLOWUP if a.followup else CONFIGS
     print("targets: entry/peak 0.17 [LE26]; catch slip 7.7-9.7, finish slip 14.1-18.1 deg [H20]; "
           "peak/mean 1.61-1.90; catch-to-peak 0.38-0.43 s; blade driving ~65 ms after the catch, "
           "catch slip 6 deg (BioRow norms)", flush=True)
@@ -97,7 +108,7 @@ def main():
         m = measure()
         print("\n%s measured: %.3f m/s, IVV %.1f%%, %.0f W" % (name, m["speed"], 100 * m["ivv"], m["power"]),
               flush=True)
-        for label, mass, law in CONFIGS:
+        for label, mass, law in configs:
             boat = R.boat_for(name, m, "on-water", True)
             span = float(boat.rig.seats[0].oarlocks[0].oar.blade_length)
             r = R.predict(boat, a.strokes, blade_law="liftdrag", blade_span=span, blade_added_mass=mass,

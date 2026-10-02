@@ -1,6 +1,6 @@
 # Project status
 
-*Last reviewed 2026-09-30. Update this file whenever work finishes or a priority moves;
+*Last reviewed 2026-10-02. Update this file whenever work finishes or a priority moves;
 it is the one-page answer to "where are we, and what is next".*
 
 Rowing shell simulator: full 6-DOF rigid-body dynamics, a released trainer, and an
@@ -22,8 +22,8 @@ work studies coxing itself: what a coxswain's calls do to the boat.
 | [DATA_REQUESTS.md](DATA_REQUESTS.md) | letters to authors and labs, and their replies |
 | [SOURCES.md](SOURCES.md) | the evidence, numbered by section |
 
-Test suite: **1976 passing, 0 failing** in the fast lane (`pytest -m "not slow"`, run
-2026-09-30, 8 min 14 s). The full suite, with the strict xfails that pin known model errors
+Test suite: **1981 passing, 0 failing** in the fast lane (`pytest -m "not slow"`, run
+2026-10-02, 8 min 32 s). The full suite, with the strict xfails that pin known model errors
 (drive duration against on-water pairs, race pace without controlled power), was last run
 2026-09-12: 1771 passing, 14 expected failures.
 
@@ -112,7 +112,9 @@ interpolation had put acceleration spikes on the oar); the force curve's width n
 runs with the hands on the handle: IVV moves 2–4 points the right way, but held constant from entry it spikes the
 handle at entry (550–1200 N). *§172:* that spike is the hands' blade acceleration, not the smoothing; Grift's
 entrainment would not remove it, and his realistic stroke shows a small force after the catch — the blade's
-immersion is what starts from zero, and is next.
+immersion is what starts from zero. *2 Oct (§173):* built from BioRow's norms (wetting when the blade turns
+driving, buried 4° later); it predicts BioRow's catch-to-buried and entry timing unimposed, and the population
+force curves bound the entrained water at entry below ~0.1 of Patton. Best model: immersion, no added mass.
 
 ### 3.2 The crew is driven by ergometer kinematics
 The cause of 3.1's crew share, and the motivation for phase 4. A sourced on-water

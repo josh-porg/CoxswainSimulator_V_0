@@ -1,0 +1,19 @@
+# BioRow catch and blade-height norms, as published in Kleshnev's public row2k articles (derived numbers only;
+# the BioRow database itself is commercial and is not reproduced here).
+# Sources:
+#  [KLslip] Kleshnev, "Rowing Technique: Visualisation of Catch Factor and Blade Slip", row2k features/6267
+#  [KLrec] Kleshnev, "Blade work profile during recovery", row2k features/5655 (BioRow database, n > 37k)
+#  [KLpitch] "Rowing Science: Measuring Blade Pitch Reliably", row2k features/6568
+# Vertical oar angle convention (BioRow): 0 deg puts the blade centre at the water line; the blade is "fully buried"
+# at -3 deg (its top edge at the surface); half a blade width is about 3 deg.
+quantity,value,unit,source,note
+time from catch to blade velocity turning driving,65,ms,KLslip,"after it the bottom of the blade can touch the water without backsplash"
+oar travel from first wetting to fully buried,4,deg,KLslip,"another 60-70ms or 6cm = 4deg of the oar movement to bury the blade completely"
+time from first wetting to fully buried,65,ms,KLslip,"60-70 ms"
+catch slip target (catch to vertical -3 deg),6,deg,KLslip,"target value"
+fully buried vertical angle,-3,deg,KLslip / RBN,"slip = blade travel from the catch to vertical -3 deg"
+half blade width as vertical angle,3,deg,KLrec,"half-width of the blade corresponds to 3 deg vertical angle"
+mid-recovery blade height,2.5,deg,KLrec,"about 8-10 cm above the water; 1x 3.0 deg at high rate"
+skying before the catch (sculling),5-6,deg,KLrec,"low / high rate"
+handle dip before the catch,2-3,deg,KLrec,"vertical angle increases 2-3 deg (3-5 cm), SD 1.25 deg"
+blade centre at the water line,10,deg shaft down,KLpitch,"at 10 deg down the blade centre is at water level (0 deg in biomechanics)"

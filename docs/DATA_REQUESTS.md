@@ -611,7 +611,8 @@ point were inferred from the data (SOURCES §156): rower centre-of-mass travel 0
 relative to the hull. The reply below asks him to confirm that reading rather than to
 supply it. *2026-09-27:* question 3 added (handle-force measurement point) after the
 blade-at-his-kinematics tests (SOURCES §162) found the propulsive scale of that channel
-open. Draft still unsent.
+open. *2026-10-02:* question 7 added (database mean blade burial at the catch, SOURCES §173).
+Draft still unsent.
 
 > Subject: Re: seat and trunk kinematics — thank you, and a few questions
 >
@@ -643,6 +644,12 @@ open. Draft still unsent.
 > 5. Do you have this athlete, or a comparable one, at **other stroke rates**? How the
 >    fluctuation changes with rate is the test the model most needs.
 > 6. How would you like the data cited?
+> 7. **Blade burial at the catch.** Your row2k article on catch factor and blade slip gives
+>    a target of about 4° of oar travel (60–70 ms) from the blade first touching the water to
+>    fully buried at −3°, and a 6° target catch slip. Is there a database **mean** for the
+>    catch slip to −3° in the single, by rate — or an average vertical-angle curve through the
+>    catch? I am modelling the blade's immersion from your norms and would rather validate it
+>    against the population than against the target. (This athlete buries in about 7.5°.)
 >
 > I'll send you the model's result against this stroke once it's run.
 >
