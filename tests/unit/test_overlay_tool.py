@@ -89,9 +89,21 @@ def test_sync_recovers_a_known_offset():
     for st in t + true:
         sig += np.exp(-0.5 * ((mt - st - 0.3) / 0.15) ** 2)
     calls = [(true + t[i] + 4.0, int(split[i])) for i in range(20, t.size, 12)]
+    spiky = sig.copy()                  # near-black frames: shifts of hundreds of px, a few hundred of them
+    bad = rng.choice(mt.size, 300, replace=False)
+    spiky[bad] = rng.choice([-1.0, 1.0], bad.size) * rng.uniform(50, 900, bad.size)
     for c in (None, calls):
-        off, info = C.best_sync(s, mt, dict(dy=sig), true + 25.0, c, prior_sd=20.0)
-        assert off == pytest.approx(true, abs=1.0), info
+        for x in (sig, spiky):
+            off, info = C.best_sync(s, mt, dict(dy=x), true + 25.0, c, prior_sd=20.0)
+            assert off == pytest.approx(true, abs=1.0), info
+
+
+def test_only_impossible_shifts_are_dropped():
+    sig = dict(dy=np.array([0.5, -3.0, 44.0, 46.0, -900.0]), dx=np.array([79.0, 81.0, 0.0, 0.0, 0.0]),
+               diff=np.array([100.0, 0, 0, 0, 0]))
+    out = C.drop_impossible(sig)
+    assert list(out["dy"]) == [0.5, -3.0, 44.0, 0.0, 0.0] and list(out["dx"]) == [79.0, 0.0, 0.0, 0.0, 0.0]
+    assert out["diff"][0] == 100.0
 
 
 O = pytest.importorskip("coxbox_overlay")

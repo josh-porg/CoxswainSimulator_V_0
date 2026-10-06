@@ -216,6 +216,18 @@ def calls_score(session: Session, calls, offset):
     return best
 
 
+# Phase correlation between two 160 x 90 frames cannot see a shift beyond half the frame; on a
+# near-black frame (a race before sunrise) it returns hundreds of pixels, which say nothing and
+# swamp every 12 s window they fall in. Only these are removed: clipping by spread instead trimmed
+# real stroke peaks and moved Sunday's eight by 2 s.
+MAX_SHIFT = dict(dy=45.0, dx=80.0)
+
+
+def drop_impossible(signals):
+    return {name: np.where(np.abs(sig) > MAX_SHIFT[name], 0.0, sig) if name in MAX_SHIFT else sig
+            for name, sig in signals.items()}
+
+
 def best_sync(session: Session, mt, signals: dict, guess, calls=None, search=180.0, prior_sd=None):
     """The offset (video s of the session's elapsed zero) and how it was chosen.
 
@@ -226,6 +238,7 @@ def best_sync(session: Session, mt, signals: dict, guess, calls=None, search=180
     choice is penalised by its distance from the guess. Without it the search is wide."""
     if prior_sd:
         search = min(search, 3.0 * prior_sd)
+    signals = drop_impossible(signals)
     # one scale for all three terms: each in units of its own typical size, the prior as a Gaussian
     # log-prior (a few seconds from the clock costs nothing, tens of seconds do)
     RATE_SCALE, CALLS_SCALE = 0.25, 0.5          # spm; s
