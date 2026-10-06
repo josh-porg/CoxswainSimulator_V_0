@@ -18,6 +18,9 @@ import coxbox_overlay as O
 #: how a list of bare names is read
 ORDERS = {"bow": "Bow first, cox last", "stroke": "Cox first, then stroke to bow"}
 DEFAULT_SECONDS = 6.0
+#: how the lineup is laid out on the card
+SEAT_ORDERS = {"bow_top": "Bow at the top, stroke at the bottom, cox where they sit",
+               "as_typed": "As typed"}
 #: what the card is shown over
 UNDER = {"video": "The video's first seconds, playing", "still": "A still of the video's first frame",
          "broll": "A b-roll clip, retimed to fit"}
@@ -32,6 +35,7 @@ class TitleCard:
     seconds: float = DEFAULT_SECONDS
     broll: str | None = None
     under: str = "video"                         # a key of UNDER
+    seat_order: str = "bow_top"                  # a key of SEAT_ORDERS
 
     @property
     def lead(self):
@@ -88,6 +92,25 @@ def parse_lineup(text, order="bow"):
     coxed = len(names) in (3, 5, 9)
     rowers = len(names) - (1 if coxed else 0)
     return list(zip(seat_labels(rowers, coxed, order), names))
+
+
+def arranged(lineup, seat_order="bow_top"):
+    """The lineup as the card shows it. ``bow_top``: bow at the top down to stroke at the bottom,
+    and the cox where they sit: at the bottom of an eight (stern, behind stroke), at the top of a
+    four (bow-loaded, ahead of bow). Unlabelled or unrecognised seats leave it as typed."""
+    if seat_order != "bow_top":
+        return list(lineup)
+    rank = {"Bow": 1, "Stroke": 99}
+    rowers, cox = [], [x for x in lineup if x[0] == "Cox"]
+    for seat, name in lineup:
+        if seat == "Cox":
+            continue
+        r = rank.get(seat, int(seat) if seat.isdigit() else None)
+        if r is None:
+            return list(lineup)
+        rowers.append((r, seat, name))
+    rowers = [(s, n) for _r, s, n in sorted(rowers)]
+    return (cox + rowers) if len(rowers) == 4 else (rowers + cox)
 
 
 def lineup_text(lineup):
@@ -155,7 +178,7 @@ def _draw(size, card: TitleCard):
             d.text((left + 36, y), s, font=O.font(sz, wt), fill=col + (255,), anchor="ls")
         d.rectangle((left, top + 6, left + 9, y + 10), fill=O.RED + (255,))
     if has_lineup:
-        rows = card.lineup
+        rows = arranged(card.lineup, card.seat_order)
         pitch = min(66, int((H - 220) / max(len(rows), 1)))
         name_size = min(48, int(pitch * 0.74))
         x_label, x_name, x_end = 1250, 1282, W - 90

@@ -216,3 +216,15 @@ def test_camera_clock_from_the_nearest_measurement():
     assert fast == 14.40 and days == pytest.approx(2.125)
     assert A.clock_for(hist, dt.datetime(2026, 9, 25, 14, 0), 14.0)[0] == 14.06
     assert A.clock_for([], dt.datetime(2026, 9, 25), 13.5) == (13.5, 0.0)
+
+
+def test_card_shows_bow_at_the_top_and_the_cox_where_they_sit():
+    eight = T.parse_lineup("Cox\nS\nG\nF\nE\nD\nC\nB\nA", "stroke")         # typed cox first, stroke to bow
+    shown = T.arranged(eight)
+    assert [s for s, _ in shown] == ["Bow", "2", "3", "4", "5", "6", "7", "Stroke", "Cox"]
+    assert shown[0][1] == "A" and shown[-1][1] == "Cox"
+    four = T.parse_lineup("X\nS\nC\nB\nA", "stroke")
+    assert [s for s, _ in T.arranged(four)] == ["Cox", "Bow", "2", "3", "Stroke"]
+    assert T.arranged(four, "as_typed") == four
+    odd = [("Seat", "x"), ("Bow", "y")]
+    assert T.arranged(odd) == odd

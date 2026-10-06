@@ -532,8 +532,15 @@ class App(tk.Tk):
         names.grid(row=5, column=1, columnspan=2, sticky="ew", pady=(6, 2))
         names.insert("1.0", T.lineup_text(card.lineup))
         order = tk.StringVar(value=T.ORDERS[self.settings.get("card_order", "bow")])
-        ttk.Combobox(f, textvariable=order, values=list(T.ORDERS.values()), state="readonly", width=30).grid(
-            row=6, column=1, sticky="w")
+        orow = ttk.Frame(f)
+        orow.grid(row=6, column=1, columnspan=2, sticky="w")
+        ttk.Label(orow, text="typed").pack(side="left")
+        ttk.Combobox(orow, textvariable=order, values=list(T.ORDERS.values()), state="readonly",
+                     width=28).pack(side="left", padx=(4, 10))
+        ttk.Label(orow, text="shown").pack(side="left")
+        seats = tk.StringVar(value=T.SEAT_ORDERS[card.seat_order])
+        ttk.Combobox(orow, textvariable=seats, values=list(T.SEAT_ORDERS.values()), state="readonly",
+                     width=46).pack(side="left", padx=(4, 0))
         ttk.Label(f, text="one name per line, or give the seat: Stroke: Sam", foreground="#5f6b7a").grid(
             row=7, column=1, columnspan=2, sticky="w")
         ttk.Label(f, text="Show for").grid(row=8, column=0, sticky="w", pady=(8, 0))
@@ -572,9 +579,11 @@ class App(tk.Tk):
             except ValueError:
                 n = T.DEFAULT_SECONDS
             u = next(k for k, v in T.UNDER.items() if v == under.get())
+            so = next(k for k, v in T.SEAT_ORDERS.items() if v == seats.get())
             return key, T.TitleCard(title=title.get().strip(), subtitle=sub.get().strip(),
                                     lineup=T.parse_lineup(names.get("1.0", "end"), key),
-                                    seconds=min(max(n, 1.0), 60.0), broll=broll.get().strip() or None, under=u)
+                                    seconds=min(max(n, 1.0), 60.0), broll=broll.get().strip() or None, under=u,
+                                    seat_order=so)
 
         def apply(targets):
             key, c = build()
