@@ -457,17 +457,19 @@ def render_video(video, out, layout, moment_at, overlay_fps=10, start=None, end=
     original audio. Frames outside the piece get an empty layer (D keeps its frame).
 
     ``card`` (title_card.TitleCard): the race's title and lineup for its first ``card.seconds``.
-    With ``card.broll`` that clip comes first, sped up or slowed to fill exactly that time, full
-    frame and silent, and the race video follows; without it the card lies over the race video's
-    own first seconds."""
+    ``card.under == "broll"``: that clip comes first, sped up or slowed to fill exactly that time,
+    full frame and silent, and the race video follows. ``"still"``: the race video's first frame,
+    held for that time, silent. ``"video"``: the card lies over the race video's own first seconds."""
     W, H, dur, fps, has_audio = probe(video)
     t0 = 0.0 if start is None else float(start)
     t1 = dur if end is None else min(float(end), dur)
     size = (W, H)
     if card is not None and (card.empty or card.seconds <= 0):
         card = None
-    broll = card is not None and bool(card.broll)
-    lead = card.seconds if broll else 0.0          # output time before the race video starts
+    under = None if card is None else card.under
+    if under == "broll" and not card.broll:
+        raise ValueError("the title card is set to a b-roll clip, but none was chosen")
+    lead = 0.0 if card is None else card.lead      # output time before the race video starts
     cmd = [ffmpeg_exe(), "-hide_banner", "-loglevel", "error", "-y"]
     if start is not None:
         cmd += ["-ss", "%.3f" % t0]
@@ -478,13 +480,18 @@ def render_video(video, out, layout, moment_at, overlay_fps=10, start=None, end=
         main = "[0:v]scale=%d:%d,pad=%d:%d:%d:%d:color=0x0a1028,setsar=1,format=yuv420p[m]" % (vw, vh, W, H, vx, vy)
     else:
         main = "[0:v]setsar=1,format=yuv420p[m]"
-    if broll:
-        bdur = probe(card.broll)[2]
-        cmd += ["-i", card.broll]
-        graph = (main + ";[2:v]setpts=(PTS-STARTPTS)*%.6f,fps=%.6f,scale=%d:%d:force_original_aspect_ratio=increase,"
-                 "crop=%d:%d,setsar=1,format=yuv420p,tpad=stop_mode=clone:stop_duration=1,trim=duration=%.3f,"
-                 "setpts=PTS-STARTPTS[b];[b][m]concat=n=2:v=1:a=0[v];[v][1:v]overlay=0:0:format=auto[o]"
-                 % (card.seconds / max(bdur, 1e-3), fps, W, H, W, H, card.seconds))
+    if lead > 0:
+        if under == "broll":
+            bdur = probe(card.broll)[2]
+            cmd += ["-i", card.broll]
+            pre = ("[2:v]setpts=(PTS-STARTPTS)*%.6f,fps=%.6f,scale=%d:%d:force_original_aspect_ratio=increase,"
+                   "crop=%d:%d" % (card.seconds / max(bdur, 1e-3), fps, W, H, W, H))
+        else:                                      # the first frame, held, full frame even in D
+            main = "[0:v]split=2[v0][v1];" + main.replace("[0:v]", "[v0]", 1)
+            pre = "[v1]trim=end_frame=1,setpts=PTS-STARTPTS,fps=%.6f,scale=%d:%d" % (fps, W, H)
+        graph = (main + ";" + pre + ",setsar=1,format=yuv420p,tpad=stop_mode=clone:stop_duration=%.3f,"
+                 "trim=duration=%.3f,setpts=PTS-STARTPTS[b];[b][m]concat=n=2:v=1:a=0[v];"
+                 "[v][1:v]overlay=0:0:format=auto[o]" % (card.seconds + 1.0, card.seconds))
         if has_audio:
             graph += ";[0:a]adelay=delays=%d:all=1[a]" % round(card.seconds * 1000)
         amap = ["-map", "[a]"] if has_audio else []
@@ -507,12 +514,12 @@ def render_video(video, out, layout, moment_at, overlay_fps=10, start=None, end=
     try:
         for i in range(n):
             tc = i / overlay_fps                   # output time
-            if i < n_lead:                         # the b-roll: the card alone, full frame
+            if i < n_lead:                         # the b-roll or still: the card alone, full frame
                 buf = TC.with_opacity(card_img, TC.fade(tc, card.seconds)).tobytes()
             else:
                 tv = t0 + tc - lead
                 m = moment_at(tv)
-                a = TC.fade(tc, card.seconds) if (card_img is not None and not broll) else 0.0
+                a = TC.fade(tc, card.seconds) if (card_img is not None and lead == 0) else 0.0
                 if a > 0:
                     base = empty if m is None else layer(layout, size, m, fields)
                     buf = Image.alpha_composite(base, TC.with_opacity(card_img, a)).tobytes()

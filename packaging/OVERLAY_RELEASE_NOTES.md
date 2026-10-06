@@ -12,9 +12,13 @@ app asks before doing that.
 - **Title card.** Select a video and press *Title card…*: give the race a name, a second line
   (event, boat, date) and the lineup, one name per line (bow first and cox last, or cox and stroke
   first; or write the seat yourself, `Stroke: Sam`). It shows for the time you choose, 6 s by
-  default. Add a **b-roll clip** and it plays first, sped up or slowed to fill exactly that time,
-  with the race video after it; without one, the card lies over the race video's first seconds and
-  fades out. Off unless you turn it on; *Preview* shows it before you generate.
+  default. Choose what is **behind it**: the race video's first seconds, playing with their sound
+  (for a recording started before the piece); a **still** of the first frame, held before the video
+  runs (for one that starts mid-piece); or a **b-roll clip**, sped up or slowed to fill exactly that
+  time. Off unless you turn it on; *Preview* shows it before you generate.
+- **Thumbnail.** Every video with a title card also gets `… - thumbnail.jpg` beside it: the card
+  at 1280 x 720, ready to upload as the YouTube thumbnail. *Save thumbnail…* in the title card
+  window makes one on its own.
 - The sync ignores the nonsense motion from near-black frames (a race before sunrise).
 - The app no longer needs OpenCV (which kept the Mac build from starting), and every column of the
   video list stays visible at any text size.

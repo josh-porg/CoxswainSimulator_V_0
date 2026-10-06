@@ -200,3 +200,10 @@ def test_card_draws_at_any_size(size, card):
     img = T.card_layer(size, c)
     assert img.size == size and img.mode == "RGBA"
     assert np.asarray(img)[..., 3].min() > 0           # the scrim covers the frame
+
+
+def test_card_lead_and_old_settings():
+    assert T.TitleCard(under="video").lead == 0.0
+    assert T.TitleCard(seconds=5, under="still").lead == 5 and T.TitleCard(seconds=5, under="broll").lead == 5
+    assert T.TitleCard.from_dict(dict(title="x", broll="b.mp4")).under == "broll"    # saved by 1.1 drafts
+    assert T.TitleCard.from_dict(dict(title="x")).under == "video"

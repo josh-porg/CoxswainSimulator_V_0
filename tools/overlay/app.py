@@ -426,7 +426,7 @@ class App(tk.Tk):
             ses = v.session.start.strftime("%a %d %b %H:%M") if v.session else "none: camera rate"
             if v.session and not v.auto:
                 ses += " (chosen)"
-            card = "" if v.card is None else ("b-roll" if v.card.broll else "yes")
+            card = "" if v.card is None else {"video": "yes", "still": "still", "broll": "b-roll"}[v.card.under]
             self.tree.insert("", "end", iid=str(i), text=v.name, values=(
                 rec, "%d:%02d" % (int(v.duration) // 60, int(v.duration) % 60), ses, card, v.status))
         self._fit_columns()
@@ -527,22 +527,28 @@ class App(tk.Tk):
         secs = tk.StringVar(value="%g" % card.seconds)
         ttk.Spinbox(rowf, from_=2, to=60, increment=1, width=5, textvariable=secs).pack(side="left")
         ttk.Label(rowf, text="seconds").pack(side="left", padx=4)
-        ttk.Label(f, text="B-roll clip").grid(row=9, column=0, sticky="w", pady=(8, 0))
+        ttk.Label(f, text="Behind it").grid(row=9, column=0, sticky="w", pady=(8, 0))
+        under = tk.StringVar(value=T.UNDER[card.under])
+        ttk.Combobox(f, textvariable=under, values=list(T.UNDER.values()), state="readonly", width=34).grid(
+            row=9, column=1, sticky="w", pady=(8, 0))
+        ttk.Label(f, text="B-roll clip").grid(row=10, column=0, sticky="w", pady=(4, 0))
         broll = tk.StringVar(value=card.broll or "")
-        ttk.Entry(f, textvariable=broll, width=40).grid(row=9, column=1, sticky="ew", pady=(8, 0))
+        ttk.Entry(f, textvariable=broll, width=40).grid(row=10, column=1, sticky="ew", pady=(4, 0))
         bf = ttk.Frame(f)
-        bf.grid(row=9, column=2, sticky="w", pady=(8, 0), padx=(6, 0))
+        bf.grid(row=10, column=2, sticky="w", pady=(4, 0), padx=(6, 0))
 
         def choose():
             p = filedialog.askopenfilename(parent=win, title="B-roll clip", filetypes=[
                 ("Videos", "*.mp4 *.MP4 *.mov *.MOV"), ("All files", "*.*")])
             if p:
                 broll.set(p)
+                under.set(T.UNDER["broll"])
         ttk.Button(bf, text="Choose…", command=choose).pack(side="left")
         ttk.Button(bf, text="Clear", command=lambda: broll.set("")).pack(side="left", padx=(4, 0))
-        ttk.Label(f, text="optional: sped up or slowed to fill the time, shown before the race.\n"
-                          "Without one, the card lies over the first seconds of the race video.",
-                  foreground="#5f6b7a", justify="left").grid(row=10, column=1, columnspan=2, sticky="w")
+        ttk.Label(f, text="Playing: for a recording that starts before the piece.\n"
+                          "Still: the first frame held, for one that starts mid-piece.\n"
+                          "B-roll: another clip, sped up or slowed to fill the time.",
+                  foreground="#5f6b7a", justify="left").grid(row=11, column=1, columnspan=2, sticky="w")
 
         def build():
             key = next(k for k, v in T.ORDERS.items() if v == order.get())
@@ -550,16 +556,21 @@ class App(tk.Tk):
                 n = float(secs.get())
             except ValueError:
                 n = T.DEFAULT_SECONDS
+            u = next(k for k, v in T.UNDER.items() if v == under.get())
             return key, T.TitleCard(title=title.get().strip(), subtitle=sub.get().strip(),
                                     lineup=T.parse_lineup(names.get("1.0", "end"), key),
-                                    seconds=min(max(n, 1.0), 60.0), broll=broll.get().strip() or None)
+                                    seconds=min(max(n, 1.0), 60.0), broll=broll.get().strip() or None, under=u)
 
         def apply(targets):
             key, c = build()
             if on.get() and c.empty:
                 messagebox.showinfo(APP, "Give the race a name or a lineup, or untick the title card.", parent=win)
                 return
-            if on.get() and c.broll and not os.path.exists(c.broll):
+            if on.get() and c.under == "broll" and not c.broll:
+                messagebox.showinfo(APP, "Choose the b-roll clip, or pick something else to show behind the card.",
+                                    parent=win)
+                return
+            if on.get() and c.under == "broll" and not os.path.exists(c.broll):
                 messagebox.showwarning(APP, "Cannot find the b-roll clip:\n%s" % c.broll, parent=win)
                 return
             for v in targets:
@@ -578,26 +589,41 @@ class App(tk.Tk):
 
             def work():
                 try:
-                    W, H = O.probe(v.path)[:2]
-                    if c.broll:
-                        frame = O.grab_frame(c.broll, O.probe(c.broll)[2] * 0.5)
-                        sc = max(W / frame.width, H / frame.height)    # fill and crop, as the render does
-                        frame = frame.resize((round(frame.width * sc), round(frame.height * sc)), O.Image.LANCZOS)
-                        x, y = (frame.width - W) // 2, (frame.height - H) // 2
-                        frame = frame.crop((x, y, x + W, y + H))
-                    else:
-                        frame = O.grab_frame(v.path, min(2.0, v.duration / 2))
-                    base = frame.convert("RGBA")
-                    img = O.Image.alpha_composite(base, T.card_layer(base.size, c)).convert("RGB")
-                    self.q.put(("preview", (img, "title card", "The title card, %g s%s." % (
-                        c.seconds, " over the b-roll" if c.broll else " over the start of the race video"))))
+                    img = T.card_frame(v.path, c)
+                    self.q.put(("preview", (img, "title card", "The title card, %g s, over %s." % (
+                        c.seconds, {"video": "the start of the race video", "still": "the video's first frame",
+                                    "broll": "the b-roll"}[c.under]))))
                 except Exception as e:
                     self.q.put(("error", "Preview failed: %s" % e))
             threading.Thread(target=work, daemon=True).start()
 
+        def thumb():
+            _key, c = build()
+            if c.empty:
+                messagebox.showinfo(APP, "Give the race a name or a lineup first.", parent=win)
+                return
+            v = sel[0]
+            path = filedialog.asksaveasfilename(
+                parent=win, title="Save the thumbnail", defaultextension=".jpg",
+                initialdir=self.outdir.get() if os.path.isdir(self.outdir.get()) else None,
+                initialfile="%s - thumbnail.jpg" % os.path.splitext(v.name)[0], filetypes=[("JPEG", "*.jpg")])
+            if not path:
+                return
+            self.stage.set("Saving the thumbnail…")
+
+            def work():
+                try:
+                    T.save_thumbnail(v.path, c, path)
+                    self.q.put(("log", "Thumbnail saved: %s" % path))
+                    self.q.put(("stage", "Thumbnail saved."))
+                except Exception as e:
+                    self.q.put(("error", "Could not save the thumbnail: %s" % e))
+            threading.Thread(target=work, daemon=True).start()
+
         bar = ttk.Frame(f)
-        bar.grid(row=11, column=0, columnspan=3, sticky="ew", pady=(14, 0))
+        bar.grid(row=12, column=0, columnspan=3, sticky="ew", pady=(14, 0))
         ttk.Button(bar, text="Preview", command=show).pack(side="left")
+        ttk.Button(bar, text="Save thumbnail…", command=thumb).pack(side="left", padx=6)
         ttk.Button(bar, text="Cancel", command=win.destroy).pack(side="right")
         ttk.Button(bar, text="Apply to all videos", command=lambda: apply(self.videos)).pack(side="right", padx=6)
         if len(sel) < len(self.videos):
@@ -672,7 +698,8 @@ class App(tk.Tk):
                                        "pair it by hand). Otherwise they get only a stroke rate estimated from "
                                        "the camera.\n\nGenerate anyway?" % names, icon="warning", default="no"):
                 return
-        lost = [v for v in self.videos if v.card and v.card.broll and not os.path.exists(v.card.broll)]
+        lost = [v for v in self.videos if v.card and v.card.under == "broll"
+                and not (v.card.broll and os.path.exists(v.card.broll))]
         if lost:
             messagebox.showwarning(APP, "The b-roll clip for these videos cannot be found:\n  %s\n\n"
                                    "Open Title card… to choose it again, or clear it to show the card over the "
@@ -770,6 +797,12 @@ class App(tk.Tk):
                 done.append(out)
                 self.q.put(("status", (v, "done")))
                 self.q.put(("log", "%s: saved %s" % (v.name, out)))
+                if v.card is not None and not v.card.empty:
+                    try:
+                        jpg = T.save_thumbnail(v.path, v.card, os.path.splitext(out)[0] + " - thumbnail.jpg")
+                        self.q.put(("log", "%s: thumbnail (title card, 1280 x 720) saved %s" % (v.name, jpg)))
+                    except Exception as e:
+                        self.q.put(("log", "%s: no thumbnail: %s" % (v.name, e)))
             except Cancelled:
                 self.q.put(("status", (v, "cancelled")))
                 self.q.put(("log", "Cancelled."))
@@ -797,6 +830,8 @@ class App(tk.Tk):
                     self.fast.set("%.2f" % data)
                     self.calibrated.set(True)
                     self._save()
+                elif kind == "stage":
+                    self.stage.set(data)
                 elif kind == "preview":
                     self._show_preview(*data)
                 elif kind == "error":
@@ -841,6 +876,11 @@ def batch(argv):
     ap.add_argument("--lineup-order", default="bow", choices=list(T.ORDERS))
     ap.add_argument("--card-seconds", type=float, default=T.DEFAULT_SECONDS)
     ap.add_argument("--broll", default=None, help="title card: a clip retimed to show under it")
+    ap.add_argument("--card-under", default=None, choices=list(T.UNDER),
+                    help="title card: what it is shown over (default: the b-roll if given, else the video)")
+    ap.add_argument("--cards", default=None,
+                    help="a JSON file of title cards per video: {video file name: {title, subtitle, lineup, "
+                         "order, seconds, under, broll}}; lineup as text or [[seat, name], ...]")
     a = ap.parse_args(argv)
     import transcribe_calls as TC
     zone = a.zone
@@ -850,9 +890,16 @@ def batch(argv):
     videos = [Video(p) for p in a.videos]
     names = open(a.lineup, encoding="utf-8").read() if a.lineup and os.path.isfile(a.lineup) else a.lineup.replace(";", "\n")
     card = T.TitleCard(title=a.title, subtitle=a.subtitle, lineup=T.parse_lineup(names, a.lineup_order),
-                       seconds=a.card_seconds, broll=a.broll)
+                       seconds=a.card_seconds, broll=a.broll, under=a.card_under or ("broll" if a.broll else "video"))
+    per = json.load(open(a.cards, encoding="utf-8")) if a.cards else {}
     for v in videos:
         v.card = None if card.empty else card
+        if v.name in per:
+            d = dict(per[v.name])
+            if isinstance(d.get("lineup"), str):
+                d["lineup"] = T.parse_lineup(d["lineup"], d.pop("order", "bow"))
+            d.pop("order", None)
+            v.card = T.TitleCard.from_dict(d)
     sessions = [C.load_csv(p) for p in a.coxbox if p.lower().endswith(".csv")]
     for v in videos:                       # pair by time overlap, as the window does
         st = v.true_start_utc(a.camera_fast)
@@ -957,21 +1004,33 @@ def selftest(outdir):
     broll = os.path.join(outdir, "synthetic_broll.mp4")
 
     def card(with_broll):
-        if with_broll:
+        if with_broll is True:
             subprocess.run([ff, "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i",
                             "smptebars=size=640x480:rate=25:d=5", "-c:v", "libx264", "-pix_fmt", "yuv420p", broll],
                            check=True, **O.NOWIN)
+        under = "still" if with_broll == "still" else ("broll" if with_broll else "video")
         c = T.TitleCard(title="Self-test", subtitle="title card", lineup=T.parse_lineup("A\nB\nC\nD\nE"),
-                        seconds=3.0, broll=broll if with_broll else None)
-        out = os.path.join(outdir, "synthetic_card%s.mp4" % ("_broll" if with_broll else ""))
+                        seconds=3.0, broll=broll if under == "broll" else None, under=under)
+        out = os.path.join(outdir, "synthetic_card_%s.mp4" % under)
         O.render_video(clip, out, "A", O.session_moments(s, 1.0), card=c)
-        want = 8.0 + (3.0 if with_broll else 0.0)
+        want = 8.0 + c.lead
         got = O.probe(out)[2]
         if abs(got - want) > 0.2:
             raise RuntimeError("%.2f s long, expected %.2f s" % (got, want))
         return "%.2f s" % got
     check("title card over the video", lambda: card(False))
     check("title card over a retimed b-roll", lambda: card(True))
+    check("title card over a held first frame", lambda: card("still"))
+
+    def thumb():
+        c = T.TitleCard(title="Self-test", lineup=T.parse_lineup("A;B;C;D;E".replace(";", chr(10))), under="still")
+        p = T.save_thumbnail(clip, c, os.path.join(outdir, "thumbnail.jpg"))
+        from PIL import Image
+        im = Image.open(p)
+        if im.size != T.THUMB_SIZE or os.path.getsize(p) > 2 * 1024 * 1024:
+            raise RuntimeError("%s, %d bytes" % (im.size, os.path.getsize(p)))
+        return "%dx%d, %.0f kB" % (im.size + (os.path.getsize(p) / 1024,))
+    check("thumbnail", thumb)
     say("RESULT: %s" % ("all checks passed" if ok else "FAILED"))
     log.close()
     return 0 if ok else 1

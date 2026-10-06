@@ -1,7 +1,8 @@
 """The title card: the race's name and the lineup, shown for a few seconds before the racing.
 
-Over a b-roll clip (retimed to fill exactly the card's time, then the race video follows), or, with
-no b-roll, over the first seconds of the race video itself. Drawn in the HUD's SRA colours and
+Behind it (``under``): the race video's own first seconds, playing ("video"); a still of its first
+frame, held for the card's time before the video runs ("still", for a recording that starts
+mid-piece); or a b-roll clip retimed to fill exactly that time ("broll"). Drawn in the HUD's SRA colours and
 type, at the same 1920-wide reference as the HUD layers, then scaled to the frame.
 """
 from __future__ import annotations
@@ -17,6 +18,9 @@ import coxbox_overlay as O
 #: how a list of bare names is read
 ORDERS = {"bow": "Bow first, cox last", "stroke": "Cox first, then stroke to bow"}
 DEFAULT_SECONDS = 6.0
+#: what the card is shown over
+UNDER = {"video": "The video's first seconds, playing", "still": "A still of the video's first frame",
+         "broll": "A b-roll clip, retimed to fit"}
 FADE_IN, FADE_OUT = 0.4, 0.7                    # s
 
 
@@ -27,6 +31,12 @@ class TitleCard:
     lineup: list = field(default_factory=list)   # [(seat label, name)]
     seconds: float = DEFAULT_SECONDS
     broll: str | None = None
+    under: str = "video"                         # a key of UNDER
+
+    @property
+    def lead(self):
+        """Seconds added before the race video: the still or the b-roll; 0 over the video itself."""
+        return self.seconds if self.under in ("still", "broll") else 0.0
 
     @property
     def empty(self):
@@ -39,6 +49,8 @@ class TitleCard:
     def from_dict(cls, d):
         d = dict(d)
         d["lineup"] = [tuple(x) for x in d.get("lineup", [])]
+        if "under" not in d:
+            d["under"] = "broll" if d.get("broll") else "video"
         return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
 
 
@@ -175,3 +187,35 @@ def with_opacity(img: Image.Image, a: float) -> Image.Image:
     arr = np.asarray(img).copy()
     arr[..., 3] = (arr[..., 3].astype(np.float32) * a).astype(np.uint8)
     return Image.fromarray(arr, "RGBA")
+
+
+# -- the card as a still: preview and thumbnail ----------------------------------------------------
+THUMB_SIZE = (1280, 720)                         # YouTube's recommended thumbnail, 16:9, under 2 MB
+
+
+def _fill(img, size):
+    """``img`` scaled to cover ``size`` and centre-cropped, as the render fills a b-roll."""
+    W, H = size
+    sc = max(W / img.width, H / img.height)
+    img = img.resize((max(W, round(img.width * sc)), max(H, round(img.height * sc))), Image.LANCZOS)
+    x, y = (img.width - W) // 2, (img.height - H) // 2
+    return img.crop((x, y, x + W, y + H))
+
+
+def card_frame(video, card: TitleCard):
+    """The card at full strength over what it is shown on: the b-roll's middle frame, the video's
+    first frame (a still), or the video 2 s in. RGB, at the video's size."""
+    W, H = O.probe(video)[:2]
+    if card.under == "broll" and card.broll:
+        frame = _fill(O.grab_frame(card.broll, O.probe(card.broll)[2] * 0.5), (W, H))
+    else:
+        frame = O.grab_frame(video, 0.0 if card.under == "still" else min(2.0, O.probe(video)[2] / 2))
+    base = frame.convert("RGBA")
+    return Image.alpha_composite(base, card_layer(base.size, card)).convert("RGB")
+
+
+def save_thumbnail(video, card: TitleCard, path):
+    """The card frame as a 1280 x 720 JPEG, for the video's thumbnail on YouTube."""
+    img = _fill(card_frame(video, card), THUMB_SIZE)
+    img.save(path, "JPEG", quality=90, optimize=True)
+    return path
