@@ -158,3 +158,45 @@ def test_phase_correlation_recovers_a_known_shift():
     half = np.real(np.fft.ifft2(np.fft.fft2(big) * np.exp(-1j * np.pi * np.fft.fftfreq(320)[None, :])))
     dx, dy = M.phase_correlate(a, half[40:130, 60:220], win)
     assert 0.05 < dx <= 0.5 and abs(dy) < 0.05
+
+
+T = pytest.importorskip("title_card")
+
+
+@pytest.mark.parametrize("text, order, want", [
+    ("A\nB\nC\nD\nE\nF\nG\nH\nI", "bow", ["Bow", "2", "3", "4", "5", "6", "7", "Stroke", "Cox"]),
+    ("I\nH\nG\nF\nE", "stroke", ["Cox", "Stroke", "3", "2", "Bow"]),
+    ("A\nB\nC\nD", "bow", ["Bow", "2", "3", "Stroke"]),
+    ("A\nB", "bow", ["Bow", "Stroke"]),
+    ("Solo", "bow", [""]),
+    ("Stroke: Sam\n3 - Alex\n2. Jo\nBow: Kim\nCox: Pat", "bow", ["Stroke", "3", "2", "Bow", "Cox"]),
+    ("Bow-Smith\nJones\nLee\nPark", "bow", ["Bow", "2", "3", "Stroke"]),
+])
+def test_lineup_seats(text, order, want):
+    got = T.parse_lineup(text, order)
+    assert [s for s, _n in got] == want
+    assert got[0][1] == text.splitlines()[0].split(":")[-1].split(" - ")[-1].split(". ")[-1].strip()
+
+
+def test_lineup_round_trips_through_its_text():
+    lineup = T.parse_lineup("A\nB\nC\nD\nE")
+    assert T.parse_lineup(T.lineup_text(lineup)) == lineup
+
+
+def test_card_fades_in_and_out_within_its_time():
+    assert T.fade(-0.1, 6) == 0 and T.fade(6.0, 6) == 0
+    assert T.fade(0.0, 6) == 0 and T.fade(3.0, 6) == 1.0
+    assert 0 < T.fade(0.2, 6) < 1 and 0 < T.fade(5.8, 6) < 1
+
+
+@pytest.mark.parametrize("size", [(1920, 1080), (1280, 720), (1440, 1080)])
+@pytest.mark.parametrize("card", [
+    dict(title="Head of the Lake", subtitle="Youth Eight", lineup="A\nB\nC\nD\nE\nF\nG\nH\nI"),
+    dict(title="A very long regatta name that will not fit on a single line of the title card at all"),
+    dict(lineup="Ana\nBea"), dict(title="Only a title")])
+def test_card_draws_at_any_size(size, card):
+    c = T.TitleCard(title=card.get("title", ""), subtitle=card.get("subtitle", ""),
+                    lineup=T.parse_lineup(card.get("lineup", "")))
+    img = T.card_layer(size, c)
+    assert img.size == size and img.mode == "RGBA"
+    assert np.asarray(img)[..., 3].min() > 0           # the scrim covers the frame

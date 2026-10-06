@@ -7,7 +7,9 @@ r"""SRA CoxBox Overlay: put the CoxBox data over cox-camera video, synced, with 
    runs fast; the setting holds by how much, and is updated after each synced video). Change any
    pairing by double-clicking it.
 3. Pick the layout and which HUD items to show; Preview shows one frame.
-4. Generate: per video it reads the stroke rhythm from the picture, syncs it to the CoxBox (and,
+4. Optionally, a title card: the race's name and the lineup for the first seconds, over a b-roll
+   clip (retimed to fit) or over the start of the race video.
+5. Generate: per video it reads the stroke rhythm from the picture, syncs it to the CoxBox (and,
    if ticked, checks it against the splits called in the audio), and writes the video with the
    overlay. A video with no CoxBox session gets only a stroke rate estimated from the camera, and
    the app asks before doing that.
@@ -18,7 +20,6 @@ fetched. Settings live in %APPDATA%\CoxBoxOverlay, working files in %LOCALAPPDAT
 from __future__ import annotations
 
 import datetime as dt
-import glob
 import json
 import os
 import queue
@@ -39,6 +40,7 @@ sys.path.insert(0, HERE)
 import camera_motion as CM                                       # noqa: E402
 import coxbox_data as C                                          # noqa: E402
 import coxbox_overlay as O                                       # noqa: E402
+import title_card as T                                           # noqa: E402
 
 APP = "SRA CoxBox Overlay"
 
@@ -104,6 +106,11 @@ def probe_video(path):
     return start, dur
 
 
+def mmss(sec):
+    """``-0:13.3`` for -13.3 s: the sign first, so a CoxBox started before the video reads right."""
+    return "%s%d:%04.1f" % ("-" if sec < 0 else "", abs(sec) // 60, abs(sec) % 60)
+
+
 def cache_key(path):
     st = os.stat(path)
     return "%s_%d_%d" % (os.path.splitext(os.path.basename(path))[0], st.st_size, int(st.st_mtime))
@@ -117,6 +124,7 @@ class Video:
         self.session = None            # a Session, or None
         self.auto = True               # pairing chosen automatically
         self.status = "ready"
+        self.card = None               # a title_card.TitleCard, or None
 
     def true_start_utc(self, camera_fast_min):
         if self.cam_start_utc is None:
@@ -134,7 +142,7 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("%s  %s" % (APP, version()))
-        self.geometry("1180x760")
+        self.geometry("1320x780")
         self.minsize(980, 640)
         self.settings = dict(DEFAULTS)
         try:
@@ -182,16 +190,18 @@ class App(tk.Tk):
         ttk.Button(bar, text="Remove", command=self.remove_selected).pack(side="left", padx=6)
         ttk.Button(bar, text="Clear all", command=self.clear_all).pack(side="left")
 
-        cols = ("recorded", "length", "coxbox", "status")
+        cols = ("recorded", "length", "coxbox", "card", "status")
         self.tree = ttk.Treeview(left, columns=cols, show="tree headings", selectmode="extended")
         self.tree.heading("#0", text="Video")
         for c, w, t in (("recorded", 120, "Recorded"), ("length", 55, "Length"),
-                        ("coxbox", 230, "CoxBox session (double-click)"), ("status", 85, "Status")):
+                        ("coxbox", 230, "CoxBox session (double-click)"), ("card", 70, "Title card"),
+                        ("status", 85, "Status")):
             self.tree.heading(c, text=t)
-            self.tree.column(c, width=w, minwidth=50, stretch=(c == "coxbox"))
+            self.tree.column(c, width=w, minwidth=50, stretch=(c == "coxbox"), anchor="center" if c == "card" else "w")
         self.tree.column("#0", width=200, minwidth=120)
         self.tree.grid(row=1, column=0, sticky="nsew")
         self.tree.bind("<Double-1>", self._edit_pairing)
+        self.tree.bind("<Configure>", lambda e: self._fit_columns())
 
         ttk.Label(left, text="CoxBox sessions loaded", font=("Segoe UI", 10, "bold")).grid(
             row=3, column=0, sticky="w", pady=(10, 2))
@@ -260,6 +270,7 @@ class App(tk.Tk):
         act = ttk.Frame(right)
         act.pack(fill="x", pady=(4, 0))
         ttk.Button(act, text="Preview selected", command=self.preview).pack(side="left")
+        ttk.Button(act, text="Title card…", command=self.edit_card).pack(side="left", padx=6)
         self.go = ttk.Button(act, text="Generate videos", style="Big.TButton", command=self.generate)
         self.go.pack(side="right")
         self.stop = ttk.Button(act, text="Cancel", command=self.cancel_run, state="disabled")
@@ -412,11 +423,13 @@ class App(tk.Tk):
         for i, v in enumerate(self.videos):
             a = v.true_start_utc(self._camera_fast())
             rec = (a + zone).strftime("%a %d %b %H:%M") if a else "?"
-            ses = session_label(v.session) if v.session else NO_SESSION
+            ses = v.session.start.strftime("%a %d %b %H:%M") if v.session else "none: camera rate"
             if v.session and not v.auto:
-                ses += "  (chosen)"
+                ses += " (chosen)"
+            card = "" if v.card is None else ("b-roll" if v.card.broll else "yes")
             self.tree.insert("", "end", iid=str(i), text=v.name, values=(
-                rec, "%d:%02d" % (int(v.duration) // 60, int(v.duration) % 60), ses, v.status))
+                rec, "%d:%02d" % (int(v.duration) // 60, int(v.duration) % 60), ses, card, v.status))
+        self._fit_columns()
         self.stree.delete(*self.stree.get_children())
         for i, s in enumerate(self.sessions):
             self.stree.insert("", "end", iid=str(i), text=session_label(s), values=(os.path.basename(s.path),))
@@ -424,6 +437,23 @@ class App(tk.Tk):
         paired = sum(1 for v in self.videos if v.session)
         if n:
             self.stage.set("%d video%s, %d with CoxBox data." % (n, "" if n == 1 else "s", paired))
+
+    def _fit_columns(self):
+        """Every column visible at any text size: the short ones as wide as their text, the video
+        name up to its full length, and the CoxBox session takes what is left."""
+        from tkinter import font as tkfont
+        f = tkfont.nametofont("TkDefaultFont")
+        pad = f.measure("00")
+        need = {"recorded": f.measure("Sun 04 Oct 07:59") + pad, "length": f.measure("Length") + pad,
+                "card": f.measure("Title card") + pad, "status": f.measure("not synced") + pad}
+        avail = self.tree.winfo_width() - 4
+        names = [v.name for v in self.videos] or ["DJI_00000000000000_0000_D.MP4"]
+        video = min(max(f.measure(n) for n in names) + 2 * pad, int(avail * 0.34))
+        cox = max(avail - video - sum(need.values()), f.measure("Sun 04 Oct 08:03 (chosen)") + pad)
+        self.tree.column("#0", width=video)
+        for c, w in need.items():
+            self.tree.column(c, width=w)
+        self.tree.column("coxbox", width=cox)
 
     def _edit_pairing(self, event):
         iid = self.tree.identify_row(event.y)
@@ -451,6 +481,128 @@ class App(tk.Tk):
             win.destroy()
             self._repair()
         ttk.Button(win, text="OK", command=ok).pack(pady=10)
+
+    # -- title card ------------------------------------------------------------------------------
+    def edit_card(self):
+        """The title card for the selected videos (all of them if none is selected)."""
+        if not self.videos:
+            messagebox.showinfo(APP, "Add the videos first.")
+            return
+        sel = [self.videos[int(i)] for i in self.tree.selection()] or list(self.videos)
+        first = next((v.card for v in sel if v.card is not None), None)
+        last = T.TitleCard.from_dict(self.settings["card_last"]) if self.settings.get("card_last") else T.TitleCard()
+        card = first or last
+        win = tk.Toplevel(self)
+        win.title("Title card")
+        win.transient(self)
+        win.resizable(False, False)
+        f = ttk.Frame(win, padding=12)
+        f.pack(fill="both", expand=True)
+        f.columnconfigure(1, weight=1)
+        who = sel[0].name if len(sel) == 1 else "%d videos" % len(sel)
+        ttk.Label(f, text="Title card for %s" % who, font=("Segoe UI", 10, "bold")).grid(
+            row=0, column=0, columnspan=3, sticky="w")
+        on = tk.BooleanVar(value=True)            # opening this dialog is asking for a card
+        ttk.Checkbutton(f, text="Show a title card at the start", variable=on).grid(
+            row=1, column=0, columnspan=3, sticky="w", pady=(6, 8))
+        title, sub = tk.StringVar(value=card.title), tk.StringVar(value=card.subtitle)
+        ttk.Label(f, text="Race").grid(row=2, column=0, sticky="w", padx=(0, 8))
+        ttk.Entry(f, textvariable=title, width=52).grid(row=2, column=1, columnspan=2, sticky="ew", pady=2)
+        ttk.Label(f, text="Second line").grid(row=3, column=0, sticky="w", padx=(0, 8))
+        ttk.Entry(f, textvariable=sub, width=52).grid(row=3, column=1, columnspan=2, sticky="ew", pady=2)
+        ttk.Label(f, text="event, boat, date: optional", foreground="#5f6b7a").grid(row=4, column=1, sticky="w")
+        ttk.Label(f, text="Lineup").grid(row=5, column=0, sticky="nw", pady=(6, 0))
+        names = tk.Text(f, width=40, height=10, wrap="none", relief="solid", borderwidth=1,
+                        background="#ffffff", foreground="#18222e", font="TkDefaultFont")
+        names.grid(row=5, column=1, columnspan=2, sticky="ew", pady=(6, 2))
+        names.insert("1.0", T.lineup_text(card.lineup))
+        order = tk.StringVar(value=T.ORDERS[self.settings.get("card_order", "bow")])
+        ttk.Combobox(f, textvariable=order, values=list(T.ORDERS.values()), state="readonly", width=30).grid(
+            row=6, column=1, sticky="w")
+        ttk.Label(f, text="one name per line, or give the seat: Stroke: Sam", foreground="#5f6b7a").grid(
+            row=7, column=1, columnspan=2, sticky="w")
+        ttk.Label(f, text="Show for").grid(row=8, column=0, sticky="w", pady=(8, 0))
+        rowf = ttk.Frame(f)
+        rowf.grid(row=8, column=1, sticky="w", pady=(8, 0))
+        secs = tk.StringVar(value="%g" % card.seconds)
+        ttk.Spinbox(rowf, from_=2, to=60, increment=1, width=5, textvariable=secs).pack(side="left")
+        ttk.Label(rowf, text="seconds").pack(side="left", padx=4)
+        ttk.Label(f, text="B-roll clip").grid(row=9, column=0, sticky="w", pady=(8, 0))
+        broll = tk.StringVar(value=card.broll or "")
+        ttk.Entry(f, textvariable=broll, width=40).grid(row=9, column=1, sticky="ew", pady=(8, 0))
+        bf = ttk.Frame(f)
+        bf.grid(row=9, column=2, sticky="w", pady=(8, 0), padx=(6, 0))
+
+        def choose():
+            p = filedialog.askopenfilename(parent=win, title="B-roll clip", filetypes=[
+                ("Videos", "*.mp4 *.MP4 *.mov *.MOV"), ("All files", "*.*")])
+            if p:
+                broll.set(p)
+        ttk.Button(bf, text="Choose…", command=choose).pack(side="left")
+        ttk.Button(bf, text="Clear", command=lambda: broll.set("")).pack(side="left", padx=(4, 0))
+        ttk.Label(f, text="optional: sped up or slowed to fill the time, shown before the race.\n"
+                          "Without one, the card lies over the first seconds of the race video.",
+                  foreground="#5f6b7a", justify="left").grid(row=10, column=1, columnspan=2, sticky="w")
+
+        def build():
+            key = next(k for k, v in T.ORDERS.items() if v == order.get())
+            try:
+                n = float(secs.get())
+            except ValueError:
+                n = T.DEFAULT_SECONDS
+            return key, T.TitleCard(title=title.get().strip(), subtitle=sub.get().strip(),
+                                    lineup=T.parse_lineup(names.get("1.0", "end"), key),
+                                    seconds=min(max(n, 1.0), 60.0), broll=broll.get().strip() or None)
+
+        def apply(targets):
+            key, c = build()
+            if on.get() and c.empty:
+                messagebox.showinfo(APP, "Give the race a name or a lineup, or untick the title card.", parent=win)
+                return
+            if on.get() and c.broll and not os.path.exists(c.broll):
+                messagebox.showwarning(APP, "Cannot find the b-roll clip:\n%s" % c.broll, parent=win)
+                return
+            for v in targets:
+                v.card = c if on.get() else None
+            if on.get():
+                self.settings["card_last"] = c.to_dict()
+                self.settings["card_order"] = key
+                self._save()
+            win.destroy()
+            self._redraw()
+
+        def show():
+            _key, c = build()
+            v = sel[0]
+            self.stage.set("Making a preview of the title card…")
+
+            def work():
+                try:
+                    W, H = O.probe(v.path)[:2]
+                    if c.broll:
+                        frame = O.grab_frame(c.broll, O.probe(c.broll)[2] * 0.5)
+                        sc = max(W / frame.width, H / frame.height)    # fill and crop, as the render does
+                        frame = frame.resize((round(frame.width * sc), round(frame.height * sc)), O.Image.LANCZOS)
+                        x, y = (frame.width - W) // 2, (frame.height - H) // 2
+                        frame = frame.crop((x, y, x + W, y + H))
+                    else:
+                        frame = O.grab_frame(v.path, min(2.0, v.duration / 2))
+                    base = frame.convert("RGBA")
+                    img = O.Image.alpha_composite(base, T.card_layer(base.size, c)).convert("RGB")
+                    self.q.put(("preview", (img, "title card", "The title card, %g s%s." % (
+                        c.seconds, " over the b-roll" if c.broll else " over the start of the race video"))))
+                except Exception as e:
+                    self.q.put(("error", "Preview failed: %s" % e))
+            threading.Thread(target=work, daemon=True).start()
+
+        bar = ttk.Frame(f)
+        bar.grid(row=11, column=0, columnspan=3, sticky="ew", pady=(14, 0))
+        ttk.Button(bar, text="Preview", command=show).pack(side="left")
+        ttk.Button(bar, text="Cancel", command=win.destroy).pack(side="right")
+        ttk.Button(bar, text="Apply to all videos", command=lambda: apply(self.videos)).pack(side="right", padx=6)
+        if len(sel) < len(self.videos):
+            ttk.Button(bar, text="Apply to %s" % ("this video" if len(sel) == 1 else "these %d" % len(sel)),
+                       command=lambda: apply(sel)).pack(side="right")
 
     # -- preview ---------------------------------------------------------------------------------
     def preview(self):
@@ -520,6 +672,12 @@ class App(tk.Tk):
                                        "pair it by hand). Otherwise they get only a stroke rate estimated from "
                                        "the camera.\n\nGenerate anyway?" % names, icon="warning", default="no"):
                 return
+        lost = [v for v in self.videos if v.card and v.card.broll and not os.path.exists(v.card.broll)]
+        if lost:
+            messagebox.showwarning(APP, "The b-roll clip for these videos cannot be found:\n  %s\n\n"
+                                   "Open Title card… to choose it again, or clear it to show the card over the "
+                                   "race video." % "\n  ".join(v.name for v in lost))
+            return
         outdir = self.outdir.get()
         os.makedirs(outdir, exist_ok=True)
         self._save()
@@ -583,8 +741,8 @@ class App(tk.Tk):
                                            "setting; skipped." % (v.name, info.get("reason"))))
                         self.q.put(("status", (v, "not synced")))
                         continue
-                    msg = "%s: synced, CoxBox start at video %d:%04.1f (stroke rate agrees to %.1f spm" % (
-                        v.name, off // 60, off % 60, info["rate_err"])
+                    msg = "%s: synced, CoxBox start at video %s (stroke rate agrees to %.1f spm" % (
+                        v.name, mmss(off), info["rate_err"])
                     if info.get("calls"):
                         msg += "; your called splits to %.1f s" % info["calls"][0]
                     self.q.put(("log", msg + ")."))
@@ -607,7 +765,7 @@ class App(tk.Tk):
                                        % (os.path.splitext(v.name)[0], o["layout"], k))
                     k += 1
                 self.q.put(("log", "%s: writing the video…" % v.name))
-                O.render_video(v.path, out, o["layout"], at, fields=o["fields"],
+                O.render_video(v.path, out, o["layout"], at, fields=o["fields"], card=v.card,
                                progress=self._progress(i, n, "%s · writing video" % v.name))
                 done.append(out)
                 self.q.put(("status", (v, "done")))
@@ -663,6 +821,7 @@ def batch(argv):
 
     app --batch --videos A.MP4 B.MP4 --coxbox S1.csv S2.csv --out DIR [--layout A] [--fields rate split ...]
             [--no-calls] [--camera-fast 14.4] [--zone -7] [--wide]
+            [--title "Head of the Lake" --subtitle "..." --lineup "Ana;Bea;..." --card-seconds 6 --broll B.MP4]
     """
     import argparse
     ap = argparse.ArgumentParser(prog="app --batch")
@@ -676,6 +835,12 @@ def batch(argv):
     ap.add_argument("--camera-fast", type=float, default=DEFAULTS["camera_fast"])
     ap.add_argument("--zone", type=float, default=None, help="CoxBox UTC offset, hours (default: this computer's)")
     ap.add_argument("--wide", action="store_true", help="the camera clock is not calibrated: search widely")
+    ap.add_argument("--title", default="", help="title card: the race")
+    ap.add_argument("--subtitle", default="", help="title card: a second line")
+    ap.add_argument("--lineup", default="", help="title card: names separated by ';' (or a text file, one per line)")
+    ap.add_argument("--lineup-order", default="bow", choices=list(T.ORDERS))
+    ap.add_argument("--card-seconds", type=float, default=T.DEFAULT_SECONDS)
+    ap.add_argument("--broll", default=None, help="title card: a clip retimed to show under it")
     a = ap.parse_args(argv)
     import transcribe_calls as TC
     zone = a.zone
@@ -683,6 +848,11 @@ def batch(argv):
         off = -time.altzone if time.daylight and time.localtime().tm_isdst else -time.timezone
         zone = round(off / 3600)
     videos = [Video(p) for p in a.videos]
+    names = open(a.lineup, encoding="utf-8").read() if a.lineup and os.path.isfile(a.lineup) else a.lineup.replace(";", "\n")
+    card = T.TitleCard(title=a.title, subtitle=a.subtitle, lineup=T.parse_lineup(names, a.lineup_order),
+                       seconds=a.card_seconds, broll=a.broll)
+    for v in videos:
+        v.card = None if card.empty else card
     sessions = [C.load_csv(p) for p in a.coxbox if p.lower().endswith(".csv")]
     for v in videos:                       # pair by time overlap, as the window does
         st = v.true_start_utc(a.camera_fast)
@@ -784,6 +954,24 @@ def selftest(outdir):
         out = os.path.join(outdir, "synthetic_%s.mp4" % lay)
         check("render layout %s" % lay, lambda lay=lay, out=out: "%.0f kB" % (
             os.path.getsize(O.render_video(clip, out, lay, O.session_moments(s, 1.0))) / 1024))
+    broll = os.path.join(outdir, "synthetic_broll.mp4")
+
+    def card(with_broll):
+        if with_broll:
+            subprocess.run([ff, "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i",
+                            "smptebars=size=640x480:rate=25:d=5", "-c:v", "libx264", "-pix_fmt", "yuv420p", broll],
+                           check=True, **O.NOWIN)
+        c = T.TitleCard(title="Self-test", subtitle="title card", lineup=T.parse_lineup("A\nB\nC\nD\nE"),
+                        seconds=3.0, broll=broll if with_broll else None)
+        out = os.path.join(outdir, "synthetic_card%s.mp4" % ("_broll" if with_broll else ""))
+        O.render_video(clip, out, "A", O.session_moments(s, 1.0), card=c)
+        want = 8.0 + (3.0 if with_broll else 0.0)
+        got = O.probe(out)[2]
+        if abs(got - want) > 0.2:
+            raise RuntimeError("%.2f s long, expected %.2f s" % (got, want))
+        return "%.2f s" % got
+    check("title card over the video", lambda: card(False))
+    check("title card over a retimed b-roll", lambda: card(True))
     say("RESULT: %s" % ("all checks passed" if ok else "FAILED"))
     log.close()
     return 0 if ok else 1

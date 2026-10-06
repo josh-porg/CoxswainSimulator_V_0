@@ -7,6 +7,18 @@ rhythm in the picture (and, if you like, by the splits you call), and writes a n
 overlay. A video with no CoxBox data gets a stroke rate estimated from the camera instead, and the
 app asks before doing that.
 
+### New in 1.1
+
+- **Title card.** Select a video and press *Title card…*: give the race a name, a second line
+  (event, boat, date) and the lineup, one name per line (bow first and cox last, or cox and stroke
+  first; or write the seat yourself, `Stroke: Sam`). It shows for the time you choose, 6 s by
+  default. Add a **b-roll clip** and it plays first, sped up or slowed to fill exactly that time,
+  with the race video after it; without one, the card lies over the race video's first seconds and
+  fades out. Off unless you turn it on; *Preview* shows it before you generate.
+- The sync ignores the nonsense motion from near-black frames (a race before sunrise).
+- The app no longer needs OpenCV (which kept the Mac build from starting), and every column of the
+  video list stays visible at any text size.
+
 ### Download
 
 | Your computer | File |

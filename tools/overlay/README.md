@@ -10,6 +10,7 @@ trainer.
 | `camera_motion.py` | head-camera motion signal (phase correlation, 15 fps) |
 | `transcribe_calls.py` | the cox's calls, by a local faster-whisper model |
 | `coxbox_overlay.py` | layouts A, B, D and the ffmpeg render |
+| `title_card.py` | the title and lineup card, over a retimed b-roll or the video's start |
 | `make_overlay_videos.py` | the first batch, kept for reference |
 | `build_app.py` | PyInstaller build, with the speech model bundled |
 | `fonts/` | Barlow (SIL OFL), used where Bahnschrift is missing |

@@ -438,21 +438,36 @@ def estimate_moments(mt, signal, start, end, window=30.0, min_conf=0.3):
     return at
 
 
+def probe(video):
+    """``(width, height, duration s, fps, has_audio)`` of a video, from ffmpeg's own report."""
+    import re
+    err = subprocess.run([ffmpeg_exe(), "-hide_banner", "-i", video], capture_output=True, text=True, **NOWIN).stderr
+    W, H = map(int, re.search(r"Video:.*? (\d{2,5})x(\d{2,5})", err).groups())
+    dur = sum(float(x) * f for x, f in zip(re.search(r"Duration: (\d+):(\d+):([\d.]+)", err).groups(), (3600, 60, 1)))
+    fps = re.search(r"([\d.]+) fps", err)
+    return W, H, dur, float(fps.group(1)) if fps else 30.0, bool(re.search(r"Stream #.*Audio:", err))
+
+
 def render_video(video, out, layout, moment_at, overlay_fps=10, start=None, end=None, encoder="libx264",
-                 crf=20, preset="veryfast", fields=None, progress=None):
+                 crf=20, preset="veryfast", fields=None, progress=None, card=None):
     """The whole clip (or ``start``-``end``) with the layout composited by ffmpeg.
 
     The overlay layer is drawn at ``overlay_fps`` and piped raw (RGBA) as a second input; ffmpeg
     holds each layer until the next, scales and pads the picture for D, and encodes H.264 with the
-    original audio. Frames outside the piece get an empty layer (D keeps its frame)."""
-    import re
-    probe = subprocess.run([ffmpeg_exe(), "-hide_banner", "-i", video], capture_output=True, text=True, **NOWIN).stderr
-    W, H = map(int, re.search(r"Video:.*? (\d{3,5})x(\d{3,5})", probe).groups())
-    dur = sum(float(x) * f for x, f in zip(re.search(r"Duration: (\d+):(\d+):([\d.]+)", probe).groups(),
-                                          (3600, 60, 1)))
+    original audio. Frames outside the piece get an empty layer (D keeps its frame).
+
+    ``card`` (title_card.TitleCard): the race's title and lineup for its first ``card.seconds``.
+    With ``card.broll`` that clip comes first, sped up or slowed to fill exactly that time, full
+    frame and silent, and the race video follows; without it the card lies over the race video's
+    own first seconds."""
+    W, H, dur, fps, has_audio = probe(video)
     t0 = 0.0 if start is None else float(start)
     t1 = dur if end is None else min(float(end), dur)
     size = (W, H)
+    if card is not None and (card.empty or card.seconds <= 0):
+        card = None
+    broll = card is not None and bool(card.broll)
+    lead = card.seconds if broll else 0.0          # output time before the race video starts
     cmd = [ffmpeg_exe(), "-hide_banner", "-loglevel", "error", "-y"]
     if start is not None:
         cmd += ["-ss", "%.3f" % t0]
@@ -460,27 +475,54 @@ def render_video(video, out, layout, moment_at, overlay_fps=10, start=None, end=
             "-f", "rawvideo", "-pix_fmt", "rgba", "-s", "%dx%d" % size, "-r", str(overlay_fps), "-i", "-"]
     if layout == "D":
         vw, vh, vx, vy = d_geometry(size)
-        graph = ("[0:v]scale=%d:%d,pad=%d:%d:%d:%d:color=0x0a1028[v];[v][1:v]overlay=0:0:format=auto[o]"
-                 % (vw, vh, W, H, vx, vy))
+        main = "[0:v]scale=%d:%d,pad=%d:%d:%d:%d:color=0x0a1028,setsar=1,format=yuv420p[m]" % (vw, vh, W, H, vx, vy)
     else:
-        graph = "[0:v][1:v]overlay=0:0:format=auto[o]"
-    cmd += ["-filter_complex", graph, "-map", "[o]", "-map", "0:a?", "-c:v", encoder]
+        main = "[0:v]setsar=1,format=yuv420p[m]"
+    if broll:
+        bdur = probe(card.broll)[2]
+        cmd += ["-i", card.broll]
+        graph = (main + ";[2:v]setpts=(PTS-STARTPTS)*%.6f,fps=%.6f,scale=%d:%d:force_original_aspect_ratio=increase,"
+                 "crop=%d:%d,setsar=1,format=yuv420p,tpad=stop_mode=clone:stop_duration=1,trim=duration=%.3f,"
+                 "setpts=PTS-STARTPTS[b];[b][m]concat=n=2:v=1:a=0[v];[v][1:v]overlay=0:0:format=auto[o]"
+                 % (card.seconds / max(bdur, 1e-3), fps, W, H, W, H, card.seconds))
+        if has_audio:
+            graph += ";[0:a]adelay=delays=%d:all=1[a]" % round(card.seconds * 1000)
+        amap = ["-map", "[a]"] if has_audio else []
+    else:
+        graph = main + ";[m][1:v]overlay=0:0:format=auto[o]"
+        amap = ["-map", "0:a?"]
+    cmd += ["-filter_complex", graph, "-map", "[o]"] + amap + ["-c:v", encoder]
     if encoder == "libx264":
         cmd += ["-crf", str(crf), "-preset", preset]
     cmd += ["-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", out]
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, **NOWIN)
-    empty = layer(layout, size, None).tobytes()
-    n = int(np.ceil((t1 - t0) * overlay_fps))
+    empty = layer(layout, size, None)
+    empty_bytes = empty.tobytes()
+    card_img = None
+    if card is not None:
+        import title_card as TC
+        card_img = TC.card_layer(size, card)
+    n_lead = int(round(lead * overlay_fps))
+    n = n_lead + int(np.ceil((t1 - t0) * overlay_fps))
     try:
         for i in range(n):
-            tv = t0 + i / overlay_fps
-            m = moment_at(tv)
-            buf = empty if m is None else layer(layout, size, m, fields).tobytes()
+            tc = i / overlay_fps                   # output time
+            if i < n_lead:                         # the b-roll: the card alone, full frame
+                buf = TC.with_opacity(card_img, TC.fade(tc, card.seconds)).tobytes()
+            else:
+                tv = t0 + tc - lead
+                m = moment_at(tv)
+                a = TC.fade(tc, card.seconds) if (card_img is not None and not broll) else 0.0
+                if a > 0:
+                    base = empty if m is None else layer(layout, size, m, fields)
+                    buf = Image.alpha_composite(base, TC.with_opacity(card_img, a)).tobytes()
+                else:
+                    buf = empty_bytes if m is None else layer(layout, size, m, fields).tobytes()
             proc.stdin.write(buf)
             if progress is not None and i % overlay_fps == 0:
                 progress((i + 1) / n)      # may raise to cancel
             elif progress is None and i % (overlay_fps * 60) == 0:
-                print("  %s: %d / %d min" % (os.path.basename(out), int((tv - t0) // 60), int((t1 - t0) // 60)),
+                print("  %s: %d / %d min" % (os.path.basename(out), int(tc // 60), int((n / overlay_fps) // 60)),
                       flush=True)
         proc.stdin.close()
         if proc.wait() != 0:
@@ -494,7 +536,6 @@ def render_video(video, out, layout, moment_at, overlay_fps=10, start=None, end=
             pass
         raise
     return out
-
 
 
 # -- sample data on the Head of the Lake course --------------------------------------------------
