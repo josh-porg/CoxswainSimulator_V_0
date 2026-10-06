@@ -23,3 +23,5 @@ dist/
 build/
 *.spec
 packaging/VERSION
+.venv-tools/
+.venv-imu/

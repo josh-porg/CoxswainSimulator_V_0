@@ -176,10 +176,14 @@ def rate_figure(m):
 
 
 # -- layouts ---------------------------------------------------------------------------------------
-def layout_a(frame: Image.Image, m: Moment) -> Image.Image:
-    """A: one slim strip across the sky; trace and map tucked under its ends."""
-    W, H = frame.size
-    over = Image.new("RGBA", frame.size, (0, 0, 0, 0))
+def _blank(size):
+    return Image.new("RGBA", size, (0, 0, 0, 0))
+
+
+def overlay_a(size, m: Moment) -> Image.Image:
+    """A: one slim strip across the sky; trace and map tucked under its ends (RGBA layer)."""
+    W, H = size
+    over = _blank(size)
     d = ImageDraw.Draw(over)
     h = 74
     d.rectangle((0, 0, W, h), fill=NAVY + (PANEL_ALPHA,))
@@ -189,7 +193,7 @@ def layout_a(frame: Image.Image, m: Moment) -> Image.Image:
     cols = [(rate, "spm", rate_col),
             (fmt_split(None if m.rate_estimated else m.split), "/500 m", GREY if m.split is None else WHITE),
             (fmt_dist(m.distance), "m", GREY if m.distance is None else WHITE),
-            (fmt_time(m.elapsed), "", WHITE),
+            (fmt_time(m.elapsed), "", WHITE if m.elapsed is not None else GREY),
             ("–" if m.per_stroke is None else "%.1f" % m.per_stroke, "m/stroke", GREY if m.per_stroke is None else WHITE)]
     x = 36
     for value, unit, col in cols:
@@ -200,13 +204,13 @@ def layout_a(frame: Image.Image, m: Moment) -> Image.Image:
     stamp(d, (W - 28, base), m)
     trace(d, (16, h + 18, 16 + 440, h + 18 + 140), m)
     course_map(d, (W - 16 - 280, h + 18, W - 16, h + 18 + 190), m)
-    return Image.alpha_composite(frame.convert("RGBA"), over).convert("RGB")
+    return over
 
 
-def layout_b(frame: Image.Image, m: Moment) -> Image.Image:
-    """B: big rate and split top left, trace top centre, map top right."""
-    W, H = frame.size
-    over = Image.new("RGBA", frame.size, (0, 0, 0, 0))
+def overlay_b(size, m: Moment) -> Image.Image:
+    """B: big rate and split top left, trace top centre, map top right (RGBA layer)."""
+    W, H = size
+    over = _blank(size)
     d = ImageDraw.Draw(over)
     box = (16, 16, 16 + 600, 16 + 214)
     panel(d, box)
@@ -225,42 +229,193 @@ def layout_b(frame: Image.Image, m: Moment) -> Image.Image:
     trace(d, (640, 16, 640 + 540, 16 + 150), m)
     course_map(d, (W - 16 - 320, 16, W - 16, 16 + 214), m)
     stamp(d, (640 + 540, 16 + 150 + 30), m)
-    return Image.alpha_composite(frame.convert("RGBA"), over).convert("RGB")
+    return over
 
 
-def layout_d(frame: Image.Image, m: Moment) -> Image.Image:
-    """D: the picture at 80%, the data beside it; nothing in the footage is covered."""
-    W, H = frame.size
-    canvas = Image.new("RGBA", (W, H), NAVY_DEEP + (255,))
-    s = 0.8
-    vw, vh = int(W * s), int(H * s)
-    canvas.paste(frame.convert("RGBA").resize((vw, vh), Image.LANCZOS), (W - vw, (H - vh) // 2))
-    d = ImageDraw.Draw(canvas)
-    col = W - vw
-    d.rectangle((col - 6, 0, col, H), fill=RED + (255,))
+#: layout D: the picture at this scale, right-aligned and centred vertically
+D_SCALE = 0.8
+
+
+def d_geometry(size):
+    W, H = size
+    vw, vh = int(round(W * D_SCALE / 2) * 2), int(round(H * D_SCALE / 2) * 2)
+    return vw, vh, W - vw, (H - vh) // 2
+
+
+def overlay_d(size, m: Moment) -> Image.Image:
+    """D: the data column beside the picture; the picture's own area is left transparent."""
+    W, H = size
+    vw, vh, vx, vy = d_geometry(size)
+    over = Image.new("RGBA", size, NAVY_DEEP + (255,))
+    d = ImageDraw.Draw(over)
+    d.rectangle((vx, vy, vx + vw - 1, vy + vh - 1), fill=(0, 0, 0, 0))
+    col = vx
+    d.rectangle((col - 6, 0, col - 1, H), fill=RED + (255,))
     x = 32
     rate, rate_col = rate_figure(m)
     text(d, (x, 70), "stroke rate" + (" · estimate" if m.rate_estimated else ""), 26,
          AMBER if m.rate_estimated else LABEL, "Light")
     text(d, (x, 170), rate, 104, rate_col)
-    text(d, (x, 230), "split /500 m", 26, LABEL, "Light")
-    text(d, (x, 300), fmt_split(None if m.rate_estimated else m.split), 68,
-         GREY if m.split is None or m.rate_estimated else WHITE)
-    text(d, (x, 360), "distance", 26, LABEL, "Light")
-    text(d, (x, 412), fmt_dist(m.distance) + (" m" if m.distance is not None else ""), 50,
-         GREY if m.distance is None else WHITE)
-    text(d, (x, 470), "time", 26, LABEL, "Light")
-    text(d, (x, 522), fmt_time(m.elapsed), 50)
-    text(d, (x, 580), "per stroke", 26, LABEL, "Light")
-    text(d, (x, 630), "–" if m.per_stroke is None else "%.1f m" % m.per_stroke, 44,
-         GREY if m.per_stroke is None else WHITE)
+    if not m.rate_estimated:
+        text(d, (x, 230), "split /500 m", 26, LABEL, "Light")
+        text(d, (x, 300), fmt_split(m.split), 68, GREY if m.split is None else WHITE)
+        text(d, (x, 360), "distance", 26, LABEL, "Light")
+        text(d, (x, 412), fmt_dist(m.distance) + (" m" if m.distance is not None else ""), 50,
+             GREY if m.distance is None else WHITE)
+        text(d, (x, 470), "time", 26, LABEL, "Light")
+        text(d, (x, 522), fmt_time(m.elapsed), 50)
+        text(d, (x, 580), "per stroke", 26, LABEL, "Light")
+        text(d, (x, 630), "–" if m.per_stroke is None else "%.1f m" % m.per_stroke, 44,
+             GREY if m.per_stroke is None else WHITE)
     trace(d, (16, 660, col - 22, 660 + 170), m)
     course_map(d, (16, 846, col - 22, H - 16), m)
     stamp(d, (W - 24, H - 36), m)
-    return canvas.convert("RGB")
+    return over
+
+
+def blank_d(size):
+    """Layout D outside the piece: the frame and column, no data."""
+    W, H = size
+    vw, vh, vx, vy = d_geometry(size)
+    over = Image.new("RGBA", size, NAVY_DEEP + (255,))
+    d = ImageDraw.Draw(over)
+    d.rectangle((vx, vy, vx + vw - 1, vy + vh - 1), fill=(0, 0, 0, 0))
+    d.rectangle((vx - 6, 0, vx - 1, H), fill=RED + (255,))
+    return over
+
+
+OVERLAYS = {"A": overlay_a, "B": overlay_b, "D": overlay_d}
+
+
+def compose(frame: Image.Image, layout: str, m: Moment | None) -> Image.Image:
+    """A still: the frame with the layout's layer over it (D shrinks the frame into its slot)."""
+    size = frame.size
+    if layout == "D":
+        vw, vh, vx, vy = d_geometry(size)
+        base = Image.new("RGBA", size, NAVY_DEEP + (255,))
+        base.paste(frame.convert("RGBA").resize((vw, vh), Image.LANCZOS), (vx, vy))
+        layer = overlay_d(size, m) if m is not None else blank_d(size)
+    else:
+        base = frame.convert("RGBA")
+        layer = OVERLAYS[layout](size, m) if m is not None else _blank(size)
+    return Image.alpha_composite(base, layer).convert("RGB")
+
+
+def layout_a(frame, m):
+    return compose(frame, "A", m)
+
+
+def layout_b(frame, m):
+    return compose(frame, "B", m)
+
+
+def layout_d(frame, m):
+    return compose(frame, "D", m)
 
 
 LAYOUTS = {"A": layout_a, "B": layout_b, "D": layout_d}
+
+
+# -- real data: a CoxBox session placed on the video ---------------------------------------------
+#: after the CoxBox session ends, its final numbers stay up this long
+HOLD_AFTER = 15.0
+
+
+def session_moments(session, offset, window=30.0):
+    """A function of video time giving the Moment to show, or None outside the piece.
+
+    ``offset``: the video time of the session's elapsed zero (coxbox_data.sync_by_motion). Values
+    change at each logged stroke, as on the CoxBox; distance and elapsed time run continuously, and
+    the boat's position on its GPS track is interpolated between strokes."""
+    t = session.t
+    xy = session.track_xy()
+    ok = ~np.isnan(xy).any(axis=1)
+
+    def at(tv):
+        e = tv - offset
+        if e < 0 or e > session.duration + HOLD_AFTER:
+            return None
+        e_show = min(e, session.duration)
+        k = int(np.searchsorted(t, e_show, side="right")) - 1
+        k = max(k, 0)
+        hist_idx = np.flatnonzero((t >= e_show - window) & (t <= e_show))
+        history = [(float(t[i]), float(session.rate[i]), float(session.split[i])) for i in hist_idx]
+        pos = None
+        if ok.any():
+            pos = (float(np.interp(e_show, t[ok], xy[ok, 0])), float(np.interp(e_show, t[ok], xy[ok, 1])))
+        return Moment(elapsed=e_show, distance=float(np.interp(e_show, t, session.distance)),
+                      rate=float(session.rate[k]), split=float(session.split[k]),
+                      per_stroke=float(session.per_stroke[k]), history=history,
+                      track=xy[ok] if ok.any() else None, position=pos)
+    return at
+
+
+def estimate_moments(mt, signal, start, end, window=30.0, min_conf=0.3):
+    """No CoxBox: the stroke rate estimated from the head camera's motion, between ``start`` and
+    ``end`` (video s). Only confident windows are shown; everything else is blanked."""
+    from coxbox_data import windowed_rate
+    c, r, q = windowed_rate(mt, signal)
+
+    def at(tv):
+        if tv < start or tv > end:
+            return None
+        k = int(np.argmin(np.abs(c - tv)))
+        rate = float(r[k]) if q[k] >= min_conf else None
+        sel = np.flatnonzero((c >= tv - window) & (c <= tv) & (q >= min_conf))
+        history = [(float(c[i]), float(r[i]), None) for i in sel]
+        return Moment(elapsed=None, distance=None, rate=rate, split=None, per_stroke=None,
+                      rate_estimated=True, history=history)
+    return at
+
+
+def render_video(video, out, layout, moment_at, overlay_fps=10, start=None, end=None, encoder="libx264",
+                 crf=20, preset="veryfast"):
+    """The whole clip (or ``start``-``end``) with the layout composited by ffmpeg.
+
+    The overlay layer is drawn at ``overlay_fps`` and piped raw (RGBA) as a second input; ffmpeg
+    holds each layer until the next, scales and pads the picture for D, and encodes H.264 with the
+    original audio. Frames outside the piece get an empty layer (D keeps its frame)."""
+    import re
+    probe = subprocess.run([ffmpeg_exe(), "-hide_banner", "-i", video], capture_output=True, text=True).stderr
+    W, H = map(int, re.search(r"Video:.*? (\d{3,5})x(\d{3,5})", probe).groups())
+    dur = sum(float(x) * f for x, f in zip(re.search(r"Duration: (\d+):(\d+):([\d.]+)", probe).groups(),
+                                          (3600, 60, 1)))
+    t0 = 0.0 if start is None else float(start)
+    t1 = dur if end is None else min(float(end), dur)
+    size = (W, H)
+    cmd = [ffmpeg_exe(), "-hide_banner", "-loglevel", "error", "-y"]
+    if start is not None:
+        cmd += ["-ss", "%.3f" % t0]
+    cmd += ["-t", "%.3f" % (t1 - t0), "-i", video,
+            "-f", "rawvideo", "-pix_fmt", "rgba", "-s", "%dx%d" % size, "-r", str(overlay_fps), "-i", "-"]
+    if layout == "D":
+        vw, vh, vx, vy = d_geometry(size)
+        graph = ("[0:v]scale=%d:%d,pad=%d:%d:%d:%d:color=0x0a1028[v];[v][1:v]overlay=0:0:format=auto[o]"
+                 % (vw, vh, W, H, vx, vy))
+    else:
+        graph = "[0:v][1:v]overlay=0:0:format=auto[o]"
+    cmd += ["-filter_complex", graph, "-map", "[o]", "-map", "0:a?", "-c:v", encoder]
+    if encoder == "libx264":
+        cmd += ["-crf", str(crf), "-preset", preset]
+    cmd += ["-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", out]
+    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
+    empty = (blank_d(size) if layout == "D" else _blank(size)).tobytes()
+    n = int(np.ceil((t1 - t0) * overlay_fps))
+    last_key, last_bytes = None, empty
+    for i in range(n):
+        tv = t0 + i / overlay_fps
+        m = moment_at(tv)
+        if m is None:
+            buf = empty
+        else:
+            buf = OVERLAYS[layout](size, m).tobytes()
+        proc.stdin.write(buf)
+        if i % (overlay_fps * 60) == 0:
+            print("  %s: %d / %d min" % (os.path.basename(out), int((tv - t0) // 60), int((t1 - t0) // 60)), flush=True)
+    proc.stdin.close()
+    proc.wait()
+    return out
+
 
 
 # -- sample data on the Head of the Lake course --------------------------------------------------
