@@ -50,6 +50,16 @@ kept when the export has them.
 `--offset` is the seconds added to a caption time to reach the boat log's clock. Find it by
 sliding spoken split readings against the logged splits.
 
+## Short-horizon responses
+
+`short_horizon.py` asks the coxswain's own question: does the boat change within three to five
+strokes of a call? Each call episode is compared with the four strokes before it and with what
+the boat's own momentum (an AR(4) on per-stroke speed) predicts, against a circular-shift null.
+Sessions add `phrases.json` and `labels_phrases.txt` (function and valence per phrase). A
+`control` session — a warm-up of builds, paddles, stops and starts — is the positive control.
+`test_short_horizon.py` plants a response in synthetic sessions and checks it is recovered,
+that no effect gives chance, and that momentum is not mistaken for a call effect.
+
 ## Running
 
 ```bash
