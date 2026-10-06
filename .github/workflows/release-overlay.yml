@@ -1,0 +1,138 @@
+# Build the SRA CoxBox Overlay app for Windows, macOS and Linux and attach all three to a release.
+#
+# Separate from release.yml (the trainer): its own tags (overlay-v*), its own release, and it is
+# NEVER marked "latest" -- the trainer's download link is /releases/latest, and an overlay release
+# taking that slot would hand rowers the wrong program.
+#
+# Each build must pass its own --selftest (ffmpeg, fonts, the speech model, the motion reader and
+# all three layouts rendered over a synthetic clip, all offline) before anything is uploaded.
+
+name: Release overlay app
+
+on:
+  push:
+    tags: ["overlay-v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: >-
+          overlay-v* tag to build and upload to; it must point at a commit that contains this
+          workflow and tools/overlay/requirements-app.txt.
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: windows
+          # arm64 only: every free macOS runner is Apple Silicon (see release.yml)
+          - os: macos-15
+            name: mac
+          # 22.04 for glibc 2.35, so the binary starts on older distributions too (see release.yml)
+          - os: ubuntu-22.04
+            name: linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Tk for the window (Linux)
+        if: matrix.name == 'linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq python3-tk tk8.6
+
+      - name: Install what the app needs
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r tools/overlay/requirements-app.txt pyinstaller==6.22.2
+
+      - name: Build (fetches the speech model into the bundle)
+        env:
+          OVERLAY_VERSION: ${{ github.event.inputs.tag || github.ref_name }}
+        run: python tools/overlay/build_app.py
+
+      - name: Self-test the built app
+        shell: bash
+        run: |
+          case "${{ matrix.name }}" in
+            mac)   APP="dist/overlay/CoxBoxOverlay.app/Contents/MacOS/CoxBoxOverlay" ;;
+            linux) APP="dist/overlay/CoxBoxOverlay/CoxBoxOverlay" ;;
+            *)     APP="dist/overlay/CoxBoxOverlay/CoxBoxOverlay.exe" ;;
+          esac
+          OUT="$RUNNER_TEMP/selftest"
+          if [ "${{ matrix.name }}" = "windows" ]; then
+            # a windowed exe returns at once from bash; wait for it and take its exit code
+            pwsh -NoProfile -Command "\$p = Start-Process -FilePath '$APP' -ArgumentList '--selftest','$OUT' -Wait -PassThru; exit \$p.ExitCode" || STATUS=$?
+          else
+            "$APP" --selftest "$OUT" || STATUS=$?
+          fi
+          echo "----- selftest.log -----"
+          cat "$OUT/selftest.log" || echo "(no log written)"
+          grep -q "RESULT: all checks passed" "$OUT/selftest.log"
+
+      - name: Sign the bundle, so macOS does not call it damaged
+        if: matrix.name == 'mac'
+        run: |
+          # ad-hoc signature (no Apple account): Gatekeeper still asks once ("unidentified
+          # developer"), but no longer reports the download as damaged (see release.yml)
+          codesign --force --deep --sign - dist/overlay/CoxBoxOverlay.app
+          codesign --verify --deep --strict --verbose=2 dist/overlay/CoxBoxOverlay.app
+
+      - name: Package
+        shell: bash
+        run: |
+          cd dist/overlay
+          if [ "${{ matrix.name }}" = "linux" ]; then
+            chmod +x CoxBoxOverlay/CoxBoxOverlay
+            tar -czf ../../CoxBoxOverlay-linux.tar.gz CoxBoxOverlay
+          elif [ "${{ matrix.name }}" = "mac" ]; then
+            ditto -c -k --sequesterRsrc --keepParent CoxBoxOverlay.app ../../CoxBoxOverlay-mac.zip
+          else
+            7z a -tzip ../../CoxBoxOverlay-windows.zip CoxBoxOverlay >/dev/null
+          fi
+          cd ../..
+          ls -la CoxBoxOverlay-*
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CoxBoxOverlay-${{ matrix.name }}
+          path: |
+            CoxBoxOverlay-*.zip
+            CoxBoxOverlay-*.tar.gz
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - name: Attach them to the release (never "latest")
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          ls -la
+          sha256sum CoxBoxOverlay-* | tee SHA256SUMS-overlay.txt
+          if ! gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            gh release create "$TAG" --repo "$REPO" --title "SRA CoxBox Overlay ${TAG#overlay-}" \
+              --notes-file packaging/OVERLAY_RELEASE_NOTES.md --latest=false
+          fi
+          gh release upload "$TAG" CoxBoxOverlay-*.zip CoxBoxOverlay-*.tar.gz SHA256SUMS-overlay.txt \
+            --clobber --repo "$REPO"

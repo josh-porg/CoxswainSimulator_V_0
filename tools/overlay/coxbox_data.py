@@ -115,7 +115,7 @@ def sync_by_motion(session: Session, mt, signal, guess, search=300.0, min_conf=0
         m = good & ~np.isnan(cb)
         if m.sum() < 30:
             continue
-        err = float(np.median(np.abs(r[m] - cb[m])))
+        err = float(np.mean(np.abs(r[m] - cb[m])))      # mean, not median: the rate changes pin the offset
         if best is None or err < best[1]:
             best = (off, err, int(m.sum()))
     if best is None:
@@ -139,3 +139,142 @@ def sync_by_motion(session: Session, mt, signal, guess, search=300.0, min_conf=0
             best_f = (off, score)
     fine = best_f[0] if best_f else coarse
     return fine, dict(coarse=coarse, rate_err=err, windows=nwin, fine_score=best_f[1] if best_f else None)
+
+
+# -- the coxswain's called splits, and the sync decision ------------------------------------------
+_ONES = {"oh": 0, "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
+         "eight": 8, "nine": 9}
+_TEENS = {"ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14, "fifteen": 15,
+          "sixteen": 16, "seventeen": 17, "eighteen": 18, "nineteen": 19}
+_TENS = {"twenty": 20, "thirty": 30, "forty": 40, "fifty": 50}
+
+
+def _split_seconds(tokens):
+    """Seconds of a spoken split's second half, and how many tokens it used: "oh two" (2),
+    "sixteen" (16), "twenty one" (21), "fifty" (50), "flat" (0). Plain "three" is not a split's
+    seconds (that is counting: "two, three")."""
+    if not tokens:
+        return None, 0
+    a = tokens[0]
+    if a == "flat":
+        return 0, 1
+    if a in ("oh", "zero") and len(tokens) > 1 and tokens[1] in _ONES and tokens[1] not in ("oh", "zero"):
+        return _ONES[tokens[1]], 2
+    if a in _TEENS:
+        return _TEENS[a], 1
+    if a in _TENS:
+        if len(tokens) > 1 and tokens[1] in _ONES and tokens[1] not in ("oh", "zero"):
+            return _TENS[a] + _ONES[tokens[1]], 2
+        return _TENS[a], 1
+    return None, 0
+
+
+def called_splits(segments):
+    """``[(video s, split s)]``: the splits the coxswain called, from a transcript with word times.
+
+    Digits ("221", "2:21", "2.21") and words ("two twenty one", "two oh two", "one fifty eight",
+    "two flat") both count; the recogniser writes either. Minutes must be one or two, seconds under
+    sixty. Called splits are the coxswain's most time-accurate calls; called distances are rounded
+    (+-500 m) and are not used."""
+    import re
+    words = [(float(w["start"]), w["word"].strip().lower()) for seg in segments for w in seg.get("words", [])]
+    out = []
+    i = 0
+    while i < len(words):
+        t, raw = words[i]
+        tok = re.sub(r"[^a-z0-9:.]", "", raw).strip(".")
+        m = re.fullmatch(r"([12])[:.]?([0-5]\d)", tok)
+        if m:
+            out.append((t, int(m.group(1)) * 60 + int(m.group(2))))
+            i += 1
+            continue
+        clean = [re.sub(r"[^a-z]", "", w) for _, w in words[i + 1:i + 3]]
+        # a comma between the words is a count ("one, two"), not a split
+        joined = not raw.endswith(",")
+        if tok in ("one", "two") and joined:
+            sec, used = _split_seconds(clean)
+            if sec is not None and sec < 60:
+                out.append((t, (1 if tok == "one" else 2) * 60 + sec))
+                i += 1 + used
+                continue
+        i += 1
+    return out
+
+
+def calls_score(session: Session, calls, offset):
+    """``(median |called - CoxBox| s, lag s)`` at this offset, with one shared reading lag of 0-8 s
+    (the coxswain reads the display, then speaks)."""
+    best = None
+    for lag in np.arange(0.0, 8.01, 0.5):
+        d = [abs(v - np.interp(t - offset - lag, session.t, session.split)) for t, v in calls
+             if 0 < t - offset - lag < session.duration]
+        if len(d) < 5:
+            continue
+        sc = float(np.median(d))
+        if best is None or sc < best[0]:
+            best = (sc, float(lag))
+    return best
+
+
+def best_sync(session: Session, mt, signals: dict, guess, calls=None, search=180.0, prior_sd=None):
+    """The offset (video s of the session's elapsed zero) and how it was chosen.
+
+    Candidates come from each motion signal at three confidence thresholds, and (with called splits)
+    from a direct search on the calls and motion rate together. ``prior_sd``: how far (s) the clock
+    guess can be trusted, once the camera clock has been calibrated by an earlier synced video (the
+    Osmo held to 4 s between two sessions on 2026-10-04); the search then stays within 3 sd and the
+    choice is penalised by its distance from the guess. Without it the search is wide."""
+    if prior_sd:
+        search = min(search, 3.0 * prior_sd)
+    # one scale for all three terms: each in units of its own typical size, the prior as a Gaussian
+    # log-prior (a few seconds from the clock costs nothing, tens of seconds do)
+    RATE_SCALE, CALLS_SCALE = 0.25, 0.5          # spm; s
+    penalty = (lambda off: 0.5 * ((off - guess) / prior_sd) ** 2) if prior_sd else (lambda off: 0.0)
+    cands = []
+    # how much the picture says: in an eight the head-motion rhythm is strong (median window
+    # confidence ~0.6), in a bow-loaded four weak (~0.25). Weak motion cannot move a calibrated clock
+    # by tens of seconds; it only aligns the stroke phase near it.
+    _c, _r, _q = windowed_rate(mt, next(iter(signals.values())))
+    span = (_c >= guess) & (_c <= guess + session.duration)
+    quality = float(np.median(_q[span])) if span.any() else 0.0
+    motion_search = 4.0 if (prior_sd and quality < 0.35) else search
+    for name, sig in signals.items():
+        for mc in ((0.0,) if motion_search < search else (0.4, 0.3, 0.25)):
+            off, q = sync_by_motion(session, mt, sig, guess, search=motion_search, min_conf=mc)
+            if off is not None:
+                cands.append(dict(offset=float(off), signal=name, min_conf=mc, rate_err=float(q["rate_err"]),
+                                  windows=int(q["windows"]), motion_quality=quality))
+    if calls and len(calls) >= 5:
+        # the calls and the motion rate together, searched directly: a candidate near the truth even
+        # when every motion-only candidate locked onto the wrong stretch of a steady piece
+        c, r, q = windowed_rate(mt, next(iter(signals.values())))
+        best = None
+        for off in np.arange(guess - search, guess + search, 1.0):
+            cs = calls_score(session, calls, off)
+            if cs is None:
+                continue
+            cb = np.interp(c - off, session.t, session.rate, left=np.nan, right=np.nan)
+            m = (q >= 0.25) & ~np.isnan(cb)
+            rerr = float(np.mean(np.abs(r[m] - cb[m]))) if m.sum() >= 10 else 3.0
+            score = cs[0] / CALLS_SCALE + rerr / RATE_SCALE + penalty(off)
+            if best is None or score < best[0]:
+                best = (score, off, rerr)
+        if best is not None:
+            joint = best[1]
+            sig = next(iter(signals.values()))
+            fine, q2 = sync_by_motion(session, mt, sig, joint, search=4.0, min_conf=0.0)
+            off = fine if fine is not None else joint
+            cands.append(dict(offset=float(off), signal="calls+%s" % next(iter(signals)), min_conf=0.25,
+                              rate_err=float(best[2]), windows=0))
+    if not cands:
+        return None, dict(reason="no stroke rhythm matched the CoxBox within %d s of the clock" % search)
+    if calls:
+        for c in cands:
+            c["calls"] = calls_score(session, calls, c["offset"])
+        scored = [c for c in cands if c["calls"] is not None]
+        if scored:
+            best = min(scored, key=lambda c: c["calls"][0] / CALLS_SCALE + c["rate_err"] / RATE_SCALE
+                       + penalty(c["offset"]))
+            return best["offset"], dict(best, n_calls=len(calls), candidates=cands)
+    best = min(cands, key=lambda c: c["rate_err"] / RATE_SCALE + penalty(c["offset"]))
+    return best["offset"], dict(best, n_calls=len(calls or []), candidates=cands)

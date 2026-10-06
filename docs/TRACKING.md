@@ -4359,6 +4359,8 @@ to.
 |---|---|
 | **Windows, macOS (arm64) and Linux builds** on a three-platform matrix, ad-hoc codesigned `.app`, glibc-compatible Linux, `gh` upload with retry. v0.7 live on all three. | `.github/workflows/release.yml` |
 | Release notes taken from the repository. | `packaging/RELEASE_NOTES.md` |
+| **SRA CoxBox Overlay app** (side tool, not the trainer): CoxBox CSV over head-camera race video. Layouts A (top strip, default), B (corners), D (side panel); pick the fields; pairs videos to sessions by time; syncs by stroke rhythm in the picture, checked against called splits (local speech model) with a calibrated camera-clock prior; camera-estimated rate when there is no CoxBox file, after a warning. Fully offline. | `tools/overlay/`, `tests/unit/test_overlay_tool.py` |
+| Overlay app builds for Windows, macOS (arm64), Linux: own tags `overlay-v*`, never marked latest, each build passes `--selftest` before upload. | `.github/workflows/release-overlay.yml`, `packaging/OVERLAY_RELEASE_NOTES.md` |
 
 ---
 

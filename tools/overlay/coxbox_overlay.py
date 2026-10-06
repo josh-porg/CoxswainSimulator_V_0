@@ -43,15 +43,32 @@ GREY = (150, 156, 170)
 PANEL_ALPHA = 190
 
 FONT_FILE = r"C:\Windows\Fonts\bahnschrift.ttf"
+#: no console window flashing up for each ffmpeg call when run from the app (Windows)
+NOWIN = dict(creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
 
+def resource(*parts):
+    """A file shipped with the app: next to this module from source, inside the bundle when frozen."""
+    import sys
+    base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, *parts)
+
+
+#: Barlow (SIL Open Font License, fonts/OFL.txt): shipped, so every platform draws the same; used
+#: where Windows' Bahnschrift (the approved look, not redistributable) is absent
+BARLOW = {"Light": "Barlow-Light.ttf", "Regular": "Barlow-Regular.ttf", "SemiBold": "Barlow-SemiBold.ttf"}
+
+
+@__import__("functools").lru_cache(maxsize=256)
 def font(size, weight="SemiBold"):
-    f = ImageFont.truetype(FONT_FILE, size)
-    try:
-        f.set_variation_by_name(weight)
-    except Exception:
-        pass
-    return f
+    if os.path.exists(FONT_FILE):
+        f = ImageFont.truetype(FONT_FILE, size)
+        try:
+            f.set_variation_by_name(weight)
+        except Exception:
+            pass
+        return f
+    return ImageFont.truetype(resource("fonts", BARLOW.get(weight, BARLOW["SemiBold"])), size)
 
 
 # -- the data for one instant ------------------------------------------------------------------
@@ -180,54 +197,83 @@ def _blank(size):
     return Image.new("RGBA", size, (0, 0, 0, 0))
 
 
-def overlay_a(size, m: Moment) -> Image.Image:
+#: the HUD items a coxswain can switch on or off
+FIELDS = ("rate", "split", "distance", "time", "per_stroke", "trace", "map")
+FIELD_NAMES = {"rate": "Stroke rate", "split": "Split /500 m", "distance": "Distance", "time": "Elapsed time",
+               "per_stroke": "Metres per stroke", "trace": "30 s trace", "map": "Course map"}
+
+
+def _fields(fields):
+    return set(FIELDS) if fields is None else set(fields)
+
+
+def overlay_a(size, m: Moment, fields=None) -> Image.Image:
     """A: one slim strip across the sky; trace and map tucked under its ends (RGBA layer)."""
+    f = _fields(fields)
     W, H = size
     over = _blank(size)
     d = ImageDraw.Draw(over)
     h = 74
-    d.rectangle((0, 0, W, h), fill=NAVY + (PANEL_ALPHA,))
-    d.rectangle((0, h, W, h + 5), fill=RED + (235,))
+    numbers = [k for k in ("rate", "split", "distance", "time", "per_stroke") if k in f]
+    if numbers:
+        d.rectangle((0, 0, W, h), fill=NAVY + (PANEL_ALPHA,))
+        d.rectangle((0, h, W, h + 5), fill=RED + (235,))
     base, big, small = 54, 46, 24
     rate, rate_col = rate_figure(m)
-    cols = [(rate, "spm", rate_col),
-            (fmt_split(None if m.rate_estimated else m.split), "/500 m", GREY if m.split is None else WHITE),
-            (fmt_dist(m.distance), "m", GREY if m.distance is None else WHITE),
-            (fmt_time(m.elapsed), "", WHITE if m.elapsed is not None else GREY),
-            ("–" if m.per_stroke is None else "%.1f" % m.per_stroke, "m/stroke", GREY if m.per_stroke is None else WHITE)]
+    items = {"rate": (rate, "spm", rate_col),
+             "split": (fmt_split(None if m.rate_estimated else m.split), "/500 m", GREY if m.split is None else WHITE),
+             "distance": (fmt_dist(m.distance), "m", GREY if m.distance is None else WHITE),
+             "time": (fmt_time(m.elapsed), "", WHITE if m.elapsed is not None else GREY),
+             "per_stroke": ("–" if m.per_stroke is None else "%.1f" % m.per_stroke, "m/stroke",
+                            GREY if m.per_stroke is None else WHITE)}
+    if m.rate_estimated:                         # no CoxBox: only the rate exists
+        numbers = [k for k in numbers if k == "rate"]
     x = 36
-    for value, unit, col in cols:
+    for k in numbers:
+        value, unit, col = items[k]
         end = figure(d, x, base, value, unit, big, small, col)
         x = max(end + 64, x + 300)
-    if m.rate_estimated:
+    if m.rate_estimated and numbers:
         text(d, (x, base), "rate from camera", 24, AMBER, "Regular")
-    stamp(d, (W - 28, base), m)
-    trace(d, (16, h + 18, 16 + 440, h + 18 + 140), m)
-    course_map(d, (W - 16 - 280, h + 18, W - 16, h + 18 + 190), m)
+    top = h + 18 if numbers else 16
+    if numbers:
+        stamp(d, (W - 28, base), m)
+    if "trace" in f:
+        trace(d, (16, top, 16 + 440, top + 140), m)
+    if "map" in f:
+        course_map(d, (W - 16 - 280, top, W - 16, top + 190), m)
     return over
 
 
-def overlay_b(size, m: Moment) -> Image.Image:
+def overlay_b(size, m: Moment, fields=None) -> Image.Image:
     """B: big rate and split top left, trace top centre, map top right (RGBA layer)."""
+    f = _fields(fields)
     W, H = size
     over = _blank(size)
     d = ImageDraw.Draw(over)
-    box = (16, 16, 16 + 600, 16 + 214)
-    panel(d, box)
-    d.rectangle((16, 26, 24, 16 + 204), fill=RED + (240,))
-    rate, rate_col = rate_figure(m)
-    x = figure(d, 48, 132, rate, "spm", 112, 30, rate_col)
-    if not m.rate_estimated:                     # no CoxBox: no split, rather than dashes
-        figure(d, max(x + 40, 300), 132, fmt_split(m.split), "/500 m", 84, 28,
-               GREY if m.split is None else WHITE)
-    if m.rate_estimated:
-        text(d, (48, 196), "rate estimated from the camera · no CoxBox", 28, AMBER, "Regular")
-    else:
-        text(d, (48, 196), "%s m   ·   %s   ·   %s m/stroke" % (
-            fmt_dist(m.distance), fmt_time(m.elapsed), "–" if m.per_stroke is None else "%.1f" % m.per_stroke),
-            32, LABEL, "Regular")
-    trace(d, (640, 16, 640 + 540, 16 + 150), m)
-    course_map(d, (W - 16 - 320, 16, W - 16, 16 + 214), m)
+    small = [k for k in ("distance", "time", "per_stroke") if k in f and not m.rate_estimated]
+    show_split = "split" in f and not m.rate_estimated
+    if "rate" in f or show_split or small or m.rate_estimated:
+        box = (16, 16, 16 + 600, 16 + 214)
+        panel(d, box)
+        d.rectangle((16, 26, 24, 16 + 204), fill=RED + (240,))
+        x = 48
+        if "rate" in f:
+            rate, rate_col = rate_figure(m)
+            x = figure(d, 48, 132, rate, "spm", 112, 30, rate_col) + 40
+        if show_split:
+            figure(d, max(x, 48 if "rate" not in f else 300), 132, fmt_split(m.split), "/500 m", 84, 28,
+                   GREY if m.split is None else WHITE)
+        if m.rate_estimated:
+            text(d, (48, 196), "rate estimated from the camera · no CoxBox", 28, AMBER, "Regular")
+        elif small:
+            parts = {"distance": "%s m" % fmt_dist(m.distance), "time": fmt_time(m.elapsed),
+                     "per_stroke": "%s m/stroke" % ("–" if m.per_stroke is None else "%.1f" % m.per_stroke)}
+            text(d, (48, 196), "   ·   ".join(parts[k] for k in small), 32, LABEL, "Regular")
+    if "trace" in f:
+        trace(d, (640, 16, 640 + 540, 16 + 150), m)
+    if "map" in f:
+        course_map(d, (W - 16 - 320, 16, W - 16, 16 + 214), m)
     stamp(d, (640 + 540, 16 + 150 + 30), m)
     return over
 
@@ -242,8 +288,9 @@ def d_geometry(size):
     return vw, vh, W - vw, (H - vh) // 2
 
 
-def overlay_d(size, m: Moment) -> Image.Image:
+def overlay_d(size, m: Moment, fields=None) -> Image.Image:
     """D: the data column beside the picture; the picture's own area is left transparent."""
+    f = _fields(fields)
     W, H = size
     vw, vh, vx, vy = d_geometry(size)
     over = Image.new("RGBA", size, NAVY_DEEP + (255,))
@@ -251,24 +298,33 @@ def overlay_d(size, m: Moment) -> Image.Image:
     d.rectangle((vx, vy, vx + vw - 1, vy + vh - 1), fill=(0, 0, 0, 0))
     col = vx
     d.rectangle((col - 6, 0, col - 1, H), fill=RED + (255,))
-    x = 32
+    x, y = 32, 70
     rate, rate_col = rate_figure(m)
-    text(d, (x, 70), "stroke rate" + (" · estimate" if m.rate_estimated else ""), 26,
-         AMBER if m.rate_estimated else LABEL, "Light")
-    text(d, (x, 170), rate, 104, rate_col)
+    rows = []
+    if "rate" in f:
+        rows.append(("stroke rate" + (" · estimate" if m.rate_estimated else ""), rate, 104, rate_col,
+                     AMBER if m.rate_estimated else LABEL))
     if not m.rate_estimated:
-        text(d, (x, 230), "split /500 m", 26, LABEL, "Light")
-        text(d, (x, 300), fmt_split(m.split), 68, GREY if m.split is None else WHITE)
-        text(d, (x, 360), "distance", 26, LABEL, "Light")
-        text(d, (x, 412), fmt_dist(m.distance) + (" m" if m.distance is not None else ""), 50,
-             GREY if m.distance is None else WHITE)
-        text(d, (x, 470), "time", 26, LABEL, "Light")
-        text(d, (x, 522), fmt_time(m.elapsed), 50)
-        text(d, (x, 580), "per stroke", 26, LABEL, "Light")
-        text(d, (x, 630), "–" if m.per_stroke is None else "%.1f m" % m.per_stroke, 44,
-             GREY if m.per_stroke is None else WHITE)
-    trace(d, (16, 660, col - 22, 660 + 170), m)
-    course_map(d, (16, 846, col - 22, H - 16), m)
+        if "split" in f:
+            rows.append(("split /500 m", fmt_split(m.split), 68, GREY if m.split is None else WHITE, LABEL))
+        if "distance" in f:
+            rows.append(("distance", fmt_dist(m.distance) + (" m" if m.distance is not None else ""), 50,
+                         GREY if m.distance is None else WHITE, LABEL))
+        if "time" in f:
+            rows.append(("time", fmt_time(m.elapsed), 50, WHITE, LABEL))
+        if "per_stroke" in f:
+            rows.append(("per stroke", "–" if m.per_stroke is None else "%.1f m" % m.per_stroke, 44,
+                         GREY if m.per_stroke is None else WHITE, LABEL))
+    for label, value, size_, colour, label_colour in rows:
+        text(d, (x, y), label, 26, label_colour, "Light")
+        y += 8 + int(size_ * 0.95)
+        text(d, (x, y), value, size_, colour)
+        y += 50
+    lower = 660
+    if "trace" in f:
+        trace(d, (16, lower, col - 22, lower + 170), m)
+    if "map" in f:
+        course_map(d, (16, 846, col - 22, H - 16), m)
     stamp(d, (W - 24, H - 36), m)
     return over
 
@@ -286,19 +342,33 @@ def blank_d(size):
 
 OVERLAYS = {"A": overlay_a, "B": overlay_b, "D": overlay_d}
 
+#: layers are designed at this width and drawn at the video's own aspect ratio, then scaled to the
+#: frame, so 720p, 1080p, 2.7K and 4K (16:9 or 4:3) all get the same proportions
+REF_WIDTH = 1920
 
-def compose(frame: Image.Image, layout: str, m: Moment | None) -> Image.Image:
+
+def layer(layout, size, m, fields=None):
+    """The overlay layer (RGBA) for a frame of ``size``; empty (or D's frame) when ``m`` is None."""
+    ref = (REF_WIDTH, int(round(REF_WIDTH * size[1] / size[0])))
+    if m is None:
+        img = blank_d(ref) if layout == "D" else _blank(ref)
+    else:
+        img = OVERLAYS[layout](ref, m, fields)
+    return img if ref == tuple(size) else img.resize(tuple(size), Image.LANCZOS)
+
+
+def compose(frame: Image.Image, layout: str, m: Moment | None, fields=None) -> Image.Image:
     """A still: the frame with the layout's layer over it (D shrinks the frame into its slot)."""
     size = frame.size
     if layout == "D":
         vw, vh, vx, vy = d_geometry(size)
         base = Image.new("RGBA", size, NAVY_DEEP + (255,))
         base.paste(frame.convert("RGBA").resize((vw, vh), Image.LANCZOS), (vx, vy))
-        layer = overlay_d(size, m) if m is not None else blank_d(size)
+        lay = layer("D", size, m, fields)
     else:
         base = frame.convert("RGBA")
-        layer = OVERLAYS[layout](size, m) if m is not None else _blank(size)
-    return Image.alpha_composite(base, layer).convert("RGB")
+        lay = layer(layout, size, m, fields)
+    return Image.alpha_composite(base, lay).convert("RGB")
 
 
 def layout_a(frame, m):
@@ -369,14 +439,14 @@ def estimate_moments(mt, signal, start, end, window=30.0, min_conf=0.3):
 
 
 def render_video(video, out, layout, moment_at, overlay_fps=10, start=None, end=None, encoder="libx264",
-                 crf=20, preset="veryfast"):
+                 crf=20, preset="veryfast", fields=None, progress=None):
     """The whole clip (or ``start``-``end``) with the layout composited by ffmpeg.
 
     The overlay layer is drawn at ``overlay_fps`` and piped raw (RGBA) as a second input; ffmpeg
     holds each layer until the next, scales and pads the picture for D, and encodes H.264 with the
     original audio. Frames outside the piece get an empty layer (D keeps its frame)."""
     import re
-    probe = subprocess.run([ffmpeg_exe(), "-hide_banner", "-i", video], capture_output=True, text=True).stderr
+    probe = subprocess.run([ffmpeg_exe(), "-hide_banner", "-i", video], capture_output=True, text=True, **NOWIN).stderr
     W, H = map(int, re.search(r"Video:.*? (\d{3,5})x(\d{3,5})", probe).groups())
     dur = sum(float(x) * f for x, f in zip(re.search(r"Duration: (\d+):(\d+):([\d.]+)", probe).groups(),
                                           (3600, 60, 1)))
@@ -398,22 +468,31 @@ def render_video(video, out, layout, moment_at, overlay_fps=10, start=None, end=
     if encoder == "libx264":
         cmd += ["-crf", str(crf), "-preset", preset]
     cmd += ["-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", out]
-    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
-    empty = (blank_d(size) if layout == "D" else _blank(size)).tobytes()
+    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, **NOWIN)
+    empty = layer(layout, size, None).tobytes()
     n = int(np.ceil((t1 - t0) * overlay_fps))
-    last_key, last_bytes = None, empty
-    for i in range(n):
-        tv = t0 + i / overlay_fps
-        m = moment_at(tv)
-        if m is None:
-            buf = empty
-        else:
-            buf = OVERLAYS[layout](size, m).tobytes()
-        proc.stdin.write(buf)
-        if i % (overlay_fps * 60) == 0:
-            print("  %s: %d / %d min" % (os.path.basename(out), int((tv - t0) // 60), int((t1 - t0) // 60)), flush=True)
-    proc.stdin.close()
-    proc.wait()
+    try:
+        for i in range(n):
+            tv = t0 + i / overlay_fps
+            m = moment_at(tv)
+            buf = empty if m is None else layer(layout, size, m, fields).tobytes()
+            proc.stdin.write(buf)
+            if progress is not None and i % overlay_fps == 0:
+                progress((i + 1) / n)      # may raise to cancel
+            elif progress is None and i % (overlay_fps * 60) == 0:
+                print("  %s: %d / %d min" % (os.path.basename(out), int((tv - t0) // 60), int((t1 - t0) // 60)),
+                      flush=True)
+        proc.stdin.close()
+        if proc.wait() != 0:
+            raise RuntimeError("ffmpeg failed while encoding %s" % out)
+    except BaseException:
+        proc.kill()                        # cancelled or failed: stop the encoder, drop the partial file
+        proc.wait()
+        try:
+            os.remove(out)
+        except OSError:
+            pass
+        raise
     return out
 
 
@@ -451,16 +530,23 @@ def sample_moment(elapsed, rate=31.0, split=122.0, estimated=False):
 
 # -- frames from the video -------------------------------------------------------------------------
 def ffmpeg_exe():
+    """The ffmpeg imageio-ffmpeg ships for this platform (bundled with the app when frozen)."""
     import imageio_ffmpeg
-    return imageio_ffmpeg.get_ffmpeg_exe()
+    exe = imageio_ffmpeg.get_ffmpeg_exe()
+    if os.name != "nt" and not os.access(exe, os.X_OK):
+        try:                                   # a packaged copy can lose its executable bit
+            os.chmod(exe, os.stat(exe).st_mode | 0o111)
+        except OSError:
+            pass
+    return exe
 
 
 def grab_frame(video, seconds):
     """One frame at ``seconds``, as an 8-bit RGB image (the Osmo records 10-bit HEVC)."""
     cmd = [ffmpeg_exe(), "-hide_banner", "-loglevel", "error", "-ss", "%.3f" % seconds, "-i", video,
            "-frames:v", "1", "-pix_fmt", "rgb24", "-f", "rawvideo", "-"]
-    raw = subprocess.run(cmd, capture_output=True, check=True).stdout
-    probe = subprocess.run([ffmpeg_exe(), "-hide_banner", "-i", video], capture_output=True, text=True).stderr
+    raw = subprocess.run(cmd, capture_output=True, check=True, **NOWIN).stdout
+    probe = subprocess.run([ffmpeg_exe(), "-hide_banner", "-i", video], capture_output=True, text=True, **NOWIN).stderr
     import re
     w, h = map(int, re.search(r"Video:.*? (\d{3,5})x(\d{3,5})", probe).groups())
     return Image.frombytes("RGB", (w, h), raw[:w * h * 3])

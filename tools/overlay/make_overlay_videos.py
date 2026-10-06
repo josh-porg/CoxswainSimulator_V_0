@@ -7,8 +7,10 @@ r"""Sync CoxBox sessions to the cox-camera videos and render the overlaid videos
 Pairs (agreed with the coxswain, 2026-10-05): the five sessions in data/local/coxbox and the
 videos they belong to; three race pieces of 2026-10-02 have no CoxBox and get the camera-estimated
 rate. The camera clock ran ~14.4 min fast against the CoxBox (Sunday's two races agree), so that is
-the starting guess; the offset itself comes from the stroke rhythm (coxbox_data.sync_by_motion) and
-is checked against the coxswain's own called distances where there are any.
+the starting guess; the offset itself comes from the stroke rhythm (coxbox_data.sync_by_motion), and
+where the coxswain called splits those arbitrate between the motion candidates (one shared reading
+lag of 0-8 s). Called splits are the coxswain's most time-accurate calls; called distances are
+rounded (+-500 m) and are not used.
 
 Everything read and written here is the crew's own: data/local only.
 """
@@ -71,33 +73,10 @@ def session(num):
 
 
 def called_splits(num):
-    """``[(video s, split s)]``: the splits the coxswain called, from the transcript (three-digit
-    numbers like "201" or "158" said as a split), or [] without a transcript."""
+    """The coxswain's called splits for this video, from its transcript, or [] without one."""
     path = os.path.join(LOCAL, "overlay", "calls",
                         os.path.splitext(os.path.basename(video_path(num)))[0] + ".json")
-    if not os.path.exists(path):
-        return []
-    out = []
-    for seg in json.load(open(path, encoding="utf-8")):
-        for w in seg["words"]:
-            d = re.sub(r"[^\d]", "", w["word"])
-            if len(d) == 3 and d[0] in "12" and int(d[1:]) < 60:
-                out.append((float(w["start"]), int(d[0]) * 60 + int(d[1:])))
-    return out
-
-
-def calls_score(s, calls, offset):
-    """``(median |called - CoxBox|, lag)``: called splits against the CoxBox at this offset, with
-    one shared reading lag of 0-8 s (the coxswain reads the display, then speaks)."""
-    best = None
-    for lag in np.arange(0.0, 8.01, 0.5):
-        d = [abs(v - np.interp(t - offset - lag, s.t, s.split)) for t, v in calls if 0 < t - offset - lag < s.duration]
-        if len(d) < 5:
-            continue
-        sc = float(np.median(d))
-        if best is None or sc < best[0]:
-            best = (sc, float(lag))
-    return best or (99.0, 0.0)
+    return C.called_splits(json.load(open(path, encoding="utf-8"))) if os.path.exists(path) else []
 
 
 def load_sync():
@@ -113,31 +92,17 @@ def do_sync(nums):
         cam = video_start_local(video_path(num)) - dt.timedelta(minutes=CAMERA_FAST_MIN)
         guess = (s.start - cam).total_seconds()
         m = motion(num)
-        cands = []
-        for sig in ("dy", "dx", "diff"):
-            for mc in (0.4, 0.3, 0.25):
-                off, q = C.sync_by_motion(s, m["t"], m[sig], guess, search=180.0, min_conf=mc)
-                if off is not None:
-                    cands.append(dict(offset=float(off), signal=sig, min_conf=mc, rate_err=float(q["rate_err"]),
-                                      windows=int(q["windows"])))
-        if not cands:
-            print("%s: no sync found" % num)
-            continue
         calls = called_splits(num)
-        for c in cands:
-            c["calls"] = calls_score(s, calls, c["offset"]) if calls else None
-        if calls:
-            # the coxswain's own called splits arbitrate between the motion candidates
-            best = min(cands, key=lambda c: (c["calls"][0], c["rate_err"]))
-        else:
-            best = min(cands, key=lambda c: c["rate_err"])
-        sync[num] = dict(session=PAIRS[num], clock_guess=guess, n_calls=len(calls), **best,
-                         candidates=cands)
-        off = best["offset"]
-        print("%s: CoxBox zero at video %d:%05.2f (%s >= %.2f, rate error %.2f spm over %d windows; %s; clock guess %d:%02d)"
-              % (num, off // 60, off % 60, best["signal"], best["min_conf"], best["rate_err"], best["windows"],
-                 "called splits %d, median %.1f s at lag %.1f s" % ((len(calls),) + tuple(best["calls"])) if calls
-                 else "no called splits", guess // 60, guess % 60))
+        off, info = C.best_sync(s, m["t"], dict(dy=m["dy"], dx=m["dx"], diff=m["diff"]), guess, calls,
+                                prior_sd=20.0)
+        if off is None:
+            print("%s: no sync found (%s)" % (num, info.get("reason")))
+            continue
+        sync[num] = dict(session=PAIRS[num], clock_guess=guess, **{k: v for k, v in info.items() if k != "candidates"})
+        print("%s: CoxBox zero at video %d:%05.2f (%s; rate error %.2f spm; %s; clock guess %d:%02d)"
+              % (num, off // 60, off % 60, info["signal"], info["rate_err"],
+                 "%d called splits, median %.1f s at lag %.1f s" % ((len(calls),) + tuple(info["calls"]))
+                 if info.get("calls") else "no called splits", guess // 60, guess % 60))
     os.makedirs(os.path.dirname(SYNC), exist_ok=True)
     json.dump(sync, open(SYNC, "w"), indent=1)
 

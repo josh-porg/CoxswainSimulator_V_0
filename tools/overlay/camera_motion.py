@@ -23,7 +23,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 OUT = os.path.join(ROOT, "data", "local", "overlay", "motion")
 
 
-def motion(video, fps=15, W=160, H=90, t0=None, dur=None):
+def motion(video, fps=15, W=160, H=90, t0=None, dur=None, progress=None, total=None):
+    """``(t, dy, dx, diff)``; ``progress(fraction)`` against ``total`` seconds when given."""
     import imageio_ffmpeg
     cmd = [imageio_ffmpeg.get_ffmpeg_exe(), "-hide_banner", "-loglevel", "error"]
     if t0 is not None:
@@ -31,7 +32,8 @@ def motion(video, fps=15, W=160, H=90, t0=None, dur=None):
     if dur is not None:
         cmd += ["-t", str(dur)]
     cmd += ["-i", video, "-vf", "fps=%d,scale=%d:%d" % (fps, W, H), "-pix_fmt", "gray", "-f", "rawvideo", "-"]
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     win = cv2.createHanningWindow((W, H), cv2.CV_32F)
     prev, dy, dx, diff = None, [], [], []
     n = W * H
@@ -45,6 +47,8 @@ def motion(video, fps=15, W=160, H=90, t0=None, dur=None):
             dx.append(sx)
             dy.append(sy)
             diff.append(float(np.mean(np.abs(fr - prev))))
+            if progress is not None and total and len(dy) % (fps * 10) == 0:
+                progress(min(len(dy) / fps / total, 1.0))
         prev = fr
     proc.wait()
     t = (np.arange(len(dy)) + 1.0) / fps + (t0 or 0.0)
