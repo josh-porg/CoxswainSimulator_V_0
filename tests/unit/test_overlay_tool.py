@@ -127,3 +127,22 @@ def test_layout_d_keeps_the_picture_window_clear():
     vw, vh, vx, vy = O.d_geometry((1920, 1080))
     assert img[vy + 5:vy + vh - 5, vx + 5:vx + vw - 5, 3].max() == 0
     assert img[5:100, 5:100, 3].min() == 255
+
+
+def test_phase_correlation_recovers_a_known_shift():
+    """The head-motion reader (numpy, in place of OpenCV) finds whole-pixel shifts of a textured
+    frame, with OpenCV's sign: the shift of the second frame against the first. (A sub-pixel shift
+    is only seen in direction: the 5 x 5 centroid OpenCV uses, copied here, pulls it toward zero.
+    Against OpenCV 5.0 itself: these values to 0.001 px.)"""
+    M = pytest.importorskip("camera_motion")
+    rng = np.random.default_rng(3)
+    f2 = np.add.outer(np.fft.fftfreq(180) ** 2, np.fft.rfftfreq(320) ** 2)
+    big = np.fft.irfft2(np.fft.rfft2(rng.random((180, 320))) * np.exp(-2 * np.pi ** 2 * f2), s=(180, 320))
+    win = M.hanning(160, 90)
+    a = big[40:130, 60:220]
+    for sx, sy in ((3, -2), (-1, 4), (0, 0)):
+        dx, dy = M.phase_correlate(a, big[40 - sy:130 - sy, 60 - sx:220 - sx], win)
+        assert (dx, dy) == (pytest.approx(sx, abs=0.06), pytest.approx(sy, abs=0.06))
+    half = np.real(np.fft.ifft2(np.fft.fft2(big) * np.exp(-1j * np.pi * np.fft.fftfreq(320)[None, :])))
+    dx, dy = M.phase_correlate(a, half[40:130, 60:220], win)
+    assert 0.05 < dx <= 0.5 and abs(dy) < 0.05
