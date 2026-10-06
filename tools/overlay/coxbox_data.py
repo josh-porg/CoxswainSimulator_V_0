@@ -250,7 +250,8 @@ def best_sync(session: Session, mt, signals: dict, guess, calls=None, search=180
     _c, _r, _q = windowed_rate(mt, next(iter(signals.values())))
     span = (_c >= guess) & (_c <= guess + session.duration)
     quality = float(np.median(_q[span])) if span.any() else 0.0
-    motion_search = 4.0 if (prior_sd and quality < 0.35) else search
+    # (the lock widens with the prior: a calibration days old has drifted by seconds)
+    motion_search = 4.0 * max(1.0, prior_sd / 20.0) if (prior_sd and quality < 0.35) else search
     for name, sig in signals.items():
         for mc in ((0.0,) if motion_search < search else (0.4, 0.3, 0.25)):
             off, q = sync_by_motion(session, mt, sig, guess, search=motion_search, min_conf=mc)

@@ -85,7 +85,22 @@ ZONES = [("Pacific, daylight (UTC−7)", -7), ("Pacific (UTC−8)", -8), ("Mount
          ("Mountain (UTC−7)", -7), ("Central, daylight (UTC−5)", -5), ("Central (UTC−6)", -6),
          ("Eastern, daylight (UTC−4)", -4), ("Eastern (UTC−5)", -5), ("UTC", 0)]
 #: the Osmo's clock was measured 14.4 min fast on 2026-10-04 (two sessions, 4 s apart): calibrated
-DEFAULTS = dict(layout="A", fields=list(O.FIELDS), calls=True, camera_fast=14.4, calibrated=True,
+#: the camera clock drifts (14.06 min fast on 2026-09-25, 14.40 on 2026-10-04: ~2.3 s a day), so each
+#: measurement is kept with the time it was made, and a video uses the one nearest it in time; the
+#: prior widens by CLOCK_DRIFT per day between them
+CLOCK_DRIFT = 3.0                                                # s per day
+CLOCK_SEED = [["2026-10-04T15:00:00", 14.4]]
+
+
+def clock_for(history, when, fallback):
+    """``(minutes fast, days away)``: the measurement nearest ``when`` (camera time), else ``fallback``."""
+    if not history or when is None:
+        return fallback, 0.0
+    at, fast = min(history, key=lambda h: abs((dt.datetime.fromisoformat(h[0]) - when).total_seconds()))
+    return fast, abs((dt.datetime.fromisoformat(at) - when).total_seconds()) / 86400.0
+
+
+DEFAULTS = dict(layout="A", fields=list(O.FIELDS), calls=True, camera_fast=14.4, calibrated=True, clock=CLOCK_SEED,
                 zone=None, outdir=_OUTDIR)
 
 
@@ -709,8 +724,11 @@ class App(tk.Tk):
         os.makedirs(outdir, exist_ok=True)
         self._save()
         jobs = [(v, v.session) for v in self.videos]
+        clock = [list(h) for h in self.settings.get("clock", [])]
+        if not self.calibrated.get() or (clock and abs(clock[-1][1] - self._camera_fast()) > 0.05):
+            clock = []                     # set by hand, or a new camera: the box is the only measurement
         opts = dict(layout=self.layout.get(), fields=self._fields(), calls=bool(self.calls.get()) and self.calls_ok,
-                    fast=self._camera_fast(), zone=self._zone_hours(), outdir=outdir,
+                    fast=self._camera_fast(), zone=self._zone_hours(), outdir=outdir, clock=clock,
                     prior=20.0 if self.calibrated.get() else None)
         self.cancel.clear()
         self.go.state(["disabled"])
@@ -761,8 +779,10 @@ class App(tk.Tk):
                             json.dump(segs, open(cpath, "w", encoding="utf-8"))
                         calls = C.called_splits(segs)
                     s0 = s.start - dt.timedelta(hours=o["zone"])
-                    guess = (s0 - v.true_start_utc(o["fast"])).total_seconds()
-                    off, info = C.best_sync(s, mt, signals, guess, calls, prior_sd=o.get("prior"))
+                    fast, days = clock_for(o.get("clock"), v.cam_start_utc, o["fast"])
+                    guess = (s0 - v.true_start_utc(fast)).total_seconds()
+                    prior = o.get("prior") and o["prior"] + CLOCK_DRIFT * days
+                    off, info = C.best_sync(s, mt, signals, guess, calls, prior_sd=prior)
                     if off is None:
                         self.q.put(("log", "%s: could not sync (%s). Check the pairing or the camera clock "
                                            "setting; skipped." % (v.name, info.get("reason"))))
@@ -775,10 +795,12 @@ class App(tk.Tk):
                     self.q.put(("log", msg + ")."))
                     # the camera clock, measured: keep the setting current for the next videos
                     measured = (v.cam_start_utc - (s0 - dt.timedelta(seconds=off))).total_seconds() / 60.0
-                    if abs(measured - o["fast"]) > 1.0:
-                        self.q.put(("log", "  note: the camera clock measured %.1f min fast, not the %.1f set; "
-                                           "updated." % (measured, o["fast"])))
-                    self.q.put(("camera_fast", measured))
+                    if abs(measured - fast) > 1.0:
+                        self.q.put(("log", "  note: the camera clock measured %.1f min fast, not the %.1f expected; "
+                                           "updated." % (measured, fast)))
+                    if v.cam_start_utc is not None:
+                        o.setdefault("clock", []).append([v.cam_start_utc.isoformat(timespec="seconds"), measured])
+                    self.q.put(("camera_fast", (measured, o.get("clock", []))))
                     o["fast"] = measured
                     at = O.session_moments(s, off)
                 else:
@@ -827,7 +849,9 @@ class App(tk.Tk):
                     v.status = st
                     self._redraw()
                 elif kind == "camera_fast":
-                    self.fast.set("%.2f" % data)
+                    measured, clock = data
+                    self.settings["clock"] = clock[-50:]
+                    self.fast.set("%.2f" % measured)
                     self.calibrated.set(True)
                     self._save()
                 elif kind == "stage":
@@ -867,7 +891,8 @@ def batch(argv):
     ap.add_argument("--layout", default="A", choices=["A", "B", "D"])
     ap.add_argument("--fields", nargs="*", default=list(O.FIELDS))
     ap.add_argument("--no-calls", action="store_true")
-    ap.add_argument("--camera-fast", type=float, default=DEFAULTS["camera_fast"])
+    ap.add_argument("--camera-fast", type=float, default=None,
+                    help="minutes the camera clock runs fast (default: the measured history)")
     ap.add_argument("--zone", type=float, default=None, help="CoxBox UTC offset, hours (default: this computer's)")
     ap.add_argument("--wide", action="store_true", help="the camera clock is not calibrated: search widely")
     ap.add_argument("--title", default="", help="title card: the race")
@@ -882,6 +907,9 @@ def batch(argv):
                     help="a JSON file of title cards per video: {video file name: {title, subtitle, lineup, "
                          "order, seconds, under, broll}}; lineup as text or [[seat, name], ...]")
     a = ap.parse_args(argv)
+    clock = [] if (a.camera_fast is not None or a.wide) else [list(h) for h in DEFAULTS["clock"]]
+    if a.camera_fast is None:
+        a.camera_fast = DEFAULTS["camera_fast"]
     import transcribe_calls as TC
     zone = a.zone
     if zone is None:
@@ -919,7 +947,7 @@ def batch(argv):
     holder = types_simple()
     holder.q, holder.cancel = queue.Queue(), threading.Event()
     opts = dict(layout=a.layout, fields=a.fields, calls=(not a.no_calls) and TC.model_available(),
-                fast=a.camera_fast, zone=zone, outdir=a.out, prior=None if a.wide else 20.0)
+                fast=a.camera_fast, zone=zone, outdir=a.out, clock=clock, prior=None if a.wide else 20.0)
 
     def drain():
         while True:

@@ -207,3 +207,12 @@ def test_card_lead_and_old_settings():
     assert T.TitleCard(seconds=5, under="still").lead == 5 and T.TitleCard(seconds=5, under="broll").lead == 5
     assert T.TitleCard.from_dict(dict(title="x", broll="b.mp4")).under == "broll"    # saved by 1.1 drafts
     assert T.TitleCard.from_dict(dict(title="x")).under == "video"
+
+
+def test_camera_clock_from_the_nearest_measurement():
+    A = pytest.importorskip("app")
+    hist = [["2026-09-25T13:00:00", 14.06], ["2026-10-04T15:00:00", 14.40]]
+    fast, days = A.clock_for(hist, dt.datetime(2026, 10, 2, 12, 0), 14.0)
+    assert fast == 14.40 and days == pytest.approx(2.125)
+    assert A.clock_for(hist, dt.datetime(2026, 9, 25, 14, 0), 14.0)[0] == 14.06
+    assert A.clock_for([], dt.datetime(2026, 9, 25), 13.5) == (13.5, 0.0)
