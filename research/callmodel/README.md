@@ -60,6 +60,20 @@ Sessions add `phrases.json` and `labels_phrases.txt` (function and valence per p
 `test_short_horizon.py` plants a response in synthetic sessions and checks it is recovered,
 that no effect gives chance, and that momentum is not mistaken for a call effect.
 
+## Theory-derived call properties
+
+`call_properties.py` is the measurement model of the review "What makes a call work?". Phrases are
+hand-coded from the transcript only (one line per phrase: target, stage, level, action, scaffolding
+function, focus, reference, discrepancy, appraisal, form, arousal; the codebook lives with the
+data). It builds call episodes (first phrase of a same-target run), computes the relational
+properties from the boat (familiarity of the wording, contingency on the speed change before the
+call, intensity), delivery from the audio (loudness, pitch, speech rate), and responses beyond an
+AR(4) forecast on speed, rate and distance per stroke up to 20 strokes. Inference shifts each
+session's call strokes together, globally or locally (10-40 strokes, which keeps place in the
+piece); properties defined from the boat's state must be recomputed inside the statistic.
+`test_call_properties.py` checks episode unions, recovery of a planted response, chance for a
+relational property under no effect, and Holm.
+
 ## Running
 
 ```bash
