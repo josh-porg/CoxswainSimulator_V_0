@@ -3,8 +3,9 @@
     python scripts/wind_scenarios.py
     python scripts/wind_scenarios.py --speeds 4 8 --directions 250 340 070
 
-Wind is the largest uncontrolled term in this whole project -- 30 to 100
-seconds at 6 m/s depending only on which way it blows -- and until the
+Wind is the largest uncontrolled term in this whole project -- for a
+masters eight, -26 to +155 seconds at 8 m/s depending only on which way
+it blows (SOURCES sec. 176) -- and until the
 field varied in space there was nothing to decide about it.  Now that the
 sheltered side of the river carries about 80% of the wind the open side
 does, there is: **is it worth steering a different line on a windy day,
@@ -50,6 +51,7 @@ from coxswain.river.charts import CourseGeometry           # noqa: E402
 from coxswain.river.route import (Route, RouteEvaluator,   # noqa: E402
                                   optimise_route)
 from coxswain.river.structures import charles_structures   # noqa: E402
+from coxswain.raceday.card import wind_area                 # noqa: E402
 from coxswain.river.trajectory import ReducedModel         # noqa: E402
 
 RACE_LENGTH = 4822.0
@@ -60,14 +62,26 @@ SPEED_EXPONENT = 0.498
 MASTERS = dict(rower_mass=72.0, rower_stature=1.72)
 
 
-def build(reference_speed, field, course, flow, raster, gates, boat):
+def build(reference_speed, field, course, flow, raster, gates, boat,
+          unscaled_wind=False):
     ev = RouteEvaluator(course, flow=flow, reference_speed=reference_speed,
                         upstream=True, margin=4.0, minimum_depth=1.2,
                         n_samples=900)
-    ev.with_steering(ReducedModel(), raster=raster, gates=gates)
+    steering = ReducedModel()
+    ev.with_steering(steering, raster=raster, gates=gates)
     ev.with_exertion()
     if field is not None:
-        ev.with_wind(field, boat=boat)
+        # The evaluator charges wind against critical_power / speed:
+        # ReducedModel()'s 3040 W reads as 719 N for this eight at
+        # 4.23 m/s, where its own resistance is 261 N, and that cut the
+        # wind's cost 2.75 times.  The drag area is scaled to this boat's
+        # resistance instead (card.wind_area); ``--unscaled-wind`` keeps
+        # the old charge so the numbers it gave can be reproduced.
+        if unscaled_wind:
+            ev.with_wind(field, boat=boat)
+        else:
+            ev.with_wind(field, drag_area=wind_area(boat, reference_speed,
+                                                    steering))
     return ev
 
 
@@ -91,6 +105,9 @@ def main(argv=None):
                         help="meteorological bearings the wind comes FROM")
     parser.add_argument("--race-time", type=float, default=1140.0)
     parser.add_argument("--iterations", type=int, default=40)
+    parser.add_argument("--unscaled-wind", action="store_true",
+                        help="charge wind against ReducedModel()'s 3040 W, "
+                             "as before it was scaled to the boat")
     args = parser.parse_args(argv)
 
     speed = RACE_LENGTH / args.race_time
@@ -108,7 +125,8 @@ def main(argv=None):
 
     print("optimising the still-air line ...")
     clock = time.time()
-    calm = build(speed, None, course, flow, raster, gates, boat)
+    calm = build(speed, None, course, flow, raster, gates, boat,
+                 args.unscaled_wind)
     best = optimise_route(calm, n_control=13, iterations=args.iterations,
                           seed=0, initial=start)
     still = Route(best.route.stations, best.route.offsets, name="still air")
@@ -123,7 +141,8 @@ def main(argv=None):
         for direction in args.directions:
             field = ShelteredWind(structures, raster, wind_speed, direction,
                                   height=0.43)
-            ev = build(speed, field, course, flow, raster, gates, boat)
+            ev = build(speed, field, course, flow, raster, gates, boat,
+                       args.unscaled_wind)
             naive = score(ev.evaluate(still))
             found = optimise_route(ev, n_control=13,
                                    iterations=args.iterations, seed=0,

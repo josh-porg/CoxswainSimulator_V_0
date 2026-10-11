@@ -6,9 +6,10 @@
 This is deliberately **not** a line-picker.  It was built to be one -- read
 the stations, re-optimise, hand over a different racing line -- and
 ``scripts/wind_scenarios.py`` then showed that re-optimising a line for
-the forecast is worth between 0.1 and 0.5 seconds, while the wind itself
-is worth up to 133.  Steering for shelter is not a decision; the line is
-the line.
+the forecast is worth up to 5 seconds (8 m/s from the NNW), while the
+wind itself is worth up to 155 (SOURCES sec. 176; this was "0.1-0.5 of
+133" before the wind was charged against the boat's own resistance).
+Steering for shelter is a small decision; the line is the line.
 
 So what a coxswain can actually use on the morning is the other two
 things: **which wind you are really in** -- which is not always what the
@@ -28,6 +29,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from coxswain.boats import catalog                        # noqa: E402
 from coxswain.hydro.canopy import ShelteredWind           # noqa: E402
+from coxswain.raceday.card import wind_area               # noqa: E402
 from coxswain.river import charles, lines, stations       # noqa: E402
 from coxswain.river.charts import CourseGeometry          # noqa: E402
 from coxswain.river.route import RouteEvaluator           # noqa: E402
@@ -47,6 +49,9 @@ def main(argv=None):
                         help="skip the stations; wind comes FROM this bearing")
     parser.add_argument("--race-time", type=float, default=1140.0,
                         help="your still-air time, seconds")
+    parser.add_argument("--unscaled-wind", action="store_true",
+                        help="charge wind against ReducedModel()'s 3040 W, "
+                             "as before it was scaled to the boat")
     args = parser.parse_args(argv)
 
     if args.speed is not None and args.direction is not None:
@@ -104,10 +109,18 @@ def main(argv=None):
         ev = RouteEvaluator(course, flow=flow, reference_speed=reference,
                             upstream=True, margin=4.0, minimum_depth=1.2,
                             n_samples=900)
-        ev.with_steering(ReducedModel(), raster=raster, gates=gates)
+        steering = ReducedModel()
+        ev.with_steering(steering, raster=raster, gates=gates)
         ev.with_exertion()
         if field is not None:
-            ev.with_wind(field, boat=boat)
+            # Wind is charged against critical_power / speed: 3040 W reads
+            # as 719 N for this eight at 4.23 m/s against its own 261 N,
+            # so the drag area is scaled to the boat (card.wind_area).
+            if args.unscaled_wind:
+                ev.with_wind(field, boat=boat)
+            else:
+                ev.with_wind(field, drag_area=wind_area(boat, reference,
+                                                        steering))
         return float(ev.evaluate(route).elapsed_clean)
 
     structures = charles_structures()

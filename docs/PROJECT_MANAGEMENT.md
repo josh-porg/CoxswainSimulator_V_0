@@ -24,6 +24,7 @@ the next task.
 | **Physics programme** | [PHYSICS_PROGRAMME.md](PHYSICS_PROGRAMME.md) | the repository's copy of the plan's machinery: phase table and gates, **Blocked, and on what**, decisions log, open questions | as the plan, and whenever something blocks or unblocks |
 | **Sprint board** | [SPRINT.md](SPRINT.md) | the current sprint: goal, prioritised backlog with the groundwork approach for blocked items, board, findings that may unblock others | an item starts or finishes; a finding changes a priority |
 | **Outreach** | [DATA_REQUESTS.md](DATA_REQUESTS.md) | letters to authors and labs, their status, and replies received with drafted follow-ups | a letter is sent or a reply arrives |
+| **Race-day product** | [RACEDAY.md](RACEDAY.md) | the Charles race-day insight product: users, outputs, backlog, sprints, open questions (agile, user = Joshua) | a sprint starts or ends, a story is done, or an answer changes the plan |
 
 **Artifacts are published pages.** To change one, republish to its existing link (never
 a new page), after reading the full current version. The saved source is the thing to

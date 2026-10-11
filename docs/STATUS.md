@@ -1,6 +1,6 @@
 # Project status
 
-*Last reviewed 2026-10-02. Update this file whenever work finishes or a priority moves;
+*Last reviewed 2026-10-08 (coxing row; physics rows unchanged since 2026-10-02). Update this file whenever work finishes or a priority moves;
 it is the one-page answer to "where are we, and what is next".*
 
 Rowing shell simulator: full 6-DOF rigid-body dynamics, a released trainer, and an
@@ -37,7 +37,8 @@ Test suite: **1986 passing, 0 failing** in the fast lane (`pytest -m "not slow"`
 | **Physics programme** (`research` profile) | phase 2 gate passed (dynamic oar, slip blade, 6-DOF hull); phase 3 tier 2 lift/drag wired as a study; phase 4.1 closed, **4.3 next** | fins on Whicker & Fehlner's eq. [1], Munk factor refitted (0.50, unchanged), SOURCES §169 (2026-09-30); [BR24] like-for-like runs (§156–159) | phase 4.3 rung 2: a torque-driven body against the handle load (rung 1 with the [K05] drive law: IVV 54 / 50% vs 49%, force width in band, peak early; §171) |
 | **Like-for-like validation** | first athlete where rig, rate, power and boat response are one person's ([BR24], elite M1x); [CR06] traces rebuilt into `data/literature` | pace passes (+0.2%); IVV 61% vs 49% decomposed; hull drag verified; on-water timing transfers ~2 points between athletes | the blade at his kinematics: a slip law gives 35% of his drive impulse (§162) |
 | **Charles trajectory optimisation** | deterministic receding-horizon leg stalled near 409 m at the station-450 pinch; stochastic machinery solves per block | not revisited since 2026-09-13 (research wave drag wired into the optimisers) | resume after the physics settles |
-| **Coxing research** | foundations paper frozen 2026-09-23 for IJSSC; working copy revised with a coupled-process section; call/boat transformer pipeline built and validated on synthetic data | first run: no coupling either way on 3 races + 35 transcripts; the catch-call effect is explained by the boat's own history | more synchronised races (the pipeline takes them as folders) |
+| **Race-day product** (first priority from 2026-10-08) | planned in [RACEDAY.md](RACEDAY.md): race card on a private phone page, plans A/B/C, three briefing decks, live weather/flow/results | sprint 0 discovery done 2026-10-08 | sprint 2 well ahead: card with plan letters, arches, traffic, map, flow, day factor, auto-refresh; three decks drafted; demo Sat 11 Oct |
+| **Coxing research** | review "What makes a call work?" (theory-derived call properties, 22 hypotheses, staged plan) and experimental paper "What the boat answers" (Stages 1-2 on 11 synchronised pieces, 1178 calls coded blind; `research/callmodel/call_properties.py`); the Sept foundations paper folded into it, not submitted on its own | power calls +17 mm/s at strokes 3-5 (p .001, 8/10 pieces); rate/length calls act on rate and distance per stroke, not speed; contingent praise followed by less (coasting); single-call reliability 0.065; 7 Oct practice: calling density varied, debriefs observed (2026-10-07) | second human coder; record the Charles with seat recorders; Stage 3 randomised calls in practice |
 | **Data requests** | 14 letters sent 2026-09-19 | replies: Formaggia (§4), Kleshnev (§2, data received), Buckeridge (§11c, referred to McGregor — draft ready); Grift (§9) partly answered by his open thesis | send the Kleshnev and McGregor drafts |
 
 ---

@@ -1139,7 +1139,7 @@ def build_report(bridge_rows, arch_rows, line_rows, strategy_rows, loss_rows,
                ["crew consistency, club to elite", "0.4", "training", "not measurable"],
                ["bucket rig", "0.5", "the rigger", "sign unresolved"],
                ["weak rower to port", "0.9", "free", "measured"],
-               ["re-steering for the wind", "0.4", "the coxswain", "measured"],
+               ["re-steering for the wind (8 m/s)", "up to 5.1", "the coxswain", "measured"],
                ["seat order along one side", "0.03", "nobody", "measured"],
                ["trip tape on the shafts", "-1.0", "do not", "measured"]],
               "Everything this project has priced, on one scale, with an "

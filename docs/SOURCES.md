@@ -12493,3 +12493,69 @@ individual's swing (§160 found the same with the ergometer body: only ~2 of 4�
 Immersion moves nothing here (±0.2 points). *Open:* the athletes' swing excess (12–20%), and the
 late-drive unloading (finish slip 27–32° against 14–18° with the K05 body).
 
+
+## 176. The wind was charged against an eight's 3040 W: Charles wind costs re-run (2026-10-08)
+
+`RouteEvaluator.wind_penalty` turns added wind drag into a speed change as
+`dv/v = -dR / (3R + dR)`, with `R = hydrodynamic_drag() = steering.critical_power /
+reference_speed`. Every Charles wind script attached `ReducedModel()`, whose 3040 W is a club
+eight at 5.2 m/s. For the masters eight these scripts model (72 kg, 1.72 m, rate 28) at the race
+pace of 4822 m in 1140 s, 4.23 m/s, that reads as **719 N**. The hull's own resistance there,
+from the same `AeroModel.calibrate` that sets the crew's drag area (air 13% of the total), is
+**261 N**. The wind's share was cut by 2.75 times. (For the masters four on the race card it was
+840 N against ~120 N.)
+
+The correction follows `coxswain/raceday/card.py:wind_area`: `ReducedModel()` is left alone, so
+the steering charges stay an eight's, and the drag area handed to `with_wind` is scaled by
+`(critical_power / speed) / R_boat`. Turning costs and the still-air line are unchanged
+(1157.2 s in both runs), so every difference below is the wind. `scripts/raceday.py` and
+`scripts/wind_scenarios.py` now do this by default; `--unscaled-wind` reproduces the old charge.
+The `ReducedModel` default is not touched.
+
+**Wind cost, masters eight, sheltered field at 0.43 m** (`raceday.py --speed --from`, arch
+line):
+
+| wind (10 m, open) | unscaled | scaled |
+|---|---|---|
+| 4 m/s from 250 | +19.9 s | +54.9 s |
+| 8 m/s from 250 | +51.5 s | +144.1 s |
+| 8 m/s from 340 | +57.5 s | **+160.6 s** |
+| 8 m/s from 160 | +2.8 s | +8.7 s |
+| 4 m/s from 070 | −8.5 s | −23.4 s |
+| 8 m/s from 070 | −9.0 s | −25.0 s |
+
+**Does the wind change the line?** (`wind_scenarios.py`; 40 sweeps, unchanged at 120 because
+the coordinate descent converges first):
+
+| wind | gain, unscaled | gain, scaled | line moves (scaled) | vs calm, unscaled | vs calm, scaled |
+|---|---|---|---|---|---|
+| 4 m/s from 250 | +0.0 s | +0.2 s | 0.5 m | +20.1 s | +55.5 s |
+| 4 m/s from 340 | +0.3 s | +0.9 s | 1.2 m | +21.2 s | +58.6 s |
+| 4 m/s from 070 | +0.2 s | −1.6 s | 2.0 m | −8.4 s | −23.3 s |
+| 8 m/s from 250 | +0.1 s | +1.9 s | 2.0 m | +51.7 s | +144.7 s |
+| 8 m/s from 340 | +0.8 s | **+5.1 s** | 3.7 m | +55.5 s | +155.0 s |
+| 8 m/s from 070 | +0.5 s | −0.5 s | 2.0 m | −9.3 s | −25.6 s |
+
+A negative gain is not a loss: the optimiser minimises the penalised `elapsed` and the table
+scores `elapsed_clean`, so in a tailwind it gives up a second of clean time to clear a
+turn-rate or split penalty the still-air line picks up.
+
+**What the old findings become.** "Re-optimising the line for the forecast is worth 0.1-0.5 s"
+becomes **0.2-0.9 s at 4 m/s and up to 5.1 s at 8 m/s** (headwind and northerly cases). That is
+still about 3% of the wind's own cost, so one line with the weather in the splits stays the
+right product (RACEDAY.md). It is no longer negligible on a hard day, though: 5 s is the size of
+the bucket-rig and crew-power-per-1% levers in the report. "The wind itself is worth up to
+133 s" becomes **−26 to +155 s at 8 m/s** (raceday's arch line: +161 s).
+
+The 133 s figure does not reproduce on today's code, which gives at most 57.5 s unscaled. It was
+written on 2026-08-29 (commit 2829869), before §115 fixed the shelter model on 2026-09-05; that
+fix is the likely cause, and it was not isolated here. The pacing table in `wind_scenarios.py`
+is unchanged in substance: the right power falls by 1.3 W at most (312.7 → 311.4 W).
+
+**Not affected:** `racing_line.py`, `time_budget.py`, `powerhouse.py` and `make_report.py`
+attach `ReducedModel()` but no wind. The report's 86 s and 232 s headwinds come from
+`wind_sweep.py`, the 6-DOF simulator with uniform wind, which does not use this denominator.
+`course_explorer.py` charges wind with no steering model, so against the 260 N fallback. For its
+eight at 5.2 m/s the boat's own resistance is 380 N, and it builds its field at 1.5 m where
+`with_wind` expects 0.43 m. Its two errors pull in the same direction (both overstate the wind);
+left as an open item.

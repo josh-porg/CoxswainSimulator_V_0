@@ -1086,6 +1086,30 @@ the boat speeds that go with their drive durations).
   hands' time law is an output. The trunk rungs (TRACKING: hip moment, trunk forward dynamics,
   delayed PD) are its pieces; knee and ankle wait on the foot-force direction (sprint #4).
 
+## Calibration and validation data from the squad's own boats (noted 2026-10-08)
+
+The race-day work turned up on-water data from the squad's own boats that the physics model should
+be checked against. The rule stands (memory: *no single-athlete fits*): **sourced physics builds,
+these validate**. A disagreement is a reason to look for missing or wrong physics, not a coefficient
+to tune. The race card may use a measured number directly as a product correction; the simulator
+may not.
+
+| data | where | what it pins | test for the model |
+|---|---|---|---|
+| **Turning cost**, Tail of the Lake 2026, both squad boats (CBGPS per stroke: speed, rate, GPS position) | `data/local/coxbox/... 20261004 0803AM / 1237PM.csv`; analysis `data/local/raceday/rudder_totl.py` -> `rudder_totl.json` | speed lost vs turn rate, dv/v = k omega^2 (omega in deg/s, heading over ~28 m): **k = 0.0071 +- 0.0009 (masters 4+, 3.5 m/s), 0.0099 +- 0.0009 (masters 8+, 4.1 m/s)**; ~3-4% at 2 deg/s; the four's called turn lost 4% at 1.8 deg/s | Drive the simulator (research profile) through each measured turn's heading-rate profile at the crew's rate and power; compare the speed lost per stroke. `ReducedModel` (an eight throughout: `turn_drag` 8000, `split_drag` 250) has the right shape but is 8-9x too small (0.37-0.44% at 2 deg/s against 2.8-4.0% measured; TRACKING, 2026-10-09); the 6DOF hull with fins and rudder ([WF58] fins, SOURCES §169) is the model to test. Confound: those turns had pressure calls ("starboard press"), so the measured loss is rudder plus pressure split, which is the steering a crew really does. |
+| **Race speed with a known power**, the same files plus the four's erg 5 k times | `scripts/hocr_crew.py` (Concept2 P = 2.80/pace^3 per rower), TOTL four 3.51 m/s mean at rate 30 | one masters-four pair: crew 5 k power ~ 500 W and race speed | The "validating against published race pace" row in *Blocked* needs a stated power; this is one measured pair for a masters four (one crew, one day, wind not removed). |
+| **Wind cost on the water**, the same races by heading | TOTL GPS headings plus the day's wind: KBFI and KSEA 5-min observations pulled 2026-10-09 (`data/local/raceday/totl_2026-10-04_wind_*.json`) | **not testable from this day**: 0-9 km/h (under 2.6 m/s), direction shifting, at both stations through both races; the model's predicted effect at that wind (1-2%) is inside the stroke-to-stroke noise | Still needed: a steady piece there and back in 4+ m/s of measurable wind (see *To collect*). The wind charge scaled to the boat's own resistance (`card.wind_area`, SOURCES §176) remains unvalidated on the water. |
+| **Speed against rate**, 7 Oct 2026 practice (800 m pieces at set rates, warm-up) | `data/local/coxbox/... 20261007 *.csv` (per stroke, GPS) | the four's speed-rate curve within one session | Shape of the power-speed relation at masters speeds (relative, no absolute power). |
+
+**To collect** (cheap, at practice, CoxBox GPS on):
+- a deliberate turning test: the same rate and pressure through set turns, once as one long even arc
+  and once late and hard on the rudder, with the cox noting rudder use; separates the rudder from
+  pressure-split steering and tests omega^2;
+- a there-and-back steady piece in a measurable wind (note the time; the station history gives the
+  wind) for the wind charge;
+- the same from Sophie's eight, so the eight's k is the squad's 50+ eight's rather than the mixed
+  eight's.
+
 ## Decisions taken
 
 | date | decision | why |
