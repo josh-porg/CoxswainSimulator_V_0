@@ -6198,6 +6198,14 @@ NBI figure alongside it as `permitted_width`.
 The **left (Boston) arch of every bridge is out of bounds**. The **right
 (Cambridge) arch is additionally out of bounds at the BU railroad trestle,
 Anderson and Eliot**. Either is 60 seconds, on top of any buoy penalty.
+
+*Corrected 2026-10-22.* The rules (2023, sec. 6.1) make the **trestle's second
+arch from the Cambridge shore the mandated lane**, and sec. 10.4 penalises only
+the trestle's and Anderson's Cambridge arch and every Boston arch. The table had
+the trestle on its centre arch and BU Bridge on "second from Cambridge"; all 17
+HOCR 2026 tracks use the trestle's arch 5 and BU Bridge's Cambridge-side opening.
+Fixed in `HOCR_ARCH_RULE`. Eliot's Cambridge arch, barred above, is allowed by
+sec. 6.1 as written; left barred until the 2026 rules are read (TRACKING).
 Elsewhere the centre is the preferred route and the Cambridge arch is
 available when the centre is congested.
 

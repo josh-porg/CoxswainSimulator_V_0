@@ -40,7 +40,13 @@ def load_session(sdir):
     sp = np.array([float(r["speed"]) for r in rows])
     ra = np.array([float(r["rate"]) for r in rows])
     phrases = json.load(open(os.path.join(sdir, "phrases.json"), encoding="utf-8"))
-    return dict(meta=meta, t=t, speed=sp, rate=ra, dps=sp * 60.0 / np.maximum(ra, 1.0), phrases=phrases)
+    out = dict(meta=meta, t=t, speed=sp, rate=ra, dps=sp * 60.0 / np.maximum(ra, 1.0), phrases=phrases)
+    cpath = os.path.join(sdir, "course.csv")
+    if os.path.exists(cpath):          # optional per-stroke course covariates (heading, turn rate)
+        rows = list(csv.DictReader(open(cpath)))
+        out["course"] = dict(heading=np.array([float(r["heading"]) for r in rows]),
+                             turn=np.array([float(r["turn"]) for r in rows]))
+    return out
 
 
 def load_codes(path):
@@ -132,32 +138,57 @@ def add_familiarity(sessions_in_order, threshold=3):
 
 
 # ---------------------------------------------------------------- boat responses
-def ar_fit(y, p=AR_P):
-    X = np.column_stack([np.ones(len(y) - p)] + [y[p - j - 1:len(y) - j - 1] for j in range(p)])
-    beta, *_ = np.linalg.lstsq(X, y[p:], rcond=None)
+def ar_fit(y, p=AR_P, exog=None):
+    """AR(p) coefficients [const, lag1..lagp] (+ one per exog column, the covariate at the same stroke)."""
+    cols = [np.ones(len(y) - p)] + [y[p - j - 1:len(y) - j - 1] for j in range(p)]
+    if exog is not None:
+        cols += list(exog[p:].T)
+    beta, *_ = np.linalg.lstsq(np.column_stack(cols), y[p:], rcond=None)
     return beta
 
 
-def residual_matrix(y, beta, k=K_POST, p=AR_P):
-    """R[j, h-1]: y[j+h-1] minus the h-step AR forecast from y[j-p:j]; NaN where undefined."""
+def residual_matrix(y, beta, k=K_POST, p=AR_P, exog=None):
+    """R[j, h-1]: y[j+h-1] minus the h-step AR forecast from y[j-p:j]; NaN where undefined.
+    With exog, the forecast also carries the covariates at the forecast stroke (the course ahead is
+    known: where the boat will be turning or heading is not caused by the call)."""
     n = len(y)
     R = np.full((n, k), np.nan)
     for j in range(p, n - k + 1):
         hist = list(y[j - p:j])
         for h in range(k):
             x = np.r_[1.0, hist[::-1][:p]]
+            if exog is not None:
+                x = np.r_[x, exog[j + h]]
             f = float(x @ beta)
             R[j, h] = y[j + h] - f
             hist.append(f)
     return R
 
 
-def prepare(session):
-    """Residual matrices for speed, rate and distance per stroke, and the valid stroke range."""
+def course_exog(session, min_spread=45.0):
+    """Course covariates: |turn rate| always; cos/sin heading when the piece turns through more than
+    ``min_spread`` degrees (on a straight piece they are a constant). Centred per session. None
+    without a track."""
+    c = session.get("course")
+    if c is None:
+        return None
+    cols = [c["turn"] - c["turn"].mean()]
+    un = np.degrees(np.unwrap(np.radians(c["heading"])))
+    if np.ptp(un) > min_spread:
+        h = np.radians(c["heading"])
+        cols += [np.cos(h) - np.cos(h).mean(), np.sin(h) - np.sin(h).mean()]
+    return np.column_stack(cols)
+
+
+def prepare(session, course=False):
+    """Residual matrices for speed, rate and distance per stroke, and the valid stroke range.
+    ``course=True`` adds the session's course covariates (course_exog) to the forecast, if it has a track."""
     out = {}
+    ex = course_exog(session) if course else None
+    session["course_terms"] = 0 if ex is None else ex.shape[1]
     for ch in ("speed", "rate", "dps"):
         y = session[ch]
-        out[ch] = residual_matrix(y, ar_fit(y))
+        out[ch] = residual_matrix(y, ar_fit(y, exog=ex), exog=ex)
     d = np.abs(np.diff(session["speed"], prepend=session["speed"][0]))
     out["absdiff"] = d
     n = len(session["t"])

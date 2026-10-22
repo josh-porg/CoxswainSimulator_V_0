@@ -668,6 +668,9 @@ develops.
 *What it opened:* the referral is the live thread for the foot-force direction, which
 is still the item that blocks phase 4.3's knee and ankle.
 
+**Sent 2026-10-21** from moponopkey@gmail.com (Gmail thread 1a15eea2fd12d6f9; watched for a reply by the
+scheduled task `outreach-followups`, which drafts a follow-up after 14 days and never sends). Text as sent:
+
 > Subject: Foot-force data from the instrumented ergometer work — referred by Erica Buckeridge
 >
 > Dear Professor McGregor,

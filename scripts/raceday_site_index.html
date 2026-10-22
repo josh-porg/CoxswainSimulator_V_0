@@ -1,0 +1,918 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Charles Race Card</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+:root{
+  --paper:#f3f6f5; --card:#ffffff; --ink:#13222b; --muted:#5a6a73; --line:#d5dde0;
+  --accent:#d9532b; --accent-soft:#fbe6dd;
+  --head:#b23a2a; --head-bg:#f8e1dc; --tail:#2b7a55; --tail-bg:#dcefe5; --cross:#9a6a10; --cross-bg:#f6ecd2; --calm:#5a6a73; --calm-bg:#e7ecee;
+  --seg:#e4eaec;
+  --shadow:0 1px 2px rgba(19,34,43,.06),0 4px 14px rgba(19,34,43,.05);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0d161b; --card:#15222a; --ink:#e5eef2; --muted:#93a5ae; --line:#26363f;
+    --accent:#ff7b52; --accent-soft:#3a2219;
+    --head:#ff8a78; --head-bg:#3b1f1b; --tail:#6fd3a2; --tail-bg:#173226; --cross:#f0c25e; --cross-bg:#352a12; --calm:#93a5ae; --calm-bg:#1f2c33;
+    --seg:#1c2a32;
+    --shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0d161b; --card:#15222a; --ink:#e5eef2; --muted:#93a5ae; --line:#26363f;
+  --accent:#ff7b52; --accent-soft:#3a2219;
+  --head:#ff8a78; --head-bg:#3b1f1b; --tail:#6fd3a2; --tail-bg:#173226; --cross:#f0c25e; --cross-bg:#352a12; --calm:#93a5ae; --calm-bg:#1f2c33;
+  --seg:#1c2a32;
+  --shadow:none;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink);font-family:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:16px;line-height:1.45;-webkit-text-size-adjust:100%}
+.wrap{max-width:480px;margin:0 auto;padding:16px 16px 40px;display:flex;flex-direction:column;gap:14px}
+.num{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.crews{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:var(--seg);border-radius:12px;padding:4px}
+.crews button{font:inherit;font-weight:600;font-size:15px;border:0;border-radius:9px;padding:9px 8px;background:transparent;color:var(--muted);cursor:pointer}
+.crews button[aria-pressed="true"]{background:var(--card);color:var(--ink);box-shadow:var(--shadow)}
+.crews[hidden]{display:none}
+.picker{display:grid;gap:4px;background:var(--seg);border-radius:12px;padding:4px;position:sticky;top:8px;z-index:2;box-shadow:var(--shadow)}
+.picker button{font:inherit;font-weight:600;font-size:14px;border:0;border-radius:9px;padding:9px 4px;background:transparent;color:var(--muted);cursor:pointer;white-space:nowrap}
+.picker button[aria-pressed="true"]{background:var(--accent);color:var(--card)}
+.picker button:focus-visible,.crews button:focus-visible,.goal:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+header{display:flex;flex-direction:column;gap:2px}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+h1{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:700;font-size:30px;line-height:1.05;margin:0;text-wrap:balance}
+.meta{color:var(--muted);font-size:14px}
+.fresh{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);margin-top:6px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--tail)}
+.dot.stale{background:var(--cross)} .dot.old{background:var(--head)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:16px}
+.goals{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.goal{font:inherit;color:inherit;text-align:left;background:transparent;border:1px solid var(--line);border-radius:12px;padding:10px 12px;cursor:pointer;display:flex;flex-direction:column;gap:2px}
+.goal[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.goal .label{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.goal[aria-pressed="true"] .label{color:var(--accent)}
+.goal .split{font-size:38px;font-weight:700;line-height:1}
+.goal .total{font-size:14px;color:var(--muted)}
+.goal .total b{color:var(--ink);font-weight:600}
+.goal .range{font-size:13px;color:var(--muted)}
+.goal .why{font-size:12px;color:var(--muted)}
+.hint{font-size:12.5px;color:var(--muted);margin:10px 0 0}
+.plan{display:flex;align-items:center;gap:12px}
+.plan .letter{width:52px;height:52px;border-radius:12px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-size:30px;font-weight:700;flex:none}
+.plan p{margin:0;font-size:15px}
+.cond{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:center}
+.arrow{width:56px;height:56px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center}
+.arrow svg{width:34px;height:34px;transition:transform .3s}
+.cond .big{font-size:26px;font-weight:600;line-height:1.1}
+.cond .sub{font-size:14px;color:var(--muted)}
+.cost{margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:15px}
+.cost b{font-weight:600}
+h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;margin:4px 2px 0}
+.legend{font-size:12.5px;color:var(--muted);padding:0 2px;margin-top:-6px}
+.course{padding:4px 16px}
+.mark{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:10px 0;border-bottom:1px solid var(--line)}
+.mark .name{font-weight:600}
+.mark .note{font-size:12.5px;color:var(--muted)}
+.mark .at{text-align:right}
+.mark .at .t{font-size:22px;font-weight:700;line-height:1}
+.mark .at .r{font-size:12.5px;color:var(--muted)}
+.mark.ends .name{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-size:19px}
+.leg{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:8px 0 8px 14px;border-left:3px solid var(--line);margin-left:4px;border-bottom:1px solid var(--line)}
+.leg .detail{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+.leg .sp{text-align:right}
+.leg .sp .t{font-size:20px;font-weight:600;line-height:1}
+.leg .sp .r{font-size:12.5px;color:var(--muted)}
+.chip{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px}
+.chip.headwind{color:var(--head);background:var(--head-bg)}
+.chip.tailwind{color:var(--tail);background:var(--tail-bg)}
+.chip.cross{color:var(--cross);background:var(--cross-bg)}
+.chip.calm{color:var(--calm);background:var(--calm-bg)}
+.mapsvg svg{width:100%;height:auto;display:block}
+.mapsvg .bank{fill:none;stroke:var(--muted);stroke-width:10;stroke-linejoin:round}
+.mapsvg .line{fill:none;stroke:var(--accent);stroke-width:16;stroke-linejoin:round;stroke-linecap:round}
+.mapsvg .pushl{fill:none;stroke:var(--accent);stroke-opacity:.3;stroke-width:70;stroke-linecap:round}
+.mapsvg .bridge{stroke:var(--ink);stroke-width:22;stroke-linecap:round;opacity:.55}
+.mapsvg .mark{fill:var(--card);stroke:var(--ink);stroke-width:8}
+.mapsvg .start{fill:var(--tail)}
+.mapsvg .mlabel{fill:var(--ink);font:600 70px "Barlow",system-ui,sans-serif}
+.goal .chance{font-size:13px;font-weight:600;color:var(--ink)}
+.lock{display:flex;flex-direction:column;gap:10px}
+.lock input,.card textarea{font:inherit;font-size:16px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);width:100%}
+.unlock{font:inherit;font-weight:600;border:0;border-radius:10px;padding:10px 14px;background:var(--accent);color:var(--card);cursor:pointer}
+.unlock.ghost{background:transparent;color:var(--muted);border:1px solid var(--line)}
+.unlock:focus-visible,.lock input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.row2{display:flex;gap:8px;margin-top:8px}
+details.card summary{cursor:pointer;font-weight:600}
+.planv{display:flex;flex-direction:column;gap:8px}
+.letters{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.letters button{font:inherit;color:inherit;background:transparent;border:1px solid var(--line);border-radius:12px;padding:8px;cursor:pointer;display:flex;flex-direction:column;align-items:flex-start;gap:0}
+.letters button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.letters button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.letters .l{font-size:30px;font-weight:700;line-height:1;color:var(--accent)}
+.letters .n{font-size:13px;font-weight:600}
+.planv .when{margin:4px 0 0;font-weight:600;font-size:15px}
+.planv .dos{margin:0;padding-left:20px;font-size:15px;display:flex;flex-direction:column;gap:4px}
+.courses button{font-size:13px;padding:7px 6px}
+.chip.push{color:var(--accent);background:var(--accent-soft)}
+.traffic{display:flex;flex-direction:column;gap:4px}
+.tstats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:6px}
+.tstat .v{font-size:30px;font-weight:700;line-height:1}
+.tstat .k{font-size:12.5px;color:var(--muted)}
+.trow{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--line)}
+.trow .name{font-weight:600;font-size:15px}
+.trow .note{font-size:12.5px;color:var(--muted)}
+.tp{font-size:17px;font-weight:600;white-space:nowrap}
+.tp.them{color:var(--head)} .tp.us{color:var(--tail)}
+.decisions{padding:4px 16px}
+.dec{padding:10px 0;border-bottom:1px solid var(--line)}
+.dec:last-child{border-bottom:0}
+.dec-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.dec .name{font-weight:600}
+.dec p{margin:4px 0 0;font-size:14px;color:var(--muted)}
+.verdict{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;border-radius:999px;padding:2px 8px;white-space:nowrap}
+.v-either{color:var(--tail);background:var(--tail-bg)}
+.v-quicker{color:var(--tail);background:var(--tail-bg)}
+.v-free{color:var(--tail);background:var(--tail-bg)}
+.v-cheap{color:var(--cross);background:var(--cross-bg)}
+.v-last-resort{color:var(--head);background:var(--head-bg)}
+.v-no-choice{color:var(--calm);background:var(--calm-bg)}
+.chip.rudder{color:var(--ink);background:var(--seg);font-weight:500}
+.flag{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--cross);background:var(--cross-bg);border-radius:999px;padding:1px 7px;margin-left:6px;vertical-align:2px}
+footer{font-size:12.5px;color:var(--muted);display:flex;flex-direction:column;gap:6px;padding:0 2px}
+.empty{text-align:center;color:var(--muted);padding:40px 16px}
+@media (prefers-reduced-motion: reduce){.arrow svg{transition:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="crews" role="group" aria-label="Crew">
+    <button type="button" data-crew="four" aria-pressed="true">4+ · Women 60+</button>
+    <button type="button" data-crew="eight" aria-pressed="false">8+ · Women 50+</button>
+  </div>
+  <div class="crews courses" role="group" aria-label="Course">
+    <button type="button" data-course="full" aria-pressed="true">Full course</button>
+    <button type="button" data-course="short" aria-pressed="false">Short (high wind)</button>
+  </div>
+  <div class="crews arches" role="group" aria-label="Arches at River Street and Western Avenue" hidden></div>
+  <div class="crews gusts" role="group" aria-label="Gusts">
+    <button type="button" data-gust="off" aria-pressed="true">Steady wind</button>
+    <button type="button" data-gust="on" aria-pressed="false">Count gusts</button>
+  </div>
+  <div id="app" style="display:flex;flex-direction:column;gap:14px">
+    <div class="empty">Loading the race card…</div>
+  </div>
+<div id="daypanel"></div>
+</div>
+<script>
+(function(){
+  var CREWS = ["four", "eight"];
+  var PREFIX = "charles-site:";
+  var app = document.getElementById("app");
+  var cards = {}, sources = {};
+  var crew = load("crew") || "four";
+  var course = load("course") === "short" ? "short" : "full";
+  var gusts = load("gusts") === "on";
+  if (CREWS.indexOf(crew) < 0) crew = "four";
+
+  function load(k){ try { return localStorage.getItem(PREFIX + k); } catch (e) { return null; } }
+  function save(k, v){ try { localStorage.setItem(PREFIX + k, v); } catch (e) {} }
+
+  function fmt(sec){
+    if (sec == null || !isFinite(sec)) return "–";
+    sec = Math.round(sec * 10) / 10;
+    var m = Math.floor(sec/60), s = sec - 60*m;
+    var t = s.toFixed(1); if (s < 10) t = "0" + t;
+    return m + ":" + t;
+  }
+  function compass(d){
+    if (d == null || !isFinite(d)) return "variable";
+    var n = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+    return n[Math.round(((d%360)+360)%360/22.5)%16];
+  }
+  function chipClass(label){
+    if (!label) return "calm";
+    if (label.indexOf("head") === 0) return "headwind";
+    if (label.indexOf("tail") === 0) return "tailwind";
+    if (label.indexOf("cross") === 0) return "cross";
+    return "calm";
+  }
+  function age(iso){
+    if (!iso) return null;
+    var t = Date.parse(iso); if (isNaN(t)) return null;
+    return (Date.now() - t) / 60000;
+  }
+  function when(iso){
+    var t = new Date(iso);
+    if (isNaN(t)) return iso || "";
+    try { return t.toLocaleString(undefined, {weekday:"short", hour:"2-digit", minute:"2-digit", timeZone:"America/New_York"}) + " ET"; }
+    catch (e) { return t.toLocaleString(undefined, {weekday:"short", hour:"2-digit", minute:"2-digit"}); }
+  }
+  function el(tag, cls, text){
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function cap(s){ return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+  function range(a, b){ return fmt(a) + "–" + fmt(b); }
+  function short(name){ return {"beat 2025": "Last year"}[name] || cap(name); }
+
+  // gusts: the card's targets are for the steady wind; counting gusts scales every time by the
+  // allowance (coxswain/raceday/gusts.py). A measured day factor already contains the gusts.
+  function withGusts(card, gu){
+    if (!card || !gu || !(gu.ratio > 1) || card.factor_source) return card;
+    var c = JSON.parse(JSON.stringify(card)), f = gu.ratio;
+    (c.targets || []).forEach(function(t){
+      ["central", "fast", "slow"].forEach(function(k){
+        ["today_", "split_overall_"].forEach(function(n){ if (t[n + k] != null) t[n + k] *= f; });
+        ["splits_", "at_landmark_", "rudder_"].forEach(function(n){ if (t[n + k]) t[n + k] = t[n + k].map(function(x){ return x * f; }); });
+      });
+    });
+    if (c.line_s) c.line_s *= f;
+    c.gust_counted = true;
+    return c;
+  }
+
+  // the arch plans practised: the crew's own card under cards[crew], the other under cards[crew + "|" + key]
+  function variants(){
+    return Object.keys(cards).filter(function(k){ return (k === crew || k.indexOf(crew + "|") === 0) && cards[k] && cards[k].arch_option; })
+                 .sort(function(a, b){ return cards[a].arch_option.key < cards[b].arch_option.key ? -1 : 1; });
+  }
+  function variantKey(){
+    var pick = load("arches:" + crew);
+    return (pick && cards[crew + "|" + pick]) ? crew + "|" + pick : crew;
+  }
+  function archBar(){
+    var bar = document.querySelector(".arches"); if (!bar) return;
+    var vs = variants(), cur = variantKey();
+    bar.textContent = ""; bar.hidden = vs.length < 2;
+    if (vs.length < 2) return;
+    vs.forEach(function(k){
+      var o = cards[k].arch_option, b = el("button", null, (o.key === "cambridge" ? "Cambridge arches" : "Centre arches") + (o.own ? " · plan" : ""));
+      b.type = "button"; b.setAttribute("aria-pressed", k === cur ? "true" : "false");
+      b.title = o.name + "; centre at Weeks";
+      b.addEventListener("click", function(){ save("arches:" + crew, o.key); render(); });
+      bar.appendChild(b);
+    });
+  }
+  function archNote(full){                         // today's difference between the two practised lines
+    var vs = variants(); if (vs.length < 2) return null;
+    var t = vs.map(function(k){ var c = cards[k]; return {name: c.arch_option.key === "cambridge" ? "Cambridge" : "Centre", s: c.line_s}; });
+    if (!(t[0].s > 0 && t[1].s > 0)) return null;
+    var d = t[1].s - t[0].s, fast = d > 0 ? t[0].name : t[1].name, slow = d > 0 ? t[1].name : t[0].name;
+    return Math.abs(d) < 0.5 ? "Today the two lines are level (within half a second)."
+         : "Today " + fast + " arches are " + Math.abs(d).toFixed(1) + " s quicker than " + slow + " (both with the centre at Weeks; the model's precision here is about 2 s).";
+  }
+
+  function render(){
+    archBar();
+    var full = cards[variantKey()], card = full, gu = card ? card.gust : null;
+    if (card && course === "short") card = card.short_card || null;
+    if (gusts) card = withGusts(card, gu);
+    var an = archNote(full);
+    document.querySelectorAll(".gusts button").forEach(function(b){
+      b.setAttribute("aria-pressed", (b.getAttribute("data-gust") === "on") === gusts ? "true" : "false");
+    });
+    document.querySelectorAll(".courses button").forEach(function(b){
+      b.setAttribute("aria-pressed", b.getAttribute("data-course") === course ? "true" : "false");
+    });
+    document.querySelectorAll(".crews button[data-crew]").forEach(function(b){
+      b.setAttribute("aria-pressed", b.getAttribute("data-crew") === crew ? "true" : "false");
+    });
+    app.textContent = "";
+    if (!card){
+      app.appendChild(el("div", "empty", "No race card for this crew yet. It appears here once the night-before run has published it."));
+      return;
+    }
+    var goals = card.targets || [];
+    var pick = load("goal:" + crew);
+    var gi = 0;
+    goals.forEach(function(g, i){ if (g.name === pick) gi = i; });
+    var g = goals[gi];
+
+    var head = el("header");
+    head.appendChild(el("div", "eyebrow", "Head of the Charles · race card"));
+    head.appendChild(el("h1", null, card.event || "Race card"));
+    var start = new Date(card.race_start);
+    head.appendChild(el("div", "meta", (isNaN(start) ? "" : (function(){ try { return start.toLocaleString(undefined,{weekday:"long", day:"numeric", month:"short", hour:"2-digit", minute:"2-digit", timeZone:"America/New_York"}) + " ET"; } catch (e) { return start.toLocaleString(); } })()) + (card.start_confirmed ? "" : " · start time not yet confirmed")));
+    var mins = age(card.generated_at);
+    var fresh = el("div", "fresh");
+    fresh.appendChild(el("span", "dot" + (mins == null ? "" : mins > 360 ? " old" : mins > 90 ? " stale" : "")));
+    fresh.appendChild(document.createTextNode("Updated " + when(card.generated_at) + ((sources[variantKey()] || sources[crew]) === "saved" ? " · saved copy (no connection)" : "")));
+    head.appendChild(fresh);
+    app.appendChild(head);
+
+    if (goals.length){
+      var tc = el("section", "card");
+      var grid = el("div", "goals");
+      goals.forEach(function(t, i){
+        var b = el("button", "goal");
+        b.type = "button";
+        b.setAttribute("aria-pressed", i === gi ? "true" : "false");
+        b.appendChild(el("span", "label", short(t.name)));
+        b.appendChild(el("span", "split num", fmt(t.split_overall_central)));
+        var tot = el("span", "total");
+        tot.appendChild(document.createTextNode("/500 m · "));
+        tot.appendChild(el("b", "num", fmt(t.today_central)));
+        b.appendChild(tot);
+        b.appendChild(el("span", "range num", "range " + range(t.today_fast, t.today_slow)));
+        b.appendChild(el("span", "why", t.kind === "forecast" ? "where the model puts us" : (t.place_text || "")));
+        if (t.chance != null) b.appendChild(el("span", "chance num", "our chance " + (t.chance < 0.005 ? "under 1%" : Math.round(100 * t.chance) + "%")));
+        if (t.median_place != null) b.appendChild(el("span", "chance num", "most likely place " + Math.round(t.median_place) + " (" + Math.round(t.place_80[0]) + "–" + Math.round(t.place_80[1]) + ")"));
+        if (t.lake_split) b.appendChild(el("span", "why num", "Sammamish, still air: " + fmt(t.lake_split)));
+        b.addEventListener("click", function(){ save("goal:" + crew, t.name); render(); });
+        grid.appendChild(b);
+      });
+      tc.appendChild(grid);
+      var hint = el("p", "hint");
+      hint.textContent = "Times for today's wind. A goal's range runs from the fast end, where the goal is likely (80%), to the slow end, where it is a long shot (20%); the middle is even odds. The forecast's range is where we finish 8 times in 10. The Sammamish split is the same effort on deep still water: the number to train to. Pick which one the course breakdown shows below.";
+      tc.appendChild(hint);
+      app.appendChild(tc);
+    }
+
+    var vs = card.plan && card.plan.variants ? card.plan.variants : [];
+    if (vs.length){
+      var chosen = load("plan:" + crew) || vs[0].letter;
+      var cur = vs.filter(function(v){ return v.letter === chosen; })[0] || vs[0];
+      app.appendChild(el("h2", null, "Plan"));
+      var pc = el("section", "card planv");
+      var bar = el("div", "letters");
+      bar.setAttribute("role", "group");
+      bar.setAttribute("aria-label", "Plan for the start");
+      vs.forEach(function(v){
+        var b = el("button", null, null);
+        b.type = "button";
+        b.setAttribute("aria-pressed", v.letter === cur.letter ? "true" : "false");
+        b.appendChild(el("span", "l num", v.letter));
+        b.appendChild(el("span", "n", v.name));
+        b.addEventListener("click", function(){ save("plan:" + crew, v.letter); render(); });
+        bar.appendChild(b);
+      });
+      pc.appendChild(bar);
+      pc.appendChild(el("p", "when", cur.when));
+      var ul = el("ul", "dos");
+      cur.do.forEach(function(x){ ul.appendChild(el("li", null, x)); });
+      pc.appendChild(ul);
+      pc.appendChild(el("p", "hint", "Drafted from the analysis; the wording is the coxswain's to change."));
+      if (an || card.arch_option) pc.appendChild(el("p", "hint", (card.arch_option ? "Splits and landmarks on this card: " + card.arch_option.name + ", centre at Weeks. " : "") + (an || "")));
+      app.appendChild(pc);
+    }
+
+    var c = card.conditions || {};
+    var cc = el("section", "card");
+    var cond = el("div", "cond");
+    var ar = el("div", "arrow");
+    ar.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v15m0 0l-5-5m5 5l5-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    if (c.direction != null && isFinite(c.direction)) ar.firstChild.style.transform = "rotate(" + c.direction + "deg)";
+    ar.setAttribute("aria-label", "wind from " + compass(c.direction));
+    cond.appendChild(ar);
+    var txt = el("div");
+    var mph = c.speed != null ? Math.round(c.speed / 0.44704) : null;
+    txt.appendChild(el("div", "big num", (c.speed != null ? mph + " mph" : "–") + " from " + compass(c.direction)));
+    var sub = [];
+    if (c.kind) sub.push(c.kind);
+    if (c.temperature_c != null) sub.push(Math.round(c.temperature_c) + "°C");
+    if (c.gust > 0) sub.push("gusts to " + Math.round(c.gust / 0.44704) + " mph");
+    if (c.rain_pct) sub.push(Math.round(c.rain_pct) + "% rain");
+    if (c.at) sub.push("at " + when(c.at));
+    txt.appendChild(el("div", "sub", sub.join(" · ")));
+    cond.appendChild(txt);
+    cc.appendChild(cond);
+    if (card.wind_cost_pct != null && g && card.wind){
+      var cost = el("div", "cost");
+      var secs = g.today_central - g.central;
+      cost.appendChild(document.createTextNode(card.factor_source ? "Today's river, as measured, costs our line about " : "This wind costs our line about "));
+      cost.appendChild(el("b", "num", (secs >= 0 ? "+" : "−") + Math.abs(secs).toFixed(0) + " s"));
+      var r = card.wind_cost_pct_range;
+      if (r && !card.factor_source && isFinite(r[0]) && isFinite(r[1])){
+        var lo = g.central * r[0] / 100, hi = g.central * r[1] / 100;
+        cost.appendChild(document.createTextNode(" (" + (lo >= 0 ? "+" : "−") + Math.abs(lo).toFixed(0) + " to " + (hi >= 0 ? "+" : "−") + Math.abs(hi).toFixed(0) + " s if the wind is 30% lighter or stronger)"));
+      }
+      cost.appendChild(document.createTextNode(". Every crew pays it, so the targets already include it."));
+      cc.appendChild(cost);
+    }
+    if (gu && gu.gust_ms > 0 && g){
+      var gc = el("div", "cost"), gmph = Math.round(gu.gust_ms / 0.44704);
+      var extra = card.gust_counted ? g.today_central * (1 - 1 / gu.ratio) : g.today_central * (gu.ratio - 1);
+      if (card.factor_source) gc.appendChild(document.createTextNode("Gusts to " + gmph + " mph are already in the measured river."));
+      else {
+        gc.appendChild(document.createTextNode("Gusts to " + gmph + " mph: " + (card.gust_counted ? "counted, " : "not counted; they would add ")));
+        gc.appendChild(el("b", "num", "+" + extra.toFixed(0) + " s"));
+        gc.appendChild(document.createTextNode((card.gust_counted ? " in the times above" : "") + ". The allowance is the gusts' extra drag only, not the steering they call for."));
+      }
+      cc.appendChild(gc);
+    }
+    if (card.day){
+      var dr = el("div", "cost");
+      var vs = card.day.vs_last || card.day.factor / 1.02, pct = 100 * (vs - 1), still = 100 * (card.day.factor - 1);
+      dr.appendChild(document.createTextNode("Earlier races today run "));
+      dr.appendChild(el("b", "num", Math.abs(pct).toFixed(1) + "% " + (pct >= 0 ? "slower" : "faster")));
+      dr.appendChild(document.createTextNode(" than last year (" + card.day.events + " events). The targets use this measured river in place of the wind model: " + (still >= 0 ? "+" : "−") + Math.abs(still).toFixed(1) + "% on still water (" + (100 * (card.day.low - 1)).toFixed(1) + " to " + (100 * (card.day.high - 1)).toFixed(1) + "%; last year's Saturday ran 2% slower than still water)."));
+      cc.appendChild(dr);
+    }
+    var rv = card.river;
+    if (rv && (rv.flow_s != null || rv.level_s != null)){
+      var rr = el("div", "cost");
+      rr.appendChild(document.createTextNode("River on race day: " + (rv.discharge_cfs != null ? Math.round(rv.discharge_cfs) + " cfs forecast (" + (rv.source || "") + ")" : "flow n/a") +
+        (rv.level_ft != null ? ", basin " + (rv.level_ft >= 0 ? "+" : "−") + Math.abs(rv.level_ft).toFixed(2) + " ft on normal" : "") + ": "));
+      rr.appendChild(el("b", "num", (rv.effect_s >= 0 ? "+" : "−") + Math.abs(rv.effect_s * (card.course ? card.course.share : 1)).toFixed(0) + " s"));
+      rr.appendChild(document.createTextNode(card.day ? " (inside the measured day factor)." : ", in the targets: every crew rows against the same current."));
+      cc.appendChild(rr);
+    }
+    if (card.course && card.course.name === "short"){
+      var sh = el("div", "cost");
+      sh.appendChild(el("b", null, "Short course: "));
+      sh.appendChild(document.createTextNode("start off " + card.course.start + ", " + (card.course.length_m / 1000).toFixed(2) + " km to the same finish. Targets are the full course's times from there on."));
+      cc.appendChild(sh);
+    }
+    var fl = card.flow;
+    if (fl && fl.ok){
+      var fr = el("div", "cost");
+      var e = fl.effect_s;
+      fr.appendChild(document.createTextNode("River flow " + Math.round(fl.discharge_cfs) + " cfs (October median " + Math.round(fl.october_median_m3s / 0.0283168) + "): "));
+      fr.appendChild(el("b", "num", (e >= 0 ? "+" : "−") + Math.abs(e).toFixed(1) + " s"));
+      fr.appendChild(document.createTextNode(Math.abs(e) < 3 ? " on our line, negligible." : " on our line (the race runs upstream)."));
+      cc.appendChild(fr);
+    }
+    app.appendChild(cc);
+
+    if (card.decisions && card.decisions.length){
+      app.appendChild(el("h2", null, "Key decisions · arches"));
+      var kd = el("section", "card decisions");
+      card.decisions.forEach(function(x){
+        var row = el("div", "dec");
+        var top = el("div", "dec-top");
+        top.appendChild(el("span", "name", x.bridge));
+        top.appendChild(el("span", "verdict v-" + x.verdict.replace(/\s+/g, "-"), x.verdict));
+        row.appendChild(top);
+        row.appendChild(el("p", null, x.advice));
+        kd.appendChild(row);
+      });
+      app.appendChild(kd);
+    }
+
+    var mp = card.map;
+    if (mp && mp.line){
+      app.appendChild(el("h2", null, "Map · our line"));
+      var mc = el("section", "card mapc");
+      var W = mp.width, H = mp.height;
+      function pts(a){ return a.map(function(p){ return p[0] + "," + (H - p[1]); }).join(" "); }
+      var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Map of the course with our planned line, bridges and push stretches">';
+      mp.banks.forEach(function(b){ svg += '<polyline class="bank" points="' + pts(b) + '"/>'; });
+      (mp.pushes || []).forEach(function(p){ svg += '<polyline class="pushl" points="' + pts(p) + '"/>'; });
+      svg += '<polyline class="line" points="' + pts(mp.line) + '"/>';
+      mp.bridges.forEach(function(b){
+        svg += '<line class="bridge" x1="' + b.a[0] + '" y1="' + (H - b.a[1]) + '" x2="' + b.b[0] + '" y2="' + (H - b.b[1]) + '"/>';
+      });
+      mp.marks.forEach(function(m){
+        if (/^Mile|Finish|Big turn|Powerhouse|Wooden/.test(m.name)) {
+          svg += '<circle class="mark" cx="' + m.xy[0] + '" cy="' + (H - m.xy[1]) + '" r="22"/>';
+          svg += '<text class="mlabel" x="' + (m.xy[0] + 40) + '" y="' + (H - m.xy[1] + 22) + '">' + m.name.replace(/[<&>]/g, "") + '</text>';
+        }
+      });
+      svg += '<circle class="start" cx="' + mp.start[0] + '" cy="' + (H - mp.start[1]) + '" r="30"/>';
+      svg += '<text class="mlabel" x="' + (mp.start[0] - 40) + '" y="' + (H - mp.start[1] + 90) + '" text-anchor="end">Start</text>';
+      svg += '</svg>';
+      var holder = el("div", "mapsvg");
+      holder.innerHTML = svg;
+      mc.appendChild(holder);
+      mc.appendChild(el("p", "hint", "Orange: our planned line. Wide shaded stretches: push here. Grey bars: bridges. North is up."));
+      app.appendChild(mc);
+    }
+
+    var tr = card.traffic;
+    if (tr && tr.neighbours){
+      app.appendChild(el("h2", null, "Traffic · bow " + tr.own_bow + " of " + tr.field_size));
+      var tc2 = el("section", "card traffic");
+      var stats = el("div", "tstats");
+      [[tr.expected_passes_made.toFixed(1), "crews we pass"], [tr.expected_passed_by.toFixed(1), "crews pass us"],
+       [Math.round(100 * tr.p_clear_race) + "%", "chance of a clear race"]].forEach(function(p){
+        var b = el("div", "tstat");
+        b.appendChild(el("div", "v num", p[0]));
+        b.appendChild(el("div", "k", p[1]));
+        stats.appendChild(b);
+      });
+      tc2.appendChild(stats);
+      var shown = tr.neighbours.filter(function(n){ return Math.max(n.p_we_pass, n.p_they_pass) >= 0.05; });
+      shown.sort(function(a, b){ return Math.max(b.p_we_pass, b.p_they_pass) - Math.max(a.p_we_pass, a.p_they_pass); });
+      shown.forEach(function(n){
+        var r = el("div", "trow");
+        var left = el("div");
+        left.appendChild(el("div", "name", "Bow " + n.bow + " · " + n.club));
+        var behind = n.starts_s > 0;
+        left.appendChild(el("div", "note", (behind ? "starts " + n.starts_s + " s behind" : "starts " + (-n.starts_s) + " s ahead") + (n.near ? " · most likely " + n.near.replace("-", " to ") : "")));
+        r.appendChild(left);
+        var pr = behind ? n.p_they_pass : n.p_we_pass;
+        r.appendChild(el("div", "tp num " + (behind ? "them" : "us"), (behind ? "passes us " : "we pass ") + Math.round(100 * pr) + "%"));
+        tc2.appendChild(r);
+      });
+      if (tr.bridges && tr.bridges.length){
+        var bl = el("p", "hint");
+        bl.textContent = "A pass within 100 m of a bridge: " + tr.bridges.map(function(b){ return b.bridge.replace(" Footbridge", "").replace(" Bridge", "") + " " + Math.round(100 * b.p_pass_at) + "%"; }).join(" · ") + ". That is when the alternative arch matters.";
+        tc2.appendChild(bl);
+      }
+      app.appendChild(tc2);
+    }
+
+    if (g){
+      app.appendChild(el("h2", null, "Course breakdown"));
+      if (goals.length > 1){
+        var pickBar = el("div", "picker");
+        pickBar.setAttribute("role", "group");
+        pickBar.setAttribute("aria-label", "Target for the breakdown");
+        pickBar.style.gridTemplateColumns = "repeat(" + goals.length + ", 1fr)";
+        goals.forEach(function(t, i){
+          var b = el("button", null, short(t.name));
+          b.type = "button";
+          b.setAttribute("aria-pressed", i === gi ? "true" : "false");
+          b.addEventListener("click", function(){ save("goal:" + crew, t.name); render(); });
+          pickBar.appendChild(b);
+        });
+        app.appendChild(pickBar);
+      }
+      app.appendChild(el("div", "legend", "Right of a landmark: be there by (elapsed). Between landmarks: the split for that stretch, per 500 m."));
+      var sc = el("section", "card course");
+      var secs2 = card.sections || [];
+      function mark(name, note, at, fast, slow, ends){
+        var m = el("div", "mark" + (ends ? " ends" : ""));
+        var left = el("div");
+        var nm = el("div", "name", name);
+        if (note && /confirm/i.test(note)) nm.appendChild(el("span", "flag", "to confirm"));
+        left.appendChild(nm);
+        if (note) left.appendChild(el("div", "note", note));
+        m.appendChild(left);
+        var a = el("div", "at");
+        a.appendChild(el("div", "t num", at == null ? "0:00" : fmt(at)));
+        if (at != null) a.appendChild(el("div", "r num", range(fast, slow)));
+        m.appendChild(a);
+        sc.appendChild(m);
+      }
+      mark(card.course && card.course.name === "short" ? card.course.start + " (short-course start)" : "Start", null, null, null, null, true);
+      secs2.forEach(function(s, i){
+        var leg = el("div", "leg");
+        var d = el("div", "detail");
+        d.appendChild(el("span", "num", Math.round(s.path_m) + " m"));
+        d.appendChild(el("span", "chip " + chipClass(s.wind_label), s.wind_label || "calm"));
+        if (s.wind_felt != null) d.appendChild(el("span", "num", Math.round(s.wind_felt / 0.44704) + " mph felt"));
+        if (s.push) d.appendChild(el("span", "chip push", "push here · river +" + s.river_slow_s500.toFixed(1) + " s/500"));
+        var rud = g.rudder_central ? g.rudder_central[i] : null;
+        if (rud != null && rud >= 0.3){
+          var hit = card.rudder_k && s.peak_turn ? g.splits_central[i] * card.rudder_k * s.peak_turn * s.peak_turn : null;
+          d.appendChild(el("span", "chip rudder num", "rudder +" + rud.toFixed(1) + " s" + (hit && hit >= 0.5 ? " · split drifts ~" + hit.toFixed(0) + " s at the hardest point" : "")));
+        }
+        leg.appendChild(d);
+        var sp = el("div", "sp");
+        sp.appendChild(el("div", "t num", fmt(g.splits_central[i])));
+        sp.appendChild(el("div", "r num", range(g.splits_fast[i], g.splits_slow[i])));
+        leg.appendChild(sp);
+        sc.appendChild(leg);
+        var last = i === secs2.length - 1;
+        mark(s.end, s.note, g.at_landmark_central[i], g.at_landmark_fast[i], g.at_landmark_slow[i], last);
+      });
+      app.appendChild(sc);
+    }
+
+    var f = el("footer");
+    f.appendChild(el("div", null, "Goals come from simulating the 2026 field many times: each entered crew from its own results, all on one river. Times are spread over the course by the river model (depth, current, steering) and today's sheltered wind. Turning costs are measured from our own boats at Tail of the Lake: the speed lost grows with the square of the turn rate, so a long, even arc costs less than a late hard one."));
+    f.appendChild(el("div", null, "Private to the coxswains. Weather and river flow update themselves each time the page opens; the plan is from the night-before run."));
+    app.appendChild(f);
+  }
+
+  // ---- self-updating site: unlock, decrypt the bundle, fetch weather and flow, rebuild each card ----
+  var COMPASS = {N:0,NNE:22.5,NE:45,ENE:67.5,E:90,ESE:112.5,SE:135,SSE:157.5,S:180,SSW:202.5,SW:225,WSW:247.5,W:270,WNW:292.5,NW:315,NNW:337.5};
+  var MPH = 0.44704, POINT = "42.37,-71.122", USGS = "https://waterservices.usgs.gov/nwis/iv/?sites=01104500&parameterCd=00060&format=json&period=P1D";
+  var bundle = null, live = {};
+
+  function b64(s){ return Uint8Array.from(atob(s), function(c){ return c.charCodeAt(0); }); }
+  async function decrypt(pass){
+    var enc = await (await fetch("data.enc", {cache: "no-cache"})).json();
+    var km = await crypto.subtle.importKey("raw", new TextEncoder().encode(pass), "PBKDF2", false, ["deriveKey"]);
+    var key = await crypto.subtle.deriveKey({name: "PBKDF2", salt: b64(enc.salt), iterations: enc.iterations, hash: "SHA-256"},
+                                            km, {name: "AES-GCM", length: 256}, false, ["decrypt"]);
+    var pt = await crypto.subtle.decrypt({name: "AES-GCM", iv: b64(enc.iv)}, key, b64(enc.data));
+    return JSON.parse(new TextDecoder().decode(pt));
+  }
+  function numbers(t){ return ((t || "").match(/\d+(\.\d+)?/g) || []).map(Number); }
+  function upperMph(t){ var n = numbers(t); return n.length ? Math.max.apply(null, n) * MPH : NaN; }
+  function midMph(t){ var n = numbers(t); return n.length ? 0.5 * (Math.min.apply(null, n) + Math.max.apply(null, n)) * MPH : NaN; }
+  function celsius(p){ return p.temperature == null ? null : (p.temperatureUnit === "F" ? (p.temperature - 32) * 5 / 9 : p.temperature); }
+  async function getJSON(u){ var r = await fetch(u, {headers: {Accept: "application/geo+json"}}); if (!r.ok) throw new Error(r.status); return r.json(); }
+
+  function isoSpan(v){                          // "2026-10-17T14:00:00+00:00/PT3H" -> [start, end] in ms
+    var p = v.split("/"), t0 = Date.parse(p[0]), m = /P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?)?/.exec(p[1] || "") || [];
+    return [t0, t0 + (((+m[1] || 0) * 24 + (+m[2] || 0)) * 60 + (+m[3] || 0)) * 60e3];
+  }
+  async function gustAt(t){                     // the hourly forecast leaves gusts empty; the grid has them (km/h)
+    try {
+      var pts = await getJSON("https://api.weather.gov/points/" + POINT);
+      var vals = (await getJSON(pts.properties.forecastGridData)).properties.windGust.values;
+      for (var i = 0; i < vals.length; i++){ var se = isoSpan(vals[i].validTime); if (se[0] <= t && t < se[1] && vals[i].value != null) return vals[i].value / 3.6; }
+    } catch (e) {}
+    return null;
+  }
+  async function weatherAt(startIso){
+    var wx = await weatherOnly(startIso);
+    if (/^forecast/.test(wx.kind || "") && !(wx.gust > 0)) wx.gust = await gustAt(Date.parse(startIso));
+    return wx;
+  }
+  async function weatherOnly(startIso){
+    var t = Date.parse(startIso), pts = await getJSON("https://api.weather.gov/points/" + POINT);
+    try {
+      var hr = (await getJSON(pts.properties.forecastHourly)).properties.periods;
+      for (var i = 0; i < hr.length; i++){ var p = hr[i];
+        if (Date.parse(p.startTime) <= t && t < Date.parse(p.endTime))
+          return {kind: "forecast for the start", speed: upperMph(p.windSpeed), direction: COMPASS[p.windDirection],
+                  temperature_c: celsius(p), rain_pct: (p.probabilityOfPrecipitation || {}).value || 0, sky: p.shortForecast, at: p.startTime};
+      }
+    } catch (e) {}
+    try {
+      var dy = (await getJSON(pts.properties.forecast)).properties.periods;
+      for (var j = 0; j < dy.length; j++){ var q = dy[j];
+        if (Date.parse(q.startTime) <= t && t < Date.parse(q.endTime))
+          return {kind: "forecast for race day (12-hour period; hourly not yet in range)", speed: midMph(q.windSpeed),
+                  direction: COMPASS[q.windDirection], temperature_c: celsius(q), rain_pct: (q.probabilityOfPrecipitation || {}).value || 0,
+                  sky: q.name + ": " + q.shortForecast + " (" + q.windSpeed + ")", at: q.startTime};
+      }
+    } catch (e) {}
+    var o = (await getJSON("https://api.weather.gov/stations/KBOS/observations/latest")).properties;
+    return {kind: "observed now at Logan (race-time forecast not yet in range)", speed: (o.windSpeed.value || 0) / 3.6,
+            direction: o.windDirection.value, temperature_c: o.temperature.value, at: o.timestamp,
+            gust: o.windGust && o.windGust.value != null ? o.windGust.value / 3.6 : null};
+  }
+  async function flowNow(){
+    var d = await (await fetch(USGS)).json(), v = d.value.timeSeries[0].values[0].value;
+    var last = v[v.length - 1];
+    return {cfs: Number(last.value), m3s: Number(last.value) * 0.0283168466, at: last.dateTime};
+  }
+
+  var NWM = "https://api.water.noaa.gov/nwps/v1/reaches/5868225/streamflow?series=";
+  var LEVEL = "https://waterservices.usgs.gov/nwis/iv/?sites=01104715&parameterCd=00065&format=json&period=P1D", LEVEL_MEDIAN_FT = 107.32;
+  async function riverAt(startIso){             // forecast flow at the start (NWM) and the basin level now
+    var t = Date.parse(startIso), out = {};
+    var runs = [["short_range", "shortRange"], ["medium_range", "mediumRange"]];
+    for (var i = 0; i < runs.length && out.cfs == null; i++){
+      try {
+        var blk = (await (await fetch(NWM + runs[i][0])).json())[runs[i][1]] || {};
+        var mem = blk.series || blk.mean || blk[Object.keys(blk)[0]] || {}, best = null;
+        (mem.data || []).forEach(function(x){ var d = Math.abs(Date.parse(x.validTime) - t); if (!best || d < best[0]) best = [d, x.flow]; });
+        if (best && best[0] <= 3 * 3600e3){ out.cfs = best[1]; out.source = "National Water Model, " + runs[i][0].replace("_", " "); }
+        else if (i === 0 && mem.data && mem.data.length){             // the start beyond the short range: its last hour, if within 18 h
+          var lastS = mem.data[mem.data.length - 1], gap = t - Date.parse(lastS.validTime);
+          if (gap >= 0 && gap <= 18 * 3600e3) out.fallback = {cfs: lastS.flow, source: "National Water Model, short range's last hour (the start not yet in range)"};
+        }
+      } catch (e) {}
+    }
+    if (out.cfs == null && out.fallback){ out.cfs = out.fallback.cfs; if (out.fallback.source) out.source = out.fallback.source; }
+    delete out.fallback;
+    try { var v = (await (await fetch(LEVEL)).json()).value.timeSeries[0].values[0].value; var last = v[v.length - 1];
+          out.level_ft = Number(last.value) - LEVEL_MEDIAN_FT; out.level_at = last.dateTime; } catch (e) {}
+    return out;
+  }
+  function shortOf(c, pre){                      // the shortened course: same as card.short_course in Python
+    var i0 = c.sections.findIndex(function(x){ return x.start === pre.course.start; });
+    if (i0 < 0) return null;
+    var s = JSON.parse(JSON.stringify(c)); delete s.short_card;
+    var secs = s.sections.slice(i0), remain = secs.reduce(function(a, x){ return a + x.share; }, 0);
+    secs.forEach(function(x){ x.share = x.share / remain; });
+    s.sections = secs;
+    var path = secs.reduce(function(a, x){ return a + x.path_m; }, 0);
+    s.targets.forEach(function(t){
+      ["central", "fast", "slow"].forEach(function(k){
+        var before = i0 > 0 ? t["at_landmark_" + k][i0 - 1] : 0;
+        t["at_landmark_" + k] = t["at_landmark_" + k].slice(i0).map(function(v){ return v - before; });
+        t["splits_" + k] = t["splits_" + k].slice(i0); t["rudder_" + k] = t["rudder_" + k].slice(i0);
+        t["today_" + k] = t["at_landmark_" + k][t["at_landmark_" + k].length - 1];
+        t["split_overall_" + k] = t["today_" + k] / path * 500; t[k] = t[k] * remain;
+      });
+      delete t.lake_split;
+    });
+    s.course = {name: "short", start: pre.course.start, start_m: secs[0].from_m, length_m: path, share: remain};
+    s.traffic = pre.traffic;
+    return s;
+  }
+  function lerp(a, b, w){ return a + (b - a) * w; }
+  function mix(rows){                           // rows: [[row, weight], ...] -> weighted row
+    var out = {factor: 0, share: null, felt: null, rudder: null};
+    rows.forEach(function(rw){ var r = rw[0], w = rw[1];
+      out.factor += w * r.factor;
+      ["share", "felt", "rudder"].forEach(function(k){
+        if (!out[k]) out[k] = r[k].map(function(){ return 0; });
+        r[k].forEach(function(x, i){ out[k][i] += w * x; });
+      });
+    });
+    var s = out.share.reduce(function(a, b){ return a + b; }, 0);
+    out.share = out.share.map(function(x){ return x / s; });
+    return out;
+  }
+  var PEAK_FACTOR = 3, GZ = [];                 // gusts: as coxswain/raceday/gusts.py
+  for (var gz = -3; gz <= 3.0001; gz += 0.25) GZ.push([gz, Math.exp(-0.5 * gz * gz)]);
+  function gustIntensity(speed, gust){ return (gust > speed && speed > 0.3) ? Math.min((gust / speed - 1) / PEAK_FACTOR, 0.5) : 0; }
+  function interpGusts(T, speed, dir, gust){
+    var sig = gustIntensity(speed, gust) * speed;
+    if (!(sig > 0)) return interp(T, speed, dir);
+    var tot = GZ.reduce(function(a, z){ return a + z[1]; }, 0);
+    var out = mix(GZ.map(function(z){ return [interp(T, Math.max(0, speed + sig * z[0]), dir), z[1] / tot]; }));
+    var S = T.speeds, h = S[1] - S[0], u = Math.min(Math.max(speed, S[0] + h), S[S.length - 1] - h);
+    var curv = (interp(T, u + h, dir).factor - 2 * interp(T, u, dir).factor + interp(T, u - h, dir).factor) / (h * h);
+    out.factor = interp(T, speed, dir).factor + 0.5 * curv * sig * sig;   // exact for a quadratic cost; see gusts.py
+    return out;
+  }
+  function interp(T, speed, dir){
+    var S = T.speeds, D = T.directions, n = D.length, v = Math.max(0, Math.min(speed || 0, S[S.length - 1]));
+    var i = 0; while (i < S.length - 2 && v > S[i + 1]) i++;
+    var ws = (v - S[i]) / (S[i + 1] - S[i]);
+    var x = (((isFinite(dir) ? dir : 0) % 360) + 360) % 360 / (360 / n), j = Math.floor(x) % n, wd = x - Math.floor(x), j1 = (j + 1) % n;
+    function row(a, b){ return T.rows[a * n + b]; }
+    return mix([[row(i, j), (1 - ws) * (1 - wd)], [row(i, j1), (1 - ws) * wd], [row(i + 1, j), ws * (1 - wd)], [row(i + 1, j1), ws * wd]]);
+  }
+  function labelOf(rel){
+    if (!isFinite(rel)) return "calm";
+    var r = ((rel % 360) + 360) % 360;
+    if (r <= 45 || r >= 315) return "headwind";
+    if (r >= 135 && r <= 225) return "tailwind";
+    return r < 180 ? "cross from starboard" : "cross from port";
+  }
+  function interp1(xs, ys, x){
+    if (x <= xs[0]) return ys[0];
+    for (var i = 0; i < xs.length - 1; i++) if (x <= xs[i + 1]) return lerp(ys[i], ys[i + 1], (x - xs[i]) / (xs[i + 1] - xs[i]));
+    return ys[ys.length - 1];
+  }
+  var BASE_2025 = 1.02;
+  function dayFactor(){
+    var rows = []; try { rows = JSON.parse(load("day") || "[]"); } catch (e) {}
+    var by = {};
+    rows.forEach(function(r){ if (r.today > 0 && r.last > 0) (by[r.event] = by[r.event] || []).push(r.today / r.last); });
+    function med(a){ a = a.slice().sort(function(x, y){ return x - y; }); var m = a.length >> 1; return a.length % 2 ? a[m] : 0.5 * (a[m - 1] + a[m]); }
+    var per = Object.keys(by).map(function(k){ return med(by[k]); });
+    if (!per.length) return null;
+    var lo = Math.min.apply(null, per), hi = Math.max.apply(null, per);
+    // against the still-air goals: last year's Saturday ran BASE_2025 slower than them (scripts/day_from_results.py)
+    return {factor: med(per) * BASE_2025, low: lo * BASE_2025, high: hi * BASE_2025, events: per.length, vs_last: med(per)};
+  }
+
+  function buildCard(cd, wx, fl, rv){
+    var c = JSON.parse(JSON.stringify(cd.card)), T = cd.wind;
+    var calm = !(wx.speed > 0.3) || !isFinite(wx.direction);
+    var w = calm ? interp(T, 0, 0) : interp(T, wx.speed, wx.direction);
+    c.conditions = wx;
+    c.wind = calm ? null : {speed: wx.speed, direction: wx.direction};
+    c.wind_factor = w.factor; c.wind_cost_pct = 100 * (w.factor - 1);
+    c.line_s = T.still_air_s ? T.still_air_s * w.factor : null;     // this line today at our pace (river below)
+    c.gust = null;
+    if (!calm && wx.gust > wx.speed){
+      var wg = interpGusts(T, wx.speed, wx.direction, wx.gust), gI = gustIntensity(wx.speed, wx.gust);
+      c.gust = {gust_ms: wx.gust, intensity: gI, sigma_ms: gI * wx.speed, ratio: wg.factor / w.factor,
+                wind_ratio: Math.abs(w.factor - 1) > 1e-6 ? (wg.factor - 1) / (w.factor - 1) : 1, added_s: (wg.factor - w.factor) * T.reference_s};
+    }
+    c.wind_cost_pct_range = calm ? null : [100 * (interp(T, 0.7 * wx.speed, wx.direction).factor - 1), 100 * (interp(T, 1.3 * wx.speed, wx.direction).factor - 1)];
+    // the day factor: earlier races typed in on this phone, else the one the race-morning job read from the
+    // published results (scripts/day_from_results.py -> the card's ``day``)
+    var factor = w.factor, day = dayFactor();
+    if (!day && cd.card.day && cd.card.day.factor > 0)
+      day = {factor: cd.card.day.factor, low: cd.card.day.low, high: cd.card.day.high, events: cd.card.day.events, auto: true,
+             vs_last: cd.card.day.factor / BASE_2025};
+    c.day = day; c.factor_source = null;
+    if (day){ c.model_wind_factor = factor; factor = day.factor; c.wind_factor = factor; c.factor_source = day.events + " earlier events today against last year" + (day.auto ? " (from the published results)" : ""); }
+    c.sections.forEach(function(s, i){
+      s.share = w.share[i]; s.wind_felt = calm ? null : w.felt[i];
+      s.relative = calm ? NaN : (((wx.direction - T.headings[i]) % 360) + 360) % 360; s.wind_label = labelOf(s.relative);
+    });
+    var path = c.sections.reduce(function(a, s){ return a + s.path_m; }, 0);
+    c.targets.forEach(function(t){
+      ["central", "fast", "slow"].forEach(function(k){
+        var today = t[k] * factor, cum = 0;
+        t["today_" + k] = today;
+        t["split_overall_" + k] = today / path * 500;
+        t["splits_" + k] = c.sections.map(function(s, i){ return today * w.share[i] / s.path_m * 500; });
+        t["at_landmark_" + k] = c.sections.map(function(s, i){ cum += today * w.share[i]; return cum; });
+        t["rudder_" + k] = c.sections.map(function(s, i){ return today * w.rudder[i]; });
+      });
+    });
+    if (fl) c.flow = {ok: true, discharge_cfs: fl.cfs, discharge_m3s: fl.m3s, at: fl.at, october_median_m3s: cd.flow.october_median_m3s,
+                      effect_s: interp1(cd.flow.discharge_m3s, cd.flow.effect_fraction, fl.m3s) * cd.wind.reference_s};
+    c.river = null;
+    if (rv && (rv.cfs != null || rv.level_ft != null)){
+      var ref = cd.wind.reference_s, q = rv.cfs != null ? rv.cfs * 0.0283168466 : null;
+      var flow_s = q != null ? interp1(cd.flow.discharge_m3s, cd.flow.effect_fraction, q) * ref : 0;
+      var level_s = (rv.level_ft != null && cd.level) ? interp1(cd.level.ft, cd.level.s, rv.level_ft) : 0;
+      c.river = {discharge_cfs: rv.cfs, source: rv.source, level_ft: rv.level_ft, level_at: rv.level_at,
+                 flow_s: flow_s, level_s: level_s, effect_s: flow_s + level_s, factor: 1 + (flow_s + level_s) / ref};
+      if (!day) c.targets.forEach(function(t){
+        ["central", "fast", "slow"].forEach(function(k){
+          var f = c.river.factor;
+          t["today_" + k] *= f; t["split_overall_" + k] *= f;
+          ["splits_", "at_landmark_", "rudder_"].forEach(function(n){ t[n + k] = t[n + k].map(function(x){ return x * f; }); });
+        });
+      });
+    }
+    if (c.line_s) c.line_s *= (day ? day.factor / w.factor : 1) * (c.river && !day ? c.river.factor : 1);
+    c.course = {name: "full", start: "Start", start_m: 0, length_m: path, share: 1};
+    if (cd.card.short_card) c.short_card = shortOf(c, cd.card.short_card);
+    var C = (c.plan && c.plan.variants || []).filter(function(v){ return v.letter === "C"; })[0];
+    if (C){
+      var runs = [], cur = null;
+      c.sections.forEach(function(s){ if (s.wind_label === "headwind"){ cur = cur ? [cur[0], s.end] : [s.start, s.end]; } else if (cur){ runs.push(cur); cur = null; } });
+      if (cur) runs.push(cur);
+      C.do[1] = "Splits slow where the wind is ahead (" + (runs.map(function(r){ return r[0] + " to " + r[1]; }).join(", ") || "none today") + "); judge them against the card, not last week.";
+    }
+    c.generated_at = new Date().toISOString();
+    return c;
+  }
+
+  async function refresh(){
+    var flow = null; try { flow = await flowNow(); } catch (e) {}
+    var rivers = {};
+    for (var i = 0; i < CREWS.length; i++){
+      var k = CREWS[i], cd = bundle.crews[k];
+      if (!cd) continue;
+      try {
+        var wx = live[cd.card.race_start] || (live[cd.card.race_start] = await weatherAt(cd.card.race_start));
+        var rv = rivers[cd.card.race_start] || (rivers[cd.card.race_start] = await riverAt(cd.card.race_start));
+        cards[k] = buildCard(cd, wx, flow, rv); sources[k] = "live";
+        save(k, JSON.stringify(cards[k]));
+        (cd.alts || []).forEach(function(a){
+          var ak = k + "|" + a.key;
+          cards[ak] = buildCard({card: a.card, wind: a.wind, flow: a.flow, level: cd.level}, wx, flow, rv); sources[ak] = "live";
+          save(ak, JSON.stringify(cards[ak]));
+        });
+      } catch (e) {
+        if (!cards[k]) { cards[k] = buildCard(cd, {kind: "no weather (offline): still air", speed: 0, direction: NaN}, flow); sources[k] = "saved"; }
+      }
+    }
+    render(); dayPanel();
+  }
+
+  function lockScreen(msg){
+    app.textContent = "";
+    var box = el("section", "card lock");
+    box.appendChild(el("h2", null, "Race card · locked"));
+    box.appendChild(el("p", "hint", msg || "Enter the coxswains' passphrase. It stays on this phone."));
+    var inp = el("input"); inp.type = "password"; inp.autocomplete = "current-password"; inp.placeholder = "passphrase";
+    inp.setAttribute("aria-label", "Passphrase");
+    var go = el("button", "unlock", "Unlock"); go.type = "button";
+    async function tryIt(){
+      go.disabled = true; go.textContent = "Unlocking…";
+      try { bundle = await decrypt(inp.value.trim()); save("pass", inp.value.trim()); refresh(); }
+      catch (e) { lockScreen("That passphrase did not open the card. Check it and try again."); }
+    }
+    go.addEventListener("click", tryIt);
+    inp.addEventListener("keydown", function(e){ if (e.key === "Enter") tryIt(); });
+    box.appendChild(inp); box.appendChild(go);
+    app.appendChild(box);
+  }
+
+  function dayPanel(){
+    var host = document.getElementById("daypanel"); if (!host) return;
+    host.textContent = "";
+    var d = el("details", "card");
+    d.appendChild(el("summary", null, "Earlier races today (race morning)"));
+    d.appendChild(el("p", "hint", "One line per finished event: name, its time today, its time last year (m:ss or seconds), e.g. Men's GM 8+, 17:02, 16:40. The targets then use the measured river instead of the wind model. Kept on this phone only."));
+    var ta = el("textarea"); ta.rows = 5; ta.setAttribute("aria-label", "Earlier events");
+    var rows = []; try { rows = JSON.parse(load("day") || "[]"); } catch (e) {}
+    ta.value = rows.map(function(r){ return r.event + ", " + fmt(r.today) + ", " + fmt(r.last); }).join("\n");
+    function secs(x){ x = (x || "").trim(); if (x.indexOf(":") < 0) return Number(x); var p = x.split(":").map(Number); return p[0] * 60 + p[1]; }
+    var ap = el("button", "unlock", "Apply"); ap.type = "button";
+    ap.addEventListener("click", function(){
+      var out = ta.value.split("\n").map(function(l){ var p = l.split(","); return p.length >= 3 ? {event: p[0].trim(), today: secs(p[1]), last: secs(p[2])} : null; })
+                     .filter(function(r){ return r && r.today > 0 && r.last > 0; });
+      save("day", JSON.stringify(out)); refresh();
+    });
+    var cl = el("button", "unlock ghost", "Clear"); cl.type = "button";
+    cl.addEventListener("click", function(){ save("day", "[]"); refresh(); });
+    d.appendChild(ta); var bar = el("div", "row2"); bar.appendChild(ap); bar.appendChild(cl); d.appendChild(bar);
+    host.appendChild(d);
+  }
+
+  document.querySelectorAll(".crews button[data-crew]").forEach(function(b){
+    b.addEventListener("click", function(){ crew = b.getAttribute("data-crew"); save("crew", crew); render(); });
+  });
+  document.querySelectorAll(".courses button").forEach(function(b){
+    b.addEventListener("click", function(){ course = b.getAttribute("data-course"); save("course", course); render(); });
+  });
+  document.querySelectorAll(".gusts button").forEach(function(b){
+    b.addEventListener("click", function(){ gusts = b.getAttribute("data-gust") === "on"; save("gusts", gusts ? "on" : "off"); render(); });
+  });
+  CREWS.forEach(function(k){
+    [k, k + "|cambridge", k + "|centre"].forEach(function(kk){
+      try { var s = JSON.parse(load(kk) || "null"); if (s && s.targets) { cards[kk] = s; sources[kk] = "saved"; } } catch (e) {}
+    });
+  });
+  (async function(){
+    var pass = load("pass");
+    if (!pass) { lockScreen(); return; }
+    if (cards[crew]) render();
+    try { bundle = await decrypt(pass); }
+    catch (e) { if (!cards[crew]) lockScreen("The saved passphrase no longer opens the card (it may have changed). Enter the new one."); return; }
+    refresh();
+    setInterval(function(){ live = {}; refresh(); }, 30 * 60 * 1000);
+  })();
+})();
+</script>
+</body>
+
+</html>

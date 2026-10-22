@@ -154,18 +154,23 @@ def fetch(bounds, out, metres: float = TARGET_METRES, timeout: float = 180.0):
     # -- so the loss is entirely in digits 3DEP never had.  Repository
     # size is not a cosmetic concern here: this project has already had
     # one push fail on 190 MB of downloaded source material.
+    # Centimetres reach only 327.67 m in int16; hill country (Lake Whatcom's
+    # ridges stand near 900 m) silently clipped there, so above that the
+    # unit is decimetres (to 3,276 m, a 5 cm quantisation).
     fill = np.int16(-32768)
-    quantised = np.where(np.isnan(grid), np.nan, np.round(grid * 100.0))
+    top = float(np.nanmax(grid)) if np.isfinite(grid).any() else 0.0
+    scale = 0.01 if top < 320.0 else 0.1
+    quantised = np.where(np.isnan(grid), np.nan, np.round(grid / scale))
     quantised = np.where(np.isnan(quantised), float(fill),
                          np.clip(quantised, -32767, 32767)).astype(np.int16)
     np.savez_compressed(
         out, elevation=quantised, bounds=np.asarray(extent, dtype=float),
-        scale=np.float64(0.01), nodata=fill,
+        scale=np.float64(scale), nodata=fill,
         requested=np.asarray(bounds, dtype=float))
     with open(os.path.splitext(out)[0] + ".json", "w") as handle:
         json.dump({"bounds": list(extent), "requested": list(bounds),
                    "size": [int(v) for v in fields["size"].split(",")],
-                   "source": ENDPOINT, "units": "centimetres, int16",
+                   "source": ENDPOINT, "units": "%s, int16" % ("centimetres" if scale == 0.01 else "decimetres"),
                    "note": "bounds are what the service served, not what "
                            "was asked for"}, handle, indent=2)
     print("  wrote %s (%.1f MiB, from a %.1f MiB tile)"

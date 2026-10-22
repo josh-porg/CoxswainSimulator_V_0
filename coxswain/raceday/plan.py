@@ -159,46 +159,131 @@ def _over_turn(model: CourseModel, route) -> float:
     return float(max(np.max(np.abs(turn_rate(p, v, 30.0, 20.0))) - MAX_TURN, 0.0))
 
 
+#: Clearance from a pier face to the boat's centreline through an arch, m, across the boat's path: a
+#: sweep blade reaches about 3.7 m beyond the hull's centreline.
+PIER_CLEARANCE = 4.0
+
+
+def arch_window(model: CourseModel, gate, arch, margin: float = 4.0,
+                clearance: float = PIER_CLEARANCE) -> Tuple[float, float, float]:
+    """``(station, low, high)``: a control point at ``station`` (the arch centre's own station on the
+    deck) with an offset in ``[low, high]`` crosses ``gate`` inside ``arch``, for a line that holds
+    its offset through the crossing. The arch interval is along the deck; a skewed deck (the trestle,
+    41 degrees) gives a boat less room across its path than along the deck, so the pier clearance is
+    divided by the arch's squareness. A window narrower than nothing collapses to the centre."""
+    pad = clearance / max(float(getattr(arch, "squareness", 1.0)), 0.3)
+    lo, hi = arch.interval
+    a, b = (lo + pad, hi - pad) if hi - lo > 2.0 * pad else ((lo + hi) / 2.0,) * 2
+    station, _ = lines.arch_point(model.course, gate, arch.centre, margin)
+    oa = lines.arch_point(model.course, gate, a, margin)[1]
+    ob = lines.arch_point(model.course, gate, b, margin)[1]
+    low, high = sorted((oa, ob))
+    return float(station), float(low), float(high)
+
+
+def optimise_line(model: CourseModel, boat, reference_time: float, pins: Dict[str, str],
+                  rudder_k: float = 0.0, wind=None, starts=(), step: float = 150.0, free=None,
+                  margin: float = 4.0, method: str = "Powell", maxfev: int = 5000) -> dict:
+    """The quickest line through the pinned arches.
+
+    Variables: where the line crosses every bridge, **anywhere inside its arch** (``arch_window``),
+    the start and finish offsets, and a free point every ``step`` metres (or at ``free`` stations)
+    away from the bridges. ``pins`` names the arch at some bridges; at the others the arch is the
+    legal one nearest where the first warm start crosses. Each of ``starts`` (routes: the crew's own
+    line, a published shortest line) and the straight pinned line is tried as a warm start, and the
+    search runs from the best.
+
+    Replaces a parametrisation that fixed every bridge point at its arch's centre and both ends on
+    the centreline: on HOCR 2026 that, with the trestle rule wrong, left the "optimum" 7.9 s slower
+    than a published legal line (TRACKING, 2026-10-22).
+    """
+    from scipy.optimize import minimize
+    from coxswain.river.route import Route
+    course = model.course
+    L = float(course.length)
+    lead = starts[0] if starts else None
+    gate_st, gate_lo, gate_hi = [], [], []
+    for gate, metres in model.gates:
+        legal = bridges.candidate_arches(gate, model.raster)
+        if not legal:
+            continue
+        wanted = pins.get(gate.name)
+        match = [a for a in legal if a.label == wanted]
+        if match:
+            arch = match[0]
+        elif lead is not None:
+            here = float(lead.offset_at(np.array([metres]))[0])
+            along = gate.station_of(course.offset_position(np.array([metres]), np.array([here]))[0])
+            arch = min(legal, key=lambda a: abs(a.centre - along))
+        else:
+            arch = bridges.racing_arch(gate, model.raster) or legal[0]
+        st, lo, hi = arch_window(model, gate, arch, margin)
+        gate_st.append(st); gate_lo.append(lo); gate_hi.append(hi)
+    end_lim = [max(float(course.half_width_at(s)) - margin, 0.0) for s in (0.0, L)]
+    fixed = np.array([0.0] + gate_st + [L])
+    if free is None:
+        free = np.arange(step, L - 0.5 * step, step)
+    free = np.array([f for f in free if np.min(np.abs(fixed - f)) > 0.4 * step], float)
+    stations = np.concatenate([fixed, free])
+    order = np.argsort(stations)
+    stations = stations[order]
+    for i in range(1, len(stations)):              # two arch points on one station
+        if stations[i] <= stations[i - 1] + 0.5:
+            stations[i] = stations[i - 1] + 0.5
+    lo = np.concatenate([[-end_lim[0]], gate_lo, [-end_lim[1]],
+                         [-max(float(course.half_width_at(f)) - margin, 0.0) for f in free]])[order]
+    hi = np.concatenate([[end_lim[0]], gate_hi, [end_lim[1]],
+                         [max(float(course.half_width_at(f)) - margin, 0.0) for f in free]])[order]
+
+    def route_of(x):
+        return Route(stations, np.clip(x, lo, hi), name="optimised")
+
+    def cost(x):
+        r = route_of(x)
+        t, _ = _time(model, boat, r, reference_time, wind, rudder_k)
+        # crossed a bridge outside a legal arch (the true crossing, as the evaluator checks it): a
+        # penalty steep enough that no line gain pays for it, graded so the search can see back in
+        t += 300.0 * len(lines.illegal_bridges(r, course, model.raster, model.gates))
+        return t + 50.0 * float(np.sum(np.maximum(lo - x, 0.0) + np.maximum(x - hi, 0.0))) \
+            + 100.0 * _over_turn(model, r)
+
+    pinned = lines.pinned_arch_route(course, model.raster, model.gates, pins, margin=margin)
+    tried = []
+    for r in list(starts) + [pinned]:
+        x0 = np.clip(r.offset_at(stations), lo, hi)
+        tried.append((cost(x0), getattr(r, "name", "start"), x0))
+    c0, name0, x0 = min(tried, key=lambda z: z[0])
+    if method == "Powell":
+        res = minimize(cost, x0, method="Powell", bounds=list(zip(lo, hi)),
+                       options=dict(maxfev=maxfev, xtol=0.3, ftol=1e-4))
+    else:
+        res = minimize(cost, x0, method=method, options=dict(maxfev=maxfev, xatol=0.5, fatol=0.05))
+    x = res.x if res.fun <= c0 else x0
+    best = route_of(x)
+    t, rudder = _time(model, boat, best, reference_time, wind, rudder_k)
+    return dict(pins=pins, time_s=t, rudder_s=rudder, unoptimised_s=c0, warm_start=name0,
+                warm_starts={n: float(c) for c, n, _ in tried}, path_m=route_length(model, best),
+                stations=list(map(float, stations)), offsets=list(map(float, np.clip(x, lo, hi))),
+                evaluations=int(res.nfev), route=best)
+
+
 def optimised_time(model: CourseModel, boat, reference_time: float, pins: Dict[str, str],
                    rudder_k: float = 0.0, wind=None, free: Tuple[float, ...] = (1100.0, 1610.0, 2030.0, 2500.0),
-                   margin: float = 4.0, maxiter: int = 160) -> dict:
-    """The quickest line through the pinned arches: the arch points stay fixed and the line is free
-    to move at ``free`` stations between them (Nelder-Mead on the race time with the turning cost).
+                   margin: float = 4.0, maxiter: int = 160, start_route=None) -> dict:
+    """The quickest line through the pinned arches at a few ``free`` stations (Nelder-Mead on the race
+    time with the turning cost): :func:`optimise_line` with this function's older defaults, so the
+    bridge points move inside their arches and the ends are free here too.
 
     A fair comparison of arch choices needs each one's own best line; a line drawn straight from
     arch to arch charges a choice for a poor transition rather than for the arch.
     """
-    from scipy.optimize import minimize
-    from coxswain.river.route import Route
-    pinned = lines.legalise(lines.pinned_arch_route(model.course, model.raster, model.gates, pins, margin=margin),
-                            model.course, model.raster, model.gates, margin=margin)
-    st0, off0 = np.asarray(pinned.stations, float), np.asarray(pinned.offsets, float)
-    free = np.asarray([f for f in free if np.min(np.abs(st0 - f)) > 60.0], float)
-    limit = np.array([max(model.course.half_width_at(f) - margin, 0.0) for f in free])
-    start = np.clip(pinned.offset_at(free), -limit, limit)
-
-    def route_of(x):
-        st = np.concatenate([st0, free])
-        off = np.concatenate([off0, np.clip(x, -limit, limit)])
-        o = np.argsort(st)
-        return Route(st[o], off[o], name="optimised")
-
-    def cost(x):
-        r = route_of(x)
-        legal = lines.legalise(r, model.course, model.raster, model.gates, margin=margin)
-        if len(np.atleast_1d(legal.stations)) != len(np.atleast_1d(r.stations)):
-            return 1e6                                   # the free points pulled it out of an arch
-        t, _ = _time(model, boat, r, reference_time, wind, rudder_k)
-        return t + 50.0 * float(np.sum(np.maximum(np.abs(x) - limit, 0.0))) + 100.0 * _over_turn(model, r)
-
-    t_start = cost(start)
-    res = minimize(cost, start, method="Nelder-Mead",
-                   options=dict(maxiter=maxiter, xatol=0.5, fatol=0.05, initial_simplex=None))
-    best = route_of(res.x)
-    t, rudder = _time(model, boat, best, reference_time, wind, rudder_k)
-    return dict(pins=pins, time_s=t, rudder_s=rudder, unoptimised_s=t_start, path_m=route_length(model, best),
-                free_stations=list(map(float, free)), free_offsets=list(map(float, np.clip(res.x, -limit, limit))),
-                evaluations=int(res.nfev), route=best)
+    out = optimise_line(model, boat, reference_time, pins, rudder_k, wind,
+                        starts=() if start_route is None else (start_route,), free=free, margin=margin,
+                        method="Nelder-Mead", maxfev=maxiter * 4)
+    fs = set(map(float, free))
+    out["free_stations"] = [s for s in out["stations"] if s in fs]
+    out["free_offsets"] = [o for s, o in zip(out["stations"], out["offsets"]) if s in fs]
+    return out
 
 
 def variants(card: dict) -> List[dict]:
@@ -236,10 +321,24 @@ def variants(card: dict) -> List[dict]:
                             do=["Declare our side at one length of open water.",
                                 "Choose the side that leaves us the centre arch at the next bridge.",
                                 "[how we make the pass: Joshua / Sophie to write]"]))
-    w = card.get("wind") or {}
     out.append(dict(letter="C", name="Hard headwind",
-                    when="A westerly or south-westerly of 12 mph or more at the start.",
+                    when="12 mph or more at the start, from the west round to the north-west.",
                     do=["Same line, same arches: re-steering for wind is worth seconds at most.",
-                        "Splits slow from Weeks to the finish; judge them against the card, not last week.",
+                        "Splits slow where the wind is ahead (%s); judge them against the card, not last week."
+                        % (headwind_stretches(card) or "see the course breakdown"),
                         "Moves stay in the shallows; hold length and rhythm into the wind."]))
     return out
+
+
+def headwind_stretches(card: dict) -> str:
+    """The forecast's headwind stretches as runs of landmarks, e.g. "Start to Weeks Footbridge"."""
+    runs, cur = [], None
+    for s in card.get("sections", []):
+        if s.get("wind_label") == "headwind":
+            cur = [s["start"], s["end"]] if cur is None else [cur[0], s["end"]]
+        elif cur is not None:
+            runs.append(cur)
+            cur = None
+    if cur is not None:
+        runs.append(cur)
+    return ", ".join("%s to %s" % (a, b) for a, b in runs)

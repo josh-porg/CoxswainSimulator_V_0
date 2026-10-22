@@ -184,3 +184,49 @@ def test_goal_chances_are_monotone_in_place():
                     own_mean=1200.0, own_sd=15.0, last_place=8)
     ch = G.chances(field, [1, 3, 10])
     assert ch[1] <= ch[3] <= ch[10] and 0.3 < ch[10] < 0.8 and 8 <= ch["median_place"] <= 13
+
+
+def test_headwind_stretches_group_consecutive_sections():
+    from coxswain.raceday import plan as P
+    card = dict(sections=[dict(start="Start", end="A", wind_label="headwind"),
+                          dict(start="A", end="B", wind_label="headwind"),
+                          dict(start="B", end="C", wind_label="cross from starboard"),
+                          dict(start="C", end="D", wind_label="headwind")])
+    assert P.headwind_stretches(card) == "Start to B, C to D"
+
+
+def _toy_table():
+    """A two-section wind table whose time grows with the square of the wind (any direction)."""
+    speeds, dirs = [0.0, 4.0, 8.0, 12.0], [22.5 * i for i in range(16)]
+    rows = [dict(speed=v, direction=d, factor=1.0 + 0.002 * v * v, share=[0.5, 0.5], felt=[v, v], rudder=[0.0, 0.0])
+            for v in speeds for d in dirs]
+    return dict(reference_s=1000.0, speeds=speeds, directions=dirs, rows=rows)
+
+
+def test_gust_intensity_from_gust_factor():
+    from coxswain.raceday import gusts as GU
+    assert GU.intensity(6.0, None) == 0.0 and GU.intensity(6.0, 5.0) == 0.0 and GU.intensity(0.0, 9.0) == 0.0
+    assert math.isclose(GU.intensity(6.0, 6.0 * (1 + GU.PEAK_FACTOR * 0.2)), 0.2)
+    assert GU.intensity(2.0, 40.0) == GU.MAX_INTENSITY
+
+
+def test_gusts_cost_more_than_steady_wind_and_nothing_without_them():
+    from coxswain.raceday import gusts as GU
+    T = _toy_table()
+    none = GU.allowance(T, 6.0, 315.0, None)
+    assert none["ratio"] == 1.0 and none["added_s"] == 0.0
+    a = GU.allowance(T, 6.0, 315.0, 11.0)
+    sigma = a["sigma_ms"]
+    # a quadratic cost averages to f(U) + 0.002 sigma^2, between the table's speeds and on them
+    assert a["ratio"] > 1.0 and a["wind_ratio"] > 1.0
+    assert math.isclose(a["added_s"], 0.002 * sigma ** 2 * 1000, rel_tol=1e-9)
+    b = GU.allowance(T, 4.0, 90.0, 7.0)
+    assert math.isclose(b["added_s"], 0.002 * b["sigma_ms"] ** 2 * 1000, rel_tol=1e-9)
+
+
+def test_gridded_interval_parsing():
+    from coxswain.raceday import gusts as GU
+    t0, t1 = GU._interval("2026-10-17T14:00:00+00:00/PT3H")
+    assert (t1 - t0).total_seconds() == 3 * 3600
+    t0, t1 = GU._interval("2026-10-17T14:00:00+00:00/P1DT2H")
+    assert (t1 - t0).total_seconds() == 26 * 3600

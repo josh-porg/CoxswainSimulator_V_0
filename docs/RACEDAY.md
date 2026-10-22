@@ -5,6 +5,17 @@
 end of each, the backlog re-prioritised from what the user says at the demo. Update this file
 whenever a sprint starts or ends, a story is done, or an answer changes the plan.*
 
+> **Depth numbers below are overstated (flagged 2026-10-21).** Every race card, plan, field map and review
+> here priced shallow water through `RouteEvaluator`'s default path, which multiplies the boat's **whole**
+> resistance by the shallow-water wave factor (up to 3x) instead of the wave term (9-17% of it). HOCR 2026
+> GPS from three crews rejects that term (slope -0.06 +- 0.03 against 1). On a research boat (Sretenskii,
+> wave term only) the faster crews' optimum gaps fall from 32-34 s to 6-8 s. Treat as overstated: "shallows +16 /
+> +34 s", "push in the shallows" / "push where the boat is slowest", "steering wide for deeper water", the eight's
+> lake targets "near the drag rise", and every "out of the shallows: depth +N" line gain. The reviews are being
+> re-run on the research boat (`race_card.build_boat(..., profile="research")`); the published race cards are
+> not changed. PHYSICS_PROGRAMME, "Shallow water on the Charles, tested against HOCR 2026 GPS"; TRACKING,
+> "Analyses priced on the factor-on-total depth path".
+
 ---
 
 ## 1. Vision
@@ -91,6 +102,8 @@ These come from earlier work (SOURCES sections in brackets) and change what the 
   them, pay in seconds (§84-86, §88). So the plans' real content is **traffic and arch decisions**.
 - **Push where the boat is slowest** — the shallow stretches, where a masters crew sits near the
   transcritical drag rise (`course_pacing.py`, `line_and_pace.py`). That is where power moves go.
+  *Flagged 2026-10-21: rests on the overstated depth term (banner above); the shallow stretches showed
+  no measurable slowdown in HOCR 2026 GPS. Do not use until re-derived on the research boat.*
 - **A day factor across all events.** Every category races the same water on the same day, so
   earlier events' times against their norms give today's factor (§77). That is the machinery for
   R9: target splits updated from earlier races.
@@ -225,6 +238,21 @@ All commands from the project folder; Python is `.venv/Scripts/python.exe`.
 | after the race | stop the jobs | disable both scheduled tasks; note in the log what was used and what was ignored (the retro) |
 
 The phone page: https://claude.ai/artifact/72R1Wr3wYbZ4k9WTQLVRNP (share with Sophie from its Share menu).
+
+**The self-updating site** (https://josh-porg.github.io/charles-race-card/, repo `josh-porg/charles-race-card`):
+the phone fetches the NWS forecast and USGS flow itself and applies precomputed tables, so weather and
+flow need nothing running. The passphrase is in `data/local/raceday/site_passphrase.txt` (local only).
+After any change to the plan (arches, field, heat sheet), rebuild and push:
+
+| step | command |
+|---|---|
+| cards | `scripts/race_card.py --crew four ...` and `--crew eight ...` (as above) |
+| wind tables (only when a planned line changes) | `scripts/wind_table.py` (~4 min) |
+| bundle | `scripts/raceday_site.py` |
+| page (after editing `race_card.html` or `raceday_site_loader.js`) | `scripts/build_site_index.py` |
+| encrypt | `.venv-tools/Scripts/python.exe scripts/raceday_encrypt.py` |
+| publish | in `data/local/raceday/site/`: `git add -A && git commit -m "Update" && git push` (token via `git credential fill`, docs/RELEASING.md) |
+
 
 ## 12. Log
 
@@ -401,3 +429,149 @@ The phone page: https://claude.ai/artifact/72R1Wr3wYbZ4k9WTQLVRNP (share with So
   pane; `scripts/heat_sheet.py` imports pasted rows (bows into the entries file in place, the start time
   into `start_times.json`, read by the card). The refresh job's first run (9 Oct) is still waiting on a
   permission prompt. 17 unit tests.
+- 2026-10-12 — **Hourly forecast reaches the race.** Saturday 04:00-13:00 ET: northwest 16-18 mph, showers
+  clearing overnight (rain 15-25% by the starts), mostly sunny by 10:00. The card (forecast for the
+  start, 7.6 m/s from 315): four's line +18% (+11 to +27%), eight's +14% (+8 to +20%). With a
+  northwesterly the headwind runs from the start to the big turn (Weeks-Anderson across), and it is
+  across from starboard from the big turn to the finish; the Powerhouse stretch is sheltered (1.6 m/s
+  felt). Rowers' decks' wind slide rewritten for it (and corrected from the seat: a headwind is at the
+  rowers' backs, and "starboard", not "right"). Checking whether the line should change for it.
+- 2026-10-12 — **Start order and times confirmed** (Joshua's go-ahead; RegattaCentral read in the browser
+  pane): the heat-sheet page is still empty, but the event and competitor pages are published. Women's
+  Grand Master Eights (event 17) 9:34 AM and Women's Veteran Fours (event 22) 10:36 AM, Saturday 17 Oct
+  (tentative per the regatta). Bow order identical to the entries we model (four bow 21 of 26, eight
+  bow 7 of 31; every bow checked), so the traffic analysis stands. `data/local/raceday/start_times.json`
+  carries the times; the cards now read "confirmed". **Line in Saturday's wind:** re-optimising each
+  planned line for NW 7.6 m/s (warm-started from the planned line) gains 0.9 s (four) and 1.3 s (eight)
+  and moves the line under 1 m on average: keep the line. (A cold start from arch-to-arch lines came out
+  worse than the planned line, an optimiser artefact; `plan.optimised_time` now takes `start_route`.)
+  Plan C now names the forecast's headwind stretches (`plan.headwind_stretches`). 18 unit tests.
+- 2026-10-12 — **Self-updating site (free, no laptop, no credits).** Joshua: keep both pages, move to GitHub;
+  keep only the race-morning laptop job once the site works. `scripts/wind_table.py` precomputes each
+  crew's card against 112 winds (0-12 m/s x 16 directions; factor, section shares, felt wind, turning);
+  bilinear interpolation reproduces the card within 0.1% at Saturday's forecast (four +18.07 vs +17.99%,
+  eight +13.63 vs +13.57%). `scripts/raceday_site.py` bundles cards, wind and flow tables;
+  `scripts/raceday_encrypt.py` (.venv-tools, `cryptography`) encrypts it (AES-256-GCM, PBKDF2-SHA256
+  250k); the page (`scripts/raceday_site_index.html`, generated by `build_site_index.py` from the card
+  page plus `raceday_site_loader.js`, one renderer for both) unlocks with the passphrase, fetches NWS
+  (hourly at the start, else the 12-hour period, else Logan now) and USGS (both allow browser
+  requests), and rebuilds the card; race-morning day factor typed into the page (kept on the phone).
+  Tested locally: wrong passphrase refused; live forecast (NW 17 mph at 10 ET) and flow (208 cfs,
+  +5.5 s after rain); day factor 3% applied exactly; fixed the wind range showing under a measured day
+  factor. Published: https://josh-porg.github.io/charles-race-card/ (public repo, encrypted data only).
+- 2026-10-15 — **Short course, the river on race day, the field, password.** (1) *Short course* (high
+  wind): start off Riverside Boat Club, same finish. Riverside projects to 1107 m on our chart, leaving
+  3.73 km (Joshua's estimate 3.2 km: to reconcile; the start landmark is a parameter, `card.SHORT_START`).
+  `card.short_course` (Python) and `shortOf` (site) give the short card: sections from Riverside, the
+  full course's times from there on, its own traffic (times scaled by the remaining share). Both pages
+  have a Full / Short switch. Short targets now: four requalify 18:41; eight medal 14:46, requalify 15:47.
+  (2) *River*: no official forecast at Waltham, but the National Water Model forecasts the reach: 181 cfs
+  now rising to ~570 cfs (16 m3/s) by Saturday morning after rain. On the planned lines that current
+  costs the four +24 s and the eight +18 s (`river_conditions.py`); basin level at the dam +0.06 ft on its
+  median (5-95% range +-0.45 ft is worth +-3 s four, +-6 s eight). Both now in the targets (every crew
+  pays them), on the card and the site (NWM and USGS are browser-readable). (3) *Field*: the published
+  competitor lists (xlsx) match our entries bow for bow. Older Charles results added for crews without a
+  2025 time (2021-2024, scaled by the field medians, uncertainty growing with the years): fours
+  Saratoga, Minneapolis, Green Lake, Lincoln Park, Newport; eights **Marlow (2024 winners, now favourites
+  for the medal)**, DeWolfe, Riverfront, Blood Street, Holyoke. Eight medal chance 0.3%, requalify 88%;
+  four requalify 6%. Web search found no autumn 2026 results for the remaining 14 crews. (4) Site
+  password set to `sra` (Joshua's choice); email to Sophie in `data/local/raceday/email_to_sophie.txt`.
+  (5) The hourly laptop job now runs (approved).
+- 2026-10-15 — **Analysis for the session: the Charles in 2026** (`data/local/raceday/analysis_2026.py`,
+  `scripts/charles_2026_report.py` -> `out/report/charles_2026.html`, https://claude.ai/artifact/5r6MfgCQ43n33WupFUGVbF).
+  Saturday on the planned lines at requalifying pace, against still air / slack / deep water: four wind +181 s
+  (65 s of it the first km into the north-wester), current +29 s, shallows +16 s, turning +4 s; eight wind
+  +107 s, current +22 s, shallows +34 s (twice the four's: nearer the depth drag rise), turning +6 s.
+  Re-optimising the line for Saturday's wind and current gains 0.6 s (four) and 1.7 s (eight), moving it a
+  metre or so: keep the planned line. The September reports in out/report predate the week's corrections
+  (wind area, measured turning, the evaluator's penalised `elapsed`); this page supersedes their numbers.
+- 2026-10-15 — **Briefing map (live, interactive)**: https://josh-porg.github.io/charles-race-card/briefing.html
+  (`scripts/raceday_briefing.html`, published by `raceday_encrypt.py`; same passphrase). For a laptop or
+  projector: the planned line coloured stretch by stretch by Saturday's live wind (NWS for each start),
+  live river flow (NWM) and basin level (USGS); "where the time goes" per stretch (wind from the wind
+  tables; current from `analysis_2026.json` scaled by the live flow; shallows and turning from the
+  analysis); click a stretch for its costs, push note, arch advice and the big-turn note; pan and zoom;
+  crew and full/short course switches; **rowers' view by default** (no targets), coxswains' view adds
+  splits and be-there-by times. Map data now carries each stretch's outline (`map.section_lines`).
+- 2026-10-15 — **Briefing map layers and the possible lines** (`data/local/raceday/fields_2026.py`). Pace fields
+  over the raced water (25 offsets x 161 stations, +-72 m): the loss against the planned line's pace at the
+  same station, by cause (depth, current, wind) and total, plus raw depth, current (Saturday's flow) and
+  wind felt (the card's forecast when built). Local pace only: getting there costs distance, which the
+  line comparison carries. Lines timed on Saturday with a breakdown against the planned line (distance,
+  depth, current, wind, turning). **Finding: "inside of the bends" is 25 s (four) / 15 s (eight) faster
+  than the planned line**: 83 m shorter, 50 m of it in the big turn, where the planned line went round
+  ~6 m to starboard of centre (the outside of a port turn) because its optimiser only had free points
+  before Anderson. The inside line is steerable (peak 2.35 deg/s), deep (>= 2.16 m) and arch-legal, but
+  the course's buoy lines are not in the model. Re-optimising both planned lines with free points through
+  the big turn and after Eliot, kept >= 15 m off the bank as a stand-in for the buoys (`bend_reopt.py`).
+  Also: "shortest legal" runs aground (0.95 m) and costs the eight 40 s in the shallows.
+- 2026-10-15 — **Bend-optimised lines** (`bend_reopt.py` -> `plan_<crew>_bends.json`; same arches, free points
+  through the big turn and after Eliot, kept >= 15 m off the bank where free, ~11 m at the closest between
+  points): still air four -11.8 s, eight -7.9 s; on Saturday's forecast four -9.7 s, eight -7.2 s (distance
+  -14.8 / -11.4 s, given back: depth +3.2 / +3.7, wind +3.7 / +1.6). 55 m shorter. In the briefing map's
+  comparison as "Planned arches, bends optimised (15 m off the bank)". NOT adopted as the planned line:
+  the buoy lines are not in the model; Joshua and the coach decide. Straightened course view added to the
+  briefing map (station x offset, width x10).
+- 2026-10-16 · **Gusts.** The hourly NWS forecast leaves `windGust` empty, so the card never had gusts. The
+  gridded forecast has them: Saturday 26 mph at the eight's start, 28 mph at the four's (sustained 15-16 mph
+  NW, gust factor ~1.8). `coxswain/raceday/gusts.py` turns them into a drag allowance (turbulence intensity
+  (G-1)/3; half the wind table's curvature x the speed variance, so the table's linear interpolation does not
+  bias it): four +6 s, eight +3 s. Off by default (the model was calibrated on sustained winds); a "Steady wind
+  / Count gusts" switch on the race card (GitHub site and the claude.ai page), the briefing map and the 2026
+  report. Every crew pays it, so chances are unchanged. Not modelled: steering corrections in gusts, direction
+  swings. A measured day factor already contains gusts; the switch then does nothing.
+- 2026-10-16 · **Map wind layers fixed.** `fields_2026.py` evaluated local pace with no steering model, so the
+  wind was charged against the evaluator's 260 N default instead of ~840 N: the "from wind" and "total" layers
+  were 3.2x too strong (+67 s/500 mean on the centreline vs the card's +21). Also the forecast tuple overwrote
+  the `wind` layer key, so "...from wind" drew nothing. Both fixed; a 40 m speed lag added (the boat's momentum
+  through shelter patches). The line comparison was never affected (it uses the card's evaluator). On the
+  15 mph forecast the bend-optimised line is now -9.3 s (four) / -6.8 s (eight).
+- 2026-10-16 · **River forecast fallback.** NOAA's medium-range flow (and its blend) came back empty on 16 Oct
+  and the 18 h short range ends Friday 23:00 ET, so the cards fell back to the flow observed now (181 cfs)
+  while the short range shows the river rising to ~440 cfs. `flow.forecast_at` (and the site and briefing)
+  now use the short range's last hour when the start is within 18 h beyond it: four requalify 24:53, eight
+  medal 19:43 / requalify 21:03 on the full course. The short range covers the starts from about 17:00 ET Friday.
+- 2026-10-16 · **Both practised arch lines.** Each crew's other line (Cambridge or centre at River Street and
+  Western Avenue, centre at Weeks) optimised for that crew: `race_card.py --arches {cambridge,centre}` (cached
+  `plan_<crew>_<option>.json`, `card_<crew>_<option>.json`, `wind_table.py four:centre`). An Arches switch on the
+  phone card (splits and landmarks per line, and today's difference between them, live) and both lines on the
+  briefing map. On Saturday's forecast centre is quicker for both: four -2.7 s, eight -3.9 s (map comparison;
+  the phone page -1.9 / -3.8 s live), near the model's precision.
+- 2026-10-16 · **Results, live calibration and a backtest.** RegattaCentral's event pages carry each event's
+  results (with Riverside / Weld / CBC splits) as JSON; scripts are refused (Cloudflare), so they are read by
+  visiting the pages in the browser (`scripts/rc_event_summary.js`; in-page fetch bursts get challenged, and a
+  local receiver was dropped). Its timestamps encode the Eastern wall clock as Pacific (ET = epoch - 7 h); the
+  pages' own strings say 09:34 / 10:36 US/Eastern, so our starts are right. Summaries for 2024, 2025 and 2026
+  Friday: `data/local/raceday/results/hocr_event_summaries.csv`. Backtest (`results/backtest_dayfactor.py`,
+  2024->2025 and 2025->2026 Friday): mean absolute error of an event's median, all / with an earlier finished
+  event that day: last year as is 1.6 / 1.7%; wind+flow model on Logan's observed wind 3.8 / 3.7%; same-day
+  ratio 1.5 / **1.2%**; model corrected by same-day 3.4 / 2.6%. Day pairs, actual vs model: Fri 25->26 -3.5 vs
+  -7.3%; Fri 24->25 +3.2 vs -1.1%; Sat 24->25 +0.2 vs +3.3%: the model gets the direction but about twice the
+  size (Logan is not the course, and fields change). Not recalibrated on three day pairs; the same-day factor
+  replaces it on the morning. Friday 2026 ran ~3.5% faster than Friday 2025 (SSE tailwind).
+- 2026-10-16 · **Live day factor tomorrow.** `scripts/day_from_results.py` (`due` / `add` / `build`) turns the
+  finished Saturday events (`results/rc_events_2026.json`, events 9-22) into `day_results.csv` against 2025's
+  medians / 1.02 (2025 ran 2% slower than the still-air goals: events 17 and 22 medians against the still-air
+  requalify times 1.021 / 1.018). The `charles-race-morning-refresh` task now reads the results, builds the
+  factor, refreshes all four cards and pushes the site; the site uses the card's day factor unless one is typed in
+  on the phone (both now on the same 1.02 base). Expect a large move when it switches on: the wind model puts
+  Saturday's 15 mph NW at +15% for the four; the backtest suggests the real effect is nearer half that.
+- 2026-10-17 · **Race day retro (first notes).** Both scheduled jobs disabled after the race. The race-morning job
+  never ran during racing: the app was not open, and its one run started at 12:32 ET, so the cards stayed on the
+  wind model and the live day factor was not used. Lesson: keep the laptop awake with the app open (or start the
+  job by hand) on the morning. Race video synced and rendered with the overlay (layout A, title card; CoxBox
+  start at video 1:06.5, called splits agree to 1.3 s): data/local/overlay/videos_titled/hocr2026/.
+- 2026-10-19 · **Race review** (artifact https://claude.ai/artifact/9HJDekNn7LcGaQ8agY5JE6; data/local/raceday/
+  race_review_2026.py, race_review_opt.py, race_review_page.py). Four: 21st of 26, 24:07.7 (GPS 23:54.7), centre
+  arches at River Street, Western and Weeks. Eight: 8th of 31, 18:59.1. The day: KBOS 18 mph gusting 26 from 330;
+  flow 196 cfs (NWM had forecast ~440); Saturday fields 4.9% slower than 2025 (14 events), about +7% on still
+  water, against the card's +15% (forecast wind) and +26% (observed wind) for the four: the wind model overstates
+  by 2-3x. Calibrated wind 3.85 m/s (0.40 of the open reference). Our line was 2.9 s off the optimum through the
+  same arches (optimum 33 m longer, out of the shallows: depth +12.2, distance -8.7). The day-calibrated card would
+  have said requalify 22:53 / forecast 23:51 (actual median 23:20.7; ours 24:07.7). bestline.row3r.com (13 public
+  tracks, no .fit): their shortest line is 8.6 s slower than the optimum in our model; only one of their lines
+  beats ours (data/local/bestline/). Request for the .fit files drafted: data/local/bestline/email_to_row3r.txt.
+- 2026-10-19 · **Race review on the site, encrypted.** https://josh-porg.github.io/charles-race-card/review.html
+  (passphrase as the race card). data/local/raceday/race_review_site.py (.venv-tools): the page is a locked shell;
+  text, numbers, GPS track and replay are in review.enc (AES-256-GCM, PBKDF2-SHA256 600k). noindex meta; not linked
+  from the race card. Rebuild: race_review_page.py, then race_review_site.py, then push site/.

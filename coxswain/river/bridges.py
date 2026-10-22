@@ -513,13 +513,23 @@ def deck_geometry(name):
 #: and the Cambridge arch is available when the centre is congested.
 #:
 #: ``"centre"`` and ``"cambridge"`` are resolved against the arches actually
-#: found in the opening.  BU Bridge is the exception that needs naming
-#: rather than counting: it is a seven span bridge whose shore arch is
-#: shallow, and the Charles River Rowing Committee's traffic pattern puts
-#: upstream traffic through *the second arch from the Cambridge shore*.
+#: found in the opening.
+#:
+#: **Corrected 2026-10-22: the trestle and BU Bridge rules were swapped.**
+#: HOCR 2023 rules sec. 6.1: "the railroad trestle bridge's second arch from
+#: the right (Cambridge shore) is the mandated lane"; sec. 10.4 penalises only
+#: the trestle's and Anderson's Cambridge arch and any bridge's Boston arch.
+#: The table had the trestle on "centre" (arch 3 of 6) and BU Bridge on
+#: "second_from_cambridge", which on BU's three modelled openings resolved to
+#: its centre. All 17 HOCR 2026 tracks (three CoxBox, 13 bestline.row3r.com,
+#: and bestline's own shortest legal line) pass the trestle's arch 5 -- second
+#: from Cambridge -- and BU Bridge's Cambridge-side opening, which lines up
+#: with that lane. The old rule forced every optimised line through two arches
+#: no crew uses (TRACKING, 2026-10-22). Eliot's Cambridge arch is left barred
+#: as before although sec. 6.1/10.4 allow it; see TRACKING.
 HOCR_ARCH_RULE = {
-    "BU Bridge": ("second_from_cambridge",),
-    "Grand Junction RR": ("centre",),
+    "BU Bridge": ("centre", "cambridge"),
+    "Grand Junction RR": ("second_from_cambridge",),
     "River Street": ("centre", "cambridge"),
     "Western Avenue": ("centre", "cambridge"),
     "Weeks Footbridge": ("centre", "cambridge"),

@@ -73,6 +73,7 @@ MILE = 1609.344
 #: Riverside landmarks off the line, ``(name, (lat, lon), note)``.
 RIVERSIDE = (
     ("Wooden pier", (42.3669017, -71.1353417), "Boston side, ~160 m before the line"),
+    ("Riverside BC", (42.358056, -71.115959), "short-course start (high wind)"),
 )
 
 
@@ -115,10 +116,13 @@ class CourseModel:
     notes: Dict[str, str] = field(default_factory=dict)
 
     @classmethod
-    def build(cls) -> "CourseModel":
+    def build(cls, level_offset: float = 0.0) -> "CourseModel":
+        """``level_offset``: the basin's level against the survey's normal pool, metres (USGS 01104715
+        at the New Charles River Dam). It moves the depth under the line only; the centreline,
+        landmarks and bridges stay those of the normal pool, so stations compare across levels."""
         raster = charles.charles_channel()
         _, _, race_line, _ = charles.hocr_course(raster)
-        course = charles.charles_course(centreline=race_line, month=10)
+        course = charles.charles_course(centreline=race_line, month=10, level_offset=level_offset)
         flow = charles.ContinuityFlow(course, discharge=charles.monthly_discharge(10))
         geometry = CourseGeometry(channel=raster)
         gates = geometry.gates_on_course()
@@ -202,9 +206,27 @@ def wind_area(boat, speed: float, steering: ReducedModel) -> float:
     return aero.total_area * (steering.critical_power / speed) / water
 
 
+def depth_boat(boat):
+    """The boat the evaluator solves its depth term for, or ``None`` for the default factor path.
+
+    By default the evaluator gets no boat and multiplies the crew's WHOLE resistance by the
+    Schlichting wave factor (up to 3x near ``Fr_h = 1``), where [D11] and ``hull_resistance`` scale
+    the wave term only. On the HOCR 2026 GPS tracks that charged three crews 62-156 s of depth on
+    their own lines and the boats showed none of it (``data/local/raceday/shallow_check.py``;
+    PHYSICS_PROGRAMME). A boat that carries a non-shipped profile (``physics.resolve("research")
+    .apply(boat)``) is handed to the evaluator, which then solves the boat's own power balance with
+    Sretenskii's finite-depth wave table, so depth moves the wave term and nothing else. Unstamped
+    and shipped boats keep the old path: race cards and the report do not change unless asked.
+    """
+    if getattr(boat, "physics_profile", None) in (None, "shipped"):
+        return None
+    return boat
+
+
 def _evaluate(model: CourseModel, boat, reference_time: float, wind: Optional[Tuple[float, float]]):
     ev = RouteEvaluator(model.course, flow=model.flow, reference_speed=model.course.length / reference_time,
-                        upstream=True, margin=4.0, minimum_depth=1.2, n_samples=900)
+                        upstream=True, margin=4.0, minimum_depth=1.2, n_samples=900,
+                        boat=depth_boat(boat))
     steering = ReducedModel()
     ev.with_steering(steering, raster=model.raster, gates=model.gates)
     ev.with_exertion()
@@ -378,3 +400,52 @@ def rescale(card: dict, new_factor: float, source: str) -> dict:
     card["wind_factor"] = new_factor
     card["factor_source"] = source
     return card
+
+
+def scale_targets(card: dict, k: float) -> dict:
+    """Multiply every target time (totals, splits, checkpoints, turning) by ``k`` (the river's flow
+    and level, which every crew pays like the wind)."""
+    for t in card["targets"]:
+        for key in ("central", "fast", "slow"):
+            t["today_" + key] *= k
+            t["split_overall_" + key] *= k
+            for name in ("splits_", "at_landmark_", "rudder_"):
+                t[name + key] = [x * k for x in t[name + key]]
+        t.update(total_today=t["today_central"], split_overall_today=t["split_overall_central"],
+                 splits=t["splits_central"], at_landmark=t["at_landmark_central"])
+    return card
+
+
+
+SHORT_START = "Riverside BC"
+
+
+def short_course(card: dict, start: str = SHORT_START) -> dict:
+    """The card for the shortened course: the same river, line and finish, started at ``start``.
+
+    Every section after the start keeps its time and split; the targets are the full course's times
+    from the start landmark on (the field's order does not change when everyone rows the same shorter
+    course, so the goals scale with the share of time that remains)."""
+    import copy
+    i0 = next(i for i, x in enumerate(card["sections"]) if x["start"] == start)
+    c = copy.deepcopy(card)
+    secs = c["sections"][i0:]
+    remain = sum(x["share"] for x in secs)
+    for x in secs:
+        x["share"] = x["share"] / remain
+    c["sections"] = secs
+    path = sum(x["path_m"] for x in secs)
+    for t in c["targets"]:
+        for key in ("central", "fast", "slow"):
+            before = t["at_landmark_" + key][i0 - 1] if i0 > 0 else 0.0
+            t["at_landmark_" + key] = [v - before for v in t["at_landmark_" + key][i0:]]
+            t["splits_" + key] = t["splits_" + key][i0:]
+            t["rudder_" + key] = t["rudder_" + key][i0:]
+            t["today_" + key] = t["at_landmark_" + key][-1]
+            t["split_overall_" + key] = t["today_" + key] / path * 500.0
+            t[key] = t[key] * remain
+        t.update(total_today=t["today_central"], split_overall_today=t["split_overall_central"],
+                 splits=t["splits_central"], at_landmark=t["at_landmark_central"])
+        t.pop("lake_split", None)
+    c["course"] = dict(name="short", start=start, start_m=secs[0]["from_m"], length_m=path, share=remain)
+    return c

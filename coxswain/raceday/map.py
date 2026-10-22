@@ -83,6 +83,11 @@ def course_map(model, route, sections: List[dict], decisions: Optional[List[dict
         if sec.get("push"):
             q = np.linspace(sec["from_m"], sec["to_m"], 40)
             pushes.append(rel(model.course.offset_position(q, route.offset_at(q))))
-    return dict(width=int(round(x1 - x0)), height=int(round(y1 - y0)),
+    section_lines = []
+    for sec in sections:
+        q = np.linspace(sec["from_m"], sec["to_m"], max(int((sec["to_m"] - sec["from_m"]) / 15.0), 4))
+        section_lines.append(rel(_simplify(model.course.offset_position(q, route.offset_at(q)), 2.0)))
+    return dict(width=int(round(x1 - x0)), height=int(round(y1 - y0)), section_lines=section_lines,
+                origin=[float(x0), float(y0)],
                 banks=[rel(b) for b in banks], line=rel(_simplify(line, 2.0)),
                 start=rel(line[0])[0], finish=rel(line[-1])[0], bridges=bridges, marks=marks, pushes=pushes)

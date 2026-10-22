@@ -43,6 +43,157 @@ carry a depth-aware wave table, which takes both optimisers past this branch
 (shallow-water item). Fixing it for `shipped` would move published targets and
 needs a decision.
 
+*On the water, 2026-10-21: the factor-on-total path is rejected, and the HOCR
+2026 reviews ran on it.* `card._evaluate` never passed a boat, so every race card,
+review and line study priced depth this way. On three HOCR 2026 CoxBox tracks
+(1,923 strokes, `data/local/raceday/shallow_check.py`) it predicts 5-20% speed
+losses on the Cambridge-bank stretches and the boats show none: slope
+-0.06 +- 0.03 against the model's 1, in every crew and subset. On the crews' own
+lines it charged 62, 156 and 150 s of depth where the boat's resistance model
+(wave term only) gives 22-36 s; the ~45 s of depth behind the faster crews'
+32-33 s "optimum" gaps is this defect. Re-optimised on a research boat (`shallow_gap.py`), the gaps are
++8.2 s (MSM 4+, was 32.5), +6.1 s (GM 8+, was 33.8) and -1.2 s (our four, was 2.9). `card.depth_boat` now hands a
+research-stamped boat to the evaluator (Sretenskii, wave term only); shipped and
+unstamped boats are unchanged, so the race cards and the site still show the old
+numbers until the decision above is taken. The research term itself is not seen
+pooled either (-0.11 +- 0.12) but is weakly tested; PHYSICS_PROGRAMME, "Shallow
+water on the Charles, tested against HOCR 2026 GPS". **Decision needed:** whether
+race cards and the review site move to the research depth term (they are
+race-day tools, not the frozen trainer, but they publish targets).
+
+### The Charles corridor stops at the 1.22 m contour, capped at 60 m — crews row outside it
+**Impact: high for HOCR line reviews and optimised lines on the start stretch and
+after Eliot; decided 2026-10-21, not yet built.**
+
+`charles_course` takes `half_width` from `ChannelRaster.half_width_along`: the
+distance to the edge of water at least `NAVIGABLE_DEPTH` = 1.22 m deep, clipped at
+`cap=60` m, the same on both sides (`port_limit` and `starboard_limit` default to
+it). On the start stretch (300-950 m) that is 60 m; the 1.22 m edge is 54-73 m out,
+the CRAB chart's water edge 70-91 m, and the lidar bank (USGS 3DEP) 86-135 m. Every
+observed crew rows on the Cambridge side at 61-78 m there (our three CoxBox tracks
+and all 13 bestline tracks, raw); 17-21% of each crew's strokes are outside the
+corridor. The review scripts clamp the lines to `hw - 2` = 58 m, moving them 8-18 m
+into deeper water, and the evaluator also counts anything under
+`minimum_depth` = 1.2 m as aground (the crews' 10th-percentile depth is 1.07-1.27 m).
+After Eliot the corridor is 30-43 m, the chart edge 38-58 m, the lidar bank 49-67 m
+(`data/local/raceday/shallow_shore.py` -> `shallow_shore.json`).
+
+*Decision.* **Yes, on the Cambridge side: the limit should follow the water, not the
+4-ft contour.** HOCR Rule 6.2 makes the Cambridge shore the starboard boundary
+wherever there are no green buoys; the 1.22 m threshold is a channel-extraction
+choice, not a rule, and the crews show the water is used. But:
+
+1. *Which edge.* The chart's water edge is not the bank on the start stretch: the
+   survey stops near its 2-ft contour, short of the lidar bank by 15-60 m, and the
+   crews row right up to it (bestline's closest within 0-8 m at 450-650 m). Use the
+   chart's water edge on the starboard side, measured laterally (not
+   `water_clearance`, which is the distance to the nearest edge in any direction),
+   capped at the lidar bank less a blade reach of about 4 m, docks removed as in
+   `rowable_channel`. Drop the 60 m cap there.
+2. *Depth goes to the physics, not the corridor.* Lower `minimum_depth` to the
+   shell's draft with fins (about 0.5 m) for the same runs, so shallow water is
+   priced by the drag model rather than walled off.
+3. *Only with the research depth term.* Under the default evaluator, unclamping the
+   lines adds the rejected factor-on-total cost (62-156 s on the crews' own lines),
+   which would make the review gaps larger, not truer.
+4. *Port side: the orange buoy line (Rules 6.2, 7.2).* Its positions are not in
+   the repo. Until they are, keep the port limit as it is; on these two stretches
+   no crew goes near it. To collect: the HOCR course map's buoy positions, or GPS
+   them from a launch.
+5. *Opt-in.* A starboard-limit option on `charles_course` / `hocr_race_course`
+   used by the research and review scripts; the shipped course and the race cards
+   unchanged until the decision in the item above.
+
+*Rows to re-run once built:* `race_review_opt.py` (ours, sophie), `line_review.py
+bridge`, `bestline_vs_model.py`, with a research boat and the crews' lines
+unclamped.
+
+### The HOCR arch rules were swapped at the trestle and BU Bridge — fixed 2026-10-22
+**Impact: high for every optimised Charles line; every one went through two arches no crew uses.**
+
+`bridges.HOCR_ARCH_RULE` had the Grand Junction trestle on `"centre"` (arch 3 of 6) and BU Bridge on
+`"second_from_cambridge"`, which on BU's three modelled openings resolved to its centre. HOCR rules
+(2023, `data/raw/hocr_rules_2023.pdf`) sec. 6.1: the trestle's "second arch from the right (Cambridge
+shore) is the mandated lane"; sec. 10.4 penalises the trestle's and Anderson's Cambridge arch and any
+bridge's Boston arch, nothing at BU Bridge but its Boston arch. All 17 HOCR 2026 tracks (three CoxBox,
+13 bestline, bestline's shortest line) pass the trestle's arch 5 and BU Bridge's Cambridge-side opening,
+so the evaluator called every crew's line illegal at both. Now `"second_from_cambridge"` at the trestle and
+`("centre", "cambridge")` at BU Bridge; SOURCES "The rules are asymmetric" corrected. Tests:
+`test_the_trestle_lane_is_second_from_cambridge`, `test_bu_bridge_bars_only_the_boston_arch`.
+
+*Still open:* **Eliot.** The table bars Eliot's Cambridge arch (with Anderson's), and SOURCES and
+`test_anderson_and_eliot_are_centre_arch_only` say so, but sec. 6.1 lets "the right ... arch of four of
+those remaining bridges" be used, "the exception being the Lars Anderson Bridge", and sec. 10.4 names
+only Anderson and the trestle. No crew used it in 2026, so nothing measured moves; it needs the 2026
+rules or the Figure 6.1.2 traffic guide read before it is changed.
+
+### The line optimiser pinned every bridge point — fixed 2026-10-22
+**Impact: high for the review gaps and the race-card plans.**
+
+Three faults, found when bestline's shortest legal line timed 7.9 s faster than our four's "optimum":
+
+1. *Skewed bridges.* `lines.arch_route`, `pinned_arch_route` and `legalise` put a bridge's control point
+   at the bridge's own station with the arch centre's offset. On the Grand Junction trestle (41 degrees
+   skew) that line crosses the deck metres from the arch centre: outside the narrow mandated arch once
+   the rule above was fixed, and the course would not even build (`legalise` added a twin station).
+   Now the point sits on the deck itself (`lines.arch_point`), and `legalise` tests where the line
+   really crosses the deck (`lines.crossing_along`, `lines.illegal_bridges`), the same test as
+   `RouteEvaluator._arch_violations`. The two used to disagree. `legalise` repeats until stable,
+   because a point added at one bridge bends the spline at its neighbours.
+2. *Arch centres fixed.* The review search (`race_review_opt.py`, `line_review.py`) and
+   `plan.optimised_time` held every bridge point at its arch's centre and both ends on the centreline,
+   so a line could not use the width of an arch. `plan.optimise_line` makes the crossing a bounded
+   variable inside the arch (4 m pier clearance across the boat's path, `arch_window`), frees the ends,
+   keeps a point every 150 m, and warm-starts from the crew's line, bestline's shortest line and the
+   straight pinned line. `optimised_time` is now a thin wrapper over it (same few free stations,
+   Nelder-Mead), so the race card's arch pricing gets the fixes too; the planned line itself uses the
+   full search (`race_card.crew_plan`).
+3. *Legality as a wall.* A line pulled out of an arch scored 1e6, which a search cannot see past; now
+   it is +300 s per bridge, steep enough that no line gain pays for it.
+
+On our four's day: optimum 1419.1 s against the shortest line's 1428.1 s (which also breaks the 3 deg/s
+turn limit) and the crew's own 1434.8 s. Tests: `tests/unit/test_arch_lines.py` (every pinned arch
+combination legal by both checks; `legalise` leaves a legal line alone and fixes the centreline).
+`shallow_gap.py` (2026-10-21) still has the old search; its table in PHYSICS_PROGRAMME is marked
+superseded.
+
+*Still open:* the search is local (Powell from the best warm start). With depth corrected the cost is
+nearly flat across the start stretch, so a better line through a different bend is not excluded; the
+arch choices themselves are priced separately (`plan.arch_costs`).
+
+### Analyses priced on the factor-on-total depth path (flagged 2026-10-21)
+**Impact: high wherever the water is shallow relative to the boat's speed (the
+Charles); negligible on Lake Union, Lake Washington, Sammamish, Whatcom.**
+
+The defect is in shared code, not one script: `RouteEvaluator._build_speed_table`
+and `CoursePacing.speed_for_power` scale the whole resistance by the shallow
+factor unless the boat's wave table knows depth (`at_depth`), which only a boat
+with a **research** profile applied has. Passing a *shipped* boat does not help:
+its plain Michell table drops through to the same factor path. A research-profile
+boat built on the constant wave coefficient (no Michell table) also stays on it.
+So any analysis that does not build its boat with `physics.resolve("research")
+.apply(boat)` (race day: `race_card.build_boat(..., profile="research")`)
+overcharges depth. On the Charles that was 3-6x the boat's own figure (62-156 s on
+three HOCR crews' lines against 22-36 s), and GPS rejects it (PHYSICS_PROGRAMME,
+2026-10-21).
+
+| analysis | what rests on depth | status |
+|---|---|---|
+| HOCR reviews: `race_review_2026.py`, `race_review_opt.py`, `line_review.py`, `bestline_vs_model.py`, `line_compare.py` | line gaps, depth seconds per stretch, optimum lines | **switched to the research boat 2026-10-21 and to `plan.optimise_line` with the corrected arch rules 2026-10-22**: gaps our four +15.7 s, MSM 4+ +21.2 s, GM 8+ +17.4 s (PHYSICS_PROGRAMME table); review pages rebuilt; outputs before each step in `data/local/raceday/pre_depthfix/` and `pre_depthfix/plans/` |
+| Race cards: `race_card.py`, `wind_table.py`, `raceday_site.py`, `card_*.json`, the site | split distribution by stretch, push stretches (`PUSH_S500`), wind factor's calm denominator | **switched 2026-10-22** (`race_card.PROFILE = "research"`; plans re-optimised with `optimise_line` through the corrected arches; wind and basin-level tables and the four cards rebuilt with the race-morning conditions via `race_card.py --conditions-from`; `lake_equivalents.json` not rebuilt, it converts through `splits.py`). Was: flagged, not changed; published with the review pages, site repo ba94318 (2026-10-22). `line_compare.py` re-run on the fixed optimiser: best line -15.7, -17.7, -17.6 s against our line in the three crews' settings (published product; needs the decision in the item above). The day-factor wind calibration in the reviews reads these wind tables |
+| Planning: `plan_*.json`, `bend_reopt.py`, `add_bends_line.py`, `fields_2026.py`, `analysis_2026.py`, `wind_line_check.py` | planned lines, field maps' "where the water costs time", 2026 per-crew depth shares | flagged; superseded by the race; re-run only if reused |
+| `scripts/line_and_pace.py` | "Is it worth steering wide for deeper water?" -- the answer is the depth term | flagged; conclusion void until re-run on a research boat |
+| `scripts/course_pacing.py`, `pacing_strategy.py`, `pacing_literature.py`, `targets.py`, `splits.py`, `my_crew.py`, `lake_equivalents.py`, `traffic.py`, `two_boat.py` | published targets, Charles-to-deep-water split conversions, Sammamish training splits, "push in the shallows" | flagged; the faster the boat, the larger the error (eight > four) |
+| `scripts/racing_line.py`, `wind_scenarios.py`, `water_level.py`, `seating.py`, `two_boats.py`, `course_explorer.py`, `export_map.py`, `animate_race.py`, `render3d.py`, `render_charles.py` | Charles racing line, water-level scenarios, depth layers on maps | flagged; `water_level.py` is the most exposed (its whole question is depth) |
+| `scripts/make_report.py` (the shipped report) | the report's Charles line and times | frozen on `shipped`; not changed |
+| `render_hotl*.py`, `render_lake_union.py`, `render_totl*.py`, Seattle and lake pages | deep water, `Fr_h` well under 0.5 | not affected in practice |
+| `scripts/mpc_bench.py`, `mpc_tune.py` | controller timing benchmarks | not results; not affected |
+
+Docs quoting the overstated numbers: RACEDAY.md (banner added; the "push where the
+boat is slowest" decision flagged), `data/local/raceday/line_review_bridge.md` and
+the Claude Doc "HOCR 2026: three Sammamish lines compared" (the main session is
+updating both after the re-run).
+
 ### The shipped Michell table is too coarse below 4 m/s
 **Impact: low -- race speed is unaffected; warm-up, paddling and low-power
 pieces are not.**
@@ -4411,6 +4562,13 @@ to.
 | **Review paper extended** (2026-10-06): new state-of-the-art section (debriefs, surgical and classroom coaching, real-time CPR feedback, wearables, sonification, LLM coaching, constraints-led and analogy learning, meta-science); military, police and emergency team communication (implicit coordination, pushed information, closed loop, squad call-rate stability, stress degrading the instructor's speech); exercise and cognition (hypofrontality, memory impaired during hard exercise, so race calls should retrieve established cues rather than teach); emotion induction, effects (task-specific; anger raises force) and interpersonal regulation; communication science (Grice, grounding, intelligibility, effortful listening, elaboration likelihood). Tables 1 and 2 add familiarity, form, information push, intelligibility, emotion and coxswain state; H17 to H22; Stage 0 (cue vocabulary, seat-level intelligibility). 25 pp; about 160 verified references | `data/local/coxing/review/` | — |
 | **Experimental coxing paper drafted** (2026-10-06): "What the boat answers: a data-driven analysis of coxswain call effectiveness", Stages 1-2 of the review's plan. 2307 phrases in 5 synchronised pieces (race_01, practice_01/02, race_04/05) hand-coded blind under a fixed codebook (CODEBOOK.md); lexical second coder kappa 0.34-0.57. Findings: directive power calls +22 mm/s at strokes 3-5 (p .003; local null p .001), from stroke 1; rate/ratio calls -0.48 spm and +0.20 m DPS but no speed change; length calls +5-6 cm DPS; technique calls no speed change; none of 12 primary contrasts survives Holm; praise after a measured gain is followed by less (-18 mm/s, p .04/.02, opposite to H3, consistent with coasting); single-call reliability 0.035. Debrief table for the coxswain; MRT sizes (170/arm for 20 mm/s). Module `research/callmodel/call_properties.py` + tests | `data/local/coxing/experiment/` (paper.pdf, run_experiment.py, results.json, codes_*.txt; gitignored) | — |
 | **7 Oct 2026 practice added to "What the boat answers"**: audio recorder synced by called splits (rec start 08:44:55, 85/118 within 2 s); six 800 m pieces (calling varied: full, splits-only start, data only, minimal) + warm-up as sessions practice_03..08, control_02; drilled cues pre-registered in CODEBOOK addendum; coded blind. Pooled 11 pieces: power +17 mm/s (p .001, positive in 8/10 pieces, null in the 800 m pieces), contingency -17 (p .03), reliability 0.065. Practice: minimal piece fastest, data-only no slower; debriefs repaired ambiguous "down" and slowed speech on request. Paper 9 pp | `data/local/coxing/build_261007_sessions.py`, `experiment/` | — |
+| **Head of the Charles added to "What the boat answers"** (2026-10-21): race_06 (W4+ veteran, 724 strokes) from the head camera; transcript re-run with condition_on_previous_text off (the cached one had no punctuation or pauses); 430 phrases coded blind to the boat (but after the first results) under CODEBOOK (addendum). Optional course terms in the AR forecast (`call_properties.prepare(course=True)`: |turn rate|, cos/sin heading; `build_course.py`), run as COURSE=1 robustness; they cut response noise 10-20% on race courses. 12 pieces, 1379 calls: power +16 mm/s (p .006; local .013), +10 with course (local p .02), positive in 9/11 pieces; part of the raw gain is bend exits. Arousal raised +19 (local Holm .03) but only +12-16 and not Holm-significant with rule-coder arousal (ALT_AROUSAL runs), so reported as candidate. Contingent-praise coasting not repeated (-6, p .52). Reliability ~0. Paper updated, 21 Oct draft | `data/local/coxing/build_hocr_session.py`, `retranscribe_hocr.py`, `build_course.py`, `experiment/` (results*.json, paper_before_race06.tex) | — |
+| **HOCR 2026 line review for another crew** (2026-10-21): `data/local/raceday/line_review.py <crew>` generalises the race review (track on the course, arches, conditions in that crew's window, wind calibrated to its own event's 2026/2025 field median, pace from its GPS time, its line vs ours vs the optimum through each set of arches, stretch by stretch). First use: a second Sammamish four (event 27, W MSM 4+). Model-course times match official to 0.1-1.1 s. Our line would have been 8.8 s faster for that crew (Cambridge approach to River St, inside after Eliot); model optimum 32 s, almost all from depth near the banks, flagged as an upper bound. Found: course corridor half-width capped at 60 m while the water on the start stretch is 70-85 m wide (both crews row ~68 m out) | `data/local/raceday/line_review*.{py,json,png,md}`; results rows for event 27 | — |
+| **Race review page for any crew** (2026-10-21): `REVIEW_CREW=<crew>` (data/local/raceday/review_crews.py) runs race_review_2026.py, race_review_opt.py (now also times the bestline.row3r.com lines for that crew), race_review_crew_page.py (general template race_review_template_crew.html: event, place, the boat's own race-card targets, day factor, arches, shallow-water caveat) and race_review_site.py (encrypted shell + .enc named per crew). First use: the club's W GM 8+ (event 17), published as site/review-sophie.html. CoxBox clocks differ by unit (two read Pacific, one Eastern); match the session start to the start list. Lineups from RegattaCentral entries data and erg scores from the club sheet kept in data/local only | `data/local/raceday/review_crews.py`, `race_review_crew_page.py`, `race_review_template_crew.html`, `results/hocr2026_sammamish_lineups.json`, `data/local/erg/` | — |
+| **Blind club line comparison + intended line vs steering** (2026-10-22): five club coxswains' HOCR 2026 lines (two more CoxBox files added: a M GM 4+ and a second W MSM 4+). `data/local/raceday/line_compare.py` times every line in every crew's setting (research boat); `compare_page.py` + `compare_site.py` publish site/compare.html, encrypted under its own password (compare_passphrase.txt), anonymised by default (random letters each load, no names/events/places/times until 'Show names'; fresh letters when hidden again). `line_smoothness.py` splits each track into intended line and steering by length scale in the boat's own frame: a-trous (starlet) wavelets and diffusion maps (Laplace-Beltrami modes, alpha=1) agree to 1-2 cm; the centreline-offset version was rejected (fast part 0.68-0.97 correlated between crews = centreline kinks; boat frame 0.35). Steering costs 0.4-1.3 s per crew, small next to line differences. Bug found and fixed: `section{display:flex}` overrode the hidden attribute | `data/local/raceday/line_compare.py`, `line_smoothness.py`, `compare_page.py`, `compare_site.py`, `review_crews.py` | — |
+| **Radau-collocation racing line + smooth frame + own-boat steering metrics** (2026-10-22): `coxswain/raceday/line_ocp.py` (SmoothFrame: centreline heading smoothed 60 m and re-integrated, long-scale drift pulled back, <2 m rms from the centreline, curvature noise /3; solve(): Frenet OCP with curvature control, speed field V(s,n) from the full model on parallel lines, measured turning loss k*omega^2 per boat, smoothed water-edge envelope (6 m in), arch windows at mesh nodes, Radau IIA 3 stages on 15 m elements via coxswain.river.collocation, IPOPT; re-timed in the full model). Solves in ~8 s; legal at all bridges for 5 crews; 1.8-3.5 s faster than the point search for 4 crews, within 0.6 s for ours, no kinks. race_review_opt.py uses it as the best line (point search kept as best_points). Display offsets in the smooth frame. line_smoothness.py adds plan and steering metrics in each crew's own boat (plan turning s, L/R, steering s, weave/L, corrections/km, SPARC). Tests tests/unit/test_line_ocp.py | `coxswain/raceday/line_ocp.py`, `data/local/raceday/race_review_opt.py`, `line_compare.py`, `line_smoothness.py`, `compare_page.py` | — |
+| **Wind vs steering on HOCR 2026 lines** (2026-10-22): `data/local/raceday/wind_perturbation.py` with one-minute ASOS (KBOS/KBED/KOWD, IEM asos1min) per crew window, felt crosswind from ShelteredWind at each stroke, sign test (weave vs crosswind, circular-shift null), perturbation share (lags 0-3), speed-hit event test, 100 m segment regressions; cross-river shelter profiles per stretch (wind_cross_profiles.json). Same gust climate for all crews (gust factor 1.42-1.44); only the slowest crew's weave carries a significant wind signature (~5% of variance, a lower bound: stations 5-25 km away); no segment-level link between felt wind and wobble. Shelter depends on the shore: Boston side sheltered Riverside-Weeks (0.16-0.35 of open wind vs ~0.5), Cambridge side Weeks-big turn, none at the start or after Eliot. Page section added | `data/local/raceday/wind_perturbation.py`, `results/asos1min_*_20261017.csv`, `compare_page.py` | — |
+| **Skill vs externalities, HOCR 2026 club coxswains** (2026-10-22): `data/local/raceday/skill_separation.py`. Line choice: intended line vs the Radau best, pace fixed, common boat per setting, own conditions and all settings. Steering: 100 m segments regressed on felt crosswind (x(3.8/v)^2), gust, bend, width, bridge within 75 m, traffic (same-event crews within 25 m / passing, reconstructed from start order, a 15.9 s start interval from two GPS starts, and official splits: results/hocr2026_event_crews.json), crew fixed effects, 500 m block bootstrap. Externals explain 43% of wobble (bridges +1.45 deg, bends), crews ~1%; adjusted steering intervals overlap. GPS noise <= 1-3% of the steering band. Line choice differs by ~11 s in own conditions. Crew-fixed externals (boat, speed, unit) handled by physics normalisation. Page section added | `data/local/raceday/skill_separation.py`, `compare_page.py` | — |
 | **Race-day product, sprint 1 skeleton** (2026-10-08): plan `docs/RACEDAY.md`; `coxswain/raceday/` (NWS hourly forecast reader; target time + sheltered wind -> splits by section between bridges, head/tail/cross labels); `scripts/race_card.py`; private phone race card (artifact 72R1Wr3wYbZ4k9WTQLVRNP, data in its db `cards/four`); 4 unit tests | `coxswain/raceday/`, `scripts/race_card.py`, `tests/unit/test_raceday.py` | — |
 | **Race card round 3** (2026-10-08): goal ranges (`coxswain/raceday/goals.py`), the 50+ eight's card (medal / beat 2025 / requalify / forecast), landmarks (Powerhouse and big turn from the line's heading, mile markers, wooden pier, all confirmed by the cox), target selector, crew switch and landmark timeline on the page, db `cards/eight`; wind cost now charged against the boat's own resistance (`card.wind_area`); 6 unit tests | `coxswain/raceday/`, `scripts/race_card.py`, `tests/unit/test_raceday.py` | — |
 | **Race card: turning cost** (2026-10-08): rudder loss measured at Tail of the Lake 2026 (`data/local/raceday/rudder_totl.py`; dv/v = 0.0071 omega^2 four, 0.0099 eight), applied on the Charles from the line's smoothed curvature (`card.turn_rate`, `RUDDER_K`); rudder chips on the page; 7 unit tests | `coxswain/raceday/card.py`, `data/local/raceday/` | — |
@@ -4419,6 +4577,17 @@ to.
 | **Race card R5/R9/R11/R12** (2026-10-09): traffic from bows and the field simulation (`coxswain/raceday/traffic.py`), push stretches from still-air river cost, live USGS flow and its effect (`flow.py`), the day factor from earlier events (`dayfactor.py`, `card.rescale`, CSV template), optimiser turn guard (`plan.MAX_TURN`); page sections for traffic, flow, day factor; 11 unit tests | `coxswain/raceday/` | — |
 | **Decks R7/R8, plan letters, map R4** (2026-10-09): coach deck (artifact QhYVRU6SnTwLn1HgtN8RGz, 12 slides incl. turning chart and map), rowers' deck (Ya37KopwH6av76LUn9mkXe, 8 slides) with `coxswain/raceday/decks.py` no-odds check; `plan.variants` A/B/C on the card; `coxswain/raceday/map.py` map on the card and in the coxswains' and coach decks; TOTL and practice days too calm to test the wind model (station data saved); 14 unit tests | `coxswain/raceday/`, `data/local/raceday/decks/` | — |
 | **Rowers' deck for the eight, runbook, Sammamish splits, target check** (2026-10-09): eight's rowers' deck (Vw1JoPHcoiGP7E1z96co9U); RACEDAY §11c race-week runbook; `scripts/lake_equivalents.py` and the card's Sammamish training split per goal; four's requalify target checked against the 2019-2025 half-field cuts (mean 21:22, SD 19 s) | `scripts/lake_equivalents.py`, `docs/RACEDAY.md` | — |
+| **Self-updating race card site** (2026-10-12): `scripts/wind_table.py`, `raceday_site.py`, `raceday_encrypt.py`, `build_site_index.py`, `raceday_site_loader.js`; encrypted static page on GitHub Pages fetching NWS and USGS in the browser; start times from the published schedule (`start_times.json`); bows checked against RegattaCentral; wind-line check for Saturday's NW (keep the line) | `scripts/`, josh-porg/charles-race-card | — |
+| **Short course, race-day river, field update, 2026 analysis** (2026-10-15): `card.short_course` + site `shortOf` (Riverside start, own traffic); NWM flow forecast and basin level in the targets (`flow.forecast_at`, `flow.basin_level`, `river_conditions.py`); older Charles results for crews without 2025 times (`charles_update_2026.py` 5b; Marlow 2024 winners); site password `sra` and email for Sophie; `analysis_2026.py` and `scripts/charles_2026_report.py` -> out/report/charles_2026.html | `coxswain/raceday/`, `scripts/`, `out/report/` | — |
+| **Gusts switch; map wind layers corrected** (2026-10-16): `coxswain/raceday/gusts.py` (gridded NWS `windGust`; allowance = half the wind table's curvature in speed x speed variance, intensity (G-1)/3); `race_card.py` writes `card["gust"]` (targets stay steady-wind); switch "Steady wind / Count gusts" on the race card (`race_card.html`, site loader), briefing map (totals, lines table, wind/total layers) and `out/report/charles_2026.html`. Saturday: four +6 s, eight +3 s. `fields_2026.py` map pace layers charged wind against the 260 N default (3.2x): area rescaled; `wind` grid key no longer overwritten by the forecast tuple (`wind_forecast`) | `tests/unit/test_raceday.py` (3 gust tests: exact for a quadratic cost on and between table speeds); river: `flow.forecast_at` falls back to the short range's last hour within 18 h | — |
+| **Both arch lines; results reading; live day factor; same-day backtest** (2026-10-16): `race_card.py --arches`, `ARCH_OPTIONS`, `option_suffix`; Arches switch in `race_card.html` / site loader; map lines "Planned line" / "Other practised line"; `scripts/rc_event_summary.js` (read an open RegattaCentral results page), `scripts/day_from_results.py` (due/add/build, BASE_2025 = 1.02), `data/local/raceday/results/` (summaries 2024-2026, `rc_events_2026.json`, `backtest_dayfactor.py`); site uses the card's day factor automatically; race-morning task reads results | backtest numbers in docs/RACEDAY.md log (16 Oct) | — |
+| **HOCR 2026 race review + replay** (2026-10-19): `data/local/raceday/race_review_2026.py` (GPS on the course, arches, observed weather), `race_review_opt.py` (wind calibrated to the day, Powell optimum through our arches, 150 m free points, 4 m margin), `race_review_page.py` + template (map, straightened offsets, stretches, canvas replay with a ghost on the optimum, both banks), `race_review_site.py` (encrypted review.html/review.enc on the site); bestline.row3r.com tracks `data/local/bestline/` | artifact 9HJDekNn7LcGaQ8agY5JE6; https://josh-porg.github.io/charles-race-card/review.html | — |
+| **HOCR 2026 shallow-water check** (2026-10-21): `data/local/raceday/shallow_check.py` (per-stroke GPS speed against the model's depth term on each crew's own line, depth on/off with wind, current and turning held equal; Newey-West regression; three depth models), `shallow_bathy.py` (which contours each crew position is interpolated between), `shallow_shore.py` (lidar bank vs chart edge vs corridor vs crews, raw bestline tracks), `shallow_gap.py` (re-optimised gap under default and research physics); `card.depth_boat` hands research-stamped boats to the race-day evaluator. Findings: PHYSICS_PROGRAMME "Shallow water on the Charles, tested against HOCR 2026 GPS"; corridor decision in Open. | `tests/unit/test_raceday_depth_boat.py` (shipped and unstamped boats keep the default path) | — |
+| **Lake Whatcom rowing conditions** (2026-10-19): `data/local/whatcom/` (OSM shoreline, routes traced from screenshots, `build_whatcom.py`: fetch, forest-shore IBL shelter, terrain Sx shelter, JONSWAP chop per 75 m cell x 16 directions), live page at https://josh-porg.github.io/charles-race-card/whatcom/ (Open-Meteo HRRR/GFS at 3 points, NWS alerts, KBLI). `tools/fetch_dem.py` now stores decimetres above 320 m (int16 centimetres clipped at 327.67 m) | page tested live | — |
+| **Lake Whatcom live stations + calibration** (2026-10-19): four lakeside CWOP stations (Agate Bay, north shore, Geneva, Sudden Valley hillside) relayed from findu.com every 15 min by a GitHub Action (`site/.github/workflows/whatcom-relay.yml`, `site/relay/whatcom_relay.py`) to the `whatcom-data` branch (live.json + history since 27 Aug); `data/local/whatcom/fetch_history.py`, `calibrate.py`: 838 station-hours vs the archived forecast; per-station siting constants; terrain-shelter strength not identifiable (fit 0.95 vs prior 0.5 within 1%), prior kept; live correction (weighted, fades over 3 h) cut the next hour's error 15-35% in backtest. Floathaven Airstrip (WA90) has no weather instruments. Keepalive against GitHub's 60-day inactivity switch-off: weekly re-enable call from the workflow itself (Sundays 17:03 UTC) and from the laptop (Task Scheduler "Whatcom relay keepalive", Sundays 10:00, `data/local/raceday/keepalive_relay.py`, log `data/local/raceday/logs/keepalive.log`). Kill switches: disable the workflow in the repo's Actions tab; `Unregister-ScheduledTask -TaskName "Whatcom relay keepalive" -Confirm:$false` | runs 39339763785, 39340321452 green | — |
+| **Lake Sammamish conditions; lake pipeline generalised** (2026-10-19): `data/local/lakes/` (`lake_geometry.py`, `build_lake.py`, `fetch_history.py`, `calibrate.py`, shared `index.html`) driven by `data/local/<lake>/lake.json`; Whatcom rebuilt identically. Sammamish: OSM shoreline, 3DEP 30 m, routes from SRA CoxBox GPS (`data/local/sammamish/make_routes.py`: north arm loop 25 Sep, north end to mid-lake 7 Oct, whole lake), stations GW8062 (Redmond, 800 m from the lake, no nowcast skill), GW1372 and EW8450 (hills, ~28% next-hour error cut each); terrain-shelter strength kept at the prior 0.5. Relay generalised: `lakes-relay.yml` + `relay/lake_relay.py` + `relay/lakes.json` -> `lakes-data` branch (replaces whatcom-relay/whatcom-data). Live: https://josh-porg.github.io/charles-race-card/sammamish/ | run 39341191346 green, both pages checked | — |
+| **Lake Sammamish: King County buoy calibration + live** (2026-10-19): `data/local/sammamish/fetch_buoy.py` (ASP.NET download, met data 2023-2026, 15-min, 129k readings; years back to 2000 available), `calibrate_buoy.py` (time base PDT all year; models M0-M3 fit 2023-24, tested 2025-26: raw forecast 1.48 -> 1.38 m/s RMS, windy hours 2.04 -> 1.75, windy bias +0.88 -> +0.36; sectors S/SW x1.25, E x1.11, NW x0.73; alpha 0.49 confirms the 0.5 prior) -> `lake.json` `forecast_correction` applied on the page and in `data/local/lakes/calibrate.py` (station constants refitted). Relay reads the buoy from GenerateMapData.aspx (hourly, ~1.5 h late; weight 0.046) | run 39342246949 green | — |
+| **Fog at practice (both lakes)** (2026-10-19): `data/local/lakes/fog_history.py` (IEM ASOS visibility/present weather 2023-now at KRNT / KBLI; Open-Meteo historical forecast at the airport and the lake), `fog_calibrate.py` (logistic: log visibility, dew-point depression, RH, wind, low cloud, fog code, hour, season, evening-before depression; fit 2023-24, test 2025-26: Brier skill vs climatology 36% Sammamish (lake features) / 47% Whatcom (airport features), AUC 0.98/0.97, lifting within 1 h on 85%/84% of foggy mornings) -> lake.json `fog_model`; page card with launch-time selector (default 5:00). Labels are airport fog, not lake fog: lake-fog dates from the crews would calibrate it on the lake | both pages checked | — |
 | **Charles wind findings re-run with the wind charged against the boat** (2026-10-08): `raceday.py` and `wind_scenarios.py` scale the crew's drag area to the boat (`card.wind_area`; `--unscaled-wind` for the old charge), `ReducedModel` default untouched. Masters eight at 4.23 m/s: 719 N denominator vs 261 N own resistance. Wind cost at 8 m/s now -26 to +155 s (was "up to 133 s", 57.5 s on today's code unscaled); re-steering for the wind 0.2-0.9 s at 4 m/s, up to 5.1 s at 8 m/s from 340 (was 0.1-0.5 s). RACEDAY.md finding and report row updated | `scripts/raceday.py`, `scripts/wind_scenarios.py`, `scripts/make_report.py`, `docs/RACEDAY.md` | SOURCES §176 |
 | **Email replies recorded.** Kleshnev sent an elite M1x averaged stroke ([BR24], SOURCES §156, data gitignored); Buckeridge referred us to McGregor. Drafts of both follow-ups are in DATA_REQUESTS. | `docs/DATA_REQUESTS.md`, `docs/SOURCES.md` | — |
 

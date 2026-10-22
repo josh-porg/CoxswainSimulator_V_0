@@ -212,6 +212,27 @@ def test_the_cambridge_arch_is_open_on_the_powerhouse_stretch(rigged, channel):
         assert legal[-1].label == "Cambridge shore", name
 
 
+def test_the_trestle_lane_is_second_from_cambridge(rigged, channel):
+    """HOCR rules sec. 6.1: the trestle's "second arch from the right (Cambridge
+    shore) is the mandated lane". Every HOCR 2026 track measured goes through it
+    (TRACKING, 2026-10-22); the table once had it on the centre arch."""
+    from coxswain.river.bridges import bridge_arches, candidate_arches
+    gate = {g.name: g for g in rigged}["Grand Junction RR"]
+    arches = bridge_arches(gate, channel)
+    legal = candidate_arches(gate, channel)
+    assert [a.index for a in legal] == [len(arches) - 2]
+
+
+def test_bu_bridge_bars_only_the_boston_arch(rigged, channel):
+    """Sec. 10.4 penalises only BU Bridge's Boston arch; crews use the
+    Cambridge-side opening in line with the trestle lane."""
+    from coxswain.river.bridges import bridge_arches, candidate_arches
+    gate = {g.name: g for g in rigged}["BU Bridge"]
+    arches = bridge_arches(gate, channel)
+    legal = {a.index for a in candidate_arches(gate, channel)}
+    assert legal == set(range(1, len(arches)))
+
+
 def test_anderson_and_eliot_are_centre_arch_only(rigged, channel):
     """Both bar the Cambridge arch as well as the Boston one."""
     from coxswain.river.bridges import candidate_arches

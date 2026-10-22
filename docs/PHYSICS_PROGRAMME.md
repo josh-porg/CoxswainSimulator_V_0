@@ -1097,9 +1097,11 @@ may not.
 | data | where | what it pins | test for the model |
 |---|---|---|---|
 | **Turning cost**, Tail of the Lake 2026, both squad boats (CBGPS per stroke: speed, rate, GPS position) | `data/local/coxbox/... 20261004 0803AM / 1237PM.csv`; analysis `data/local/raceday/rudder_totl.py` -> `rudder_totl.json` | speed lost vs turn rate, dv/v = k omega^2 (omega in deg/s, heading over ~28 m): **k = 0.0071 +- 0.0009 (masters 4+, 3.5 m/s), 0.0099 +- 0.0009 (masters 8+, 4.1 m/s)**; ~3-4% at 2 deg/s; the four's called turn lost 4% at 1.8 deg/s | Drive the simulator (research profile) through each measured turn's heading-rate profile at the crew's rate and power; compare the speed lost per stroke. `ReducedModel` (an eight throughout: `turn_drag` 8000, `split_drag` 250) has the right shape but is 8-9x too small (0.37-0.44% at 2 deg/s against 2.8-4.0% measured; TRACKING, 2026-10-09); the 6DOF hull with fins and rudder ([WF58] fins, SOURCES §169) is the model to test. Confound: those turns had pressure calls ("starboard press"), so the measured loss is rudder plus pressure split, which is the steering a crew really does. |
+| **Wind cost, HOCR 2026 field** (14 Saturday events against 2025, plus 2024->2025 and Friday pairs) | `data/local/raceday/results/hocr_event_summaries.csv`, `backtest_dayfactor.py`, `race_review_opt.py` | The race-card wind model (ShelteredWind + wind_area) overstates the wind's effect on whole-race time 2-3x: Saturday 17 Oct measured +7% on still water vs +15% (forecast) / +26% (observed KBOS via charles_reference). Calibration target for the wind/shelter chain; not yet applied to the model (3 day pairs + 1 race day). | |
 | **Race speed with a known power**, the same files plus the four's erg 5 k times | `scripts/hocr_crew.py` (Concept2 P = 2.80/pace^3 per rower), TOTL four 3.51 m/s mean at rate 30 | one masters-four pair: crew 5 k power ~ 500 W and race speed | The "validating against published race pace" row in *Blocked* needs a stated power; this is one measured pair for a masters four (one crew, one day, wind not removed). |
 | **Wind cost on the water**, the same races by heading | TOTL GPS headings plus the day's wind: KBFI and KSEA 5-min observations pulled 2026-10-09 (`data/local/raceday/totl_2026-10-04_wind_*.json`) | **not testable from this day**: 0-9 km/h (under 2.6 m/s), direction shifting, at both stations through both races; the model's predicted effect at that wind (1-2%) is inside the stroke-to-stroke noise | Still needed: a steady piece there and back in 4+ m/s of measurable wind (see *To collect*). The wind charge scaled to the boat's own resistance (`card.wind_area`, SOURCES §176) remains unvalidated on the water. |
 | **Speed against rate**, 7 Oct 2026 practice (800 m pieces at set rates, warm-up) | `data/local/coxbox/... 20261007 *.csv` (per stroke, GPS) | the four's speed-rate curve within one session | Shape of the power-speed relation at masters speeds (relative, no absolute power). |
+| **Shallow water, HOCR 2026** (three Sammamish CoxBox tracks, 1,923 strokes; 13 bestline.row3r.com tracks, positions only) | `data/local/raceday/shallow_check.py` -> `shallow_check.json`; `shallow_bathy.py`, `shallow_shore.py`, `shallow_gap.py` | per-stroke speed against the model's depth term on each crew's own line, wind/current/turning held equal: the default evaluator's term (Schlichting factor x **whole** resistance) is rejected, slope -0.06 +- 0.03 (1 = model); the research (Sretenskii) term is not seen pooled either, -0.11 +- 0.12, but is weakly tested | Section below (2026-10-21). |
 
 **To collect** (cheap, at practice, CoxBox GPS on):
 - a deliberate turning test: the same rate and pressure through set turns, once as one long even arc
@@ -1109,6 +1111,134 @@ may not.
   wind) for the wind charge;
 - the same from Sophie's eight, so the eight's k is the squad's 50+ eight's rather than the mixed
   eight's.
+
+## Shallow water on the Charles, tested against HOCR 2026 GPS (2026-10-21)
+
+**The question.** The HOCR 2026 reviews (`race_review_opt.py`, `line_review.py`) put about 45 s of the two
+faster crews' 32-33 s gap to the model optimum on depth: the Cambridge bank from the start to Powerhouse
+and after Eliot Bridge, modelled at 1.0-1.5 m, where every crew rows (our three CoxBox tracks and all 13
+bestline tracks). For our slower four the same analysis found 2.9 s. Is the depth cost real?
+
+**Why it came out that large.** `card._evaluate` built `RouteEvaluator` without a boat, so it used the
+default speed table, `F(v, h) v^3 = v_ref^3`: the Schlichting factor (capped at 3) on the **whole**
+resistance. That is the known defect in TRACKING ("The shipped route and pacing optimisers charge depth
+to the whole resistance"); [D11] and `hull_resistance` scale the wave term only. At race pace wave drag
+is 17% of the masters four's deep-water resistance at 3.53 m/s, 12% at 4.35 m/s and 9% of the eight's
+at 4.69 m/s, so the reviews charged depth 3-6x what the boat's own resistance model would. Seconds lost
+to depth on each crew's own GPS line (depth under the boat's actual position, wind/current/turning as
+calibrated for the day):
+
+| crew | pace | evaluator (factor x total) | factor x wave term | research (Sretenskii) |
+|---|---|---|---|---|
+| our W VET 4+ | 3.53 m/s | 62.2 s | 24.6 s | 22.4 s |
+| W MSM 4+ | 4.35 m/s | 156.2 s | 31.6 s | 35.9 s |
+| W GM 8+ | 4.69 m/s | 150.5 s | 26.1 s | 25.8 s |
+
+Per metre, at 4.35 m/s: 1.3 m of water costs 22% of speed in the evaluator and 6.7% in the research
+model; 2.0 m, 10% against 4%; 3.0 m, 3% against 0.5%. The faster crews are hit hardest because their
+critical depth `v^2/g` (1.9-2.2 m) puts most of the course inside Schlichting's amplified band, so the
+evaluator's optimum chases depth the whole way; the four's (1.3 m) reaches it only at the bank, which is
+why its gap was 2.9 s.
+
+**The on-water test** (`shallow_check.py`). Per stroke, the model's speed along the crew's own line,
+twice: depth term on and off, everything else identical. Regress `log(v_gps / v_model_without_depth)`
+on `log(depth factor)` with log stroke rate and a constant per crew; Newey-West errors (lag 15
+strokes). Slope 1: the boats lost what the model says; 0: nothing measurable.
+
+| depth model | pooled | + wind rescaled, fade per crew | our 4+ | MSM 4+ | GM 8+ | start stretch only | Eliot to finish only |
+|---|---|---|---|---|---|---|---|
+| evaluator (factor x total) | -0.06 +- 0.05 | **-0.06 +- 0.03** | +0.04 +- 0.12 | -0.07 +- 0.09 | -0.11 +- 0.06 | -0.04 +- 0.16 | -0.06 +- 0.06 |
+| factor x wave term | -0.28 +- 0.17 | -0.10 +- 0.12 | +0.10 +- 0.24 | -0.63 +- 0.28 | -0.37 +- 0.24 | +0.56 +- 0.36 | |
+| research (Sretenskii) | -0.16 +- 0.17 | **-0.11 +- 0.12** | +0.17 +- 0.20 | -0.45 +- 0.31 | -0.49 +- 0.27 | +0.24 +- 0.16 | +0.08 +- 0.22 |
+
+(The start-stretch and Eliot rows hold the wind and the bend nearly fixed; depth varies there with the
+crew's offset.) What it says:
+
+* **The evaluator's depth term is rejected outright.** It predicts losses of 5-20% of speed (spread 10%
+  across strokes) and the boats show none of them, in every crew and every subset. The 45 s, and the
+  32-33 s gaps built on it, are an artefact of the factor-on-total path, not of the river.
+* **The research term is not seen either, but the test is weak there.** Its prediction is 2-3% (spread
+  2.7%) against 5% stroke-to-stroke residuals; the shallow stretches are also the first four minutes
+  and the finish approach, where pacing differs; and the depth under the crews is an interpolation
+  (below). The pooled bound is about 0.13 of Sretenskii's cost (3-5 s a crew) at 95%, while the start
+  stretch alone allows 0.24 +- 0.16. One race day and three crews: under the rule (*no single-athlete
+  fits*; sourced physics builds, these validate) this is a bound to beat, not a coefficient to fit.
+  **Sretenskii stays as the research wave model**; the shallow factor's cap and relaxation are not
+  refitted.
+* It sits oddly with [D11], who found quasi-steady wave resistance *under*-predicts near critical; here
+  the measurement is at or below the quasi-steady figure. Candidate reasons, unresolved: the water under
+  the crews is deeper than charted; or the boat sweeps through critical within each stroke and spends
+  less of it near the peak than the mean speed suggests. Either is a reason to measure, not to tune.
+
+**The depth map near the bank** (`shallow_bathy.py`, `shallow_shore.py`). The source is the CRAB / MIT
+Sea Grant 2016-17 sonar survey (Lowrance HDS-7, track lines 9-18 m apart, contoured in ReefMaster at 1
+ft); the model triangulates the contour vertices (SOURCES sec. 9). At every crew position on the shallow
+stretches the depth is interpolated across a triangle about 25 m wide between the 2-ft and 5-ft (or 4-
+and 6-ft) contours; the nearest 1-ft contour is 32-35 m away; the cross-section is a straight ramp from
+about 3 m mid-river to 1.2 m at 65-70 m off the centreline. The USGS 3DEP lidar
+(`coxswain/data/charles_dem.tif`, water hydro-flattened) puts the Cambridge bank 86-135 m off the
+centreline from 300 to 950 m, where the chart's water ends at 70-91 m: **the survey stops near its 2-ft
+contour, short of the bank**, and the shelf beyond it is unsurveyed. CRAB name Magazine Beach as a
+shoaling area of concern, so the shelf is real. At the crews' 65-75 m its depth is good to about one
+contour (+-0.3 m), and the chart is nine years old on a bank CRAB report as shoaling. After Eliot the
+lidar bank is 49-67 m out, the chart edge 38-58 m, the crews 13-52 m.
+
+*Verdict on the map:* no change. It is the best source there is and nothing measured contradicts it, but
+quote its near-bank depths as +-0.3 m. What would settle it: about 20 soundings from a launch along the
+Cambridge bank between the start and Powerhouse, 55-80 m off the centreline, or CRAB's raw ReefMaster
+tracks.
+
+**Changed.** `card.depth_boat`: `card._evaluate` now hands the boat to `RouteEvaluator` when it carries a
+non-shipped profile (`physics.resolve("research").apply(boat)`), so race-day and review runs on a research
+boat price depth through Sretenskii, wave term only. Unstamped and shipped boats keep the old path, so
+race cards, the site and the report do not move. Test: `tests/unit/test_raceday_depth_boat.py`. The
+first research table for a hull takes about 75 s to build and is cached for the process (0.04 s after).
+
+**What the gap becomes** (`shallow_gap.py`; each crew's pace re-set so its own line takes its GPS time
+under each physics, then the same Powell search through its own arches):
+
+| crew | physics | pace (still air) | own line | optimum | **gap** | depth on own line | depth on optimum |
+|---|---|---|---|---|---|---|---|
+| our W VET 4+ | default | 1365 s | 1434.7 s | 1431.8 s | **+2.9 s** | 32.2 s | 20.0 s |
+| | research | 1389 s | 1434.7 s | 1435.9 s | **-1.2 s** | 6.1 s | 6.7 s |
+| W MSM 4+ | default | 1107 s | 1227.3 s | 1194.9 s | **+32.5 s** | 82.1 s | 37.9 s |
+| | research | 1167 s | 1227.3 s | 1219.1 s | **+8.2 s** | 25.5 s | 9.5 s |
+| W GM 8+ | default | 1026 s | 1139.5 s | 1105.7 s | **+33.8 s** | 92.6 s | 46.3 s |
+| | research | 1109 s | 1139.5 s | 1133.4 s | **+6.1 s** | 19.8 s | 5.7 s |
+
+The default rows reproduce the reviews (2.9, 32.5 and 33.3-33.8 s), so the harness is the same. Under
+the research depth term the faster crews' gaps fall to 6-8 s, and our four's line is already as good as
+the search finds. What is left still comes from moving 10-35 m off the Cambridge bank on the start
+stretch (the depth difference between the lines is 10-16 s of it), and the GPS test above bounds the
+research term's depth cost at about 0.13 of the model's at 95%. So the evidence supports **at most a
+few seconds** for any crew from leaving the bank, not 32-33 s. Two caveats: these lines are still
+clamped to the 60 m corridor (so the crews' own depth cost is understated, 25.5 s against 35.9 s at the
+true GPS positions for the MSM four), and the "optimum" inherits the corridor decision below.
+
+**Superseded the next day (2026-10-22): the optimiser was wrong too.** Re-run with the depth fixed,
+bestline's shortest legal line came out 7.9 s faster than our four's "optimum". Two bugs, neither
+physics (TRACKING, "The HOCR arch rules were swapped at the trestle and BU Bridge" and "The line
+optimiser pinned every bridge point"): the arch table sent every optimised line through the trestle's
+centre arch and BU Bridge's centre, where the rules mandate the trestle's second arch from Cambridge and
+all 17 measured tracks use it; and the search fixed each bridge point at its arch's centre, at the
+bridge's station, which on the skewed trestle crossed the deck outside the arch. Fixed, with
+`plan.optimise_line` (bridge points free inside their arches, ends free, warm starts from the crew's
+line and bestline's shortest line). The reviews on the research boat now give:
+
+| crew | own line | optimum | **gap** | of which distance | depth | wind |
+|---|---|---|---|---|---|---|
+| our W VET 4+ | 1434.8 s | 1419.1 s | **+15.7 s** | +11.5 | -1.0 | +4.7 |
+| W MSM 4+ | 1226.7 s | 1205.5 s | **+21.2 s** | +1.9 | +15.2 | +4.4 |
+| W GM 8+ | 1139.7 s | 1122.2 s | **+17.4 s** | +1.5 | +14.0 | +2.2 |
+
+Our four's gap is now mostly distance: its line was 40 m longer than the optimum's, which no physics
+question touches. The two faster crews' gaps are mostly depth, the part the GPS test bounds at about
+0.13 of the model's figure, so read their 14-15 s of depth as an upper bound and their robust gap as
+about 4-6 s (distance and wind).
+
+**The corridor** (TRACKING, "The Charles corridor stops at the 1.22 m contour, capped at 60 m"): the
+Cambridge-side limit should follow the water, as HOCR Rule 6.2 does, but only together with the
+research depth term; see TRACKING for the decision and what it needs.
 
 ## Decisions taken
 
@@ -1130,6 +1260,7 @@ may not.
 | 2026-09-12 | Reward is **distance over a fixed number of stroke cycles**, under the existing `WPrimeBalance` energy budget | Instantaneous speed invites transient exploits; without an energy budget a policy produces unbounded power |
 | 2026-09-12 | Broken regression tests are xfail-strict with the reason, never loosened or deleted | Four of today's findings were sitting in failing tests. A loosened test would have hidden all four; a deleted one would have lost the evidence |
 | 2026-09-30 | Research fins on Whicker & Fehlner eq. [1] at **reflection 2.0**, C_Dc 0.80, Munk factor 0.50 | 2 is [WF58]'s own definition, the only sourced value; the sweep 1–2 is recorded (SOURCES §169). The Munk refit returned 0.49–0.50 at every reflection, so the literature value is kept. The coxswain's ~3× response ratio would prefer a lower reflection but is one rough report and was not used to choose |
+| 2026-10-21 | Charles depth: race-day and review runs on a research boat price depth with Sretenskii (wave term only); Sretenskii kept, shallow factor not refitted; CRAB map unchanged, near-bank depths quoted +-0.3 m; Cambridge-side corridor to follow the water, opt-in and only with the research depth term | HOCR 2026 GPS rejects the factor-on-total depth term (slope -0.06 +- 0.03) and shrinks the faster crews' optimum gaps from 32-34 s to 6-8 s; the research term is bounded, not refuted, by one race day of three crews (sourced physics builds, data validate) |
 
 ## Open questions
 
