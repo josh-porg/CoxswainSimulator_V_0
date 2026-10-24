@@ -2,7 +2,7 @@ r"""Target times for race goals, with their uncertainty, from a simulated field.
 
 A goal is a place: medal (3rd or better), beat last year's place, requalify (the top half). What
 time it takes depends on who else is in the event and how fast they go this year, which is not
-known. The field model (``data/local/crew/feeders/charles_update_2026.py``) simulates the event many
+known. The field model (``research/crew/feeders/charles_update_2026.py``) simulates the event many
 times, each crew from its own evidence (a 2025 Charles time, a 2026 feeder time, or a draw from last
 year's field for a crew with neither), all on one day factor for the river. Saved as an ``.npz``:
 ``others`` (draws x crews, seconds), ``day`` (the day factor per draw), ``n``, ``nq``, and the crew's

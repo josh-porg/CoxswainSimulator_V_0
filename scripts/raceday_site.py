@@ -58,7 +58,7 @@ def still_air_s(crew: str, model, option=None) -> float:
 
 
 def fields_of(crew):
-    """The briefing map's water layers and line comparison (data/local/raceday/fields_2026.py), if built."""
+    """The briefing map's water layers and line comparison (research/raceday/fields_2026.py), if built."""
     path = os.path.join(RC.FIELDS, "fields_%s.json" % crew)
     return json.load(open(path)) if os.path.exists(path) else None
 

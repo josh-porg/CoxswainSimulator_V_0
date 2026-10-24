@@ -264,7 +264,7 @@ body:not(.g) .gv,body.g .sv{display:none}
 <table class="trades"><tr><th>Decision or factor</th><th>Four / eight</th><th>What it means</th></tr>
 %s</table></div>
 %s
-<p class="note">Sources: data/local/raceday/analysis_2026.py (this page's numbers), river_conditions.py, the race cards (scripts/race_card.py), docs/RACEDAY.md. The earlier reports in out/report (September) predate this week's corrections and should be read with them.</p>
+<p class="note">Sources: research/raceday/analysis_2026.py (this page's numbers), river_conditions.py, the race cards (scripts/race_card.py), docs/RACEDAY.md. The earlier reports in out/report (September) predate this week's corrections and should be read with them.</p>
 </div>
 <script>
 (function(){

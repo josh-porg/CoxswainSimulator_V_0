@@ -46,22 +46,36 @@ Updated as results arrive; they are the record the management set points into.
 | `research/callmodel/README.md` | the coupled call/boat model and its session format |
 | `research/biorow/` | scripts behind the [BR24] like-for-like results (derived numbers only; the data stay in `data/local/`) |
 
-## Data
+## Code and data: where things live
 
-All research data lives in the repository's `data/` folder — never only in a session's
-temporary scratchpad, which is cleaned without warning (the [CR06] digitised traces were
-lost that way on 2026-09-27).
+**Code is committed; private data is not; nothing lives in a scratchpad.** A session's temporary
+scratchpad is cleaned without warning: the [CR06] digitised traces were lost that way on
+2026-09-27, and step 4.3's hip-moment scripts (`cr06/hip_moment_cr06.py`) after 2026-09-14.
+From 2026-10-24 every script is written straight into the repository, and one-off edits are
+made with the editor, not with throwaway patch scripts.
 
 | folder | committed? | holds |
 |---|---|---|
+| `coxswain/` | yes | the package: the simulator and the shipped game |
+| `scripts/` | yes | runnable products: race cards, reports, the race-day site, validation |
+| `tools/` | yes | fetch, extract and build tools for the data in `data/` |
+| `research/<study>/` | yes | study scripts, one folder per study (`raceday`, `lakes`, `coxing`, `cr06`, `biorow`, `crew`, `steering`, ...). They read and write their study's data folder under `data/local/` (a script's `HERE` is that folder; `CODE` is its own folder) |
 | `data/` (top level) | yes | course, river, results and roster data the code reads |
 | `data/literature/` | yes | numbers digitised from published papers, provenance in each file's header ([README](../data/literature/README.md)) |
-| `data/local/biorow/` | **no** (gitignored) | [BR24] — commercial, shared for validation |
-| `data/local/coxing/` | **no** | race recordings' captions, cox-box export and display readings, sessions, the coxing analysis and paper sources (`analysis/`) |
+| `data/local/<study>/` | **no** (gitignored) | each study's inputs and outputs: race recordings and captions, CoxBox files, crew lists, pages and their encrypted copies, fitted models |
+| `data/local/raceday/crews.json` | **no** | the club crews (coxswains' names, events, results); code reads it through `research/raceday/review_crews.py`, so no name is written in committed code |
+| `data/local/coxing/local_paths.json` | **no** | machine-specific paths (the video and CoxBox archive) |
+| `data/local/biorow/` | **no** | [BR24] — commercial, shared for validation |
 | `data/local/literature/` | **no** | downloaded papers and theses (copyright) |
-| `data/local/cr06_study/`, `data/local/scratchpad_archive_*/` | **no** | study scripts recovered from the scratchpad |
 | `data/local/artifacts/` | **no** | last-published sources of the plan and ledger artifacts |
+| `data/local/archive/` | **no** | old scratch folders and the 2026-10-24 move (`moved_2026-10-24/MOVES.json` maps every moved script) |
 | `data/raw/` | **no** | re-fetchable downloads |
+
+**One exception:** `data/local/raceday/keepalive_relay.py` stays where it is, because the Windows
+task "Whatcom relay keepalive" runs it by that path.
+
+**The repository is public.** Before committing anything under `research/`, check it for names,
+personal paths and private results; those belong in `data/local/`.
 
 ## Subsystem documents
 

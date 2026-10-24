@@ -25,3 +25,7 @@ build/
 packaging/VERSION
 .venv-tools/
 .venv-imu/
+
+# scratch work never lives in the repo: code goes in research/<study>/ (or tools/, scripts/),
+# data and outputs in data/local/<study>/; old scratch folders are archived under data/local/archive/
+/scratchpad/

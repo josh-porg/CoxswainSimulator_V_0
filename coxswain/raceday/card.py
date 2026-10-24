@@ -32,7 +32,7 @@ Turning
 -------
 A hard rudder slows the boat, and the river model's steering charge barely registers (its calm splits
 are even through the big turn). The cost is measured instead, from the squad's own boats at Tail of
-the Lake 2026 (``data/local/raceday/rudder_totl.py``): per stroke, the speed lost against the turn
+the Lake 2026 (``research/raceday/rudder_totl.py``): per stroke, the speed lost against the turn
 rate taken from the GPS track, at the crew's own pace either side, fits ``dv/v = k omega^2`` with
 omega in deg/s, k = 0.0071 +- 0.0009 for the four and 0.0099 +- 0.0009 for the eight (a 2 deg/s turn
 costs 3-4%). On the Charles the turn rate is the boat's speed times the line's curvature, the
@@ -212,7 +212,7 @@ def depth_boat(boat):
     By default the evaluator gets no boat and multiplies the crew's WHOLE resistance by the
     Schlichting wave factor (up to 3x near ``Fr_h = 1``), where [D11] and ``hull_resistance`` scale
     the wave term only. On the HOCR 2026 GPS tracks that charged three crews 62-156 s of depth on
-    their own lines and the boats showed none of it (``data/local/raceday/shallow_check.py``;
+    their own lines and the boats showed none of it (``research/raceday/shallow_check.py``;
     PHYSICS_PROGRAMME). A boat that carries a non-shipped profile (``physics.resolve("research")
     .apply(boat)``) is handed to the evaluator, which then solves the boat's own power balance with
     Sretenskii's finite-depth wave table, so depth moves the wave term and nothing else. Unstamped

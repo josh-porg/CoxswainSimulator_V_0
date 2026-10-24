@@ -100,7 +100,7 @@ Phase spread is not merely realism, it is the missing disturbance input:
 * **port/starboard phase asymmetry is a roll moment** — it injects error
   at the finish, against a 0.013° tolerance;
 * **port/starboard phase asymmetry is also a yaw moment** — the standing
-  steering bias whose correction `studies/steering_strategy.py` already
+  steering bias whose correction `research/steering/steering_strategy.py` already
   compares;
 * it supplies the timing half of the stochastic optimal control problem.
 

@@ -1,7 +1,7 @@
 """Turning cost: the research-profile 6DOF boat driven through measured turns.
 
 SOURCES sec. 177.  The squad's Tail of the Lake 2026 CoxBox GPS gives the speed a turn costs,
-``dv/v = k omega^2`` (``data/local/raceday/rudder_totl.py``).  Here the research boat -- dynamic
+``dv/v = k omega^2`` (``research/raceday/rudder_totl.py``).  Here the research boat -- dynamic
 oar, [CR06] sweep catch, [WF58] fins at reflection 2, Munk 0.50 (SOURCES sec. 169) -- is steered
 through each measured turn's heading-rate trace and its speed lost per stroke is compared with the
 crew's.  Nothing is fitted to the measurement.

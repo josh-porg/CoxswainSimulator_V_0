@@ -6,7 +6,7 @@ r"""Build the race card for a crew: target splits by section, today's wind, and 
 
 Sprint 1 of docs/RACEDAY.md. Targets are goals with a range (:mod:`coxswain.raceday.goals`) from the
 simulated 2026 field (``data/local/raceday/field_<crew>.npz``, written by
-``data/local/crew/feeders/charles_update_2026.py``), spread over the course by
+``research/crew/feeders/charles_update_2026.py``), spread over the course by
 :mod:`coxswain.raceday.card`. The wind is the NWS hourly forecast for
 the race start when it is within the forecast range, otherwise the latest observation over the
 basin (:func:`coxswain.river.stations.charles_reference`), labelled as such.

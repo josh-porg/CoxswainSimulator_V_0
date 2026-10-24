@@ -229,7 +229,7 @@ All commands from the project folder; Python is `.venv/Scripts/python.exe`.
 |---|---|---|
 | any time | refresh both cards by hand | `scripts/race_card.py --crew four --out data/local/raceday/card_four.json` (and `--crew eight ... card_eight.json`), then write them to the page's database (`cards/four`, `cards/eight`) — the scheduled task does exactly this hourly |
 | when an arch plan changes | re-optimise the planned line and re-price the alternatives (a few minutes per crew) | edit `arches` in `CREWS` (`scripts/race_card.py`), then run it once with `--plan` |
-| when the field changes (withdrawals, a new feeder result) | re-simulate the field | `data/local/crew/feeders/charles_update_2026.py` (writes `data/local/raceday/field_<crew>.npz`) |
+| when the field changes (withdrawals, a new feeder result) | re-simulate the field | `research/crew/feeders/charles_update_2026.py` (writes `data/local/raceday/field_<crew>.npz`) |
 | start times published | mark them confirmed | set `race_start` and `start_confirmed=True` in `CREWS` |
 | race morning | the day factor from earlier events | copy `data/local/raceday/day_results_TEMPLATE.csv` to `day_results.csv`, add a row per finished event (`event,today,last_year`); the next refresh uses it; delete the file after the race |
 | race morning | 15-minute refresh | scheduled task `charles-race-morning-refresh` (needs the Claude app open and its tools approved once with Run now) |
@@ -289,7 +289,7 @@ After any change to the plan (arches, field, heat sheet), rebuild and push:
   (3.37 km) confirmed. Calm splits are even along the course (2:11-2:13 for the four), so slow
   stretches on a windy card are the wind, not the steering model.
 - 2026-10-08 — **Turning cost from our own boats.** Joshua: at Tail of the Lake a hard rudder visibly
-  slowed the split. Measured from the two CBGPS per-stroke files (`data/local/raceday/rudder_totl.py`):
+  slowed the split. Measured from the two CBGPS per-stroke files (`research/raceday/rudder_totl.py`):
   speed lost against GPS turn rate, at the crew's pace either side, fits dv/v = k omega^2, k = 0.0071 +-
   0.0009 (four), 0.0099 +- 0.0009 (eight), omega in deg/s; the four's called turn at 1.7 km lost 4% at
   1.8 deg/s. Applied on the Charles from the line's curvature x speed (`card.turn_rate`, heading
@@ -477,7 +477,7 @@ After any change to the plan (arches, field, heat sheet), rebuild and push:
   four requalify 6%. Web search found no autumn 2026 results for the remaining 14 crews. (4) Site
   password set to `sra` (Joshua's choice); email to Sophie in `data/local/raceday/email_to_sophie.txt`.
   (5) The hourly laptop job now runs (approved).
-- 2026-10-15 — **Analysis for the session: the Charles in 2026** (`data/local/raceday/analysis_2026.py`,
+- 2026-10-15 — **Analysis for the session: the Charles in 2026** (`research/raceday/analysis_2026.py`,
   `scripts/charles_2026_report.py` -> `out/report/charles_2026.html`, https://claude.ai/artifact/5r6MfgCQ43n33WupFUGVbF).
   Saturday on the planned lines at requalifying pace, against still air / slack / deep water: four wind +181 s
   (65 s of it the first km into the north-wester), current +29 s, shallows +16 s, turning +4 s; eight wind
@@ -493,7 +493,7 @@ After any change to the plan (arches, field, heat sheet), rebuild and push:
   analysis); click a stretch for its costs, push note, arch advice and the big-turn note; pan and zoom;
   crew and full/short course switches; **rowers' view by default** (no targets), coxswains' view adds
   splits and be-there-by times. Map data now carries each stretch's outline (`map.section_lines`).
-- 2026-10-15 — **Briefing map layers and the possible lines** (`data/local/raceday/fields_2026.py`). Pace fields
+- 2026-10-15 — **Briefing map layers and the possible lines** (`research/raceday/fields_2026.py`). Pace fields
   over the raced water (25 offsets x 161 stations, +-72 m): the loss against the planned line's pace at the
   same station, by cause (depth, current, wind) and total, plus raw depth, current (Saturday's flow) and
   wind felt (the card's forecast when built). Local pace only: getting there costs distance, which the
@@ -572,6 +572,6 @@ After any change to the plan (arches, field, heat sheet), rebuild and push:
   tracks, no .fit): their shortest line is 8.6 s slower than the optimum in our model; only one of their lines
   beats ours (data/local/bestline/). Request for the .fit files drafted: data/local/bestline/email_to_row3r.txt.
 - 2026-10-19 · **Race review on the site, encrypted.** https://josh-porg.github.io/charles-race-card/review.html
-  (passphrase as the race card). data/local/raceday/race_review_site.py (.venv-tools): the page is a locked shell;
+  (passphrase as the race card). research/raceday/race_review_site.py (.venv-tools): the page is a locked shell;
   text, numbers, GPS track and replay are in review.enc (AES-256-GCM, PBKDF2-SHA256 600k). noindex meta; not linked
   from the race card. Rebuild: race_review_page.py, then race_review_site.py, then push site/.

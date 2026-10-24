@@ -19,9 +19,10 @@ from collections import Counter
 
 import numpy as np
 
-d = (r"C:\Users\satur\AppData\Local\Temp\claude"
-     r"\C--Users-satur-PycharmProjects"
-     r"\ed74e05d-eb95-4ae0-8073-d159240c91d6\scratchpad\charles")
+# the downloaded KML lives with the other source material (gitignored); give another folder as argv[1]
+import sys
+d = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                                       "data", "raw", "charles")
 
 kml = open(os.path.join(d, "charles.kml"), encoding="utf-8").read()
 

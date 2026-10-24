@@ -6,6 +6,7 @@ which of its numbers you can spend.
 
     python scripts/validate.py
 """
+import os
 import sys
 
 import numpy as np
@@ -60,14 +61,15 @@ check("speed", "8+ faster than 2x", float(v8.mean() - v2.mean()), 0.5, 3.0,
 # erg-scale fluctuation (~51%), while the measured on-water crew implies
 # a relative velocity swing 0.65-0.75 of the erg value.  See SOURCES
 # sec. 57 and docs/PROVENANCE.md.
-_PROFILE = ("C:/Users/satur/AppData/Local/Temp/claude/"
-            "C--Users-satur-PycharmProjects/"
-            "ed74e05d-eb95-4ae0-8073-d159240c91d6/scratchpad/"
-            "hull_vel_profile.npz")
+# The profile is the club crew's DGPS session (private), kept in data/local/validation/.  It used to
+# be read from a session scratchpad, which was cleaned: say so when it is missing, never skip silently.
+_PROFILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "data", "local", "validation", "hull_vel_profile.npz")
 try:
     _z = np.load(_PROFILE)
 except OSError:
     _z = None
+    print("  [skipped] 2x velocity waveform corr: %s is missing (DGPS profile, PROVENANCE.md)" % _PROFILE)
 if _z is not None:
     _vu, _vm = _z["phase"], _z["profile"]
     _vm = np.roll(_vm, -int(np.argmin(_vm)))
