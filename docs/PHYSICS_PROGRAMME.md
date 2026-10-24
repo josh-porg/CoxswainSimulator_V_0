@@ -933,9 +933,13 @@ force are not in the paper and have to be built and validated here.
         - *[BU13]:* its elite-ergometer pattern agrees. Its magnitudes are
           not reachable by top-down statics and serve only as order of
           magnitude.
-      - **Knee and ankle:** indeterminate in this plane until a foot-force
-        direction for her is sourced. The on-water sources found measured
-        men only and published no vertical values.
+      - **Knee and ankle:** the foot-force direction is now sourced for women
+        ([BU15], ergometer: 36° above horizontal at maximum handle force;
+        SOURCES §177). It settles the leg's support moment (knee extensor plus
+        ankle plantarflexor): about 140–205 N·m at the catch, direction-free
+        because her shank is vertical there, and 32 N·m (−10 to 75) at maximum
+        handle force, where the force runs along the shank. The split between
+        knee and ankle waits on where on the footplate the force acts.
       - **Trunk driven forward by the hip torque** (rung 3): the round trip
         returns her trunk angle to 0.003° (0.015° from the saved torque).
         But the open loop is an inverted pendulum. A 0.1° error grows 720×
@@ -1084,7 +1088,7 @@ the boat speeds that go with their drive durations).
   population's leg travel its boat motion is reproduced (§175); the athletes still swing 12–20% over.
 - **Rung 2, next:** relax the body — joint torques move it against the handle load, so the
   hands' time law is an output. The trunk rungs (TRACKING: hip moment, trunk forward dynamics,
-  delayed PD) are its pieces; knee and ankle wait on the foot-force direction (sprint #4).
+  delayed PD) are its pieces; knee and ankle: the support moment is settled by [BU15]'s direction (§177); the knee/ankle split waits on the footplate centre of pressure.
 
 ## Calibration and validation data from the squad's own boats (noted 2026-10-08)
 
@@ -1096,12 +1100,12 @@ may not.
 
 | data | where | what it pins | test for the model |
 |---|---|---|---|
-| **Turning cost**, Tail of the Lake 2026, both squad boats (CBGPS per stroke: speed, rate, GPS position) | `data/local/coxbox/... 20261004 0803AM / 1237PM.csv`; analysis `data/local/raceday/rudder_totl.py` -> `rudder_totl.json` | speed lost vs turn rate, dv/v = k omega^2 (omega in deg/s, heading over ~28 m): **k = 0.0071 +- 0.0009 (masters 4+, 3.5 m/s), 0.0099 +- 0.0009 (masters 8+, 4.1 m/s)**; ~3-4% at 2 deg/s; the four's called turn lost 4% at 1.8 deg/s | Drive the simulator (research profile) through each measured turn's heading-rate profile at the crew's rate and power; compare the speed lost per stroke. `ReducedModel` (an eight throughout: `turn_drag` 8000, `split_drag` 250) has the right shape but is 8-9x too small (0.37-0.44% at 2 deg/s against 2.8-4.0% measured; TRACKING, 2026-10-09); the 6DOF hull with fins and rudder ([WF58] fins, SOURCES §169) is the model to test. Confound: those turns had pressure calls ("starboard press"), so the measured loss is rudder plus pressure split, which is the steering a crew really does. |
+| **Turning cost**, Tail of the Lake 2026, both squad boats (CBGPS per stroke: speed, rate, GPS position) | `data/local/coxbox/... 20261004 0803AM / 1237PM.csv`; analysis `research/raceday/rudder_totl.py` -> `rudder_totl.json` | speed lost vs turn rate, dv/v = k omega^2 (omega in deg/s, heading over ~28 m): **k = 0.0071 +- 0.0009 (masters 4+, 3.5 m/s), 0.0099 +- 0.0009 (masters 8+, 4.1 m/s)**; ~3-4% at 2 deg/s; the four's called turn lost 4% at 1.8 deg/s | Drive the simulator (research profile) through each measured turn's heading-rate profile at the crew's rate and power; compare the speed lost per stroke. `ReducedModel` (an eight throughout: `turn_drag` 8000, `split_drag` 250) has the right shape but is 8-9x too small (0.37-0.44% at 2 deg/s against 2.8-4.0% measured; TRACKING, 2026-10-09); the 6DOF hull with fins and rudder ([WF58] fins, SOURCES §169) is the model to test. Confound: those turns had pressure calls ("starboard press"), so the measured loss is rudder plus pressure split, which is the steering a crew really does. |
 | **Wind cost, HOCR 2026 field** (14 Saturday events against 2025, plus 2024->2025 and Friday pairs) | `data/local/raceday/results/hocr_event_summaries.csv`, `backtest_dayfactor.py`, `race_review_opt.py` | The race-card wind model (ShelteredWind + wind_area) overstates the wind's effect on whole-race time 2-3x: Saturday 17 Oct measured +7% on still water vs +15% (forecast) / +26% (observed KBOS via charles_reference). Calibration target for the wind/shelter chain; not yet applied to the model (3 day pairs + 1 race day). | |
 | **Race speed with a known power**, the same files plus the four's erg 5 k times | `scripts/hocr_crew.py` (Concept2 P = 2.80/pace^3 per rower), TOTL four 3.51 m/s mean at rate 30 | one masters-four pair: crew 5 k power ~ 500 W and race speed | The "validating against published race pace" row in *Blocked* needs a stated power; this is one measured pair for a masters four (one crew, one day, wind not removed). |
 | **Wind cost on the water**, the same races by heading | TOTL GPS headings plus the day's wind: KBFI and KSEA 5-min observations pulled 2026-10-09 (`data/local/raceday/totl_2026-10-04_wind_*.json`) | **not testable from this day**: 0-9 km/h (under 2.6 m/s), direction shifting, at both stations through both races; the model's predicted effect at that wind (1-2%) is inside the stroke-to-stroke noise | Still needed: a steady piece there and back in 4+ m/s of measurable wind (see *To collect*). The wind charge scaled to the boat's own resistance (`card.wind_area`, SOURCES §176) remains unvalidated on the water. |
 | **Speed against rate**, 7 Oct 2026 practice (800 m pieces at set rates, warm-up) | `data/local/coxbox/... 20261007 *.csv` (per stroke, GPS) | the four's speed-rate curve within one session | Shape of the power-speed relation at masters speeds (relative, no absolute power). |
-| **Shallow water, HOCR 2026** (three Sammamish CoxBox tracks, 1,923 strokes; 13 bestline.row3r.com tracks, positions only) | `data/local/raceday/shallow_check.py` -> `shallow_check.json`; `shallow_bathy.py`, `shallow_shore.py`, `shallow_gap.py` | per-stroke speed against the model's depth term on each crew's own line, wind/current/turning held equal: the default evaluator's term (Schlichting factor x **whole** resistance) is rejected, slope -0.06 +- 0.03 (1 = model); the research (Sretenskii) term is not seen pooled either, -0.11 +- 0.12, but is weakly tested | Section below (2026-10-21). |
+| **Shallow water, HOCR 2026** (three Sammamish CoxBox tracks, 1,923 strokes; 13 bestline.row3r.com tracks, positions only) | `research/raceday/shallow_check.py` -> `shallow_check.json`; `shallow_bathy.py`, `shallow_shore.py`, `shallow_gap.py` | per-stroke speed against the model's depth term on each crew's own line, wind/current/turning held equal: the default evaluator's term (Schlichting factor x **whole** resistance) is rejected, slope -0.06 +- 0.03 (1 = model); the research (Sretenskii) term is not seen pooled either, -0.11 +- 0.12, but is weakly tested | Section below (2026-10-21). |
 
 **To collect** (cheap, at practice, CoxBox GPS on):
 - a deliberate turning test: the same rate and pressure through set turns, once as one long even arc

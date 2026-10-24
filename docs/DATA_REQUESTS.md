@@ -563,7 +563,8 @@ waiting on replies.
 * **Record answers against the section they answer**, and note in SOURCES whether
   the number arrived and what it changed. A reply that declines is still worth
   recording: it closes a line.
-* **§11 is the one that blocks live work.** Phase 4.3's knee and ankle need the
+* **§11 update 2026-10-24: the direction is sourced.** [BU15] (the §11c group's published paper) gives elite women's RF = 0.81 ± 0.07 at maximum handle force on an ergometer (SOURCES §177). It settles the leg's support moment; what still blocks the knee/ankle split is where on the footplate the force acts. The on-water requests stay useful as confirmation, and the ask narrows to the centre of pressure (or heel-down timing) through the drive.
+* **§11 was the one that blocked live work.** Phase 4.3's knee and ankle need the
   foot-force direction, and the search so far says no one has published it: the
   standard elite instrument ([LE26]'s Peach PowerLine) measures the stretcher on
   one axis only, [LO00] measures each foot but propulsively, and [F09] supplies the
@@ -688,6 +689,15 @@ scheduled task `outreach-followups`, which drafts a follow-up after 14 days and 
 >
 > Sincerely,
 > Joshua Poznanski
+
+**Answered 2026-10-21 (same day). Declined.** Prof. McGregor: the data would be very hard
+to find now. No referral, no mention of students continuing the work.
+
+*What it closed:* the thesis foot-force data are not available from the author or the group;
+§11c is exhausted as a source of raw data.
+*What stays open:* the women's foot-force direction for phase 4.3's knee and ankle. Remaining
+route: values printed in the group's published papers on instrumented foot stretchers, read
+or digitised from their tables and figures.
 
 > Subject: Re: rowing simulator — thank you
 >

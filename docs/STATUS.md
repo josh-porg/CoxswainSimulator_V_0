@@ -159,7 +159,7 @@ Charles is raced in has no like-for-like target.
 
 | what | from | blocks |
 |---|---|---|
-| foot-force direction (women) | McGregor, via Buckeridge (§11c) — sent 2026-10-21 from Gmail; Draper (LinkedIn only, not yet contacted) | phase 4.3 knee and ankle |
+| footplate centre of pressure (heel to ball) through the drive; on-water confirmation of the women's foot-force direction | direction now sourced from [BU15] (ergometer, SOURCES §177); McGregor declined 2026-10-21; Sinclair, Baca, Smith (§11, sent 2026-09-19) for on-water; Draper (LinkedIn only, not yet contacted) | phase 4.3's knee/ankle split (their sum is settled) |
 | origin/frame confirmation of the trunk channel; other stroke rates | Kleshnev (§2) — draft ready to send | confirms §156; a rate sweep would test IVV against rate |
 | tabulated immersion and entrainment data, tangential force traces | Grift (§9) — thesis figures read; exact numbers wanted | the immersion refit's precision; phase 3's gate |
 | the others in DATA_REQUESTS | sent 2026-09-19, no reply yet | see each section |

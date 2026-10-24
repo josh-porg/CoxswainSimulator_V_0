@@ -2839,7 +2839,7 @@ Why it matters here rather than being merely analogous:
    marginal — the two halves of the problem meet.
 2. **Phase spread is a steering disturbance.** Asymmetric timing between
    sides is a yaw moment, i.e. exactly the standing bias whose correction
-   the steering study of `studies/steering_strategy.py` compares.
+   the steering study of `research/steering/steering_strategy.py` compares.
 3. **It is the timing half of the stochastic problem.** The stochastic
    optimal control goal already calls for stroke-to-stroke variation in
    rower *power*; variation in rower *timing* is the same question and has
@@ -12567,3 +12567,41 @@ attach `ReducedModel()` but no wind. The report's 86 s and 232 s headwinds come 
 eight at 5.2 m/s the boat's own resistance is 380 N, and it builds its field at 1.5 m where
 `with_wind` expects 0.43 m. Its two errors pull in the same direction (both overstate the wind);
 left as an open item.
+
+## 177. A women's foot-force direction, and what it settles at her knee and ankle (2026-10-24)
+
+**Source [BU15].** Buckeridge, Bull & McGregor (2015), *Biomechanical determinants of elite rowing
+technique and performance*, Scand. J. Med. Sci. Sports 25(2):e176–e183, doi:10.1111/sms.12264.
+Read from the accepted manuscript on Imperial's Spiral repository (kept in
+`data/local/literature/buckeridge2015/`); numbers in `data/literature/buckeridge2015_foot_force.csv`.
+- *Who:* twenty elite women (GB) on a Concept2 with strain-gauge footplates measuring vertical and
+  horizontal foot force for each foot; footplates at 42°; ten strokes per 3-minute step.
+- *The number:* foot force ratio RF = horizontal / resultant = **0.81 ± 0.07 at maximum handle
+  force**: the force acts **36° above the horizontal** (28–42° for ±1 SD). Average resultant over the
+  drive 8.99 ± 1.12 N/kg. RF is given at maximum handle force only; no curves.
+- *Transfer:* an ergometer, not the water. Carried as sourced with that stated assumption; §11's
+  on-water requests (Sinclair, Baca, Smith) would confirm it.
+- *How it came:* §11c's authors could not supply the thesis data (Buckeridge 2026-09-25, McGregor
+  2026-10-21), but the group's published paper carries the number.
+
+**What it settles on [CR06]'s woman** (`research/cr06/knee_ankle_cr06.py`): her stroke's horizontal
+stretcher force from the body's momentum balance (rung 1; both handles together reproduces rung 1's
+724 N peak), the vertical force from RF, her posture on the women's table at 1.758 m, bottom-up
+through feet and shanks of both legs.
+- *What the direction determines.* In this plane the knee-extensor plus ankle-plantarflexor moment
+  (the support moment, after Winter) does not depend on where on the footplate the force acts; the
+  split between the two joints does. So the direction settles the sum, and the footplate point
+  remains the open item.
+- *At the catch* (minimum boat acceleration, t ≈ 0.015 s): her shank is nearly vertical (88°), so
+  the support moment is the horizontal stretcher force times the shank, **whatever the direction**
+  (204–206 N·m across ±1 SD of RF). It scales with the catch stretcher force, which sits on a
+  second derivative: 148–275 N·m across the smoothing band, about 140 N·m at rung 1's segmental
+  310 N. With the heels up the force acts at the ball of the foot: knee extensor ≈ 143 N·m and
+  ankle plantarflexor ≈ 62 N·m at the mid smoothing (both legs).
+- *At maximum handle force* (t ≈ 0.51 s, knee flexed 62°): her shank is at 39° and the force at 36°,
+  so the force runs almost along the shank and the leg acts as a strut: support moment **32 N·m**
+  (−10 to 75 for ±1 SD; smoothing moves it by 1 N·m). The two joints then carry small moments of
+  either sign, set by the footplate point (knee extensor 85 at the heel to −62 at the ball).
+- *Open:* where on the footplate the force acts through the drive (heel-down timing). [BU15] reports
+  heel-down timing only as an asymmetry. A centre-of-pressure or pressure-insole measurement in
+  rowing would close the knee/ankle split; until then the joints are carried as the bands above.

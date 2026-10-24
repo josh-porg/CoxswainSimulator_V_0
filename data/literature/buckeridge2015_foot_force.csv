@@ -1,0 +1,17 @@
+# Buckeridge, Bull & McGregor (2015), Biomechanical determinants of elite rowing technique and performance,
+# Scand. J. Med. Sci. Sports 25(2):e176-e183, doi:10.1111/sms.12264. Numbers read from the accepted manuscript
+# (Imperial College Spiral, Determinants_technique_performance_v2.docx, Methods and Tables 3-6); the manuscript
+# itself is kept in data/local/literature/buckeridge2015/ (copyright).
+# Who: twenty elite female rowers (GB), incremental test on a Concept2 ergometer with strain-gauge footplates
+# measuring vertical and horizontal foot force on each footplate; footplates oriented at 42 degrees (reference
+# direction not stated); ten time-normalised strokes per 3-minute piece; forces normalised to body mass.
+# RF = horizontal / resultant total foot force, extracted at maximum handle force (MHF) only.
+# Ergometer, not on-water: the transfer to the boat is an assumption (SOURCES "Foot-force direction").
+quantity,mean,sd,unit,where_in_stroke,source
+foot_force_ratio_RF,0.81,0.07,horizontal/resultant,maximum handle force,Table 4
+average_resultant_foot_force,8.99,1.12,N/kg,drive (catch to finish),Table 3
+footplate_angle,42,,deg,fixed,Discussion
+asymmetry_average_resultant,6.26,4.60,% ASI,drive,Tables 5-6
+asymmetry_vertical_force_at_MHF,24.25,15.90,% ASI,maximum handle force,Table 5
+asymmetry_vertical_force_at_finish,16.65,12.98,% ASI,finish,Table 6
+asymmetry_timing_of_heels_down,22.44,15.34,% ASI,drive,Tables 5-6
