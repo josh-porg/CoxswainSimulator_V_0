@@ -1,7 +1,7 @@
 # Project management — the master index
 
 *Read this first. It says which document holds what, who keeps it current, and what
-has to be updated when work happens. Last reviewed 2026-09-27.*
+has to be updated when work happens. Last reviewed 2026-10-25.*
 
 The rule behind all of it: **every finished piece of work is recorded before the next
 one starts**, so nothing is done twice and nothing is claimed that the record does not
@@ -40,7 +40,7 @@ Updated as results arrive; they are the record the management set points into.
 
 | document | purpose |
 |---|---|
-| [SOURCES.md](SOURCES.md) | the evidence: every source, derivation and result, in numbered sections (§1–§159 as of this review). New work appends a section; nothing is rewritten silently |
+| [SOURCES.md](SOURCES.md) | the evidence: every source, derivation and result, in numbered sections (§1–§179 as of this review; §120a and §169a are second sections that once shared a number, and 144–151 were never assigned). New work appends a section; nothing is rewritten silently |
 | [PROVENANCE.md](PROVENANCE.md) | where each data file came from |
 | [REPRODUCIBILITY.md](REPRODUCIBILITY.md) | how every result is regenerated: rules, the public and private repositories, environments, a register of results with their commands, the checklist for new work |
 | [coxswain_performance.md](coxswain_performance.md) | the coxing research log (calls, boat response, the paper) |

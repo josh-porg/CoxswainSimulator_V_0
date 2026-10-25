@@ -320,7 +320,7 @@ def variants(card: dict) -> List[dict]:
                             when="Closing on bow %d (%s), most likely %s." % (n["bow"], n["club"], where),
                             do=["Declare our side at one length of open water.",
                                 "Choose the side that leaves us the centre arch at the next bridge.",
-                                "[how we make the pass: Joshua / Sophie to write]"]))
+                                "[how we make the pass: the coxswains to write]"]))
     out.append(dict(letter="C", name="Hard headwind",
                     when="12 mph or more at the start, from the west round to the north-west.",
                     do=["Same line, same arches: re-steering for wind is worth seconds at most.",

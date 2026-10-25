@@ -1,6 +1,6 @@
 # Project status
 
-*Last reviewed 2026-10-08 (coxing row; physics rows unchanged since 2026-10-02). Update this file whenever work finishes or a priority moves;
+*Last reviewed 2026-10-25 (every row checked against TRACKING's Done list and the other planning documents). Update this file whenever work finishes or a priority moves;
 it is the one-page answer to "where are we, and what is next".*
 
 Rowing shell simulator: full 6-DOF rigid-body dynamics, a released trainer, and an
@@ -22,8 +22,8 @@ work studies coxing itself: what a coxswain's calls do to the boat.
 | [DATA_REQUESTS.md](DATA_REQUESTS.md) | letters to authors and labs, and their replies |
 | [SOURCES.md](SOURCES.md) | the evidence, numbered by section |
 
-Test suite: **1986 passing, 0 failing** in the fast lane (`pytest -m "not slow"`, run
-2026-10-02, 8 min 18 s). The full suite, with the strict xfails that pin known model errors
+Test suite: **2095 passing, 0 failing** in the fast lane (`pytest -m "not slow"`, run
+2026-10-25, 9 min 10 s). The full suite, with the strict xfails that pin known model errors
 (drive duration against on-water pairs, race pace without controlled power), was last run
 2026-09-12: 1771 passing, 14 expected failures.
 
@@ -34,12 +34,12 @@ Test suite: **1986 passing, 0 failing** in the fast lane (`pytest -m "not slow"`
 | workstream | state | most recent | next |
 |---|---|---|---|
 | **Released trainer** | v0.13 (2026-09-11). Physics profile `shipped`, **frozen**: no accuracy change reaches it without a scorecard that justifies promotion | leg-mass placement fixed for research only, shipped left on `legacy` (2026-09-26) | nothing scheduled |
-| **Physics programme** (`research` profile) | phase 2 gate passed (dynamic oar, slip blade, 6-DOF hull); phase 3 tier 2 lift/drag wired as a study; phase 4.1 closed, **4.3 next** | **step 4.3 rungs 1–5 rebuilt (§178–179, 2026-10-25): rung 5's controlled cases not reproduced: the boat's recoil lowers the trunk's inertia to ~6.3 kg·m² and halves the one-way gains' stiffness; record's 117 ms divergence withdrawn;** fins on Whicker & Fehlner's eq. [1], Munk factor refitted (0.50, unchanged), SOURCES §169 (2026-09-30); [BR24] like-for-like runs (§156–159) | phase 4.3 rung 2: a torque-driven body against the handle load (rung 1 with the [K05] drive law: IVV 54 / 50% vs 49%, force width in band, peak early; §171) |
-| **Like-for-like validation** | first athlete where rig, rate, power and boat response are one person's ([BR24], elite M1x); [CR06] traces rebuilt into `data/literature` | pace passes (+0.2%); IVV 61% vs 49% decomposed; hull drag verified; on-water timing transfers ~2 points between athletes | the blade at his kinematics: a slip law gives 35% of his drive impulse (§162) |
-| **Charles trajectory optimisation** | deterministic receding-horizon leg stalled near 409 m at the station-450 pinch; stochastic machinery solves per block | not revisited since 2026-09-13 (research wave drag wired into the optimisers) | resume after the physics settles |
-| **Race-day product** (first priority from 2026-10-08) | planned in [RACEDAY.md](RACEDAY.md): race card on a private phone page, plans A/B/C, three briefing decks, live weather/flow/results | sprint 0 discovery done 2026-10-08 | sprint 2 well ahead: card with plan letters, arches, traffic, map, flow, day factor, auto-refresh; three decks drafted; demo Sat 11 Oct |
-| **Coxing research** | review "What makes a call work?" (theory-derived call properties, 22 hypotheses, staged plan) and experimental paper "What the boat answers" (Stages 1-2 on 11 synchronised pieces, 1178 calls coded blind; `research/callmodel/call_properties.py`); the Sept foundations paper folded into it, not submitted on its own | power calls +17 mm/s at strokes 3-5 (p .001, 8/10 pieces); rate/length calls act on rate and distance per stroke, not speed; contingent praise followed by less (coasting); single-call reliability 0.065; 7 Oct practice: calling density varied, debriefs observed (2026-10-07) | second human coder; record the Charles with seat recorders; Stage 3 randomised calls in practice |
-| **Data requests** | 14 letters sent 2026-09-19 | replies: Formaggia (§4), Kleshnev (§2, data received), Buckeridge (§11c, referred to McGregor — draft ready); Grift (§9) partly answered by his open thesis | send the Kleshnev and McGregor drafts |
+| **Physics programme** (`research` profile) | phase 2 gate passed (dynamic oar, slip blade, 6-DOF hull); phase 3 tier 2 lift/drag a study; phase 4.1 closed; **phase 4.3 in progress**: rung 1 (hands on the handle) and 2a (sourced on-water drive law) built; trunk rungs 1–5 on [CR06]'s woman rebuilt; knee/ankle support moment from a sourced foot-force direction ([BU15]) and centre of pressure ([VI17]) | **2026-10-25 (§179):** rung 5 rebuilt two-way: the hull's recoil lowers the trunk's effective inertia to ~6.3 kg·m², so the record's controlled cases (3.7° bias error, 117 ms divergence) are withdrawn; two studies broken by the fitted blade's step fixed. 2026-10-24 (§177–178): the hip two ways agree at maximum handle force, not at the catch | trunk controller designed on the coupled plant, then the predictor and load estimate re-run on it; the hip at the catch (from below ~0.3 vs from above ~3.3 N·m/kg); rung 2, the body relaxed against the handle |
+| **Like-for-like validation** | two athletes ([BR24] elite M1x, [CR06] W1x) and [K05]'s population | pace passes (+0.2%); hull drag verified; with [K05]'s timing and leg travel the population's boat motion is reproduced (§175) | the athletes still swing 12–20% too much (IVV 55–59% vs 49%); the late-drive unloading |
+| **Charles trajectory optimisation** | deterministic receding-horizon leg stalled near 409 m (unchanged since 2026-09-13); the race-day line work now carries it | 2026-10-22: HOCR arch rules corrected, bridge points no longer pinned, a Radau-collocation racing line (`line_ocp.py`); 2026-10-21: depth priced on the wave term only for research boats | the Cambridge-side corridor (decided 2026-10-21, not built); then the stochastic problem |
+| **Race-day product** | HOCR 2026 raced 17 Oct (four 21st of 26, eight 8th of 31); post-race analysis done | 2026-10-19 to 10-23: race review, club line comparison (six crews), wind vs steering, skill vs externalities, adaptation Monte Carlo, coxswains as operators; lake pages for Whatcom and Sammamish (fog model 10-22) | decide whether race cards move to the research depth term (their depth seconds are overstated, flagged 10-21); retro actions in RACEDAY |
+| **Coxing research** | review "What makes a call work?" and experimental paper "What the boat answers" (12 coded sessions incl. HOCR 2026); power calls +17 mm/s at strokes 3–5; single-call reliability 0.065 | 2026-10-24: OKID/ERA call-response model agrees with the event study and the transformer: with these data the calls' effect on speed within eight strokes is below what can be identified | second human coder; seat recorders on the Charles; Stage 3 randomised calls in practice |
+| **Data requests** | 14 letters 2026-09-19; Vieira 2026-10-24 | replies: Formaggia, Kleshnev (data, [BR24]), Buckeridge (referred) → McGregor (**declined 2026-10-21**); direction then sourced from [BU15] | **Kleshnev follow-up: Gmail draft ready, needs his address** (his reply went to the university account) |
 
 ---
 
@@ -104,7 +104,7 @@ The IVV gap is the crew's force time course; phase 4.3 (#1) carries it. *29 Sep 
 combinations are refused in code. *Rung 1 of phase 4.3 (§167):* with the hands held on the handle the model's IVV is
 46–55% against 49%, and speed is within ±2% at equal power on both athletes, power predicted
 rather than imposed. The remaining gap is the hands' time law (the handle force peaks too early),
-which rung 2's torque-driven body is for. *30 Sep (§169–170):* the ergometer body's legs and trunk
+which rung 2's torque-driven body is for. *30 Sep (§169a–170):* the ergometer body's legs and trunk
 travel 10% too far and its arms bend at the catch; [K05]'s on-water population patterns, digitised,
 give a drive law that reproduces [BR24]'s measured oar angle unfitted. With it, hands on the handle and
 the tier 2 blade, IVV is 54% and 50% against 49% on both athletes. *§171:* the law smoothed (its linear
@@ -160,7 +160,8 @@ Charles is raced in has no like-for-like target.
 | what | from | blocks |
 |---|---|---|
 | footplate centre of pressure (heel to ball) through the drive; on-water confirmation of the women's foot-force direction | direction now sourced from [BU15] (ergometer, SOURCES §177); McGregor declined 2026-10-21; Sinclair, Baca, Smith (§11, sent 2026-09-19) for on-water; Draper (LinkedIn only, not yet contacted) | phase 4.3's knee/ankle split (their sum is settled) |
-| origin/frame confirmation of the trunk channel; other stroke rates | Kleshnev (§2) — draft ready to send | confirms §156; a rate sweep would test IVV against rate |
+| origin/frame confirmation of the trunk channel; handle-force point; other stroke rates; mean blade burial | Kleshnev (§2) — follow-up approved 2026-10-25, a Gmail draft waiting on his address | confirms §156; a rate sweep would test IVV against rate |
+| fore-rear centre of pressure through the drive (raw) | Vieira (§11e), sent 2026-10-24 | separates the four women; figures already digitised |
 | tabulated immersion and entrainment data, tangential force traces | Grift (§9) — thesis figures read; exact numbers wanted | the immersion refit's precision; phase 3's gate |
 | the others in DATA_REQUESTS | sent 2026-09-19, no reply yet | see each section |
 | more synchronised cox audio + boat logs | crews and coaches with archives | the coxing results (power: 6–24 races) |
@@ -169,8 +170,8 @@ Charles is raced in has no like-for-like target.
 
 ## 5. Wanted, but not a priority
 
-* **Bridge piers as constraints** — bridges are landmarks only; clearance under the
-  arches is not yet a constraint.
+* **Bridge approach clearance** — piers and the HOCR arch rules are modelled (2026-10-22); clearance on the
+  approach between control points is not checked.
 * **Stream field** — discharge data loaded, current uniform.
 * **Crew fatigue over 4.8 km** — reserve state exists, depletion model does not.
 * **Steering: the rudder response ratio and the fin's reflection factor** — the research eight

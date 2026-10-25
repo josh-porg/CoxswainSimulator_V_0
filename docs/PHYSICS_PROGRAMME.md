@@ -1090,7 +1090,7 @@ the boat speeds that go with their drive durations).
   prescribed body; oar angle from the hands, handle force as the reaction, power an output.
   IVV 46–55% against the athletes' 49%; speed within ±2% at equal power. Open: the handle force
   peaks 0.16–0.20 s after entry against the population's 0.38–0.43 s.
-- **Rung 2a, sourced hands** (SOURCES §169–171): [K05] Fig. 1's on-water drive law, smoothed
+- **Rung 2a, sourced hands** (SOURCES §169a–171): [K05] Fig. 1's on-water drive law, smoothed
   within its digitisation error, reproduces [BR24]'s oar angle unfitted. Rung 1 with it and the
   tier 2 blade: IVV 54 / 50% against 49%; force width in the populations' band (peak/mean
   1.94 / 1.71), peak early (0.11 / 0.28 s). Blade added mass runs with the hands on the handle;
@@ -1128,7 +1128,7 @@ may not.
   pressure-split steering and tests omega^2;
 - a there-and-back steady piece in a measurable wind (note the time; the station history gives the
   wind) for the wind charge;
-- the same from Sophie's eight, so the eight's k is the squad's 50+ eight's rather than the mixed
+- the same from the eight, so the eight's k is the squad's 50+ eight's rather than the mixed
   eight's.
 
 ## Shallow water on the Charles, tested against HOCR 2026 GPS (2026-10-21)

@@ -3,6 +3,14 @@
 *Sprint 1 · 2026-09-28 → 2026-10-11 (two weeks, ending before the Head of the Charles,
 16–18 October). Update the board as items move; move finished items to TRACKING's Done.*
 
+> **Sprint 1 closed 2026-10-11; no sprint 2 has been opened** (race week and the post-race analysis took
+> the time, and the physics work since has followed phase 4.3 directly). Finished, but never moved on the
+> board below: **#4 knee and ankle** (2026-10-24: direction sourced from [BU15], centre of pressure from
+> [VI17]; SOURCES §177), **#6 handle power** (2026-09-27, `definition="handle"`; TRACKING Done), **#8 the
+> NK LiNK export importer** (TRACKING Done), **#10 bridge piers and arch rules** (2026-10-22; TRACKING Fixed).
+> Still open: #7 tier 3 infrastructure and #9 the stream field; #1 continues as phase 4.3
+> (PHYSICS_PROGRAMME). The board below is the sprint as it closed.
+
 ## Sprint goal
 
 **Build past the blocks.** Until now blocked items waited for data. This sprint builds them
@@ -95,7 +103,7 @@ stays frozen.
   49%) and holds speed within ±2% at equal power on both athletes, with power predicted, not
   imposed. The handle force it produces peaks at 0.16–0.20 s (population 0.38–0.43 s): the
   ergometer hands accelerate the oar too early → rung 2 (torque-driven body) is the next item.
-- 2026-09-30, #1 rung 2a (§169–170): the ergometer body's legs + trunk travel 10% too far and its
+- 2026-09-30, #1 rung 2a (§169a–170): the ergometer body's legs + trunk travel 10% too far and its
   arms bend at the catch; [K05] Fig. 1 digitised gives an on-water drive law that reproduces
   [BR24]'s oar angle unfitted. Hands on the handle with it and the tier 2 blade: IVV 54% / 51%
   against 49% / 49%. Remaining: the force curve's peakiness (the blade at small slip).

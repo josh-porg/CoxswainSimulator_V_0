@@ -10392,7 +10392,7 @@ to touch yaw stability starts from the measurement.
 in and makes the player hold the trim, because a trainer that quietly
 straightened the boat would be teaching a boat that does not exist.
 
-## 120. The Charles brought up to the Seattle standard
+## 120a. The Charles brought up to the Seattle standard
 
 The two Seattle courses had been given a scenery pipeline the Charles --
 the course this project started on -- never got. This closes that, and
@@ -10914,6 +10914,8 @@ vanishing under the hull as if the boat were a breakwater.
   water. The roll turns with the dish's sign now, and a test holds
   every blade in an eight hollow-up on the feather and hollow-astern on
   the drive.
+
+*(Sections 144–151 were never assigned; the numbering skips from 143 to 152.)*
 
 ## 152. Building for a machine we do not have
 
@@ -12111,7 +12113,7 @@ factor itself. A measured turning circle or a rudder-step heading trace from a c
 dimension (`FIN_DEPTH`, from a spanner in a photograph).
 
 
-## 169. The body and the oar do not agree kinematically (2026-09-30)
+## 169a. The body and the oar do not agree kinematically (2026-09-30)
 
 Before any dynamics: the model's hands are placed on the handle of the prescribed sweep, and the
 arms are solved to reach it from the shoulders the keyframed body provides. The hand–shoulder

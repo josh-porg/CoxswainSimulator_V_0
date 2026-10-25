@@ -108,58 +108,12 @@ choice, not a rule, and the crews show the water is used. But:
 bridge`, `bestline_vs_model.py`, with a research boat and the crews' lines
 unclamped.
 
-### The HOCR arch rules were swapped at the trestle and BU Bridge — fixed 2026-10-22
-**Impact: high for every optimised Charles line; every one went through two arches no crew uses.**
-
-`bridges.HOCR_ARCH_RULE` had the Grand Junction trestle on `"centre"` (arch 3 of 6) and BU Bridge on
-`"second_from_cambridge"`, which on BU's three modelled openings resolved to its centre. HOCR rules
-(2023, `data/raw/hocr_rules_2023.pdf`) sec. 6.1: the trestle's "second arch from the right (Cambridge
-shore) is the mandated lane"; sec. 10.4 penalises the trestle's and Anderson's Cambridge arch and any
-bridge's Boston arch, nothing at BU Bridge but its Boston arch. All 17 HOCR 2026 tracks (three CoxBox,
-13 bestline, bestline's shortest line) pass the trestle's arch 5 and BU Bridge's Cambridge-side opening,
-so the evaluator called every crew's line illegal at both. Now `"second_from_cambridge"` at the trestle and
-`("centre", "cambridge")` at BU Bridge; SOURCES "The rules are asymmetric" corrected. Tests:
-`test_the_trestle_lane_is_second_from_cambridge`, `test_bu_bridge_bars_only_the_boston_arch`.
-
-*Still open:* **Eliot.** The table bars Eliot's Cambridge arch (with Anderson's), and SOURCES and
-`test_anderson_and_eliot_are_centre_arch_only` say so, but sec. 6.1 lets "the right ... arch of four of
-those remaining bridges" be used, "the exception being the Lars Anderson Bridge", and sec. 10.4 names
-only Anderson and the trestle. No crew used it in 2026, so nothing measured moves; it needs the 2026
-rules or the Figure 6.1.2 traffic guide read before it is changed.
-
-### The line optimiser pinned every bridge point — fixed 2026-10-22
-**Impact: high for the review gaps and the race-card plans.**
-
-Three faults, found when bestline's shortest legal line timed 7.9 s faster than our four's "optimum":
-
-1. *Skewed bridges.* `lines.arch_route`, `pinned_arch_route` and `legalise` put a bridge's control point
-   at the bridge's own station with the arch centre's offset. On the Grand Junction trestle (41 degrees
-   skew) that line crosses the deck metres from the arch centre: outside the narrow mandated arch once
-   the rule above was fixed, and the course would not even build (`legalise` added a twin station).
-   Now the point sits on the deck itself (`lines.arch_point`), and `legalise` tests where the line
-   really crosses the deck (`lines.crossing_along`, `lines.illegal_bridges`), the same test as
-   `RouteEvaluator._arch_violations`. The two used to disagree. `legalise` repeats until stable,
-   because a point added at one bridge bends the spline at its neighbours.
-2. *Arch centres fixed.* The review search (`race_review_opt.py`, `line_review.py`) and
-   `plan.optimised_time` held every bridge point at its arch's centre and both ends on the centreline,
-   so a line could not use the width of an arch. `plan.optimise_line` makes the crossing a bounded
-   variable inside the arch (4 m pier clearance across the boat's path, `arch_window`), frees the ends,
-   keeps a point every 150 m, and warm-starts from the crew's line, bestline's shortest line and the
-   straight pinned line. `optimised_time` is now a thin wrapper over it (same few free stations,
-   Nelder-Mead), so the race card's arch pricing gets the fixes too; the planned line itself uses the
-   full search (`race_card.crew_plan`).
-3. *Legality as a wall.* A line pulled out of an arch scored 1e6, which a search cannot see past; now
-   it is +300 s per bridge, steep enough that no line gain pays for it.
-
-On our four's day: optimum 1419.1 s against the shortest line's 1428.1 s (which also breaks the 3 deg/s
-turn limit) and the crew's own 1434.8 s. Tests: `tests/unit/test_arch_lines.py` (every pinned arch
-combination legal by both checks; `legalise` leaves a legal line alone and fixes the centreline).
-`shallow_gap.py` (2026-10-21) still has the old search; its table in PHYSICS_PROGRAMME is marked
-superseded.
-
-*Still open:* the search is local (Powell from the best warm start). With depth corrected the cost is
-nearly flat across the start stretch, so a better line through a different bend is not excluded; the
-arch choices themselves are priced separately (`plan.arch_costs`).
+### The racing-line search is local (split from a fix of 2026-10-22)
+The line optimiser's bridge-point faults were fixed on 2026-10-22 (Fixed, "The line optimiser pinned every
+bridge point"). What stays open: the search is local (Powell from the best warm start), and with depth
+corrected the cost is nearly flat across the start stretch, so a better line through a different bend is not
+excluded. The Radau-collocation line (`coxswain/raceday/line_ocp.py`, Done 2026-10-22) is the candidate
+replacement; arch choices are priced separately (`plan.arch_costs`).
 
 ### Analyses priced on the factor-on-total depth path (flagged 2026-10-21)
 **Impact: high wherever the water is shallow relative to the boat's speed (the
@@ -294,6 +248,9 @@ figures do not include the resync dynamics.
 
 ### The blade does not know the boat's speed
 **Impact: high — it is the cause of the item below.**
+*Status 2026-10-25: fixed in `research` and `learned` by phase 2 (2026-09-12: slip-quadratic blade force, oar angle a
+dynamic state; PHYSICS_PROGRAMME, phase 2). Open only for the frozen `shipped` profile, where it waits on a
+promotion decision.*
 
 `oar_force(t, timing, side)` and `Boat.oar_forces_at(times, sides)` take
 stroke phase and side. There is no velocity argument anywhere in the
@@ -343,6 +300,8 @@ so the fix announces itself.
 
 ### The blade model cannot be wired in as an efficiency alone
 **Impact: high — it is what "tier 1" was scheduled to be.**
+*Status 2026-10-25: settled — phase 1 failed its gate on this and was merged into phase 2 (PHYSICS_PROGRAMME,
+decisions 2026-09-12). Kept as the record of why; nothing to do.*
 
 `Boat.blade_model` scales the transmitted force by the instantaneous slip
 efficiency instead of the oar's fixed 0.78. It looks like a cheap first
@@ -708,6 +667,10 @@ two minutes to build on the production grid (124 s for a 5.2 m/s route table),
 cached for the process after that.
 
 ### The dynamic oar's drive is started by the water, not the rower
+*Reading guide (2026-10-25): the defect in the title is resolved for `research` and `learned` (first paragraph).
+Everything after it is the running study log of the catch, the pull shape and phase 4.3's rungs (2026-09-13 to
+2026-10-25), kept in order as found. Current state: STATUS §3 and PHYSICS_PROGRAMME, "Phase 4.3 progress".*
+
 **Impact: now low — resolved for `research` and `learned`, which catch by the sweep since 2026-09-13; it remains only in the rest catch, which no profile uses.**
 The item is kept open for that default and for the stuck-oar finding pinned
 in `tests/test_release_rule.py`. The catch's *remaining* miss against measured
@@ -3066,11 +3029,14 @@ rebuilt since. **The report needs a full re-run before any of its numbers
 are quoted again.** The released trainer is *not* affected: v0.13 was cut
 at `6836a47`, before this commit.
 
-*Still open, and separate:* `mean_handle_power` dots the **oarlock**
+*Separate, and answered 2026-09-27:* `mean_handle_power` dots the **oarlock**
 force with the **handle** velocity. Under [F09]'s ideal lever those are
-not a conjugate pair — `F_h = −(L − r_h)/L · F_o` — so the product may
-carry a gearing factor it should not. Not investigated; flagged because
-it sits underneath every power number in the project.
+not a conjugate pair — `F_h = −(L − r_h)/L · F_o` — so the product carries
+a gearing factor: it reads ~1.46× a measured handle power on [BR24]'s rig
+(SOURCES §158). `mean_handle_power(boat, definition="handle")` now gives the
+true handle power (Done, "Handle power by its real definition"); the default
+`"oarlock"` stays for the frozen trainer, so switching a consumer is a
+promotion decision (STATUS §3.5).
 
 ### Still open: should an eight have a combined fin-and-rudder?
 **Impact: low, but it is an unexamined modelling change.**
@@ -3205,18 +3171,6 @@ recovery (a crew visibly sits out a lean), and so whether 93 N m is too
 little authority or the missing mechanism is elsewhere, such as more than
 2° of trunk lean.  Neither the learning gain nor the test thresholds
 should be tuned to hide it.
-
-### The [CR06] digitised traces were lost with the session scratchpad (2026-09-27) — **rebuilt the same day**
-*Resolved:* `research/cr06/extract_fig3.py` re-extracts Fig. 3 from the open preprint's vector figure into the committed `data/literature/cr06_fig3_measured.csv` (all five series in one file). It reproduces the recorded checks: mean boat speed 4.190 m/s, velocity 3.061–5.126, leg travel 0.582 m, turn-round −44.36°. The old study scripts in `data/local/cr06_study/` read the two former files and need their paths pointed at it when rerun.
-
-**Impact: medium — the one-athlete studies (SOURCES §§45–60, the finish fix, 4.3a) cannot be rerun until rebuilt.**
-
-`cr06_fig3_measured.csv`, `cr06_fig3_body.csv` and the extraction script
-`cr06/traces_fig3_body.py` lived only in the temporary scratchpad and were cleaned away.
-The study scripts that read them survive in `data/local/cr06_study/`. The source is open
-(Cabrera, Ruina & Kleshnev 2006, Fig. 3, a vector figure), so the traces can be
-re-extracted; when they are, they go in `data/literature/` with their provenance, and the
-recorded checks (mean boat speed 4.19 m/s against the stated 4.18) are the acceptance test.
 
 ## Open — numbers nobody has measured
 
@@ -3506,7 +3460,7 @@ the model's own prescribed body, IVV is 48.7% on [BR24]'s arc (his 49.1%) and 46
 imposed; at equal power (cube law) speed is within ±2%. The handle force peaks too early and too
 sharply against the [LE26] / [H20] populations: the hands' time law is the remaining item.
 
-### The hands' drive law is now sourced (2026-09-30)
+### The hands' drive law is sourced (2026-09-30), but the force it gives peaks early
 [K05] Fig. 1 digitised; `PopulationDriveSweep` reproduces [BR24]'s measured oar angle to 1–6°
 through the drive (SOURCES §170). With hands on the handle and the tier 2 blade: IVV 54.3% / 50.1%
 against 49.1% / 49.4%, power 301 / 237 W against 432 / 261 W. *Corrected (§171):* the "too peaky"
@@ -3544,7 +3498,7 @@ at 70% vs 0.54; zero by 90% vs 0.24) — rig gearing, [K05]'s rig unpublished; (
 rung-1 runs (§170–173) used the pinned law — rerun; (3) the [K05] body is a research script,
 not yet a simulator option.
 
-### Blade immersion at the catch: built and validated; added mass bounded (2026-10-02)
+### Blade immersion at the catch is built and validated (2026-10-02); catch slip short and [BR24]'s late drive open
 BioRow's norms (first wetting when the blade turns driving, ~65 ms; buried after another 4° of
 oar travel) built as `EntryImmersion` (SOURCES §173). Predicts BioRow's 6° catch-to-buried
 (5.3–5.9°) and the 65 ms entry (44–56 ms) unimposed, force width in band on [CR06]. Population
@@ -3561,7 +3515,7 @@ descriptor (time to 90% of peak, or the force centroid) before comparing with [L
 ### The body and the oar disagree kinematically (2026-09-30)
 Hands on the sweep's handle, arms solved from the keyframed shoulders: bent at the catch
 (71–86% of arm length) and stretched past their length early in the eight's drive (103–106%),
-SOURCES §169. The chosen raised-cosine sweep outruns the body; the catch posture sits too far
+SOURCES §169a. The chosen raised-cosine sweep outruns the body; the catch posture sits too far
 aft for the rig's catch angle. *Next (rung 2a):* the oar angle from the body — straight arms
 until the arm draw, a catch posture that reaches the catch angle with straight arms — in place
 of the chosen sweep.
@@ -4596,7 +4550,7 @@ to.
 | **Decks R7/R8, plan letters, map R4** (2026-10-09): coach deck (artifact QhYVRU6SnTwLn1HgtN8RGz, 12 slides incl. turning chart and map), rowers' deck (Ya37KopwH6av76LUn9mkXe, 8 slides) with `coxswain/raceday/decks.py` no-odds check; `plan.variants` A/B/C on the card; `coxswain/raceday/map.py` map on the card and in the coxswains' and coach decks; TOTL and practice days too calm to test the wind model (station data saved); 14 unit tests | `coxswain/raceday/`, `data/local/raceday/decks/` | — |
 | **Rowers' deck for the eight, runbook, Sammamish splits, target check** (2026-10-09): eight's rowers' deck (Vw1JoPHcoiGP7E1z96co9U); RACEDAY §11c race-week runbook; `scripts/lake_equivalents.py` and the card's Sammamish training split per goal; four's requalify target checked against the 2019-2025 half-field cuts (mean 21:22, SD 19 s) | `scripts/lake_equivalents.py`, `docs/RACEDAY.md` | — |
 | **Self-updating race card site** (2026-10-12): `scripts/wind_table.py`, `raceday_site.py`, `raceday_encrypt.py`, `build_site_index.py`, `raceday_site_loader.js`; encrypted static page on GitHub Pages fetching NWS and USGS in the browser; start times from the published schedule (`start_times.json`); bows checked against RegattaCentral; wind-line check for Saturday's NW (keep the line) | `scripts/`, josh-porg/charles-race-card | — |
-| **Short course, race-day river, field update, 2026 analysis** (2026-10-15): `card.short_course` + site `shortOf` (Riverside start, own traffic); NWM flow forecast and basin level in the targets (`flow.forecast_at`, `flow.basin_level`, `river_conditions.py`); older Charles results for crews without 2025 times (`charles_update_2026.py` 5b; Marlow 2024 winners); site password `sra` and email for Sophie; `analysis_2026.py` and `scripts/charles_2026_report.py` -> out/report/charles_2026.html | `coxswain/raceday/`, `scripts/`, `out/report/` | — |
+| **Short course, race-day river, field update, 2026 analysis** (2026-10-15): `card.short_course` + site `shortOf` (Riverside start, own traffic); NWM flow forecast and basin level in the targets (`flow.forecast_at`, `flow.basin_level`, `river_conditions.py`); older Charles results for crews without 2025 times (`charles_update_2026.py` 5b; Marlow 2024 winners); site password (held in `data/local`) and email for the eight's coxswain; `analysis_2026.py` and `scripts/charles_2026_report.py` -> out/report/charles_2026.html | `coxswain/raceday/`, `scripts/`, `out/report/` | — |
 | **Gusts switch; map wind layers corrected** (2026-10-16): `coxswain/raceday/gusts.py` (gridded NWS `windGust`; allowance = half the wind table's curvature in speed x speed variance, intensity (G-1)/3); `race_card.py` writes `card["gust"]` (targets stay steady-wind); switch "Steady wind / Count gusts" on the race card (`race_card.html`, site loader), briefing map (totals, lines table, wind/total layers) and `out/report/charles_2026.html`. Saturday: four +6 s, eight +3 s. `fields_2026.py` map pace layers charged wind against the 260 N default (3.2x): area rescaled; `wind` grid key no longer overwritten by the forecast tuple (`wind_forecast`) | `tests/unit/test_raceday.py` (3 gust tests: exact for a quadratic cost on and between table speeds); river: `flow.forecast_at` falls back to the short range's last hour within 18 h | — |
 | **Both arch lines; results reading; live day factor; same-day backtest** (2026-10-16): `race_card.py --arches`, `ARCH_OPTIONS`, `option_suffix`; Arches switch in `race_card.html` / site loader; map lines "Planned line" / "Other practised line"; `scripts/rc_event_summary.js` (read an open RegattaCentral results page), `scripts/day_from_results.py` (due/add/build, BASE_2025 = 1.02), `data/local/raceday/results/` (summaries 2024-2026, `rc_events_2026.json`, `backtest_dayfactor.py`); site uses the card's day factor automatically; race-morning task reads results | backtest numbers in docs/RACEDAY.md log (16 Oct) | — |
 | **HOCR 2026 race review + replay** (2026-10-19): `research/raceday/race_review_2026.py` (GPS on the course, arches, observed weather), `race_review_opt.py` (wind calibrated to the day, Powell optimum through our arches, 150 m free points, 4 m margin), `race_review_page.py` + template (map, straightened offsets, stretches, canvas replay with a ghost on the optimum, both banks), `race_review_site.py` (encrypted review.html/review.enc on the site); bestline.row3r.com tracks `data/local/bestline/` | artifact 9HJDekNn7LcGaQ8agY5JE6; https://josh-porg.github.io/charles-race-card/review.html | — |
@@ -4643,6 +4597,9 @@ The measured stroke is commercial and stays in `data/local/biorow/`; every scrip
 
 | what it was | how it was found |
 |---|---|
+| **The HOCR arch rules were swapped at the trestle and BU Bridge (fixed 2026-10-22).** Every optimised Charles line went through two arches no crew uses. Full record below, "Fixed, in full". | Checking all 17 HOCR 2026 tracks against the rules (sec. 6.1, 10.4). |
+| **The line optimiser pinned every bridge point (fixed 2026-10-22).** Skewed bridges, and two further faults. Full record below; the local search stays open (Open, "The racing-line search is local"). | bestline's shortest legal line timed 7.9 s faster than our four's "optimum". |
+| **The [CR06] digitised traces were lost with a session scratchpad (2026-09-27); rebuilt the same day** by `research/cr06/extract_fig3.py` into `data/literature/cr06_fig3_measured.csv`. Full record below. | A study could not be rerun. |
 | **Two [CR06] studies diverged at their own step once the research profile fitted the scull blade (fixed 2026-10-24).** `self_consistent_cr06.py` and `self_consistent_body_cr06.py` integrated at `estimate_step/2` = 3.1 ms. Since `research.scull_c2` = 140.88 (2.4x the computed 58.7, adopted 2026-09-18) the blade's drag damps the oar alone (oar-only inertia 1.24 kg m^2), at a rate 2 C2 |slip| r^2 / I = 742 /s per m/s of slip; RK4's real-axis limit 2.785/rate is passed above ~1.2 m/s of slip at 3.1 ms (at 58.7, only above ~2.9). Both now use `estimate_step/4`, as the other seven oar-only studies already did. Under today's profile they give 4.075 m/s (recorded 4.101, before the fit) and 4.078 / 4.083 / 4.088 m/s (recorded 4.105 / 4.111 / -); velocity rms 0.136 / 0.124 / 0.085 / 0.044. SOURCES §179 | Rebuilding rung 5 (`coupled_trunk_cr06.py`, which execs the body study's prelude) overflowed at t = 0.41 s; bisected to the fitted C2 by setting it back to `None` (runs) and halving the step (runs). Running the committed body study at HEAD overflowed the same way. |
 | **The leg masses were measured from the wrong end (research and learned only; shipped frozen).** `segment_state` placed the thigh CM 40.95% from the *knee* (de Leva: from the hip), and applied the lumped shank+foot fraction to the shank link from the *ankle*. Now `PhysicsProfile.segment_com = "de_leva"` for `research` and `learned`: thigh from the hip, shank 44.59% from the knee, foot mass held at the ankle because it is strapped to the stretcher. `shipped` stays `"legacy"`. The placement is in `kinematics_signature`. **What it moved:** crew CoM travel +0.009–0.010 m (1x 0.771 → 0.780, 8+ 0.728 → 0.737, [BR24]'s 97 kg / 1.91 m athlete 0.789 → 0.799); IVV +0.5–0.75 points on the prescribed oar and +0.9–1.05 points on the research oar (1x 67.7 → 68.7%, 8+ 56.5 → 57.4% at 260 W); speed +0.1–0.2%. It moves the model *away* from [BR24]'s 0.71–0.74 m, and is kept because it is anatomy, not a fit (SOURCES §157). Tests: `tests/unit/test_kinematics.py::test_de_leva_thigh_cm_is_measured_from_the_hip` and `…shank_is_measured_from_the_knee_with_the_foot_fixed` fail without it; `tests/test_physics_profiles.py::test_the_leg_correction_moves_the_research_crew_not_the_shipped_one` checks both sides of the freeze. | Chasing the crew CoM travel gap against the new [BR24] target: `com_fraction` is documented from the proximal joint, and two of the four limb placements read it from the distal one. Upper arm, forearm+hand and trunk checked and correct. |
 | **Crews that moved differently shared one matched torque.** `DynamicOarSimulator._match_key` covered mass, rig, hull, pull and stamp, but not how the crew moves. So a research boat with a different leg placement, or a different stature at the same mass, was handed the first crew's cached sweep-catch torque. The key now carries every rower's `kinematics_signature`. `tests/test_torque_for_power.py::test_a_crew_that_moves_differently_is_a_different_cache_entry` fails without it. | Measuring the leg fix above: the second research run finished in 21 s against 49–96 s, a cache hit. Those numbers were discarded and re-run in separate processes at matched power. |
@@ -4670,3 +4627,74 @@ The measured stroke is commercial and stays in `data/local/biorow/`; every scrip
 | **Every port rower wore starboard arms.** The kinematics signature that shares one chain across identical rowers omitted the side, so a matched crew was one group led by the stroke seat. 0.15 m on eight arm masses; a yaw bias. | Tabulating the crew made the exact path's error measurable against a per-seat table. |
 | **Startup spent 14 s in a pure-Python point-in-polygon.** | The first profile, sorted by internal time. |
 | **The physics ran at 100 Hz for no reason.** 60 Hz is the same boat to 0.2 mm over 24 s. | Counting derivative evaluations per frame. |
+
+## Fixed, in full
+
+*Items moved here from Open on 2026-10-25, with their original text, so the record of how each was
+found and fixed is kept. The one-line rows above point here.*
+
+### The HOCR arch rules were swapped at the trestle and BU Bridge — fixed 2026-10-22
+**Impact: high for every optimised Charles line; every one went through two arches no crew uses.**
+
+`bridges.HOCR_ARCH_RULE` had the Grand Junction trestle on `"centre"` (arch 3 of 6) and BU Bridge on
+`"second_from_cambridge"`, which on BU's three modelled openings resolved to its centre. HOCR rules
+(2023, `data/raw/hocr_rules_2023.pdf`) sec. 6.1: the trestle's "second arch from the right (Cambridge
+shore) is the mandated lane"; sec. 10.4 penalises the trestle's and Anderson's Cambridge arch and any
+bridge's Boston arch, nothing at BU Bridge but its Boston arch. All 17 HOCR 2026 tracks (three CoxBox,
+13 bestline, bestline's shortest line) pass the trestle's arch 5 and BU Bridge's Cambridge-side opening,
+so the evaluator called every crew's line illegal at both. Now `"second_from_cambridge"` at the trestle and
+`("centre", "cambridge")` at BU Bridge; SOURCES "The rules are asymmetric" corrected. Tests:
+`test_the_trestle_lane_is_second_from_cambridge`, `test_bu_bridge_bars_only_the_boston_arch`.
+
+*Still open:* **Eliot.** The table bars Eliot's Cambridge arch (with Anderson's), and SOURCES and
+`test_anderson_and_eliot_are_centre_arch_only` say so, but sec. 6.1 lets "the right ... arch of four of
+those remaining bridges" be used, "the exception being the Lars Anderson Bridge", and sec. 10.4 names
+only Anderson and the trestle. No crew used it in 2026, so nothing measured moves; it needs the 2026
+rules or the Figure 6.1.2 traffic guide read before it is changed.
+
+### The line optimiser pinned every bridge point — fixed 2026-10-22
+**Impact: high for the review gaps and the race-card plans.**
+
+Three faults, found when bestline's shortest legal line timed 7.9 s faster than our four's "optimum":
+
+1. *Skewed bridges.* `lines.arch_route`, `pinned_arch_route` and `legalise` put a bridge's control point
+   at the bridge's own station with the arch centre's offset. On the Grand Junction trestle (41 degrees
+   skew) that line crosses the deck metres from the arch centre: outside the narrow mandated arch once
+   the rule above was fixed, and the course would not even build (`legalise` added a twin station).
+   Now the point sits on the deck itself (`lines.arch_point`), and `legalise` tests where the line
+   really crosses the deck (`lines.crossing_along`, `lines.illegal_bridges`), the same test as
+   `RouteEvaluator._arch_violations`. The two used to disagree. `legalise` repeats until stable,
+   because a point added at one bridge bends the spline at its neighbours.
+2. *Arch centres fixed.* The review search (`race_review_opt.py`, `line_review.py`) and
+   `plan.optimised_time` held every bridge point at its arch's centre and both ends on the centreline,
+   so a line could not use the width of an arch. `plan.optimise_line` makes the crossing a bounded
+   variable inside the arch (4 m pier clearance across the boat's path, `arch_window`), frees the ends,
+   keeps a point every 150 m, and warm-starts from the crew's line, bestline's shortest line and the
+   straight pinned line. `optimised_time` is now a thin wrapper over it (same few free stations,
+   Nelder-Mead), so the race card's arch pricing gets the fixes too; the planned line itself uses the
+   full search (`race_card.crew_plan`).
+3. *Legality as a wall.* A line pulled out of an arch scored 1e6, which a search cannot see past; now
+   it is +300 s per bridge, steep enough that no line gain pays for it.
+
+On our four's day: optimum 1419.1 s against the shortest line's 1428.1 s (which also breaks the 3 deg/s
+turn limit) and the crew's own 1434.8 s. Tests: `tests/unit/test_arch_lines.py` (every pinned arch
+combination legal by both checks; `legalise` leaves a legal line alone and fixes the centreline).
+`shallow_gap.py` (2026-10-21) still has the old search; its table in PHYSICS_PROGRAMME is marked
+superseded.
+
+*Still open:* the search is local (Powell from the best warm start). With depth corrected the cost is
+nearly flat across the start stretch, so a better line through a different bend is not excluded; the
+arch choices themselves are priced separately (`plan.arch_costs`).
+
+### The [CR06] digitised traces were lost with the session scratchpad (2026-09-27) — **rebuilt the same day**
+*Resolved:* `research/cr06/extract_fig3.py` re-extracts Fig. 3 from the open preprint's vector figure into the committed `data/literature/cr06_fig3_measured.csv` (all five series in one file). It reproduces the recorded checks: mean boat speed 4.190 m/s, velocity 3.061–5.126, leg travel 0.582 m, turn-round −44.36°. The old study scripts in `data/local/cr06_study/` read the two former files and need their paths pointed at it when rerun.
+
+**Impact: medium — the one-athlete studies (SOURCES §§45–60, the finish fix, 4.3a) cannot be rerun until rebuilt.**
+
+`cr06_fig3_measured.csv`, `cr06_fig3_body.csv` and the extraction script
+`cr06/traces_fig3_body.py` lived only in the temporary scratchpad and were cleaned away.
+The study scripts that read them survive in `data/local/cr06_study/`. The source is open
+(Cabrera, Ruina & Kleshnev 2006, Fig. 3, a vector figure), so the traces can be
+re-extracted; when they are, they go in `data/literature/` with their provenance, and the
+recorded checks (mean boat speed 4.19 m/s against the stated 4.18) are the acceptance test.
+

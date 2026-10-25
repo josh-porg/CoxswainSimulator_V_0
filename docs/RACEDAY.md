@@ -16,6 +16,11 @@ whenever a sprint starts or ends, a story is done, or an answer changes the plan
 > not changed. PHYSICS_PROGRAMME, "Shallow water on the Charles, tested against HOCR 2026 GPS"; TRACKING,
 > "Analyses priced on the factor-on-total depth path".
 
+> **Status 2026-10-25: post-race.** HOCR 2026 was raced on 17 October. Sections 11b and 11d are the
+> pre-race questions, kept as asked. The log (§12) runs to the race review and the post-race analyses; their
+> details are in TRACKING's Done list (2026-10-19 to 10-23). Open: whether the race cards move to the research
+> depth term, and the Cambridge-side corridor (TRACKING, Open).
+
 ---
 
 ## 1. Vision
@@ -36,7 +41,7 @@ and coach's view, and never shows the rowers probabilities.
 | user | needs | when | must not see |
 |---|---|---|---|
 | **Joshua** (cox, women's masters 4+) | target splits and reference speeds to requalify; the line through the bridges; wind tactics; traffic around his bow number; where to make moves; updates from earlier races | night before (detail), morning (last detail), 1-2 h before launch (a couple of numbers + which plan) | — |
-| **Sophie** (cox, the 8) | the same for the eight; works closely with Joshua | same | — |
+| **The eight's coxswain** (the 8) | the same for the eight; works closely with Joshua | same | — |
 | **Other SRA coxswains** (other events; more experienced) | "here is what I have found, use what is useful": course insights that hold for any crew — bridges, wind exposure, lines, traffic patterns | night before, as a presentation | crew-specific odds of other crews |
 | **The coach** (physics degree) | the reasoning and the evidence, and a clear, confident conclusion | night before, as a presentation | — (can see everything) |
 | **The rowers** | a short, positive pre-race briefing: the course, the plan, the moves, what the cox will call | the day before, at the team meeting | probabilities of medalling, requalifying or placing; anything that undermines belief |
@@ -51,9 +56,9 @@ and coach's view, and never shows the rowers probabilities.
 
 | # | output | for | form |
 |---|---|---|---|
-| O1 | **Race card** — plan letter, target splits by course section, reference speed to requalify, wind summary, the crews around your bow number | Joshua, Sophie | private web page, phone-first, refreshes itself |
-| O2 | **Plans A/B/C**, decided the night before for the likely conditions (e.g. calm / headwind on the basin / crosswind gusts at the bends), each with its line, moves and splits | Joshua, Sophie | inside the race card; the morning view says which one applies |
-| O3 | **Day update** — how fast crews in earlier events are going compared with their prediction, folded into the target splits | Joshua, Sophie | race card, automatic |
+| O1 | **Race card** — plan letter, target splits by course section, reference speed to requalify, wind summary, the crews around your bow number | Joshua, the eight's coxswain | private web page, phone-first, refreshes itself |
+| O2 | **Plans A/B/C**, decided the night before for the likely conditions (e.g. calm / headwind on the basin / crosswind gusts at the bends), each with its line, moves and splits | Joshua, the eight's coxswain | inside the race card; the morning view says which one applies |
+| O3 | **Day update** — how fast crews in earlier events are going compared with their prediction, folded into the target splits | Joshua, the eight's coxswain | race card, automatic |
 | O4 | **Coxswains' briefing** — course findings for any crew | other SRA coxswains | slides, presented from a laptop |
 | O5 | **Coach briefing** — the evidence and the conclusion | coach | slides |
 | O6 | **Rowers' briefing** — the course and the plan, no probabilities | crews | slides, short |
@@ -179,7 +184,7 @@ you have seen it at a demo, and its numbers can be traced to their source.
 
 ## 11. Answers — round 2 (2026-10-08)
 
-1. **Crews:** Joshua coxes the **women's 60+ four** (Veteran Fours 60+); Sophie coxes the
+1. **Crews:** Joshua coxes the **women's 60+ four** (Veteran Fours 60+); the eight's coxswain coxes the
    **women's 50+ eight** (Grand Master Eights). Race weekend 17-18 October 2026; the 2026 start
    times are not yet found (2024 had both on Saturday morning) — to confirm from the HOCR schedule.
 2. **A race plan holds:** pacing, moves, turns, focuses, landmarks, key decisions (which arch, and
@@ -189,13 +194,13 @@ you have seen it at a demo, and its numbers can be traced to their source.
 4. **Targets:** both the requalify split and the best achievable. **Rowers do not get splits**
    unless the cox chooses to share one.
 5. **Decks:** in the browser.
-6. **Private link:** Joshua and Sophie. Coaches and other coxswains see the presentations only.
+6. **Private link:** Joshua and the eight's coxswain. Coaches and other coxswains see the presentations only.
 
 ## 11a. Answers — round 3 feedback on the first card (2026-10-08)
 
 1. **Uncertainty:** wanted. Every goal now has a central time (even odds) and a range (fast end 80%,
    slow end 20%); the forecast has an 80% range; the wind's cost is also given at 30% less and more wind.
-2. **Sophie's eight:** goals are a medal (top 3), beating last year's place (8th of 34 in 2025, so 7th
+2. **The eight:** goals are a medal (top 3), beating last year's place (8th of 34 in 2025, so 7th
    or better) and requalifying (top 15 of 31), with the crew forecast alongside.
 3. **Landmarks:** the bridges, Magazine Beach, the mile markers, the wooden pier before the finish,
    and the big turn (which begins near Mile 2).
@@ -203,23 +208,23 @@ you have seen it at a demo, and its numbers can be traced to their source.
 ## 11b. Open questions — round 3 (for the sprint 1 demo)
 
 - Do you want the Lake Sammamish equivalent of the target split as well (for the last practices)?
-- Does Sophie want to be part of the demos?
+- Does the eight's coxswain want to be part of the demos?
 - ~~Wooden pier, Magazine Beach, big turn~~ answered: see the log, 2026-10-08 (round 3b).
 
 ## 11d. Open questions — round 4 (for Saturday's demo, 11 Oct)
 
 1. **Approve the refresh job once.** Its first run (09 Oct 13:04 UTC) is waiting on a PowerShell permission
    prompt; "Run now" on *Charles race card refresh* and approving its tools fixes every later run.
-2. **Share** the phone page with Sophie, and each deck when it is ready (Share menu on each).
+2. **Share** the phone page with the eight's coxswain, and each deck when it is ready (Share menu on each).
 3. **Plan letters A/B/C:** right three situations? Rewrite the wording to your words.
-4. **Calls:** fill the bracketed call words in both rowers' decks (yours and Sophie's).
-5. **Sophie's arches:** centre throughout, or your Cambridge-Cambridge-centre? (About 3 s for her eight.)
+4. **Calls:** fill the bracketed call words in both rowers' decks (yours and the eight's coxswain's).
+5. **The eight's arches:** centre throughout, or your Cambridge-Cambridge-centre? (About 3 s for her eight.)
 6. **The coach:** the rate plan (base rate, moves, finish), and whether the two shallow stretches fit
    how they want the crew to race.
 7. **Requalifying range:** the history says the cut moves ~19 s a year; the model's range is narrower.
    Widen it, or keep it and say so?
 8. **Your own notes on the phone:** do you want to write focuses or calls per landmark into the page?
-9. **Sophie's crew list** (weights, heights, 5 k ergs), if she wants her eight modelled rower by rower.
+9. **The eight's crew list** (weights, heights, 5 k ergs), if she wants her eight modelled rower by rower.
 
 ## 11c. Race-week runbook
 
@@ -237,7 +242,7 @@ All commands from the project folder; Python is `.venv/Scripts/python.exe`.
 | before sharing a rowers' deck | check it carries no odds or times | `python -m coxswain.raceday.decks data/local/raceday/decks/rowers` (sources kept in `data/local/raceday/decks/`) |
 | after the race | stop the jobs | disable both scheduled tasks; note in the log what was used and what was ignored (the retro) |
 
-The phone page: https://claude.ai/artifact/72R1Wr3wYbZ4k9WTQLVRNP (share with Sophie from its Share menu).
+The phone page: https://claude.ai/artifact/72R1Wr3wYbZ4k9WTQLVRNP (share with the eight's coxswain from its Share menu).
 
 **The self-updating site** (https://josh-porg.github.io/charles-race-card/, repo `josh-porg/charles-race-card`):
 the phone fetches the NWS forecast and USGS flow itself and applies precomputed tables, so weather and
@@ -270,7 +275,7 @@ After any change to the plan (arches, field, heat sheet), rebuild and push:
   work found and folded in (§5 findings): one line, weather into splits, plans keyed on traffic
   and arch decisions, the day factor for live updates.
 - 2026-10-08 — **Round 3 feedback built.** Goals with ranges (`coxswain/raceday/goals.py`, from the
-  simulated 2026 fields `data/local/raceday/field_{four,eight}.npz`); Sophie's eight (medal, beat 2025,
+  simulated 2026 fields `data/local/raceday/field_{four,eight}.npz`); the eight (medal, beat 2025,
   requalify, forecast); the course re-sectioned at the coxswains' landmarks (Magazine Beach 535 m,
   River St, Mile 1, Western Ave, Weeks, Anderson, Mile 2, big turn 3369 m from the line's heading,
   Eliot, wooden pier 4658 m to confirm). Railway and BU bridges within 200 m of the start are not
@@ -321,7 +326,7 @@ After any change to the plan (arches, field, heat sheet), rebuild and push:
   eight is +0 / +1.0 / +2.7 s. The "1-4 s quicker" came from a poorly drawn centre baseline
   (Heyman's "little difference" was right). Differences under 1.5 s are reported as "either: choose
   by traffic" (`plan.EQUAL_S`). The four's card now follows Joshua's plan; the eight's stays on the
-  centre arches until Sophie says otherwise (her line through both Cambridge arches costs about 3 s).
+  centre arches until the eight's coxswain says otherwise (her line through both Cambridge arches costs about 3 s).
   The planned line and the priced alternatives are optimised the night before
   (`scripts/race_card.py --plan`, a few minutes) and cached in `data/local/raceday/plan_<crew>.json`.
 - 2026-10-08 — **Plans optimised and on the card.** Against the four's planned line (Cambridge, Cambridge,
@@ -394,7 +399,7 @@ After any change to the plan (arches, field, heat sheet), rebuild and push:
 | R12 flow | done: live USGS, effect on the line |
 | Auto-refresh | scheduled hourly to 18 Oct and every 15 min on race morning; awaiting the first run's tool approval |
 - 2026-10-09 — Rowers' deck for the eight (https://claude.ai/artifact/Vw1JoPHcoiGP7E1z96co9U; centre arches,
-  the eight's quieter traffic, Sophie's calls as placeholders; passes the no-odds check). Race-week runbook (§11c).
+  the eight's quieter traffic, the eight's coxswain's calls as placeholders; passes the no-odds check). Race-week runbook (§11c).
 - 2026-10-09 — **Check on the four's requalifying target** against history (`data/hocr_wvet4_results.csv`,
   60-69 band, place = half the field): cut 21:45.7 (2019), 21:18.1, 21:01.6, 20:58.5, 21:38.9, 21:28.4 (2025);
   mean 21:22, year-to-year SD 19 s (1.5%; cut/winner SD 0.019). The model's 2026 central 21:15.7 sits
@@ -475,7 +480,7 @@ After any change to the plan (arches, field, heat sheet), rebuild and push:
   Saratoga, Minneapolis, Green Lake, Lincoln Park, Newport; eights **Marlow (2024 winners, now favourites
   for the medal)**, DeWolfe, Riverfront, Blood Street, Holyoke. Eight medal chance 0.3%, requalify 88%;
   four requalify 6%. Web search found no autumn 2026 results for the remaining 14 crews. (4) Site
-  password set to `sra` (Joshua's choice); email to Sophie in `data/local/raceday/email_to_sophie.txt`.
+  password set (held in `data/local`, not here); email to the eight's coxswain drafted in `data/local/raceday/`.
   (5) The hourly laptop job now runs (approved).
 - 2026-10-15 — **Analysis for the session: the Charles in 2026** (`research/raceday/analysis_2026.py`,
   `scripts/charles_2026_report.py` -> `out/report/charles_2026.html`, https://claude.ai/artifact/5r6MfgCQ43n33WupFUGVbF).
@@ -575,3 +580,8 @@ After any change to the plan (arches, field, heat sheet), rebuild and push:
   (passphrase as the race card). research/raceday/race_review_site.py (.venv-tools): the page is a locked shell;
   text, numbers, GPS track and replay are in review.enc (AES-256-GCM, PBKDF2-SHA256 600k). noindex meta; not linked
   from the race card. Rebuild: race_review_page.py, then race_review_site.py, then push site/.
+- 2026-10-21 to 10-23 · **Post-race analyses** (each a TRACKING Done row): the HOCR race added to the coxing paper's
+  sessions; line and race reviews for any crew (`REVIEW_CREW`); a blind comparison of six club coxswains' lines with
+  intended line vs steering; a Radau-collocation racing line; wind vs steering on one-minute ASOS; skill vs
+  externalities; adaptation to conditions (Monte Carlo); coxswains as human operators; HOCR arch rules and the line
+  optimiser's bridge points fixed (TRACKING, Fixed); depth flagged as overstated (banner above).

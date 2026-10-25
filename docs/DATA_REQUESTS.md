@@ -1,5 +1,25 @@
 # Data requests: rower motion through the stroke
 
+## Status at a glance (2026-10-25)
+
+| § | who | asked for | sent | reply | next |
+|---|---|---|---|---|---|
+| 1 | Cloud, Hubbard & Moore | rower-mounted sensor orientation in their 2019 dataset | 2026-09-19 | none | — |
+| 2 | Kleshnev (BioRow) | seat and trunk time series | 2026-09-19 | **data received 2026-09-25** ([BR24]) | follow-up (7 questions, new-address note) is a Gmail draft, **waiting on his address** |
+| 3 | Caplan & Gardner | time series behind their 2010 joint angles | 2026-09-19 | none | — |
+| 4 | Formaggia et al. | added-mass and damping matrices | 2026-09-19 | answered 2026-09-19: partly declined, better than the ask | closed |
+| 5 | Day, Campbell & Clelland | unsteady towing-tank data | 2026-09-19 | none (address may be dead) | — |
+| 6 | Cuijpers, de Poel & Zaal | ergometer displacement and crew centre of mass | 2026-09-19 | none | — |
+| 7 | Sliasas & Tullis | blade force and boat velocity coupling | 2026-09-19 | none | — |
+| 8 | Knarr & Kwoun | IMU series, ergometer vs water | 2026-09-19 | none | — |
+| 9 | Grift, Tummers & Westerweel | digitised force and drag curves | 2026-09-19 | none; his open thesis supplies the figures (SOURCES §159) | exact numbers still wanted |
+| 10 | Hill & Fahrig | boat speeds with their drive durations | 2026-09-19 | none | — |
+| 11a, 11b, 11d | Sinclair; Baca; Smith & Loschner | foot-stretcher force components | 2026-09-19 | none | Draper route (below) not yet tried |
+| 11c | Buckeridge → McGregor | foot-force direction | 2026-09-19; McGregor 2026-10-21 | Buckeridge referred on 2026-09-25; **McGregor declined 2026-10-21** | direction now sourced from [BU15] (SOURCES §177) |
+| 11e | Vieira & Giacomozzi | centre of pressure through the drive | 2026-10-24 | pending | figures digitised meanwhile |
+
+Follow-ups for Gmail threads are drafted by the `outreach-followups` task after 14 days and never sent without approval.
+
 ## Why this data, specifically
 
 The simulator reproduces boat speed, steering response, directional
@@ -563,7 +583,7 @@ the drive, the one item that now blocks the knee/ankle split (SOURCES §177). *M
 are digitised* (CoP at 0.73 ± 0.05 of foot length through the loaded drive); the raw data would separate the
 four women and give their own foot lengths.
 
-**Sent 2026-10-24** from moponopkey@gmail.com (Gmail thread 1a1702778264f6ab; on the `outreach-followups` watch list):
+**Sent 2026-10-24** from the project Gmail account (Gmail thread 1a1702778264f6ab; on the `outreach-followups` watch list):
 
 > Subject: Centre-of-pressure traces from your 2017 textured-insole rowing study
 >
@@ -644,7 +664,10 @@ relative to the hull. The reply below asks him to confirm that reading rather th
 supply it. *2026-09-27:* question 3 added (handle-force measurement point) after the
 blade-at-his-kinematics tests (SOURCES §162) found the propulsive scale of that channel
 open. *2026-10-02:* question 7 added (database mean blade burial at the catch, SOURCES §173).
-Draft still unsent.
+*2026-10-25:* approved to send, with a note that replies should go to the project Gmail address (the
+university address ends at graduation). **Waiting on his address:** his reply came to the university
+account, and the only address on record here is from a 2005 paper at a former institute, so it is not used.
+The text below, with the address note first, is a Gmail draft in the project account.
 
 > Subject: Re: seat and trunk kinematics — thank you, and a few questions
 >
@@ -700,7 +723,7 @@ develops.
 *What it opened:* the referral is the live thread for the foot-force direction, which
 is still the item that blocks phase 4.3's knee and ankle.
 
-**Sent 2026-10-21** from moponopkey@gmail.com (Gmail thread 1a15eea2fd12d6f9; watched for a reply by the
+**Sent 2026-10-21** from the project Gmail account (Gmail thread 1a15eea2fd12d6f9; watched for a reply by the
 scheduled task `outreach-followups`, which drafts a follow-up after 14 days and never sends). Text as sent:
 
 > Subject: Foot-force data from the instrumented ergometer work — referred by Erica Buckeridge
