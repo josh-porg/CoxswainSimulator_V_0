@@ -39,7 +39,7 @@ Test suite: **2095 passing, 0 failing** in the fast lane (`pytest -m "not slow"`
 | **Charles trajectory optimisation** | deterministic receding-horizon leg stalled near 409 m (unchanged since 2026-09-13); the race-day line work now carries it | 2026-10-22: HOCR arch rules corrected, bridge points no longer pinned, a Radau-collocation racing line (`line_ocp.py`); 2026-10-21: depth priced on the wave term only for research boats | the Cambridge-side corridor (decided 2026-10-21, not built); then the stochastic problem |
 | **Race-day product** | HOCR 2026 raced 17 Oct (four 21st of 26, eight 8th of 31); post-race analysis done | 2026-10-19 to 10-23: race review, club line comparison (six crews), wind vs steering, skill vs externalities, adaptation Monte Carlo, coxswains as operators; lake pages for Whatcom and Sammamish (fog model 10-22) | depth: race cards, reviews and site on the accurate (research) depth term since 10-22, pacing and line scripts since 10-25; retro actions in RACEDAY |
 | **Coxing research** | review "What makes a call work?" and experimental paper "What the boat answers" (12 coded sessions incl. HOCR 2026); power calls +17 mm/s at strokes 3–5; single-call reliability 0.065 | 2026-10-24: OKID/ERA call-response model agrees with the event study and the transformer: with these data the calls' effect on speed within eight strokes is below what can be identified | second human coder; seat recorders on the Charles; Stage 3 randomised calls in practice |
-| **Data requests** | 14 letters 2026-09-19; Vieira 2026-10-24 | replies: Formaggia, Kleshnev (data, [BR24]), Buckeridge (referred) → McGregor (**declined 2026-10-21**); direction then sourced from [BU15] | **Kleshnev follow-up: Gmail draft ready, needs his address** (his reply went to the university account) |
+| **Data requests** | 14 letters 2026-09-19; Vieira 2026-10-24 | replies: Formaggia, Kleshnev (data, [BR24]), Buckeridge (referred) → McGregor (**declined 2026-10-21**); direction then sourced from [BU15] | Kleshnev follow-up sent 2026-10-25 (BioRow's published address); awaiting reply |
 
 ---
 
@@ -160,7 +160,7 @@ Charles is raced in has no like-for-like target.
 | what | from | blocks |
 |---|---|---|
 | footplate centre of pressure (heel to ball) through the drive; on-water confirmation of the women's foot-force direction | direction now sourced from [BU15] (ergometer, SOURCES §177); McGregor declined 2026-10-21; Sinclair, Baca, Smith (§11, sent 2026-09-19) for on-water; Draper (LinkedIn only, not yet contacted) | phase 4.3's knee/ankle split (their sum is settled) |
-| origin/frame confirmation of the trunk channel; handle-force point; other stroke rates; mean blade burial | Kleshnev (§2) — follow-up approved 2026-10-25, a Gmail draft waiting on his address | confirms §156; a rate sweep would test IVV against rate |
+| origin/frame confirmation of the trunk channel; handle-force point; other stroke rates; mean blade burial | Kleshnev (§2) — follow-up sent 2026-10-25 | confirms §156; a rate sweep would test IVV against rate |
 | fore-rear centre of pressure through the drive (raw) | Vieira (§11e), sent 2026-10-24 | separates the four women; figures already digitised |
 | tabulated immersion and entrainment data, tangential force traces | Grift (§9) — thesis figures read; exact numbers wanted | the immersion refit's precision; phase 3's gate |
 | the others in DATA_REQUESTS | sent 2026-09-19, no reply yet | see each section |

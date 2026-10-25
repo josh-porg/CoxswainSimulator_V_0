@@ -5,7 +5,7 @@
 | § | who | asked for | sent | reply | next |
 |---|---|---|---|---|---|
 | 1 | Cloud, Hubbard & Moore | rower-mounted sensor orientation in their 2019 dataset | 2026-09-19 | none | — |
-| 2 | Kleshnev (BioRow) | seat and trunk time series | 2026-09-19 | **data received 2026-09-25** ([BR24]) | follow-up (7 questions, new-address note) is a Gmail draft, **waiting on his address** |
+| 2 | Kleshnev (BioRow) | seat and trunk time series | 2026-09-19 | **data received 2026-09-25** ([BR24]) | follow-up (7 questions, new-address note) **sent 2026-10-25** to BioRow's published address; awaiting reply |
 | 3 | Caplan & Gardner | time series behind their 2010 joint angles | 2026-09-19 | none | — |
 | 4 | Formaggia et al. | added-mass and damping matrices | 2026-09-19 | answered 2026-09-19: partly declined, better than the ask | closed |
 | 5 | Day, Campbell & Clelland | unsteady towing-tank data | 2026-09-19 | none (address may be dead) | — |
@@ -665,9 +665,9 @@ supply it. *2026-09-27:* question 3 added (handle-force measurement point) after
 blade-at-his-kinematics tests (SOURCES §162) found the propulsive scale of that channel
 open. *2026-10-02:* question 7 added (database mean blade burial at the catch, SOURCES §173).
 *2026-10-25:* approved to send, with a note that replies should go to the project Gmail address (the
-university address ends at graduation). **Waiting on his address:** his reply came to the university
-account, and the only address on record here is from a 2005 paper at a former institute, so it is not used.
-The text below, with the address note first, is a Gmail draft in the project account.
+university address ends at graduation). **Sent 2026-10-25** to BioRow's published contact address (info@biorow.com, from biorow.com/contacts) from the
+project Gmail account (Gmail thread 1a174397e307584f), with the address note first; on the `outreach-followups`
+watch list. His reply had come to the university account; the 2005 paper's address was not used.
 
 > Subject: Re: seat and trunk kinematics — thank you, and a few questions
 >

@@ -64,6 +64,7 @@ results are in docs/SOURCES.md and docs/TRACKING.md with the same information.
 | Knee, ankle and support moments; hip from below | `.venv/Scripts/python.exe research/cr06/knee_ankle_cr06.py` | `cr06_study/knee_ankle_cr06.json` | SOURCES §177 |
 | Step 4.3 rungs 1–4 and rung 5's linear check, rebuilt | `research/cr06/stretcher_cr06.py`, `hip_topdown_cr06.py`, `trunk_forward_cr06.py` | `cr06_study/*.json` | `research/cr06/README.md`; SOURCES §178 |
 | Step 4.3 rung 5, two-way coupled trunk, rebuilt (record's controlled cases not reproduced) | `.venv/Scripts/python.exe research/cr06/coupled_trunk_cr06.py` (~1.5 h; audits `--one-way`, `--hull-blind`) | `cr06_study/coupled_trunk_cr06*.json` | `research/cr06/README.md`; SOURCES §179 |
+| Young (2009) recovery profiles, replicated | `.venv/Scripts/python.exe research/young/recovery_profiles.py <profile>` for model, normal, constant, fast_pivot, slow_pivot (one process each), then `report` | `young/recovery_*.json` | SOURCES §180 |
 | [CR06] self-consistent boat at the fitted blade (step /4) | `research/cr06/self_consistent_cr06.py`, `self_consistent_body_cr06.py` | `cr06_study/*.png` | SOURCES §179; TRACKING Fixed |
 | OKID/ERA call-response model | `.venv/Scripts/python.exe research/callmodel/okid.py` (and `--charles-only`) | `coxing/okid*.json`, `.png` | docs/coxswain_performance.md, "OKID/ERA" |
 | Lake fog model, Sammamish | `research/lakes/fog_history.py`, `lake_fog.py data/local/sammamish/lake.json` | `sammamish/fog/lake_fog_model.json` | TRACKING Done, "Lake fog model" |

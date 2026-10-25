@@ -12735,3 +12735,41 @@ way and now run at /4, as the other seven oar-only studies already did. Under to
 rms 0.136 (recorded 4.101, 0.143, before the fit); leg on her clock 4.078, 0.124 (recorded 4.105, 0.118); with
 her back time-law 4.083, 0.085 (recorded 4.111, 0.074); with her back law and travel 4.088, 0.044. The speeds sit
 0.6% under the records and the power 243 against 277 W: the fitted blade slips less.
+
+## 180. Young (2009)'s recovery profiles, redone: the fast pivot costs up to 1.9%, not a fraction of a percent (2026-10-25)
+
+**[Y09]** Young, S. F. Jr. (2009), *Effects of Various Inefficiencies in Rowing on Shell Speed*, S.B. thesis, MIT
+Mechanical Engineering (DSpace 1721.1/54545; downloaded to `data/local/literature/young2009/`, 40 pp., read in full
+for this section). §62 replicated his scaling laws; his one dynamic result was left: three recovery velocity profiles
+run through his Simulink eight at 20–36 spm (his Fig. 11), with "little to no effect" on shell speed, getting "the
+hands and body out of bow as fast as possible" slowing the shell "a fraction of a percent" (p. 18). His model: one
+crew mass on the slide, R = C v² S with wave drag absorbed into C, a prescribed blade force.
+
+**His profiles, from his code** (`recovery.m`, `shell.m`, pp. 28, 31–32): recovery time normalised to 1, slide speed in
+units of its mean, each integrating to one slide length. *Normal*: 0 → 1 over [0, 0.1], → 1.25 at 0.4, → 1 at 0.9,
+→ 0 at 1. *Near-constant* (his 2nd): 1.111 held over [0.1, 0.9]. *Fast pivot* (3rd): → 2 at 0.1, then linearly to 0.
+*Slow pivot* (4th): linearly → 2 at 0.9, then → 0.
+
+**Ours** (`research/young/recovery_profiles.py`): the research profile's heavyweight eight (dynamic oar, slip blade,
+sweep catch, 6-DOF hull, Michell wave drag), settled at equal work per stroke as he assumes (712.5 J per rower:
+237.5 / 332.5 / 427.5 W at 20 / 28 / 36 spm; measured power within 0.5% of stated). The seat follows his profile
+exactly, mapped through the body's own recovery (w(s) = P⁻¹(p_Y(s))), and the whole body is retimed with it.
+
+| profile | 20 spm | 28 spm | 36 spm | surge swing at 36 |
+|---|---|---|---|---|
+| near-constant (reference) | 5.007 m/s | 5.672 | 6.187 | 0.512 |
+| normal | +0.04% | +0.06% | +0.17% | 0.509 |
+| **fast pivot** | **−0.89%** | **−1.48%** | **−1.91%** | 0.570 |
+| slow pivot | +0.14% | −0.36% | −0.59% | 0.467 |
+| the model's own recovery (ergometer) | −0.68% | −1.03% | −1.21% (−1.37% raw; 0.5% low on power) | 0.491 |
+
+- **Normal and near-constant agree with Young** (within 0.2%).
+- **The fast pivot does not.** It costs 0.9% at 20 spm and 1.9% at 36, growing with rate: about 6 s over 2000 m at
+  36 spm, against his "fraction of a percent". The swing it adds (0.512 → 0.570 at 36) is the mechanism a
+  constant-C hull under-prices: with wave drag the drag exponent is not 2, and the 6-DOF hull pitches.
+- **The slow pivot is slower at 28–36 spm despite the smallest swing**, so swing is not the whole story there.
+  Unresolved; a candidate is the hard stop it puts at the catch (slide speed 2× its mean at 90% of the recovery).
+- **The simulator's own ergometer recovery costs 0.7–1.2%** against a near-constant slide, a further cost of the
+  ergometer kinematics (§158, §160).
+- *Caveats:* one boat class, one body, the research model's drive kinematics; the absolute speeds are high (the
+  research eight outruns race pace at stated watts, STATUS), so only the differences are claimed.
