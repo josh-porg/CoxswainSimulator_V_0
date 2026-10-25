@@ -12605,3 +12605,31 @@ through feet and shanks of both legs.
 - *Open:* where on the footplate the force acts through the drive (heel-down timing). [BU15] reports
   heel-down timing only as an asymmetry. A centre-of-pressure or pressure-insole measurement in
   rowing would close the knee/ankle split; until then the joints are carried as the bands above.
+- *Leads for the centre of pressure (searched 2026-10-24).*
+  - **Vieira et al. (2017)**, *Textured insoles affect the plantar pressure distribution while elite
+    rowers perform on an indoor rowing machine*, PLoS ONE 12(11):e0187202. Eleven elite rowers
+    (4 women), Pedar in-shoe insoles on a Concept2 at 18, 24 and 32 spm; fore-rear centre of pressure
+    through the drive, but only in figures (Figs 2–4), with no stated origin or units. Rowers push
+    "predominantly with their forefoot" over about 40% of the foot's area. Data on request from the
+    authors: asked 2026-10-24, DATA_REQUESTS §11e.
+  - **Elliott, Hamill & Derrick (1993)**, ISBS 11, in-shoe pressure on a Concept2: experienced rowers
+    carry a higher share of pressure under the forefoot during the drive. The archive copy holds only
+    the first page (methods), so no numbers.
+  - *Digitised from [VI17]'s figures* (`research/cr06/extract_vieira2017.py`,
+    `data/literature/vieira2017_cop.csv`; PLOS figures are CC-BY). The CoP is in mm from the heel end of
+    the insole. Group (Fig 4C, 4F, control insole, read by eye ±3 mm): **196 ± 15 mm at peak force**,
+    158 ± 33 mm averaged over the drive. One rower's trace (Fig 3, 32 spm): **206–212 mm from the catch to
+    peak force** at 420–460 N, moving rearward (to 158, then 134 mm) only as the force falls at the finish.
+    So the force acts at about **0.73 ± 0.05 of foot length** from the heel, the ball of the foot, through
+    the loaded drive.
+  - *On her foot* (de Leva women's foot length at 1.758 m, ankle 0.05 m ahead of the heel) that is 0.12 m
+    ahead of the ankle, and it splits §177's support moment (both legs; RF ±1 SD and CoP ±1 SD in brackets):
+    - at the catch: **knee extensor 149 N·m [130–166], ankle plantarflexor 56 N·m [45–67]** (stretcher 447 N
+      at the mid smoothing; both scale with the catch stretcher, so ~0.7× at rung 1's 310 N);
+    - at maximum handle force: ankle plantarflexor **85 N·m [60–112]**, knee **−53 N·m [−123, +15]**: the
+      force runs along the shank and in front of the knee, so the net knee moment is near zero or flexor
+      (consistent with the two-joint gastrocnemius carrying the plantarflexor load), its sign not settled
+      within RF's ±1 SD.
+  - *Caveats:* ergometer, not water (both sources); the CoP shape is one rower's, the level the group's
+    (11 rowers, 4 women, sexes not separated); the ankle 0.05 m ahead of the heel is a foot-geometry
+    assumption. The authors' raw data are requested (§11e) to separate the women.

@@ -554,6 +554,37 @@ direction on the water".
 
 ---
 
+### 11e. Taian Vieira & Claudia Giacomozzi — Politecnico di Torino / Istituto Superiore di Sanità *(added 2026-10-24)*
+
+*Textured insoles affect the plantar pressure distribution while elite rowers perform on an indoor
+rowing machine*, PLoS ONE 12(11):e0187202 (2017). Its data statement offers the data on request
+(taian.vieira@polito.it, verified from the paper). The ask: the fore-rear centre of pressure through
+the drive, the one item that now blocks the knee/ankle split (SOURCES §177). *Meanwhile the paper's figures
+are digitised* (CoP at 0.73 ± 0.05 of foot length through the loaded drive); the raw data would separate the
+four women and give their own foot lengths.
+
+**Sent 2026-10-24** from moponopkey@gmail.com (Gmail thread 1a1702778264f6ab; on the `outreach-followups` watch list):
+
+> Subject: Centre-of-pressure traces from your 2017 textured-insole rowing study
+>
+> Dear Dr Vieira,
+>
+> I'm building an open-source rowing simulator and working out the joint moments of a measured
+> women's single-sculling stroke. A published foot-force direction (Buckeridge, Bull and McGregor,
+> 2015) now fixes the leg's combined knee and ankle moment, but how that splits between the knee and
+> the ankle depends on where on the foot stretcher the force acts, from heel to ball, through the drive.
+>
+> Your 2017 PLOS ONE paper measured exactly that: the fore-rear centre of pressure through the drive
+> with Pedar insoles. Would you be willing to share the control-insole centre-of-pressure and force
+> time series, or the stroke-averaged curves, together with the insole coordinate origin and each
+> participant's insole or foot length? The four women's data would be the most useful to me, but the
+> whole group would help.
+>
+> I would cite the study and would be glad to share what the model does with it.
+>
+> Sincerely,
+> Joshua Poznański
+
 ## Status: sent 2026-09-19
 
 The requests in this file were sent by the project owner on **19 September 2026**,

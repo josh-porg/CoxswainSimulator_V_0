@@ -1352,3 +1352,32 @@ Where a sequence model *could* be trained now: the self-term
 p(C_t | C_<t) needs only transcripts, not boat data. The channel holds ~40
 captioned recordings, and the pragmatic coding showed real sequence
 structure (blind z = +4.0). That is the one factor with enough data.
+
+## OKID/ERA: the response to each kind of call as an identified system (2026-10-24)
+
+`research/callmodel/okid.py`: Observer/Kalman filter IDentification (Juang, Phan, Horta & Longman
+1993) with the Eigensystem Realization Algorithm (Juang & Pappa 1985), per stroke. Outputs: speed
+and stroke rate minus their 41-stroke trends. Inputs: call onsets by target (CODEBOOK.md) in six
+channels: power; rhythm (rate, length, together); technique (catch, finish, body, set); morale;
+information and tactics; steering. The observer form conditions on the boat's own past, so a call
+made *because of* what the boat just did is handled; something unrecorded that drove both is not.
+
+**All twelve coded sessions** (3,981 strokes, 1,512 call onsets):
+- *Prediction:* leaving one session out at a time, the call history does not improve the one-step
+  speed prediction beyond the boat's own past (0.0289 against 0.0288 m/s at the chosen order;
+  calls help in 3–6 of 12 sessions across orders).
+- *Responses, strokes 3–5 after one call* (against a shifted-call null): power +4 mm/s (p 0.31),
+  technique +6 (p 0.16), information/tactics +6 (p 0.08), rhythm −2, morale −2; **steering −34 mm/s
+  (p < 0.001)**, which is the turn, not the call: steering calls come at bends and bridges.
+- *ERA:* order 6 by Hankel energy; the realisation reproduces the impulse responses only to 36%,
+  so its modes (time constants about 4–6 strokes, plus a near-unit mode) are indicative only. The
+  observer-form impulse responses are the result; the state-space model adds little here.
+
+**The Charles race alone** (HOCR 2026, 724 strokes, 249 onsets): calls make held-out prediction
+slightly worse (all three folds), no response is distinguishable from the null (all p > 0.2),
+and the realisation error is 74%. One race is too short to identify six input channels.
+
+So OKID agrees with the event study and the transformer: with these data, the calls' effect on
+speed within eight strokes is below what can be identified, and the one large "response" is the
+course. What would change it is more synchronised races (the coupling needs boat and audio on one
+clock), or fewer, better-defined input channels (e.g. power calls alone, with their wording).

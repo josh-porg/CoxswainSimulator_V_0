@@ -121,7 +121,13 @@ def main(lam_v=1e-5, lam_x=1e-5, write=True):
     ux, uz = -np.cos(PHI), np.sin(PHI)                         # along the plate, heel to toes (toward the stern, up)
     nx, nz = np.sin(PHI), np.cos(PHI)                          # plate normal, toward the rower
     SOLE = 0.07                                                # ankle joint centre above the sole, m
-    COP = {"heel": -0.05, "mid-foot": 0.04, "ball": 0.13}      # where the force acts, along the plate from below the ankle, m
+    # where the force acts, along the plate from below the ankle, m. Bounds: heel, mid-foot, ball. Measured: [VI17]
+    # (Vieira et al. 2017, data/literature/vieira2017_cop.csv) puts it 196 +- 15 mm from the heel at peak force and
+    # 206-212 mm from the catch to peak force on one rower: about 0.73 +- 0.05 of foot length. On her foot (de Leva
+    # women's foot length at her stature) with the ankle 0.05 m ahead of the heel:
+    FOOT = DE_LEVA_FEMALE["foot"].length_fraction * STATURE
+    COP = {"heel": -0.05, "mid-foot": 0.04, "ball": 0.13,
+           "measured-1SD": 0.68 * FOOT - 0.05, "measured": 0.73 * FOOT - 0.05, "measured+1SD": 0.78 * FOOT - 0.05}
     drive = Fh > 30.0
     i_mhf = int(np.argmax(np.where(drive, np.interp(t, tF, F, period=T), -1)))
     out = dict(source="[BU15] RF at MHF %.2f +- %.2f, held through the drive (assumption)" % (RF, RF_SD), handle_convention=pick,
@@ -177,7 +183,9 @@ def main(lam_v=1e-5, lam_x=1e-5, write=True):
             m = cc[where]
             print("%-7s theta %4.1f | %-11s t %.2f: Fh %4.0f Fv %4.0f N | support %5.0f N.m | ankle plantarflexor heel/mid/ball %s | knee extensor %s"
                   % (lab, cc["theta_deg"], where, m["t"], m["Fh"], m["Fv"], m["support"],
-                     "/".join("%.0f" % m["ankle"][k] for k in COP), "/".join("%.0f" % m["knee"][k] for k in COP)))
+                     "/".join("%.0f" % m["ankle"][k] for k in ("heel", "mid-foot", "ball")), "/".join("%.0f" % m["knee"][k] for k in ("heel", "mid-foot", "ball"))))
+            print("        measured CoP (0.73 +- 0.05 of the foot): ankle plantarflexor %.0f [%.0f, %.0f], knee extensor %.0f [%.0f, %.0f]"
+                  % (m["ankle"]["measured"], m["ankle"]["measured-1SD"], m["ankle"]["measured+1SD"], m["knee"]["measured"], m["knee"]["measured+1SD"], m["knee"]["measured-1SD"]))
         print("        peak support in the drive %.0f N.m at t %.2f s" % (cc["drive_peak_support"], cc["t_peak_support"]))
 
 
