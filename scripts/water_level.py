@@ -55,6 +55,18 @@ RACE_LENGTH = 4822.0
 GRAVITY = 9.80665
 
 
+def _depth_boat(rate=28.0):
+    """A research-profile eight for the evaluator's depth term (2026-10-25): Sretenskii's wave table,
+    so shallow water moves the wave drag only. Without a boat the evaluator multiplies the whole
+    resistance by the shallow factor, which HOCR 2026 GPS rejects (PHYSICS_PROGRAMME, "Shallow water
+    on the Charles")."""
+    from coxswain import physics
+    from coxswain.boats import catalog as _catalog
+    boat = _catalog.eight(rate=rate, rower_mass=68.0, rower_stature=1.70, coxswain_mass=68.0)
+    physics.resolve("research").apply(boat)
+    return boat
+
+
 def scenario(level, statistic, speed, iterations, month=10):
     """Optimise a line for one water level, and describe what it meets."""
     raster = charles.charles_channel(level_offset=level)
@@ -67,7 +79,7 @@ def scenario(level, statistic, speed, iterations, month=10):
 
     evaluator = RouteEvaluator(course, flow=flow, reference_speed=speed,
                                upstream=True, margin=4.0, minimum_depth=1.2,
-                               n_samples=900)
+                               n_samples=900, boat=_depth_boat())
     evaluator.with_steering(ReducedModel(), raster=raster, gates=gates)
     evaluator.with_exertion()
     seed = lines.legalise(lines.arch_route(course, raster, gates, 4.0),

@@ -64,6 +64,19 @@ def build(month: int = 10):
     return raster, course, flow, gates
 
 
+
+def _depth_boat(rate=28.0):
+    """A research-profile eight for the evaluator's depth term (2026-10-25): Sretenskii's wave table,
+    so shallow water moves the wave drag only. Without a boat the evaluator multiplies the whole
+    resistance by the shallow factor, which HOCR 2026 GPS rejects (PHYSICS_PROGRAMME, "Shallow water
+    on the Charles")."""
+    from coxswain import physics
+    from coxswain.boats import catalog as _catalog
+    boat = _catalog.eight(rate=rate, rower_mass=68.0, rower_stature=1.70, coxswain_mass=68.0)
+    physics.resolve("research").apply(boat)
+    return boat
+
+
 def evaluator(course, flow, raster, gates, model, margin=4.0, pins=None,
               fatigue=True):
     # The Course is built with the *race line* as its centreline, so its
@@ -72,7 +85,7 @@ def evaluator(course, flow, raster, gates, model, margin=4.0, pins=None,
     # by 2.9 s when rowing up the Charles should cost that.
     ev = RouteEvaluator(course, flow=flow, reference_speed=5.2,
                         upstream=True, margin=margin, minimum_depth=1.2,
-                        n_samples=1200)
+                        n_samples=1200, boat=_depth_boat())
     ev.with_steering(model, raster=raster, gates=gates)
     if fatigue:
         ev.with_exertion()

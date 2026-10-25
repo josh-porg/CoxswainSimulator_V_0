@@ -52,7 +52,7 @@ def main():
         wind = (card["wind"]["speed"], card["wind"]["direction"]) if card.get("wind") else None
         plan = json.load(open(os.path.join(RC.FIELDS, "plan_%s.json" % crew)))
         route = Route(np.asarray(plan["route"]["stations"]), np.asarray(plan["route"]["offsets"]))
-        boat = RC.build_boat(crew, spec["rate"])
+        boat = RC.build_boat(crew, spec["rate"], profile=RC.PROFILE)   # depth on the wave term only (research, since 2026-10-25)
         k = C.RUDDER_K[spec["boat"]]
         ref = float(plan["reference_s"])
         for m in (m_lvl, m_deep):

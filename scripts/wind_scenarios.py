@@ -66,7 +66,7 @@ def build(reference_speed, field, course, flow, raster, gates, boat,
           unscaled_wind=False):
     ev = RouteEvaluator(course, flow=flow, reference_speed=reference_speed,
                         upstream=True, margin=4.0, minimum_depth=1.2,
-                        n_samples=900)
+                        n_samples=900, boat=boat)   # a research boat: depth on the wave drag only
     steering = ReducedModel()
     ev.with_steering(steering, raster=raster, gates=gates)
     ev.with_exertion()
@@ -118,6 +118,8 @@ def main(argv=None):
                                   discharge=charles.monthly_discharge(10))
     gates = CourseGeometry(channel=raster).gates_on_course()
     boat = catalog.eight(rate=28.0, **MASTERS)
+    from coxswain import physics
+    physics.resolve("research").apply(boat)   # 2026-10-25: Sretenskii depth (wave term only)
     structures = charles_structures()
 
     start = lines.legalise(lines.arch_route(course, raster, gates, margin=4.0),

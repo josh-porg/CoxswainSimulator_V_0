@@ -106,10 +106,18 @@ def build_boat(kind: str, rate: float):
     raced is a four.
     """
     if kind in ("4+", "four", "coxed_four"):
-        return catalog.coxed_four(rate=rate, rower_mass=68.0,
+        boat = catalog.coxed_four(rate=rate, rower_mass=68.0,
                                   rower_stature=1.70, coxswain_mass=68.0)
-    return catalog.eight(rate=rate, rower_mass=68.0, rower_stature=1.70,
-                         coxswain_mass=68.0)
+    else:
+        boat = catalog.eight(rate=rate, rower_mass=68.0, rower_stature=1.70,
+                             coxswain_mass=68.0)
+    # Research physics (2026-10-25): its wave table knows depth (Sretenskii), so
+    # shallow water moves the wave drag only. The shipped boat's path multiplies the
+    # whole resistance by the shallow factor, which HOCR 2026 GPS rejects
+    # (PHYSICS_PROGRAMME, "Shallow water on the Charles"; TRACKING).
+    from coxswain import physics
+    physics.resolve("research").apply(boat)
+    return boat
 
 
 def main(argv=None):
@@ -180,11 +188,16 @@ def main(argv=None):
         print("  Mean depth %.2f m against %.2f m; shallowest %.2f against "
               "%.2f." % (best[2].mean(), centre_row[2].mean(),
                          best[2].min(), centre_row[2].min()))
-        if extra > 0:
-            print()
-            print("  So the deeper line wins DESPITE being longer, which is")
-            print("  the result worth having: at a depth Froude number near")
-            print("  one, metres are cheaper than shallow water.")
+        deeper = best[2].mean() > centre_row[2].mean()
+        print()
+        if reference - best[4] < 5.0:
+            print("  The whole spread is a few seconds, inside what the model can")
+            print("  resolve: depth does not pick the line here.")
+        elif deeper and extra > 0:
+            print("  So the deeper line wins despite being longer: at a depth")
+            print("  Froude number near one, metres are cheaper than shallow water.")
+        elif not deeper:
+            print("  The winner is not the deeper line: depth is not what decides it.")
     print()
     print("  'flat s' holds one power the whole way; 'paced s' re-optimises")
     print("  the schedule for that line.  They are reported separately")

@@ -25,7 +25,7 @@ for crew in ("four", "eight"):
     wind = tuple(f["wind_forecast"]) if f.get("wind_forecast") else None
     pl = json.load(open(os.path.join(RC.FIELDS, "plan_%s_bends.json" % crew)))
     route = Route(np.asarray(pl["route"]["stations"]), np.asarray(pl["route"]["offsets"]))
-    boat = RC.build_boat(crew, spec["rate"])
+    boat = RC.build_boat(crew, spec["rate"], profile=RC.PROFILE)   # depth on the wave term only (research, since 2026-10-25)
     k = C.RUDDER_K[spec["boat"]]
     ref = float(pl["reference_s"])
 

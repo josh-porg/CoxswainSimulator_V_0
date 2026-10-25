@@ -11,15 +11,15 @@ whenever a sprint starts or ends, a story is done, or an answer changes the plan
 > GPS from three crews rejects that term (slope -0.06 +- 0.03 against 1). On a research boat (Sretenskii,
 > wave term only) the faster crews' optimum gaps fall from 32-34 s to 6-8 s. Treat as overstated: "shallows +16 /
 > +34 s", "push in the shallows" / "push where the boat is slowest", "steering wide for deeper water", the eight's
-> lake targets "near the drag rise", and every "out of the shallows: depth +N" line gain. The reviews are being
-> re-run on the research boat (`race_card.build_boat(..., profile="research")`); the published race cards are
-> not changed. PHYSICS_PROGRAMME, "Shallow water on the Charles, tested against HOCR 2026 GPS"; TRACKING,
+> lake targets "near the drag rise", and every "out of the shallows: depth +N" line gain. **Re-priced 2026-10-22:**
+> the race cards, reviews and site now run on the research boat (`race_card.PROFILE = "research"`); text above
+> this banner's date that quotes depth seconds is from before that. PHYSICS_PROGRAMME, "Shallow water on the Charles, tested against HOCR 2026 GPS"; TRACKING,
 > "Analyses priced on the factor-on-total depth path".
 
 > **Status 2026-10-25: post-race.** HOCR 2026 was raced on 17 October. Sections 11b and 11d are the
 > pre-race questions, kept as asked. The log (§12) runs to the race review and the post-race analyses; their
-> details are in TRACKING's Done list (2026-10-19 to 10-23). Open: whether the race cards move to the research
-> depth term, and the Cambridge-side corridor (TRACKING, Open).
+> details are in TRACKING's Done list (2026-10-19 to 10-23). Open: the Cambridge-side corridor (TRACKING, Open).
+> Depth: the cards run on the research depth term since 2026-10-22 (banner above).
 
 ---
 

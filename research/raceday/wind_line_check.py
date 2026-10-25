@@ -16,7 +16,7 @@ m = C.CourseModel.build()
 out = {}
 for crew in ("four", "eight"):
     spec = RC.CREWS[crew]
-    boat = RC.build_boat(crew, spec["rate"])
+    boat = RC.build_boat(crew, spec["rate"], profile=RC.PROFILE)   # depth on the wave term only (research, since 2026-10-25)
     k = C.RUDDER_K[spec["boat"]]
     plan = json.load(open(os.path.join(RC.FIELDS, "plan_%s.json" % crew)))
     calm_line = Route(np.array(plan["route"]["stations"]), np.array(plan["route"]["offsets"]))

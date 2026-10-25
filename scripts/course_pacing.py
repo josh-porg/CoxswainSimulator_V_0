@@ -132,10 +132,18 @@ def build_boat(kind: str, rate: float):
     raced is a four.
     """
     if kind in ("4+", "four", "coxed_four"):
-        return catalog.coxed_four(rate=rate, rower_mass=68.0,
+        boat = catalog.coxed_four(rate=rate, rower_mass=68.0,
                                   rower_stature=1.70, coxswain_mass=68.0)
-    return catalog.eight(rate=rate, rower_mass=68.0, rower_stature=1.70,
-                         coxswain_mass=68.0)
+    else:
+        boat = catalog.eight(rate=rate, rower_mass=68.0, rower_stature=1.70,
+                             coxswain_mass=68.0)
+    # Research physics (2026-10-25): its wave table knows depth (Sretenskii), so
+    # shallow water moves the wave drag only. The shipped boat's path multiplies the
+    # whole resistance by the shallow factor, which HOCR 2026 GPS rejects
+    # (PHYSICS_PROGRAMME, "Shallow water on the Charles"; TRACKING).
+    from coxswain import physics
+    physics.resolve("research").apply(boat)
+    return boat
 
 
 def main(argv=None):
