@@ -26,49 +26,23 @@ instrumented footplates). This script:
    does not depend on it at all, and is the result the sourced direction settles.
 Writes data/local/cr06_study/knee_ankle_cr06.json and .png.
 """
-import csv
 import json
 import os
 import sys
 
 import numpy as np
-from scipy.interpolate import make_smoothing_spline
 
 CODE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.abspath(os.path.join(CODE, "..", ".."))
-HERE = os.path.join(ROOT, "data", "local", "cr06_study")      # outputs (gitignored)
-sys.path.insert(0, ROOT)
-from coxswain.boats import catalog                             # noqa: E402
-from coxswain.boats.boat import Boat                           # noqa: E402
-from coxswain.crew.anthropometry import DE_LEVA_FEMALE        # noqa: E402
+sys.path.insert(0, CODE)
+import her_stroke as HS                                        # noqa: E402  the shared definitions of her stroke and body
+from her_stroke import T, M, STATURE, G, DE_LEVA_FEMALE, series, periodic_spline   # noqa: E402,F401
 
-T = 1.94                    # her stroke period, s ([CR06])
-M = 75.0                    # rower mass, kg
-STATURE = 1.758             # women's table, re-anchored to her 0.581 m leg travel (TRACKING, female_segments)
-G = 9.81
+HERE = HS.OUT                                                  # outputs (gitignored)
 RF, RF_SD = 0.81, 0.07      # [BU15] Table 4, at maximum handle force
-MEAS = os.path.join(ROOT, "data", "literature", "cr06_fig3_measured.csv")
-
-
-def series(name):
-    rows = [r for r in csv.DictReader(l for l in open(MEAS) if not l.startswith("#")) if r["series"] == name]
-    d = np.array(sorted((float(r["t_s"]) % T, float(r["value"])) for r in rows))
-    keep = np.concatenate([[True], np.diff(d[:, 0]) > 1e-9])
-    return d[keep, 0], d[keep, 1]
-
-
-def periodic_spline(t, y, lam):
-    tt = np.concatenate([t - T, t, t + T]); yy = np.concatenate([y, y, y])
-    return make_smoothing_spline(tt, yy, lam=lam)
 
 
 def her_rower():
-    base = catalog.single_scull(rate=60.0 / T, rower_mass=M, rower_stature=STATURE)
-    b = Boat(name="CR06 women's single", offsets=base.offsets, rig=base.rig, hull_mass=19.7, hull_inertia=base.hull_inertia,
-             timing=base.timing, appendages=base.appendages, water=base.water,
-             default_anthropometry=catalog.RowerAnthropometry(mass=M, stature=STATURE, sex="female"),
-             force_profile=base.force_profile, oar_sweep=base.oar_sweep)
-    return b.crew[0].rower
+    return HS.her_rower()[0]
 
 
 def main(lam_v=1e-5, lam_x=1e-5, write=True):

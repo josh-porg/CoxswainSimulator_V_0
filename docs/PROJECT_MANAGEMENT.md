@@ -42,6 +42,7 @@ Updated as results arrive; they are the record the management set points into.
 |---|---|
 | [SOURCES.md](SOURCES.md) | the evidence: every source, derivation and result, in numbered sections (§1–§159 as of this review). New work appends a section; nothing is rewritten silently |
 | [PROVENANCE.md](PROVENANCE.md) | where each data file came from |
+| [REPRODUCIBILITY.md](REPRODUCIBILITY.md) | how every result is regenerated: rules, the public and private repositories, environments, a register of results with their commands, the checklist for new work |
 | [coxswain_performance.md](coxswain_performance.md) | the coxing research log (calls, boat response, the paper) |
 | `research/callmodel/README.md` | the coupled call/boat model and its session format |
 | `research/biorow/` | scripts behind the [BR24] like-for-like results (derived numbers only; the data stay in `data/local/`) |

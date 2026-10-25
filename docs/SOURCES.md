@@ -12646,3 +12646,31 @@ through feet and shanks of both legs.
   - *Caveats:* ergometer, not water (both sources); the CoP shape is one rower's, the level the group's
     (11 rowers, 4 women, sexes not separated); the ankle 0.05 m ahead of the heel is a foot-geometry
     assumption. The authors' raw data are requested (§11e) to separate the women.
+
+
+## 178. Step 4.3's rungs 1–4 rebuilt, and what the rebuild found (2026-10-24)
+
+The scripts behind rungs 1–5 (2026-09-14: `stretcher_from_her_data_cr06.py`, `hip_moment_cr06.py`,
+`hip_moment_terms_cr06.py`, `forward_hip_cr06.py`, `tracking_hip_cr06.py`, `coupled_trunk_cr06.py`,
+`coupled_trunk_delayed_cr06.py`, `delayed_pd_linear.py`) were lost with a session scratchpad. Their results
+survive in TRACKING. Rebuilt from that record in `research/cr06/` on one shared module (`her_stroke.py`),
+each script printing the recorded numbers beside its own; full comparison in `research/cr06/README.md`.
+
+- **Reproduced:** rung 1's stretcher at the catch (392–447 N against 408–448) and its peak (670–723 against
+  675–726 N); rung 2's trunk angles (128.1° / 110.3° against 127° / 110°) and hip at maximum handle force
+  (3.58 against 3.45 N·m/kg); rung 4's delay table cell by cell; rung 5's linear stability boundaries
+  (130 and 72 ms against 132 and 72 ms) and growth rates.
+- **Explained differences:** rung 2 at the catch is 3.38 against 2.74 N·m/kg because the rebuild drives
+  the body with her measured hull and the record with the model's, which brakes ~1.9 m/s² harder there;
+  rung 3's effective inertia is 9.12 against 8.8–8.9 kg·m² (the package's head placement), so the open
+  loop e-folds in 0.274 s against 0.29 s.
+- **Not reproduced:** rung 1's gate force (34–36 N at the catch, 792 N peak) and with it the stretcher's
+  0.23 s lead over the gate: the record's gate-force definition cannot be recovered from it. The rebuild's
+  lever-balance gate force gives a 0.15 s lead. The lead is therefore unconfirmed.
+- **Not yet rebuilt:** rung 5 itself (the trunk inside the simulator, two-way coupled) and rung 1's model
+  side (the model's 190 N stretcher); both need the simulator.
+- **Found in the rebuild:** a cubic-spline time-law cannot drive the open-loop trunk. Its third
+  derivative jumps at every knot and the unstable trunk amplifies the integrator's error there ~1000× per
+  stroke (round trip 0.17–0.30°, not converging). A 15-harmonic Fourier series of the same channel
+  (0.03 mm rms from the spline) gives a round trip below 10⁻⁴°. Forward-dynamic use of measured time-laws
+  needs a reference smooth beyond its second derivative.

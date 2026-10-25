@@ -914,6 +914,8 @@ force are not in the paper and have to be built and validated here.
       The earlier [LE26] overshoot was not mostly cross-athlete mixing,
       because it survives with one athlete's own data.
     - **Step 4.3's first two rungs, on her stroke (2026-09-14; TRACKING).**
+      *Scripts:* the originals were lost; rebuilt 2026-10-24 in `research/cr06/` (`stretcher_cr06.py`,
+      `hip_topdown_cr06.py`, `trunk_forward_cr06.py`), compared with this record in `research/cr06/README.md` and SOURCES §178.
       - **Stretcher force** from the body's momentum balance.
         - *Target:* sourced. About 310 N at the catch from her data on a
           segmental body, and [LE26] measures 335 N. The stretcher leads the
