@@ -12674,3 +12674,62 @@ each script printing the recorded numbers beside its own; full comparison in `re
   stroke (round trip 0.17–0.30°, not converging). A 15-harmonic Fourier series of the same channel
   (0.03 mm rms from the spline) gives a round trip below 10⁻⁴°. Forward-dynamic use of measured time-laws
   needs a reference smooth beyond its second derivative.
+
+## 179. Rung 5 rebuilt: the boat's recoil halves the trunk controller's stiffness; and a step rule for the fitted blade (2026-10-25)
+
+`research/cr06/coupled_trunk_cr06.py` rebuilds step 4.3's fifth rung (the record: TRACKING, "Step 4.3, fifth
+rung", 2026-09-14) on the shared module of §178. [CR06]'s single with her rig and her measured handle force
+drives a torque-driven oar (oar-only balance, research profile); her legs ride on her clock as in
+`self_consistent_body_cr06.py`; above the hip the rigid trunk of rungs 2–4 is either prescribed (her back
+channel, the Fourier reference) or a state appended to the simulator's. The hip-moment equation is solved
+exactly at every RK4 stage from the simulator's own derivative at trunk acceleration 0 and 1. Torque: the
+rung-2 moment along the prescribed run on the simulated hull, plus the record's PD (5 rad/s, ζ 0.7, gains from
+the one-way plant, Kp = ωn² + 1/0.274²), fed the error d seconds old. 12 strokes; last stroke reported.
+
+| case | rebuilt | recorded |
+|---|---|---|
+| prescribed trunk: speed, velocity rms vs her | 4.097 m/s, 0.029 | 4.115, 0.030 |
+| coupled, undisturbed: error max, feedback | 0.004°, 0.0 N·m | 0.002°, 0.0 N·m |
+| coupled, 0.1° start offset | decays within the first stroke | decays |
+| coupled, 10 N·m bias: error max / end, feedback, velocity rms | **8.96 / −7.78°, 38.9 N·m**, 0.032 | 3.71 / −3.43°, 22.2 N·m, 0.030 |
+| bias, 45 / 75 / 100 / 117 ms delay: error max | 9.34 / 9.61 / 9.69 / 10.42° | 3.80 / 3.88 / 4.17 / **45.6° (diverged)** |
+| — feedback; velocity rms | 40.8 / 42.0 / 42.4 / 46.8 N·m; 0.034 / 0.036 / 0.039 / 0.043 | 23.0 / 23.7 / 27.9 / 485 N·m; 0.030 / 0.031 / 0.033 / 0.64 |
+
+- **Reproduced:** the prescribed hull and its fit to her velocity (the 0.4% speed difference is the fitted
+  scull blade, adopted 2026-09-18, after the record), and the undisturbed coupled run reproducing it with no
+  feedback, which validates the coupled solve and the feedforward.
+- **Not reproduced: every controlled case.** The rebuild's bias error is 2.4× the record's, and no delay up to
+  117 ms diverges.
+- **Why, from the physics.** Two-way coupled, the trunk's forward swing pushes the hull back. The simulator
+  gives 0.155–0.182 m/s² of hull acceleration per rad/s² of trunk acceleration through the stroke; the
+  upper body's first moment (head, three trunk segments and arms: 16.5 kg·m at the drive's trunk angle) over
+  the 97 kg of rower, hull and oars gives 0.17. That recoil enters the hip balance, so the trunk's effective
+  inertia falls from 9.12 to 5.9–6.8 kg·m², and its toppling stiffness, measured at the state (141–176 N·m/rad),
+  over that inertia gives λ² ≈ 26 s⁻² (one-way 18). Gains designed on the one-way plant then leave net
+  stiffness Kp − λ² ≈ 11 s⁻², not ≈ 20, so a 10 N·m bias costs (10/6.3)/11 ≈ 0.14 rad ≈ 8°: the run's
+  −6 to −9°. In the delay equation e″ = λ²e − Kp e(t−δ) − Kd e′(t−δ) the same change *raises* the boundary,
+  130 ms → 147 ms (λ² 26) or 152 ms (λ² 29), so 117 ms holds (growth −1.6 /s): the runs agree.
+- **Audits.** `--one-way` (the hull sees only the prescribed trunk; the trunk still feels the simulated hull)
+  gives 3.28 / −3.02°, 20.2 N·m under the bias: the record's 3.71 / −3.43°, 22.2 N·m, and the rebuilt one-way
+  rung 4 (3.29°, 20.2 N·m). At 117 ms it holds (3.65°). `--hull-blind` (the hull feels the trunk, but the
+  trunk's equation leaves the recoil out) gives 7.05°, and 12.8° with 101 N·m at 117 ms, still bounded.
+  So the record's bias case matches a run in which the hull did not feel the trunk, while its velocity rms,
+  which does rise with delay, says its hull felt something. Its 117 ms divergence matches no variant. The
+  original script is lost; what it ran cannot be settled from the record.
+- **Withdrawn from the record:** "coupling changes almost nothing without delay" (the momentum balance
+  requires a ~30% fall in effective inertia; a fall that size cannot be invisible to a bias test), and "the
+  long-run boundary of the real system is between 100 and 117 ms" (rebuilt and linear: ~147 ms with these gains).
+- **Consequence for phase 4.3.** A trunk controller for the coupled rower must be designed on the coupled plant:
+  inertia ~6.3 kg·m², λ² ~26 s⁻², both varying through the stroke (largest at the catch). The rung-4 delay
+  table, made one-way, does not carry over in either direction.
+
+**A step rule for the research profile's fitted blade.** Rebuilding rung 5 overflowed at t = 0.41 s.
+Bisected: with `research.scull_c2` set back to `None` it runs; at the fitted 140.88 it needs a smaller step.
+In the oar-only balance the blade's drag damps the oar alone (1.24 kg·m² about the lock, blade centre 1.805 m
+outboard) at 2C₂|slip|r²/I: 742 s⁻¹ per m/s of slip at 140.88, 309 at the computed 58.7. RK4's real-axis
+limit, 2.785/rate, is passed above ~1.2 m/s of slip at `estimate_step/2` (3.1 ms); at 58.7, only above ~2.9.
+The committed `self_consistent_cr06.py` and `self_consistent_body_cr06.py` (step /2) overflowed at HEAD the same
+way and now run at /4, as the other seven oar-only studies already did. Under today's profile: 4.075 m/s,
+rms 0.136 (recorded 4.101, 0.143, before the fit); leg on her clock 4.078, 0.124 (recorded 4.105, 0.118); with
+her back time-law 4.083, 0.085 (recorded 4.111, 0.074); with her back law and travel 4.088, 0.044. The speeds sit
+0.6% under the records and the power 243 against 277 W: the fitted blade slips less.

@@ -24,6 +24,7 @@ gravity, inertia of the point masses, and the segments' spin.
 
 Writes data/local/cr06_study/hip_topdown_cr06.json.
 """
+import functools
 import json
 import os
 import sys
@@ -41,6 +42,7 @@ RECORDED = {"catch": dict(phase=0.002, total=206, per_kg=2.74, handle=6, gravity
             "drive peak": dict(phase=0.243, total=267, per_kg=3.56)}
 
 
+@functools.lru_cache(maxsize=1)
 def upper_body():
     """(name, mass, distance from the hip along the link, spin inertia about its own centre): the package rower's
     own placement (women's table, 75 kg, 1.758 m), read off its segment field; both arms as one point mass at
@@ -58,7 +60,7 @@ def upper_body():
         out.append((name, float(masses[name]), d, float(masses[name]) * (0.3 * L_seg) ** 2))
     m_arms = float(sum(v for k, v in masses.items() if "arm" in k))
     out.append(("arms", m_arms, L_TRUNK, 0.0))
-    return out
+    return tuple(out)                                          # cached: building the rower takes ~70 ms
 
 
 def trunk_angle(S, x_catch):

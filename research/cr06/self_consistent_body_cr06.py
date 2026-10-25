@@ -27,13 +27,15 @@ from scipy.interpolate import make_smoothing_spline
 
 warnings.simplefilter("ignore")
 HERE = os.path.dirname(os.path.abspath(__file__))
+FIGS = os.path.join(os.path.dirname(os.path.dirname(HERE)), "data", "local", "cr06_study")   # outputs stay private
+os.makedirs(FIGS, exist_ok=True)
 _src = open(os.path.join(HERE, "self_consistent_cr06.py")).read().split("BUILDS = (")[0]
 exec(_src)
 
 import matplotlib.pyplot as plt                              # noqa: E402
 from coxswain.core import integrators                        # noqa: E402
 
-DT = integrators.estimate_step(T_CR06) / 2.0
+DT = integrators.estimate_step(T_CR06) / 4.0   # /2 diverges since the research profile fitted the scull blade (C2 140.88, 2026-09-18): blade damping on the oar-only inertia passes the RK4 limit (SOURCES §179)
 UPPER, REF = [0, 1, 2, 4, 5, 6, 7], 3
 K_BACK = 0.398 / 0.513
 BODY = MEAS                                  # body curves live in the measured file
@@ -152,5 +154,5 @@ ax.set_ylabel("boat velocity (m/s)")
 ax.grid(alpha=0.25)
 ax.legend(fontsize=8)
 fig.tight_layout()
-fig.savefig(os.path.join(HERE, "self_consistent_body_cr06.png"), dpi=110)
+fig.savefig(os.path.join(FIGS, "self_consistent_body_cr06.png"), dpi=110)
 print("wrote self_consistent_body_cr06.png")

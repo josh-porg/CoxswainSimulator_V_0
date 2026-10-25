@@ -51,6 +51,8 @@ from coxswain.sim.control import Coxswain                   # noqa: E402
 from coxswain.sim.dynamic_oar import DynamicOarSimulator     # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+FIGS = os.path.join(os.path.dirname(os.path.dirname(HERE)), "data", "local", "cr06_study")   # outputs stay private
+os.makedirs(FIGS, exist_ok=True)
 T_CR06 = 1.94
 RATE = 60.0 / T_CR06
 CR06_OAR = Oar(length=0.83 + 1.805 + 0.215, inboard=0.83, blade_area=0.0903, blade_length=0.43, mass=1.2)
@@ -141,7 +143,7 @@ def warped_field(boat, spline, t_min_offset, P):
 #: Half the default fixed step: the 1.2 kg oar under the oar-only balance diverges at T/80
 #: (capped 0.5/80 s); at /2 and /4 the mean speed agrees to 0.6 mm/s (diag_cr06_step.py).
 from coxswain.core import integrators                        # noqa: E402
-DT = integrators.estimate_step(T_CR06) / 2.0
+DT = integrators.estimate_step(T_CR06) / 4.0   # /2 diverges since the research profile fitted the scull blade (C2 140.88, 2026-09-18): blade damping on the oar-only inertia passes the RK4 limit (SOURCES §179)
 BUILDS = (("summed, smooth body", 0.5, False), ("summed, measured leg", 0.5, True),
           ("per oar, measured leg", 1.0, True))
 v_mean_meas = float(np.trapezoid(np.interp(np.linspace(0, T_CR06, 2001), t_v, v_boat, period=T_CR06),
@@ -200,5 +202,5 @@ for ax in axes:
     ax.grid(alpha=0.25)
     ax.legend(fontsize=8)
 fig.tight_layout()
-fig.savefig(os.path.join(HERE, "self_consistent_cr06.png"), dpi=110)
+fig.savefig(os.path.join(FIGS, "self_consistent_cr06.png"), dpi=110)
 print("wrote self_consistent_cr06.png")

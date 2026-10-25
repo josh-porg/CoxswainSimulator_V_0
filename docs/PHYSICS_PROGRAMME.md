@@ -1008,6 +1008,19 @@ force are not in the paper and have to be built and validated here.
           the stroke-varying model mismatch.
         - **Proposed tier-3 acceptance test:** a constant unmodelled load at
           a sourced delay, tracked to within the undelayed loop's offset.
+        - **Revised 2026-10-25 (SOURCES §179): the coupled premise is not
+          reproduced.** Rung 5, rebuilt two-way (`research/cr06/coupled_trunk_cr06.py`),
+          does not diverge at 117 ms: the hull's recoil lowers the trunk's
+          effective inertia to ~6.3 kg·m², which with the one-way gains halves
+          the net stiffness (10 N·m bias: 8.96°, not 3.71°) and raises the
+          delay boundary to ~147 ms. The record's bias case matches a run in
+          which the hull did not feel the trunk. So the coupled-simulation
+          numbers above (45.6°, the predictor's 12.3°, the observer's 4.44°)
+          rest on a run that cannot be reproduced, and need re-running on the
+          rebuilt plant (their scripts were lost too). The linear findings
+          (the predictor's offset doubling under an unseen load, removed by a
+          disturbance estimate) do not depend on it and stand. **Next:** gains
+          designed on the coupled plant, then the predictor and observer on it.
 
   *Qualified on reading [CR06] in full:* the direction of slaving decides
   it. [CR06] slaves the **oar to the body** — smooth prescribed leg, back and

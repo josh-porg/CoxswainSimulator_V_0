@@ -42,7 +42,7 @@ record in docs/TRACKING.md, printing the recorded numbers beside its own.
 | 2 | the hip moment top-down from the handle (no foot data) | `hip_topdown_cr06.py` | rebuilt |
 | 3 | her trunk driven forward by the hip torque, open loop | `trunk_forward_cr06.py` | rebuilt |
 | 4 | the trunk under delayed feedback | `trunk_forward_cr06.py` | rebuilt |
-| 5 | the controlled trunk inside the simulator, two-way coupled | (`cr06/coupled_trunk_cr06.py`, lost) | **not yet rebuilt**; its linear check is rebuilt in `trunk_forward_cr06.py` |
+| 5 | the controlled trunk inside the simulator, two-way coupled | `coupled_trunk_cr06.py` (linear check in `trunk_forward_cr06.py`) | rebuilt 2026-10-25; **the record's controlled cases are not reproduced** (below) |
 | 4.3 legs | knee and ankle with the sourced foot-force direction and centre of pressure; the hip from below | `knee_ankle_cr06.py` | original (2026-10-24) |
 
 ### Rebuilt against recorded
@@ -66,6 +66,31 @@ reported as found; a difference is explained, not tuned away.
 | open loop, 0.1° start error after one stroke | 118° (×1181, e-folding 0.274 s) | 72° (×720, 0.29 s) | follows the inertia |
 | **Rung 4** delay table (5 and 10 rad/s × 0–117 ms) | holds / edge / fails at the same cells; 10 rad/s 100 ms: 7.9 / 3.5°, 240 N·m | 8.0 / 6.3°, 235 N·m | row by row in the script's output |
 | **Rung 5's linear check**: stability boundary | 130 ms (5 rad/s), 72 ms (10 rad/s) | 132 ms, 72 ms | growth rates match (e.g. +0.47 /s at 75 ms, recorded +0.45) |
+| **Rung 5** prescribed trunk: speed; velocity rms vs her | 4.097 m/s; 0.029 | 4.115; 0.030 | the 0.4% is the research profile's fitted scull blade, adopted after the record (2026-09-18) |
+| coupled, undisturbed: trunk error (last stroke); feedback | 0.004°; 0.0 N·m | 0.002°; 0.0 N·m | the feedforward and the coupled solve agree |
+| coupled, 10 N·m bias: error max / end; feedback | **8.96 / −7.78°; 38.9 N·m** | 3.71 / −3.43°; 22.2 N·m | **not reproduced**: see the finding below |
+| bias with 45 / 75 / 100 / 117 ms delay: error max | 9.34 / 9.61 / 9.69 / 10.42° (none diverge) | 3.80 / 3.88 / 4.17 / **45.6° (diverged)** | **not reproduced** |
+| audit `--one-way` (hull sees the prescribed trunk): bias; 100; 117 ms | 3.28 / −3.02°, 20.2 N·m; 3.38°; 3.65° (holds) | 3.71 / −3.43°, 22.2; 4.17; 45.6 | the record's bias case matches a one-way run; its divergence does not |
+| audit `--hull-blind` (trunk's equation omits the recoil): bias; 100; 117 ms | 7.05°, 47.5 N·m; 9.54°; 12.80°, 101 N·m (holds) | as above | matches nothing in the record |
+
+**A finding from the rebuild (rung 5): the boat's recoil halves the controller's stiffness.** Two-way coupled,
+the trunk's forward swing pushes the hull back, 0.17 m/s² per rad/s² of trunk acceleration in the simulator, which
+is the upper body's first moment (16.5 kg·m) over the 97 kg system. The trunk's effective inertia falls from 9.12
+to 6.0–6.8 kg·m² and its toppling rate rises (λ² ≈ 26 s⁻², one-way ≈ 18). The record's gains were designed on
+the one-way plant (Kp = ωn² + 1/0.274²), so they leave net stiffness ≈ 11 s⁻² instead of ≈ 20: a 10 N·m bias
+then costs (10/6.3)/11 ≈ 0.14 rad ≈ 8°, as the run shows. The same arithmetic in the delay equation moves the
+stability boundary up, to ~147 ms, so 117 ms holds, as the runs show. Three checks agree with the rebuilt run
+(the recoil by hand, the static error, the delay margin); the record agrees with a run in which the hull did not
+feel the trunk (`--one-way`) on its bias case, and with nothing on its 117 ms divergence. The original script
+is lost, so which the record ran cannot be settled; the rebuild's numbers stand, and the record's two claims
+"coupling changes almost nothing" and "the coupled boundary is between 100 and 117 ms" are withdrawn
+(docs/TRACKING.md, SOURCES §179). Design the gains on the coupled plant next.
+
+**A step-size rule (rung 5, and two older studies).** The research profile's fitted scull blade (C₂ = 140.88,
+2.4× the computed 58.7) damps the oar's own inertia (1.24 kg·m², in the oar-only balance these studies use) at
+2C₂|slip|r²/I ≈ 742 s⁻¹ per m/s of slip; RK4 fails above ~1.2 m/s of slip at `estimate_step/2`. Oar-only
+torque-driven studies run at `estimate_step/4` or less (`coupled_trunk_cr06.py` uses /8).
+`self_consistent_cr06.py` and `self_consistent_body_cr06.py` were moved from /2 to /4 on 2026-10-24.
 
 **A finding from the rebuild (rung 3).** The round trip first failed (0.17–0.30°, not converging with the
 step). The cause: her back channel was a cubic smoothing spline, whose third derivative jumps at each knot;
@@ -86,6 +111,8 @@ that is smooth beyond its second derivative.
   only there); footplate at 42° from the horizontal; ankle joint 0.07 m above the sole and 0.05 m ahead of
   the heel.
 - **One-way coupling** in rungs 3–4 (the hull does not feel the trunk); rung 5 removes it.
+- **Rung 5's gains are the one-way plant's** (5 rad/s, ζ = 0.7, τ = 0.274 s), as the record's were; on the coupled
+  plant they are weaker than designed (above).
 
 ## The legs, and the hip two ways (`knee_ankle_cr06.py`, SOURCES §177)
 
@@ -109,6 +136,7 @@ catch (SOURCES §177). Open.
 .venv/Scripts/python.exe research/cr06/stretcher_cr06.py         # rung 1
 .venv/Scripts/python.exe research/cr06/hip_topdown_cr06.py       # rung 2
 .venv/Scripts/python.exe research/cr06/trunk_forward_cr06.py     # rungs 3, 4 and rung 5's linear check (~10 min)
+.venv/Scripts/python.exe research/cr06/coupled_trunk_cr06.py     # rung 5, two-way coupled (~1.5 h; --one-way / --hull-blind audits ~45 min)
 .venv/Scripts/python.exe research/cr06/knee_ankle_cr06.py        # the legs and the hip from below
 ```
 
