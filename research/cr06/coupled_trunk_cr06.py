@@ -129,6 +129,21 @@ class TrunkSim(DynamicOarSimulator):
             y_lat = pos[i, 1]; pos[i], vel[i], acc[i] = p, v, ac; pos[i, 1] = y_lat
         return mass, pos, vel, acc
 
+    def delayed(self, t, e, ed):
+        """The trunk error and its rate as the controller sees them, ``self.delay`` seconds old."""
+        if self.delay <= 0:
+            return e, ed
+        ht, he, hed = self.hist
+        if ht and t - self.delay > ht[0]:
+            return float(np.interp(t - self.delay, ht, he)), float(np.interp(t - self.delay, ht, hed))
+        return 0.0, 0.0
+
+    def feedback(self, t, e, ed, s):
+        """Feedback torque (N.m): the delayed PD, scaled by the plant's own slope ``s`` (so the gains are
+        in angular-acceleration units). Subclasses replace it (coupled_control_cr06.py)."""
+        e_d, ed_d = self.delayed(t, e, ed)
+        return s * (-self.Kp * e_d - self.Kd * ed_d)
+
     def hip_moment(self, t, a, ad, add, a_hull):
         """Rung 2's extension moment of both hips on the simulated hull (hip_topdown_cr06.moment's terms)."""
         hp, hv, ha = self.hip_fn(t)
@@ -160,16 +175,8 @@ class TrunkSim(DynamicOarSimulator):
         M0 = self.hip_moment(t, a, ad, 0.0, acc0)
         M1 = self.hip_moment(t, a, ad, 1.0, acc0 if self.hull_blind else acc1)
         e, ed = a - self.ang(t), ad - self.ang(t, 1)
-        if self.delay > 0:
-            ht, he, hed = self.hist
-            if ht and t - self.delay > ht[0]:
-                e_d, ed_d = float(np.interp(t - self.delay, ht, he)), float(np.interp(t - self.delay, ht, hed))
-            else:
-                e_d, ed_d = 0.0, 0.0
-        else:
-            e_d, ed_d = e, ed
         s = M1 - M0                                             # d(moment)/d(alpha): minus the effective inertia
-        fb = s * (-self.Kp * e_d - self.Kd * ed_d)
+        fb = self.feedback(t, e, ed, s)
         torque = self.tau_ff(t) + self.bias + fb
         alpha = (torque - M0) / s
         out = d[0] + alpha * (d[1] - d[0])
@@ -181,12 +188,12 @@ class TrunkSim(DynamicOarSimulator):
         return np.concatenate([out, [ad, alpha]])
 
 
-def build(mode, **kw):
+def build(mode, cls=None, **kw):
     oardynamics.InertiaProfile.of = staticmethod(oar_only)
     boat = research.apply(her_boat())
     boat.power_scales = np.ones(boat.n_seats)
     r_h = float(boat.rig.seats[0].oarlocks[0].oar.inboard)
-    sim = TrunkSim(boat, peak_torque=1.0, catch=research.catch, coxswain=Coxswain(rudder_override=lambda t, s: 0.0), fast=True)
+    sim = (cls or TrunkSim)(boat, peak_torque=1.0, catch=research.catch, coxswain=Coxswain(rudder_override=lambda t, s: 0.0), fast=True)
     sim._torque = lambda slot, ang, state, t: 0.5 * max(float(np.interp(np.mod(t, T_CR06), t_F, F_hand, period=T_CR06)), 0.0) * r_h
     leg = body_field(boat, False, 1.0)                          # legs on her clock; the upper body is replaced
     # the hip on the same warp as the legs: the rower's hip joint at the warped model time
@@ -225,8 +232,8 @@ def stroke_metrics(sim, run):
     return dict(speed=float(run.settled_speed()), rms=rms, catch_min=float(v_m[grid < 0.3].min()))
 
 
-def run_case(label, mode, strokes, **kw):
-    sim = build(mode, **kw)
+def run_case(label, mode, strokes, cls=None, **kw):
+    sim = build(mode, cls=cls, **kw)
     try:
         run = sim.run_strokes(strokes, surge_speed=4.191, dt=DT_RUN)
     finally:
@@ -243,6 +250,18 @@ def run_case(label, mode, strokes, **kw):
     return m, sim, run
 
 
+def feedforward(sim, run):
+    """The rung-2 hip moment logged along a prescribed run's last (settled) stroke, as a periodic function
+    of time. Returns (tau_ff, peak)."""
+    P = float(sim.boat.timing.period)
+    last_start = float(run.last_time[0])
+    lg = [(t, M) for t, M in sim.log if t >= last_start]
+    ph = np.array([np.mod(t, P) / P for t, _ in lg]); tq = np.array([M for _, M in lg])
+    o = np.argsort(ph); ph, tq = ph[o], tq[o]
+    keep = np.concatenate([[True], np.diff(ph) > 1e-9]); ph, tq = ph[keep], tq[keep]
+    return (lambda t: float(np.interp(np.mod(t, P) / P, ph, tq, period=1.0))), float(np.max(tq))
+
+
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("--strokes", type=int, default=12)
     ap.add_argument("--hull-blind", action="store_true", help="audit: solve the trunk without the hull's recoil in its own equation")
@@ -252,15 +271,9 @@ def main():
     # 1. prescribed trunk, and the feedforward torque along it on the simulated hull
     m, sim, run = run_case("prescribed trunk", "prescribed", a.strokes)
     out["cases"]["prescribed"] = m
-    P = float(sim.boat.timing.period)
-    last_start = float(run.last_time[0])
-    lg = [(t, M) for t, M in sim.log if t >= last_start]                 # the last (settled) stroke
-    ph = np.array([np.mod(t, P) / P for t, _ in lg]); tq = np.array([M for _, M in lg])
-    o = np.argsort(ph); ph, tq = ph[o], tq[o]
-    keep = np.concatenate([[True], np.diff(ph) > 1e-9]); ph, tq = ph[keep], tq[keep]
-    tau_ff = lambda t: float(np.interp(np.mod(t, P) / P, ph, tq, period=1.0))      # noqa: E731
-    out["feedforward_peak"] = float(np.max(tq))
-    print("feedforward (rung-2 hip moment on the simulated hull): peak %.0f N.m" % np.max(tq), flush=True)
+    tau_ff, peak = feedforward(sim, run)
+    out["feedforward_peak"] = peak
+    print("feedforward (rung-2 hip moment on the simulated hull): peak %.0f N.m" % peak, flush=True)
     cases = (("coupled, undisturbed", {}), ("coupled, 0.1 deg offset", dict(a0_offset=0.1)), ("coupled, 10 N.m bias", dict(bias=10.0)),
              ("bias, 45 ms delay", dict(bias=10.0, delay=0.045)), ("bias, 75 ms delay", dict(bias=10.0, delay=0.075)),
              ("bias, 100 ms delay", dict(bias=10.0, delay=0.100)), ("bias, 117 ms delay", dict(bias=10.0, delay=0.117)))

@@ -106,7 +106,7 @@ choice, not a rule, and the crews show the water is used. But:
    used by the research and review scripts; the shipped course and the race cards
    unchanged until the decision in the item above.
 
-*Rows to re-run once built:* `race_review_opt.py` (ours, sophie), `line_review.py
+*Rows to re-run once built:* `race_review_opt.py` (ours, the eight), `line_review.py
 bridge`, `bestline_vs_model.py`, with a research boat and the crews' lines
 unclamped.
 

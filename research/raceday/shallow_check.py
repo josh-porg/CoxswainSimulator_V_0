@@ -35,7 +35,7 @@ import race_card as RC                                                       # n
 
 FT = 0.3048
 G = 9.81
-SOPHIE_DAY = 1181.1 / 1149.7 * 1.02            # review_crews.py
+EIGHT_DAY = 1181.1 / 1149.7 * 1.02            # review_crews.py
 
 
 def track_route(st, off, L, bin_m=25.0):
@@ -84,11 +84,11 @@ def calibrate_eight(model, boat, k, R, q):
     bundle = json.load(open(os.path.join(RC.FIELDS, "site_bundle.json")))["crews"]["eight"]
     river = 1.0 + float(np.interp(q, bundle["flow"]["discharge_m3s"], bundle["flow"]["effect_fraction"]))
     d = R["wind"]["direction"]
-    f = lambda v: GU.table_at(T, v, d)["factor"] * river - SOPHIE_DAY          # noqa: E731
+    f = lambda v: GU.table_at(T, v, d)["factor"] * river - EIGHT_DAY          # noqa: E731
     v_cal = brentq(f, 0.0, 12.0) if f(0.0) < 0 < f(12.0) else 0.0
     wind = (float(v_cal), float(d))
     line = Route(np.asarray(R["ours"]["stations"]), np.asarray(R["ours"]["offsets"]), name="her line")
-    ref = R["race_s"] / SOPHIE_DAY
+    ref = R["race_s"] / EIGHT_DAY
     for _ in range(4):
         model.route = line
         secs = C._sections(model, C._evaluate(model, boat, ref, wind), wind, k)
