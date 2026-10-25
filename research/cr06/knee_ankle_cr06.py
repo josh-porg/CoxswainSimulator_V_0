@@ -18,7 +18,9 @@ instrumented footplates). This script:
 3. Her leg posture: the package rower on the women's table at her 1.758 m (as female_segments_cr06.py), its
    seat height and segment lengths, placed at her measured leg displacement (two-link chain, ankle on the
    stretcher).
-4. Net joint moments of both legs together (bottom-up: feet, then shanks), with segment weights and inertia.
+4. Net joint moments of both legs together (bottom-up: feet, shanks, then thighs to the hip), with segment
+   weights and inertia. The hip from below is checked against rung 2's hip from above (trunk against the
+   handle, no foot data): they agree at maximum handle force (3.46 against 3.5 N.m/kg), not at the catch.
    The point on the footplate where the force acts (heel to ball of the foot) is NOT measured by [BU15], and
    the ankle moment depends on it almost one for one; it is carried as a range. The knee-minus-ankle moment
    does not depend on it at all, and is the result the sourced direction settles.
@@ -117,6 +119,15 @@ def main(lam_v=1e-5, lam_x=1e-5, write=True):
     I_sh = m_sh * (0.271 * Ls) ** 2                            # sagittal radius of gyration ~27% of the length
     alpha_sh = acc(np.unwrap(shank_ang))
     cross = lambda rx, rz, fx, fz: rx * fz - rz * fx           # noqa: E731
+    # thighs (both): hip at (hx, hz) from the ankle, centre of mass 36.12% from the hip (de Leva female)
+    hx_a = np.asarray(hx) * np.ones_like(t); hz_a = hz * np.ones_like(t)
+    hx, hz = hx_a, hz_a
+    m_th = 2 * M * DE_LEVA_FEMALE["thigh"].mass_fraction
+    c_th = DE_LEVA_FEMALE["thigh"].com_fraction
+    tcx, tcz = hx + c_th * (kx - hx), hz + c_th * (kz - hz)
+    ax_th, az_th = acc(tcx) + a_boat, acc(tcz)
+    I_th = m_th * (0.369 * Lt) ** 2                            # sagittal radius of gyration ~37% (de Leva female thigh)
+    alpha_th = acc(np.unwrap(np.arctan2(kz - hz, kx - hx)))
     PHI = np.radians(42.0)                                     # footplate incline ([BU15]); taken from the horizontal
     ux, uz = -np.cos(PHI), np.sin(PHI)                         # along the plate, heel to toes (toward the stern, up)
     nx, nz = np.sin(PHI), np.cos(PHI)                          # plate normal, toward the rower
@@ -140,16 +151,24 @@ def main(lam_v=1e-5, lam_x=1e-5, write=True):
         ext_knee_body = (cross(sx - kx, sz - kz, 0.0, -m_sh * G) + cross(-kx, -kz, 0.0, -m_ft * G)
                          - cross(sx - kx, sz - kz, m_sh * ax_sh, m_sh * az_sh) - cross(-kx, -kz, m_ft * a_boat, 0.0) - I_sh * alpha_sh)
         support = cross(-kx, -kz, Fh, Fv) + ext_knee_body      # knee extensor + ankle plantarflexor (CoP-free)
+        # the thighs, for the hip from below: the force the thighs put on the shanks (Newton on shanks + feet) and
+        # the thighs' own weight and inertia; hip extensor = the moment the pelvis puts on the thighs (+ = opening the hip)
+        Fkx = m_sh * ax_sh + m_ft * a_boat - Fh
+        Fkz = m_sh * az_sh + (m_sh + m_ft) * G - Fv
         res = {}
         for name, s in COP.items():
             px, pz = s * ux - SOLE * nx, s * uz - SOLE * nz
             ext_ankle = cross(px, pz, Fh, Fv)
             plantar = -ext_ankle
             knee_ext = cross(px - kx, pz - kz, Fh, Fv) + ext_knee_body
-            res[name] = dict(ankle=plantar, knee=knee_ext)
+            M_k = -knee_ext                                    # moment the thighs put on the shanks
+            hip = (M_k + cross(kx - hx, kz - hz, Fkx, Fkz) - cross(tcx - hx, tcz - hz, 0.0, -m_th * G)
+                   + I_th * alpha_th + cross(tcx - hx, tcz - hz, m_th * ax_th, m_th * az_th))
+            res[name] = dict(ankle=plantar, knee=knee_ext, hip=hip)
         assert np.allclose(res["ball"]["knee"] + res["ball"]["ankle"], support) and np.allclose(res["heel"]["knee"] + res["heel"]["ankle"], support)
         pick_i = lambda i: dict(t=float(t[i]), Fh=float(Fh[i]), Fv=float(Fv[i]), support=float(support[i]),            # noqa: E731
-                                ankle={c: float(res[c]["ankle"][i]) for c in res}, knee={c: float(res[c]["knee"][i]) for c in res})
+                                ankle={c: float(res[c]["ankle"][i]) for c in res}, knee={c: float(res[c]["knee"][i]) for c in res},
+                                hip={c: float(res[c]["hip"][i]) for c in res})
         out["cases"][label] = dict(theta_deg=float(np.degrees(th)), at_mhf=pick_i(i_mhf), at_landmark=pick_i(k_land),
                                    drive_peak_support=float(support[drive].max()), t_peak_support=float(t[drive][np.argmax(support[drive])]),
                                    series=dict(t=t[::7].round(4).tolist(), support=support[::7].round(1).tolist(),
@@ -184,8 +203,9 @@ def main(lam_v=1e-5, lam_x=1e-5, write=True):
             print("%-7s theta %4.1f | %-11s t %.2f: Fh %4.0f Fv %4.0f N | support %5.0f N.m | ankle plantarflexor heel/mid/ball %s | knee extensor %s"
                   % (lab, cc["theta_deg"], where, m["t"], m["Fh"], m["Fv"], m["support"],
                      "/".join("%.0f" % m["ankle"][k] for k in ("heel", "mid-foot", "ball")), "/".join("%.0f" % m["knee"][k] for k in ("heel", "mid-foot", "ball"))))
-            print("        measured CoP (0.73 +- 0.05 of the foot): ankle plantarflexor %.0f [%.0f, %.0f], knee extensor %.0f [%.0f, %.0f]"
-                  % (m["ankle"]["measured"], m["ankle"]["measured-1SD"], m["ankle"]["measured+1SD"], m["knee"]["measured"], m["knee"]["measured+1SD"], m["knee"]["measured-1SD"]))
+            print("        measured CoP (0.73 +- 0.05 of the foot): ankle plantarflexor %.0f [%.0f, %.0f], knee extensor %.0f [%.0f, %.0f], hip extensor from below %.0f N.m (%.2f N.m/kg; rung 2 top-down: 2.7 at the catch, 3.5 at MHF)"
+                  % (m["ankle"]["measured"], m["ankle"]["measured-1SD"], m["ankle"]["measured+1SD"], m["knee"]["measured"], m["knee"]["measured+1SD"], m["knee"]["measured-1SD"],
+                     m["hip"]["measured"], m["hip"]["measured"] / M))
         print("        peak support in the drive %.0f N.m at t %.2f s" % (cc["drive_peak_support"], cc["t_peak_support"]))
 
 

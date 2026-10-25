@@ -12630,6 +12630,19 @@ through feet and shanks of both legs.
       force runs along the shank and in front of the knee, so the net knee moment is near zero or flexor
       (consistent with the two-joint gastrocnemius carrying the plantarflexor load), its sign not settled
       within RF's ±1 SD.
+  - **The hip two ways** (`knee_ankle_cr06.py`, thighs added). The hip extensor moment from below (feet,
+    shanks, thighs, with [BU15]'s direction and [VI17]'s CoP) against rung 2's from above (trunk, head and
+    arms against her handle force, no foot data), both hips:
+    - *at maximum handle force:* **3.41–3.56 N·m/kg from below against 3.5 from above** (across the
+      smoothing band; CoP ±1 SD moves it ±0.13). Two independent routes meet: her stretcher force, the
+      women's foot-force direction, the footplate point and the segment table are consistent at the
+      high-load instant. The direction's ±1 SD spans 2.1–4.96 N·m/kg, so the match also favours [BU15]'s
+      central 36° for her;
+    - *at the catch:* about 0.3 N·m/kg from below against 2.7 from above. No plausible direction closes
+      it: it would need the force about 78° above the horizontal, more vertical push than her weight
+      allows. Both routes sit on second derivatives at the reversal there, and [BU15]'s direction is
+      measured only at maximum handle force; the catch stays open (the 2014 paper, Sports Biomech.
+      13:47–61, may give the catch's components).
   - *Caveats:* ergometer, not water (both sources); the CoP shape is one rower's, the level the group's
     (11 rowers, 4 women, sexes not separated); the ankle 0.05 m ahead of the heel is a foot-geometry
     assumption. The authors' raw data are requested (§11e) to separate the women.
