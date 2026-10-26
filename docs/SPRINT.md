@@ -35,6 +35,12 @@ Proposed build, smallest first:
    stated power. Output: the hands' time law, the oar angle and the boat's motion.
 4. **Test**: the hands' time law against [K05]'s measured drive law (which rung 2a reproduces when imposed), and IVV
    on both athletes; the gate is the S2.5 row's (within ~5 IVV points of measured, or stop and record).
+5. **Refined after reading the stroke machinery** (`DynamicOarSimulator` segments strokes on a fixed clock period):
+   the coordinate is a stroke clock tau with tau' = 1 reproducing rung 1 exactly (the sweep and the body postures are
+   read at tau instead of t - stroke_start). tau is dynamic through the **drive** only; at the release the **recovery**
+   is retimed to fill the rest of the period, so the rate stays the rower's choice and the stroke boundaries stay on
+   the clock. First check: the round trip (the generalised muscle force from rung 1's own inverse dynamics must give
+   tau' = 1 back), as rung 3 did for the trunk.
 
 ---
 
