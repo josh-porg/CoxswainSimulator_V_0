@@ -12,6 +12,7 @@ accuracy. Where a value was read off a figure rather than a table, the file says
 | `kleshnev2005_onwater_vs_machines.csv` | Kleshnev (2005) ISBS, Table 1 — on-water single against two machines | §159 |
 | `buckeridge2015_foot_force.csv` | Buckeridge, Bull & McGregor (2015) Scand J Med Sci Sports, Tables 3–6 — twenty elite women on an instrumented ergometer: foot force ratio at maximum handle force, average resultant, footplate angle, asymmetries | §177 |
 | `vieira2017_cop.csv` | Vieira et al. (2017) PLoS ONE (CC-BY), Figs 3–4 — footplate centre of pressure (mm from the heel) through one rower's drive, and the group's mean at peak force and over the drive; digitised by `research/cr06/extract_vieira2017.py` | §177 |
+| `grift2021_kinematics.csv`, `grift2021_forces.csv` | Grift, Tummers & Westerweel (2021) JFM 918 A29 (open access), Figs 4(b), 7(b), 9(a) — a 1:2 sweep blade's oar angle and tip path (an on-water M4− stroke, robot-reproduced) and the measured F_n, F_t (three realisations); extracted from the vector figures by `research/blade/extract_grift2021.py`, axes from the printed tick labels | §184 |
 
 Not here, deliberately:
 - **Commercial or private data** — [BR24] (BioRow), the coxing race recordings, cox-box

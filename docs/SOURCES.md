@@ -12859,6 +12859,11 @@ delay boundary 144 ms; **coupled gains, static error 3.6°, boundary 114 ms**.
 
 ## 183. Why rung 2 over-drives [BR24]: on his own motion, every sourced blade loses its load in the back half of the drive (2026-10-27)
 
+*Qualified by §184 (the same day): on [GTW21]'s exactly measured blade motion, tier 2 holds the late drive within ~20%,
+so the collapse below is specific to [BR24]'s motion as his channels describe it, not a general failure of quasi-steady
+laws. Its "unsteady loading" reading is one of two candidates (a tip-concentrated load, or his speed and angle channels
+late in the drive); the review (docs/BLADE_HYDRODYNAMICS_REVIEW.md, §3.4) carries the test.*
+
 *Script: `research/crew/rung1_force_gap.py` (output `data/local/crew/rung1_force_gap_<blade>.json`, log
 `data/local/crew/logs/rung1_force_gap.log`). Nothing fitted.*
 
@@ -12936,3 +12941,55 @@ fixes a shape that falls 3–13×.
   cannot do it (as the slip falls late in the drive, the entrained water gives momentum back and lowers the load);
   what holds load on a falling slip is a lagged circulation or a shed vortex, so the search is for a measured
   rowing-blade or accelerating-plate study with that history term.
+
+## 184. A measured blade motion with its measured load: every project blade law on [GTW21] (2026-10-27)
+
+*Scripts: `research/blade/extract_grift2021.py` (digitises the paper's vector figures to
+`data/literature/grift2021_kinematics.csv`, `grift2021_forces.csv`), `research/blade/grift2021_quasisteady.py`
+(output `data/local/blade/grift2021_quasisteady.json`, `.png`). The argument: docs/BLADE_HYDRODYNAMICS_REVIEW.md.*
+
+### [GTW21] Grift, Tummers & Westerweel (2021), *Hydrodynamics of rowing propulsion*, J. Fluid Mech. 918, A29
+Open access. A 1:2 sweep blade (span l_a 0.275 m, height l_b 0.125 m, camber 18 mm) held at its root by a strut,
+driven by a robot (four degrees of freedom) along the blade path of a men's coxless four at standard pace, measured
+on the water by video; still water 0.5 m deep, 20 °C; force by an ATI 6-DOF transducer (10 kHz), flow by PIV at the
+blade's half-height. At κ = 1 the timing is the on-water timing (T_ref 0.21 s both). Drive 0.80 s.
+
+**Extraction checks.** Fig. 4(b): catch θ = −50.1°, release +28.7° (text: about −50 and +28). Fig. 9(a): three
+realisations agree to 0.26 N rms (F_n) and 0.13 N (F_t); F_n peaks at −25.5 N at t* = 0.59. Fig. 7: the tip path
+measures 0.68 m (robot) and 0.72 m (measured) in both panels; the text's "total path length of 0.96 m" does not match
+the paper's own figure and is not used. Geometry: with the tip outward along t = (−sin θ, cos θ), the implied pin
+runs straight (heading spread 3.7° at a 1.0 m pin-to-tip radius); the reverse is incoherent. Sign: printed F_n · w_n
+and F_t · w_a are positive in every fifth, so the printed forces are those the blade exerts on the water.
+
+**Every project law, strips across the span, on this motion** (F_n, law / measured by fifths; impulse; F_t impulse):
+
+| law | 1 | 2 | 3 | 4 | 5 | F_n impulse | F_n rms N | F_t impulse |
+|---|---|---|---|---|---|---|---|---|
+| slip C0 1.3 | 0.26 | 0.19 | 0.35 | 0.64 | −0.94 | 0.45 | 8.9 | 0 |
+| slip C0 3.12 (research level) | 0.62 | 0.46 | 0.83 | 1.53 | −2.27 | 1.09 | 6.6 | 0 |
+| CG07 | 1.91 | 0.80 | 0.83 | 1.09 | −2.52 | 1.07 | 4.9 | −0.25 |
+| Coppel | 1.40 | 0.62 | 0.68 | 0.83 | −2.04 | 0.84 | 5.8 | −0.41 |
+| Sliasas–Tullis | 1.51 | 0.62 | 0.62 | 0.78 | −1.91 | 0.80 | 6.2 | −0.32 |
+| CG07 + Patton added mass (2.8 kg) | 4.77 | 1.12 | 1.06 | 0.84 | 2.64 | 1.03 | 4.9 | −1.43 |
+| CG07 + [LB19] added mass (5.2 kg) | 7.15 | 1.38 | 1.25 | 0.63 | 6.93 | 1.00 | 10.0 | −2.42 |
+
+**Findings.**
+1. *The slip law has the wrong shape:* one constant would need C0 = 5.0, 6.8, 3.8, 2.0 through the first four fifths.
+   Its fitted level gets the impulse (1.09) by trading too little early for too much late.
+2. *Tier 2 holds the middle and late drive within ~20%* and the peak's timing (0.61–0.62 against 0.59). On an exactly
+   known motion the late drive does **not** collapse; §183's [BR24] collapse is therefore not a general property of
+   quasi-steady laws (see 5).
+3. *The catch is over-predicted 1.4–1.9× by tier 2*, the [CR06] failure (2026-09-18) on a second source.
+4. *The release's positive F_n spike* is produced by no quasi-steady law; added mass (the blade decelerating)
+   gives one of the right sign but 3–7× too large when applied at full strength.
+5. *Tier 2's tangential sign is wrong.* Measured, F_t opposes the blade's sliding along its span (C_T ≈ 0.2–0.36
+   against C_N ≈ 1.2–2.05 in fifths 2–3); tier 2's `C_T = (A_d − 2A_l) sin²α cos α` < 0 puts it along the sliding.
+   Kirchhoff's added-mass tangential term (−m_a U_n Ω) has the wrong sign too.
+6. *Angle of attack, [GTW21] against [BR24]* (tip; centre): 16 (6), 35 (22), 56 (45), 79 (73)° against 10 (7),
+   22 (14), 48 (36), 48 (34)°. The on-water sweep path turns face-on late in the drive; [BR24]'s channels imply a
+   scull still sliding along itself, with a late-drive load coefficient of 1.7 if it acts at the tip and 3.7 at the
+   centre. A scull's within-drive boat acceleration is larger than a four's; a channel lag in his boat speed is
+   untested.
+
+**What follows:** tier 1's shape is rejected on a measured load; tier 2's normal law is the better base with its
+tangential sign and catch to fix; the models to build and their tests are in the review, §4.
