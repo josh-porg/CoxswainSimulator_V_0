@@ -155,12 +155,15 @@ contribution is the validation, and it has to be earned:
 | [GTW21] Fig. 9(b): three speeds | a speed effect inside one source | **done** (§191): impulse/κ² −10% over a doubling; Reynolds confounded |
 | [CR06]'s blade load (an athlete, a scull) | held out | **done** (§191): the predicted face-on value gives her impulse to 1%; her rms does not discriminate |
 | [RLBQV19] Fig. 9 (roll) and the immersion series as held-out cases | more full-size cases | to do; needs the blade's wetted geometry (area not stated) |
-| the law in the simulator, closed loop, with bending | the blade inside the boat | to build |
+| the law in the simulator, closed loop | the blade inside the boat | **built and run (§192): negative.** −7 to −9% speed at the athletes' power, IVV worse; tier 2 best closed loop. Separate the tangential drag from the weaker lift next |
+| the oar's bending in the simulator | sweep oars bend ~7° ([RLBQV19]); sculls less ([LNA15]) | to build after the closed-loop question |
 | a sourced face-on function of Froude number, or a fourth dataset above Fr 1 | the one open number | open |
 | independence | nothing tuned to a test set | the rule; C_Dc is profiled, not fitted, and the athlete test used the predicted value |
 
 ## 5. Log
 
+- 2026-10-27: the cross-flow blade in the core and the simulator (§192); closed loop on both athletes it is 7–9%
+  slow at their power and worsens IVV, while tier 2 is best: the open-loop fit does not carry over; not promoted.
 - 2026-10-27: paper steps (§191): [LJH12]'s flat blade as a third measured load (the fins' law at the data's floor);
   C_Dc profiled per dataset and ordered by one Froude number (2.3 / 2.2 / 1.3 at 0.49 / 0.87 / 1.00); [GTW21]'s three
   speeds; [CR06] held out (impulse to 1% at the predicted value); a core strip-integration bug fixed.

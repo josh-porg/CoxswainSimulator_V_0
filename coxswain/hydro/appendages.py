@@ -248,10 +248,17 @@ class LiftingSurface:
     @property
     def lift_curve_slope(self) -> float:
         """``C_L_alpha`` per radian, from the Polhamus/Helmbold formula."""
-        aspect = self.aspect_ratio
-        tan_sweep = np.tan(self.sweep)
-        return (2.0 * np.pi * aspect
-                / (2.0 + np.sqrt(aspect ** 2 * (1.0 + tan_sweep ** 2) + 4.0)))
+        return polhamus_helmbold_slope(self.aspect_ratio, float(np.tan(self.sweep)))
+
+
+def polhamus_helmbold_slope(aspect: float, tan_sweep: float = 0.0) -> float:
+    """``C_L_alpha`` per radian of a low-aspect-ratio surface (the Polhamus/Helmbold formula, above).
+
+    Shared by the fins and rudder (:class:`LiftingSurface`) and, since 2026-10-27, the blade's cross-flow law
+    (:class:`coxswain.crew.liftdrag.CrossflowBlade`, SOURCES §190), so there is one formula, not two.
+    """
+    aspect = float(aspect)
+    return float(2.0 * np.pi * aspect / (2.0 + np.sqrt(aspect ** 2 * (1.0 + tan_sweep ** 2) + 4.0)))
 
 
 #: Fin fitted to a typical eight: 129 mm deep, 202 mm chord, well aft.

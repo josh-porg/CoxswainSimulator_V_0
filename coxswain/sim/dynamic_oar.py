@@ -290,9 +290,13 @@ class DynamicOarSimulator(RowingSimulator):
         self.blade_span = None if blade_span is None else float(blade_span)
         #: Tier 2's amplitudes: ``"cg07"``, the quarter-scale flume as before, or a
         #: full-size correction named in :attr:`LiftDragBlade.FULL_SCALE`.
+        #: ``"crossflow@<face-on>"`` (e.g. ``"crossflow@2.2"``): the fins' cross-flow law on the blade
+        #: (:class:`~coxswain.crew.liftdrag.CrossflowBlade`, SOURCES §190-191), its face-on coefficient
+        #: in the name so every cache key that carries the coefficients carries it too.
         from ..crew.liftdrag import LiftDragBlade as _LD
-        if blade_coefficients != "cg07" and blade_coefficients not in _LD.FULL_SCALE:
-            raise ValueError("unknown blade coefficients %r; this simulator runs cg07, %s"
+        if (blade_coefficients != "cg07" and blade_coefficients not in _LD.FULL_SCALE
+                and _crossflow_face_on(blade_coefficients) is None):
+            raise ValueError("unknown blade coefficients %r; this simulator runs cg07, %s, crossflow@<face-on>"
                              % (blade_coefficients, ", ".join(_LD.FULL_SCALE)))
         if blade_coefficients != "cg07" and blade_law != "liftdrag":
             raise ValueError("blade coefficients apply to the tier 2 law only; "
@@ -410,6 +414,15 @@ class DynamicOarSimulator(RowingSimulator):
 
             for slot, seat in enumerate(self._seats):
                 lock = boat.rig.seats[seat].oarlocks[0]
+                face_on = _crossflow_face_on(self.blade_coefficients)
+                if face_on is not None:
+                    length = float(lock.oar.blade_length)
+                    if not length > 0.0:
+                        raise ValueError("the cross-flow blade needs the oar's blade_length (its along-shaft extent)")
+                    self._liftdrag.append(LiftDragBlade.crossflow(
+                        outboard=float(self._oars[slot].outboard), area=float(lock.oar.blade_area),
+                        length=length, face_on=face_on, density=float(boat.water.density)))
+                    continue
                 make = (LiftDragBlade.big_blade if self.blade_coefficients == "cg07"
                         else lambda **kw: LiftDragBlade.big_blade_full_scale(
                             source=self.blade_coefficients, **kw))
@@ -661,6 +674,10 @@ class DynamicOarSimulator(RowingSimulator):
             raise ValueError(
                 "a deep-referenced depth on [CG07] counts the surface twice: the flume blade "
                 "had its top edge at the surface; use a rigid-lid set (coppel) or reference='mean'")
+        if self.blade_law == "liftdrag" and _crossflow_face_on(self.blade_coefficients) is not None:
+            raise ValueError(
+                "a deep-referenced depth on the cross-flow blade counts the surface twice: its face-on "
+                "coefficient carries the free-surface regime (SOURCES §191); use reference='mean'")
         if self.blade_law == "liftdrag" and self.blade_coefficients == "sliasas_tullis":
             raise ValueError(
                 "a deep-referenced depth on [ST09] may count the surface twice: their CFD "
@@ -1586,6 +1603,17 @@ def simulator_for(boat, **kwargs):
         blade_law=kwargs.get("blade_law", "slip"))
     return DynamicOarSimulator(boat, peak_torque=torque, catch=catch,
                                **kwargs)
+
+
+def _crossflow_face_on(coefficients):
+    """The face-on coefficient of a ``"crossflow@<value>"`` name, or ``None`` for any other name."""
+    if not isinstance(coefficients, str) or not coefficients.startswith("crossflow@"):
+        return None
+    try:
+        value = float(coefficients.split("@", 1)[1])
+    except ValueError:
+        return None
+    return value if value > 0.0 else None
 
 
 def _match_key(boat, watts, catch, blade_law, added_mass="none",

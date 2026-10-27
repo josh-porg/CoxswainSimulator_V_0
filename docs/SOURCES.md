@@ -13276,3 +13276,42 @@ fins' cross-flow law, with its measured pieces fixed beforehand, reaches each ta
 face-on number, and that number orders by Froude number; on the athlete it predicts her impulse. Remaining before a
 manuscript: the closest prior work (Barré & Kobus 2010) read; a sourced face-on function of Froude number (or a fourth
 tank dataset above Fr 1); the law closed loop in the simulator with the oar's bending.
+
+## 192. The cross-flow blade in the simulator, closed loop: it does not carry over (2026-10-27)
+
+*Core: `coxswain/crew/liftdrag.py` (`LiftDragBlade.crossflow`, `CrossflowBlade`), `coxswain/hydro/appendages.py`
+(`polhamus_helmbold_slope`, now shared by the fins and the blade), `DynamicOarSimulator(blade_law="liftdrag",
+blade_coefficients="crossflow@<face-on>")` (the face-on value in the name, so every cache key carries it; a
+deep-referenced depth refused). Research option; nothing ships it, no profile uses it. Tests
+`tests/unit/test_blade_review.py`; the fin tests unchanged. Script `research/blade/crossflow_in_simulator.py`.*
+
+**Definition note.** The core law takes the along-shaft aspect ratio as area/length² (0.41 for the project's hatchet
+sweep blade, against the 0.48 of its 0.52 × 0.25 m outline used in §188–191). Re-profiled, [RLBQV19]'s least-error
+face-on value is still 1.3 (rms 27.5 against 25.3 N); [GTW21] and [LJH12] are rectangles and do not change.
+
+**Rung 1 (hands on the handle, [K05]'s on-water drive law, each athlete's own arc and rate; nothing fitted).**
+
+| | [CR06] speed at her power | IVV (pts over 49.4%) | blade efficiency | [BR24] speed at his power | IVV (pts over 49.1%) | blade efficiency |
+|---|---|---|---|---|---|---|
+| research slip (fitted C2, centre) | −0.4% | +6.3 | 0.76 | +2.8% | +11.5 | 0.70 |
+| tier 2 CG07, strips | +2.6% | **+0.3** | **0.82** | +6.4% | +5.0 | 0.74 |
+| cross-flow C_Dc 2.2, strips | −7.4% | +6.5 | 0.76 | −8.9% | +14.7 | 0.67 |
+| cross-flow C_Dc 1.3, strips | −11.4% | +9.9 | 0.72 | −14.3% | +20.2 | 0.62 |
+
+Kleshnev's on-water blade-efficiency band is 0.75–0.82. Force peaks: every law at 17–28% of the drive.
+
+**So the law that fits the tank loads best does not carry over to the boat.** At [CR06]'s predicted face-on value it
+matches the slip law's blade efficiency (0.76) yet costs 7% of speed at her power: on the same hand motion it absorbs
+~60 W more for the same speed, so the loss is not only slip at the blade face. The likeliest candidate is the
+tangential load, which every measurement says is drag-like (§184): at the catch and the finish it has a component
+against the boat's motion that neither the slip law (no tangential load) nor tier 2 (thrust-like tangential) charges.
+The other is the weaker catch and finish lift (Helmbold), which [GTW21] credits with 40% of propulsion. Tier 2, whose
+tank fits are poorer, gives the best IVV ([CR06] within 0.3 points) and an efficiency at the top of the band.
+
+**What this does to the paper.** The open-loop result stands (three tank datasets on known motions; one law, one
+face-on number ordered by Froude number; the athlete's impulse predicted), but the closed-loop result is negative and
+has to be explained before any claim: is it the tank-to-water transfer (fixed kinematics in the tanks against a boat
+that responds), the tangential drag, the lift, or the rung-1 model around the blade (prescribed hands; the hull and
+crew model that already runs [BR24] 5–12% fast under his own measured force, §blade-law check 2026-09-27)? Next: the
+same closed loop with the cross-flow normal load and tier 2's tangential, and with tier 2's lift and the cross-flow
+face-on term, to separate the two pieces; then the power decomposition (normal slip, tangential, hull).

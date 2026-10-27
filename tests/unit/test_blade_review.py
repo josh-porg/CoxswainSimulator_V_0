@@ -51,3 +51,18 @@ def test_strips_honour_a_blade_that_overrides_its_coefficients():
     b = LiftDragBlade.big_blade(outboard=1.8, area=0.0903)
     f_n, f_t, _ = liftdrag_strips(b, *args)
     assert np.isfinite(f_n) and np.isfinite(f_t)
+
+
+def test_core_crossflow_blade_matches_the_study_law():
+    from coxswain.crew.liftdrag import LiftDragBlade
+    core = LiftDragBlade.crossflow(outboard=1.8, area=0.0903, length=0.43, face_on=2.2)
+    study = helmbold.PolhamusLamarBlade(helmbold.helmbold_slope(0.0903 / 0.43 ** 2) / 2.0, 2.07, 0.0903, 1.8,
+                                        1000.0, None, 2.2, 99.0)
+    for a in np.radians([5.0, 30.0, 60.0, 90.0]):
+        assert core.coefficients(a) == pytest.approx(study.coefficients(a))
+
+
+def test_simulator_names_the_crossflow_blade_and_refuses_a_bad_name():
+    from coxswain.sim.dynamic_oar import _crossflow_face_on
+    assert _crossflow_face_on("crossflow@2.2") == 2.2
+    assert _crossflow_face_on("crossflow@x") is None and _crossflow_face_on("cg07") is None

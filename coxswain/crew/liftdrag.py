@@ -125,6 +125,20 @@ class LiftDragBlade:
         return cls(1.25, 2.07, area, outboard, density, cls.FULL_SCALE[source])
 
     @classmethod
+    def crossflow(cls, outboard: float, area: float, length: float, face_on: float,
+                  density: float = 1000.0) -> "CrossflowBlade":
+        """The fins' cross-flow law on a blade (:class:`CrossflowBlade`; SOURCES §190-191).
+
+        ``length`` is the blade's extent along the shaft; its height is ``area / length``, so the
+        aspect ratio the along-shaft flow sees is ``area / length**2``. ``face_on`` is the normal
+        coefficient face-on, the law's one open number (~2.2 below Froude ~0.9, ~1.3 at 1.0).
+        """
+        from ..hydro.appendages import polhamus_helmbold_slope
+        aspect = float(area) / float(length) ** 2
+        return CrossflowBlade(polhamus_helmbold_slope(aspect) / 2.0, 2.07, float(area), float(outboard),
+                              float(density), None, float(face_on))
+
+    @classmethod
     def macon(cls, outboard: float, area: float = 0.11,
               density: float = 1000.0) -> "LiftDragBlade":
         return cls(1.24, 1.90, area, outboard, density)
@@ -182,3 +196,22 @@ class LiftDragBlade:
         c_n, c_t = self.coefficients(self.attack_angle(w_n, w_a))
         q = 0.5 * self.density * self.area * speed2
         return (-np.sign(w_n) * q * c_n, -np.sign(w_a) * q * c_t)
+
+
+@dataclass(frozen=True)
+class CrossflowBlade(LiftDragBlade):
+    """The hull's fin law applied to a rowing blade: Whicker & Fehlner's cross-flow form ([WF58]).
+
+    ``C_N = C_L_alpha sin a cos a + C_Dc sin^2 a`` with ``C_L_alpha`` the Polhamus/Helmbold slope at the
+    blade's along-shaft aspect ratio (``lift_amplitude = C_L_alpha / 2``) and ``C_Dc`` the face-on
+    coefficient (``face_on``); face-on it gives ``C_Dc``, so no cap. Tangential: tier 2's resolution
+    with that lift, ``(A_d - 2 A_l) sin^2 a cos a``, drag-like as [GTW21] measures (SOURCES §184).
+    Validated against three measured blade loads on known motions and one athlete (SOURCES §188-191):
+    a research option; nothing ships it.
+    """
+    face_on: float = 2.2
+
+    def coefficients(self, alpha):
+        s, c = np.sin(alpha), np.cos(alpha)
+        c_n = 2.0 * self.lift_amplitude * s * c + self.face_on * s * s
+        return float(c_n), LiftDragBlade.coefficients(self, alpha)[1]

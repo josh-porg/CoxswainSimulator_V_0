@@ -68,5 +68,7 @@ def crossflow(height, length, area, mirror, c_dc, outboard=1.0):
     (``coxswain/hydro/appendages.py``, [WF58]), C_N = C_L_alpha sin a cos a + C_Dc sin^2 a. The same structure as
     Polhamus-Lamar with K_v = C_Dc, and self-capping: face-on it gives C_Dc, so no separate cap. C_Dc is the face-on
     coefficient (the free-surface bracket: ~1.3 full scale, ~2 the half-scale tank)."""
-    ar = (2.0 if mirror else 1.0) * height / length
+    if not mirror:                                                 # the core option (coxswain.crew.liftdrag)
+        return LiftDragBlade.crossflow(outboard=outboard, area=area, length=length, face_on=c_dc)
+    ar = 2.0 * height / length
     return PolhamusLamarBlade(helmbold_slope(ar) / 2.0, 2.07, area, outboard, 1000.0, None, float(c_dc), 99.0)
