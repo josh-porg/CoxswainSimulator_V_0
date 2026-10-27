@@ -99,7 +99,9 @@ def open_loop(boat, c2, blade_length=0.43, speed_offset=0.0, quiet=False):
                        # the blade review's sourced laws (docs/BLADE_HYDRODYNAMICS_REVIEW.md, SOURCES 188-189): a scull
                        # Big Blade 0.43 x 0.215 m (coxswain/crew/blade_added_mass.py), along-flow AR 0.50, no mirror
                        ("Polhamus-Lamar cap 1.3", lambda: HB.polhamus_lamar(0.215, blade_length, area, False, 1.3, outboard)),
-                       ("Polhamus-Lamar cap 2.05", lambda: HB.polhamus_lamar(0.215, blade_length, area, False, 2.05, outboard))):
+                       ("Polhamus-Lamar cap 2.05", lambda: HB.polhamus_lamar(0.215, blade_length, area, False, 2.05, outboard)),
+                       ("cross-flow C_Dc 1.3", lambda: HB.crossflow(0.215, blade_length, area, False, 1.3, outboard)),
+                       ("cross-flow C_Dc 2.2", lambda: HB.crossflow(0.215, blade_length, area, False, 2.2, outboard))):
         ld = make()
         laws["lift-drag %s, centre" % name] = (lambda ld: lambda th, rate, v, side: float(
             ld.loads(th, rate, np.array([v, 0.0]), side)[0]))(ld)

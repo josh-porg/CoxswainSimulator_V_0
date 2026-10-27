@@ -24,6 +24,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from .liftdrag import LiftDragBlade
+
 #: Strips across the span. Trapezoid rule; a slip that changes sign part-way along the blade
 #: puts a kink in the integrand, which needs more strips than a smooth one.
 DEFAULT_STRIPS = 41
@@ -78,9 +80,15 @@ def liftdrag_strips(blade, angle: float, rate: float, lock_velocity, side: int, 
     w_a = np.full_like(r, float(u @ axis))
     speed2 = w_n ** 2 + w_a ** 2
     alpha = np.arctan2(np.abs(w_n), np.abs(w_a))
-    s, c = np.sin(alpha), np.cos(alpha)
-    lift, drag = blade.lift_drag(alpha)
-    c_n, c_t = lift * c + drag * s, drag * c - lift * s
+    if type(blade).coefficients is LiftDragBlade.coefficients:
+        s, c = np.sin(alpha), np.cos(alpha)
+        lift, drag = blade.lift_drag(alpha)
+        c_n, c_t = lift * c + drag * s, drag * c - lift * s
+    else:
+        # a blade that defines its own normal and tangential coefficients (a subclass overriding
+        # ``coefficients``) is resolved through them, strip by strip; resolving lift and drag here
+        # instead silently replaced its law with tier 2's (found 2026-10-27, SOURCES §191)
+        c_n, c_t = (np.array(x) for x in zip(*(blade.coefficients(a) for a in alpha)))
     q = 0.5 * blade.density * blade.area / float(span) * speed2
     dF_n = -np.sign(w_n) * q * c_n
     dF_t = -np.sign(w_a) * q * c_t

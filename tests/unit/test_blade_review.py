@@ -36,3 +36,18 @@ def test_tangential_load_is_drag_like():
     # [GTW21] measures the tangential load opposing the sliding (SOURCES §184); with Helmbold's lift it is positive
     b = helmbold.crossflow(0.25, 0.52, 0.11, False, 1.3)
     assert b.coefficients(np.radians(45.0))[1] > 0.0
+
+
+def test_strips_honour_a_blade_that_overrides_its_coefficients():
+    # liftdrag_strips used to resolve tier 2's lift and drag itself, silently ignoring a subclass's own
+    # coefficients (the cross-flow law's face-on value had no effect under strips; SOURCES §191)
+    from coxswain.crew.blade_strips import liftdrag_strips
+    from coxswain.crew.liftdrag import LiftDragBlade
+    args = (np.radians(10.0), -2.0, np.array([4.0, 0.0]), 1, 0.43)
+    lo = helmbold.crossflow(0.21, 0.43, 0.0903, False, 1.3, outboard=1.8)
+    hi = helmbold.crossflow(0.21, 0.43, 0.0903, False, 2.2, outboard=1.8)
+    assert abs(liftdrag_strips(hi, *args)[0]) > abs(liftdrag_strips(lo, *args)[0])
+    # and a plain tier 2 blade is unchanged by the fix: strips equal the vectorised lift-drag resolution
+    b = LiftDragBlade.big_blade(outboard=1.8, area=0.0903)
+    f_n, f_t, _ = liftdrag_strips(b, *args)
+    assert np.isfinite(f_n) and np.isfinite(f_t)

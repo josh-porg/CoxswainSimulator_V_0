@@ -12,7 +12,8 @@
 | 6 | Cuijpers, de Poel & Zaal | ergometer displacement and crew centre of mass | 2026-09-19 | none | — |
 | 7 | Sliasas & Tullis | blade force and boat velocity coupling | 2026-09-19 | none | — |
 | 8 | Knarr & Kwoun | IMU series, ergometer vs water | 2026-09-19 | none | — |
-| 9 | Grift, Tummers & Westerweel | digitised force and drag curves | 2026-09-19 | none; his open thesis supplies the figures (SOURCES §159) | exact numbers still wanted |
+| 9 | Grift, Tummers & Westerweel | digitised force and drag curves | 2026-09-19 | none; his open thesis supplies the figures (SOURCES §159); **2026-10-27: the 2021 paper's motion and F_n, F_t traces extracted from its vector figures** (SOURCES §184) | the tabulated immersion and entrainment numbers only |
+| 12 | Barré & Kobus | their 2010 paper (paywalled) | not sent | — | draft below; the closest prior work for the blade-law paper (review §4a) |
 | 10 | Hill & Fahrig | boat speeds with their drive durations | 2026-09-19 | none | — |
 | 11a, 11b, 11d | Sinclair; Baca; Smith & Loschner | foot-stretcher force components | 2026-09-19 | none | Draper route (below) not yet tried |
 | 11c | Buckeridge → McGregor | foot-force direction | 2026-09-19; McGregor 2026-10-21 | Buckeridge referred on 2026-09-25; **McGregor declined 2026-10-21** | direction now sourced from [BU15] (SOURCES §177) |
@@ -604,6 +605,29 @@ four women and give their own foot lengths.
 >
 > Sincerely,
 > Joshua Poznański
+
+## 12. Sophie Barré & Jean-Marc Kobus — École Centrale de Nantes (LHEEA) *(added 2026-10-27, draft, not sent)*
+
+*Comparison between common models of forces on oar blades and forces measured by towing tank tests*, Proc. IMechE
+Part P **224** (2010) 37–50, DOI 10.1243/17543371JSET43. The closest prior work to the blade review's result (review
+§4a): both common blade-model families against towing-tank data, the peak coefficients depending on an unsteadiness
+(advance) parameter. Paywalled. Their flat-blade measurements are in hand through Leroyer et al. (JH12; SOURCES §191);
+the paper's other cases (advance parameters other than 0.742) would test the face-on coefficient's dependence
+directly. First route: a library copy; second, the authors.
+
+> Subject: Your 2010 towing-tank comparison of oar-blade force models
+>
+> Dear Dr Barré,
+>
+> I am testing quasi-steady blade-force laws against published measurements of a blade's load on a known motion,
+> including the flat-blade tank data in Leroyer et al.'s Journées de l'Hydrodynamique paper. Your 2010 Proc. IMechE
+> paper is the closest prior work and I would like to read and cite it properly; I have no access to it. Would you be
+> willing to share a copy, and, if possible, the force measurements for the other advance parameters you tested?
+> They would be used with attribution, provenance recorded in an open repository.
+>
+> Sincerely,
+
+---
 
 ## Status: sent 2026-09-19
 

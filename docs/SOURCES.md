@@ -13195,3 +13195,84 @@ standard rowing laws ([CR06]'s slip law; [CG07]/Atkinson's sin forms) fail the s
 yet read:** Barré & Kobus (2010), *Comparison between common models of forces on oar blades and forces measured by
 towing tank tests*, Proc. IMechE Part P: the two common model families against towing-tank data, peak coefficients
 depending on an unsteadiness (advance-number) parameter. Any claim waits on reading it.
+
+## 191. Toward a paper: a third measured load, the one open number profiled, a held-out athlete, and a strip-integration bug (2026-10-27)
+
+*User: "do the stuff for paper worthy" (the plan: docs/BLADE_HYDRODYNAMICS_REVIEW.md §4a). Scripts in
+`research/blade/`: `extract_leroyer_jh12.py`, `leroyer_jh12_quasisteady.py`, `crossflow_profile.py`,
+`cr06_blade_laws.py`; outputs in `data/local/blade/`.*
+
+**1. A third measured load: the Nantes towing tank's flat blade ([LJH12]; the Barré & Kobus 2010 benchmark).** A
+flat plate on a rigid shaft (0.302 × 0.139 m, AR 0.46, 420 cm², a scull blade at scale 0.7), top edge at the surface,
+carriage 2.91 m/s, θ̇ = 3 sin θ rad/s, η₀ = 0.742, so L_e = V_b/(K η₀) = 1.307 m; measured C_l and C_d against the
+pseudo-incidence at the blade centre (Figs 8–9) and F_x, F_y against θ (Figs 10–11), digitised from the vector figure
+(`data/literature/leroyer_jh12_flat_blade.csv`; C_d max 2.05 at 87°, C_l ±1.0, F_x −51.6 N). **Frame check, no law
+involved:** F_x, F_y rebuilt from the measured C_l, C_d reproduce the measured F_x, F_y to 6.7 / 7.6 N rms (peak −51.0
+against −51.6 N) under one sign convention, the one every law is scored with; ~7 N is the data's own floor.
+
+| law (rigid shaft) | F_x rms N | F_y rms N | F_x impulse | C_l rms | C_d rms |
+|---|---|---|---|---|---|
+| slip C0 1.3 | 17.4 | 17.7 | 0.48 | 0.29 | 0.33 |
+| slip, research level | 11.0 | 10.3 | 1.14 | 0.15 | 0.40 |
+| CG07 | 19.5 | 16.3 | 1.62 | 0.28 | 0.08 |
+| Coppel | 11.2 | 8.7 | 1.28 | 0.16 | 0.17 |
+| fins' cross-flow, C_Dc 1.3 | 13.0 | 8.4 | 0.62 | 0.31 | 0.18 |
+| **fins' cross-flow, C_Dc 2.05** | **6.2** | 11.2 | 0.90 | 0.17 | 0.23 |
+
+CG07 matches the measured C_d almost exactly (its 2.07 face-on is this kind of measurement) but its lift (1.25 against
+1.0) and shape put F_x 1.6× high. The fins' law reaches the data's floor in F_x.
+
+**2. The one open number, profiled per dataset** (`crossflow_profile.py`; a sensitivity, not a fit that enters the
+model). Least error in each dataset's own metric, and one Froude number for all (the centre's normal slip at
+mid-stroke over √(g h), h the blade height; each paper's own definition does not compare):
+
+| dataset | Fr | least-error C_Dc | within 10% of the least |
+|---|---|---|---|
+| [GTW21] half scale | 0.49 | 2.3 (F_n rms 5.6 N) | 1.8–2.6 |
+| [LJH12] 0.7 scale, flat | 0.87 | 2.2 (F_x rms 5.9 N) | 2.0–2.4 |
+| [RLBQV19] full size, awash | 1.00 | 1.3 (F_x rms 25.3 N) | 1.1–1.4 |
+
+Flat near 2.2 to Fr 0.87, then 1.3 at 1.0: consistent with ventilation onset near Fr ≈ 1 (the surface drawn down past
+Fr ≈ 1.0–1.25 on surface-piercing hydrofoils, arXiv 2503.18015), with one point above it. Not a proof: scale, shape
+(flat against hatchet) and the wetted area of [RLBQV19]'s inclined, awash blade (its area is not stated; its Fig. 8
+gives +16% for 6 cm more depth) are confounded with Fr. An earlier rough estimate in this session put [LJH12] and
+[RLBQV19] at the same Fr (0.87); computed consistently, with the bending rate, [RLBQV19] is 1.00.
+
+**3. Inside one source: [GTW21] at three speeds** (Fig. 9b; κ = 0.5, 0.75, 1.0; Fr 0.25–0.49). A quasi-steady law
+scales exactly as κ². Measured drive impulse over κ²: 10.29, 9.86, 9.22 (−10% as the speed doubles); peaks over κ² 42,
+36, 26 (noisier). The load per unit dynamic pressure falls with speed within one experiment, the trend's sign;
+Reynolds number doubles too (0.8 → 1.6 × 10⁵), so the cause is not separated.
+
+**4. A held-out athlete: [CR06]'s blade load on her motion** (`cr06_blade_laws.py`; rebuilds the lost
+`cr06/blade_law_vs_her.py`). Her normal load from her oar's balance, (s F_hand/2 − I θ̈)/l, by fifths of the drive
+37 / 92 / 120 / 63 N; scored over fifths 1–4 (her blade is out before the angle's end). Her Fr is 0.61, below the onset,
+so the trend predicts a face-on value near 2.2 before anything is run.
+
+| law (strips unless stated) | fifths 1–4 | impulse | rms N |
+|---|---|---|---|
+| slip, fitted C2, centre (fitted to her) | −0.04 / 1.00 / 0.90 / 0.65 | 0.77 | 62 |
+| slip, computed C2, centre | −0.02 / 0.42 / 0.37 / 0.27 | 0.32 | 59 |
+| CG07 | 1.21 / 1.96 / 0.97 / 1.22 | 1.34 | 133 |
+| Coppel | 0.83 / 1.51 / 0.78 / 0.95 | 1.03 | 97 |
+| fins' cross-flow, C_Dc 2.2 (the prediction) | 0.44 / 1.33 / 0.92 / 0.94 | **0.99** | 79 |
+| fins' cross-flow, C_Dc 1.3 | 0.41 / 1.01 / 0.62 / 0.68 | 0.72 | 64 |
+
+The predicted face-on value gives her impulse to 1%; the rms (55–135 N for every law against loads of 40–120 N) is
+dominated by timing structure no law has, likely channel offsets in the digitised figure, so it does not discriminate.
+The record's "tier 1 rms 25 N" (2026-09-18) is not reproduced by this rebuild (that analysis included a
+hull-acceleration term and preceded the figure's re-extraction); recorded, not forced.
+
+**5. A bug found on the way, in the core strip integration.** `coxswain/crew/blade_strips.liftdrag_strips` resolved
+tier 2's lift and drag itself instead of calling the blade's `coefficients`, so any blade that overrides them was
+silently replaced by tier 2 under strips. Fixed (the plain tier 2 path unchanged); test
+`tests/unit/test_blade_review.py::test_strips_honour_a_blade_that_overrides_its_coefficients`. **Corrects §189:** on
+[BR24]'s motion the Polhamus–Lamar "span" rows were tier 2 with Helmbold's lift; correctly they are 0.86 / 1.01 / 0.71 /
+0.14 (cap 1.3) and 0.86 / 1.01 / 0.86 / 0.22 (cap 2.05), and the fins' law 0.76 / 0.83 / 0.71 / 0.22 (C_Dc 2.2): the
+catch fixed, the late drive still collapsing, as §189 concluded. The [GTW21], [RLBQV19] and [LJH12] scripts integrate
+their own strips through `coefficients` and were not affected.
+
+**Where the validation stands.** Four measured loads, three in tanks on exactly known motions and one athlete: the
+fins' cross-flow law, with its measured pieces fixed beforehand, reaches each tank dataset's floor or near it with one
+face-on number, and that number orders by Froude number; on the athlete it predicts her impulse. Remaining before a
+manuscript: the closest prior work (Barré & Kobus 2010) read; a sourced face-on function of Froude number (or a fourth
+tank dataset above Fr 1); the law closed loop in the simulator with the oar's bending.

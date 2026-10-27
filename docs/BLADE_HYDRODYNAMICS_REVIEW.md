@@ -149,16 +149,21 @@ contribution is the validation, and it has to be earned:
 
 | step | why | status |
 |---|---|---|
-| read Barré & Kobus (2010), Proc. IMechE P | the closest prior work: both model families against towing-tank data | to obtain |
-| [GTW21] Fig. 9(b): κ = 0.5, 0.75, 1.0 (Fr 0.33–0.65) | a Froude-number test inside one source; the paper says the κ²-scaled forces "reasonably match", which bounds where the cap changes | to extract |
-| [RLBQV19] Fig. 9 (roll angle) and the other trials | more full-size cases, not used to choose anything | to extract |
-| [CR06]'s measured blade load (her single) | an athlete on the water, her load measured; a scull | next |
-| the law in the simulator, closed loop, with bending | the blade inside the boat, on both athletes | to build |
-| a sourced function for the face-on value against Froude number | the one open number | open (arXiv 2503.18015 maps hydrofoil ventilation onset) |
-| independence | the law's pieces are fixed from sources before each test; nothing tuned to a test set | the rule |
+| read Barré & Kobus (2010), Proc. IMechE P 224:37–50 (DOI 10.1243/17543371JSET43) | the closest prior work: both model families against towing-tank data | **paywalled**; their tank data are in hand through [LJH12] (§191); the paper requested (DATA_REQUESTS §12) |
+| a third measured load | not a two-paper result | **done**: [LJH12]'s flat blade (§191); the fins' law reaches its floor (F_x rms 6.2 N) |
+| the one open number profiled, one Froude definition | what separates the datasets | **done** (§191): C_Dc 2.3 / 2.2 / 1.3 at Fr 0.49 / 0.87 / 1.00 |
+| [GTW21] Fig. 9(b): three speeds | a speed effect inside one source | **done** (§191): impulse/κ² −10% over a doubling; Reynolds confounded |
+| [CR06]'s blade load (an athlete, a scull) | held out | **done** (§191): the predicted face-on value gives her impulse to 1%; her rms does not discriminate |
+| [RLBQV19] Fig. 9 (roll) and the immersion series as held-out cases | more full-size cases | to do; needs the blade's wetted geometry (area not stated) |
+| the law in the simulator, closed loop, with bending | the blade inside the boat | to build |
+| a sourced face-on function of Froude number, or a fourth dataset above Fr 1 | the one open number | open |
+| independence | nothing tuned to a test set | the rule; C_Dc is profiled, not fitted, and the athlete test used the predicted value |
 
 ## 5. Log
 
+- 2026-10-27: paper steps (§191): [LJH12]'s flat blade as a third measured load (the fins' law at the data's floor);
+  C_Dc profiled per dataset and ordered by one Froude number (2.3 / 2.2 / 1.3 at 0.49 / 0.87 / 1.00); [GTW21]'s three
+  speeds; [CR06] held out (impulse to 1% at the predicted value); a core strip-integration bug fixed.
 - 2026-10-27: prior-work check (§190): the slope and the cross-flow form were already the fins'; the fins' law on
   the blade is the best fit at full scale (rms 25 N). Not a novel dynamic model; a possible validation paper, plan
   in §4a.
