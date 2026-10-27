@@ -1113,6 +1113,10 @@ the boat speeds that go with their drive durations).
 - **Rung 2, next:** relax the body — joint torques move it against the handle load, so the
   hands' time law is an output. The trunk rungs (TRACKING: hip moment, trunk forward dynamics,
   delayed PD) are its pieces; knee and ankle: the support moment is settled by [BU15]'s direction (§177); the knee/ankle split waits on the footplate centre of pressure.
+- **Rung 2, built (§181), and what limits it (§183, 2026-10-27).** The hands' time law is an output; [CR06] passes
+  S2.5's gate, [BR24] misses because the blade lets go: on his own measured motion every sourced quasi-steady blade
+  (slip, lift-drag CG07/Coppel/Sliasas-Tullis, centre or span) carries 0.08-0.31 of his torque in the fourth fifth of
+  the drive. **Next rower item: an unsteady blade load** (sourced form, tested open loop on [BR24] and [CR06] first).
 
 ## Calibration and validation data from the squad's own boats (noted 2026-10-08)
 

@@ -12856,3 +12856,62 @@ delay boundary 144 ms; **coupled gains, static error 3.6°, boundary 114 ms**.
   the bias); designed with it, it holds as stiffly as intended but loses delay margin, from 144 to 114 ms, which lands
   inside the measured trunk-muscle latencies (103–117 ms, [MS16]). The recoil is what puts a human's trunk loop on its
   stability edge, and what makes an internal model (the predictor with a load estimate) necessary.
+
+## 183. Why rung 2 over-drives [BR24]: on his own motion, every sourced blade loses its load in the back half of the drive (2026-10-27)
+
+*Script: `research/crew/rung1_force_gap.py` (output `data/local/crew/rung1_force_gap_<blade>.json`, log
+`data/local/crew/logs/rung1_force_gap.log`). Nothing fitted.*
+
+**The question.** §181's rung 2 needs [K05]'s population muscles scaled 1.70× to reach [BR24]'s 432 W, and his stroke
+clock then runs 14% fast through the drive (τ' 1.144 against [CR06]'s 1.030), so his hands run ahead. Rung 1 shows the
+scale is not a muscle question: with [K05]'s drive law imposed on his own arc (103.6° against his 105.1°) and drive
+time (1.001 against 1.000 s), the model's hands take **302 W against his 432 W**. The motion matches; the load does not.
+
+**Rung 1 against his stroke, by fifths of the drive** (handle force per scull; hand speed matched within 0.1 m/s
+throughout; his hand lever measured as handle speed over oar rate, 0.85 m):
+
+| fifth | his force | model | ratio | boat speed / own mean (his, model) |
+|---|---|---|---|---|
+| 1 | 144 N | 146 N | 1.01 | 0.770, 0.774 |
+| 2 | 309 | 381 | 1.23 | 0.775, 0.686 |
+| 3 | 408 | 219 | 0.54 | 0.843, 0.859 |
+| 4 | 238 | 98 | 0.41 | 0.983, 0.952 |
+
+The model's force peaks at 25% of the drive against his 52% (rung 1's long-standing "peaks too early", now located).
+The handle force is the quasi-steady blade (added mass off; oar inertia under 11 N); the blade's normal slip falls
+from 1.14 to 0.56 m/s as the hull catches the blade.
+
+**Ruled out.**
+- *The blade coefficients and lift.* Closed loop, the tier 2 lift-drag laws (CG07, Coppel, Sliasas–Tullis) put more
+  force at the catch and less in the back half (fourth-fifth ratio 0.16–0.24).
+- *Where the slip is read.* Integrated across his 0.43 m span (strips): fourth-fifth ratio 0.27.
+- *Shaft bend.* [LNA15]'s ceiling, 1.18° at 201 N, delays the blade about 17 ms at his peak, against the 0.27 s
+  the peak would need to move.
+
+**The decisive check: the hull out of the loop.** His oar angle and rate (each scull's own channel), his boat speed
+and his handle torque (handle power over oar rate) through each law, per fifth, the law's torque over his:
+
+| law | 1 | 2 | 3 | 4 | drive |
+|---|---|---|---|---|---|
+| slip ([CR06]'s fitted C₂ 140.9), centre | 0.33 | 0.56 | 0.66 | 0.21 | 0.51 |
+| slip, span | 0.38 | 0.63 | 0.77 | 0.31 | 0.59 |
+| lift-drag CG07, centre / span | 1.63 / 1.67 | 1.38 / 1.43 | 0.80 / 0.86 | 0.12 / 0.18 | 0.93 / 0.98 |
+| lift-drag Coppel, centre / span | 1.19 / 1.22 | 1.02 / 1.06 | 0.64 / 0.68 | 0.09 / 0.15 | 0.70 / 0.75 |
+| lift-drag Sliasas–Tullis, centre / span | 1.30 / 1.34 | 1.10 / 1.13 | 0.62 / 0.66 | 0.08 / 0.13 | 0.73 / 0.77 |
+
+**So:** on his measured motion no sourced quasi-steady law holds his load through the drive. Each falls by a factor
+of 3 (slip) to 13 (lift-drag) from its best fifth to the fourth, where his blade still carries 110 N on a centre slip
+of about 0.3 m/s. A quasi-steady law ties force to the slip at that instant; his blade keeps load the instant's slip
+cannot explain. That is the signature of unsteady loading (the water the blade has set moving, the vortex it has
+shed), which every coefficient set here excludes by construction ([CG07] states it ignores non-steady vortices). The
+level question (slip C₂ 0.51 of his over the drive with [CR06]'s fit) is separate and secondary: no single rescaling
+fixes a shape that falls 3–13×.
+
+**Consequences.**
+- Rung 2's [BR24] result (§181) is a blade result, not a body result: the muscles are scaled up to make up for a
+  blade that lets go, and the drive shortens. The forward-dynamic rower cannot be judged on its hands until the
+  blade holds load the way his does.
+- [CR06]'s fitted C₂ (2.4× her computed 58.7) is likely the same missing physics, absorbed into a level.
+- **Next:** an unsteady blade load with a sourced form (accelerating-plate added mass with the entrained water's
+  history; a Wagner-type lag on circulation), tested open loop exactly as above before any closed-loop run; and the
+  same open-loop table on [CR06], whose blade load is measured.
