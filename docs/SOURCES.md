@@ -13153,3 +13153,45 @@ law. With two measured loads now saying a sourced law holds the late drive, his 
 physics: his channels describe a blade at 34–48° late in the drive where the measured on-water path ([GTW21]) is at
 73–79° (§184, finding 6). Whether that is a sculling difference or his speed and angle channels is the open
 question; [CR06] (her blade load measured) is the next athlete test.
+
+## 190. Prior-work check (user, 2026-10-27): the review applied the project's own fin law to the blade, and that law fits best (2026-10-27)
+
+*User: "I'm pretty sure we did Hoerner blades before and Polhamus stuff... double check... that we are not redoing
+work. Did we just develop a novel dynamic model for rowing blades?" Test `tests/unit/test_blade_review.py`.*
+
+**What already existed, and what §188–189 duplicated.**
+- *The Polhamus/Helmbold lift slope* is the fins' and rudder's (`coxswain/hydro/appendages.py`,
+  `LiftingSurface.lift_curve_slope`, since the steering work). `research/blade/helmbold.py`'s `helmbold_slope` is the
+  same formula for an unswept surface (equal to machine precision; the test pins it). §188 should have cited and
+  reused it; it now says so.
+- *Nonlinear low-aspect-ratio lift* is the fins' too: Whicker & Fehlner's cross-flow form ([WF58], §169),
+  C_L = C_Lα sin α cos α + C_Dc sin α|sin α| cos α, i.e. C_N = C_Lα sin α cos α + C_Dc sin²α. §189's Polhamus–Lamar
+  law is the same structure with K_v = π and a separate cap; the cross-flow form needs no cap (face-on it gives C_Dc).
+- *Hoerner's near-surface plate* is [CR06]'s computed C0 = 1.3, identified in §164 as Hoerner's plate with its top
+  edge just below the surface at Froude 0.64. §164 already raised ventilation (citing [CO10] and Hoerner) and found
+  that "no source measures this regime". [RLBQV19] is the first measurement of it in hand (§185, §187): the idea is
+  §164's, the data are new.
+- Nothing in the code or documentation had applied the fin law, Polhamus or Lamar to the **blade**, or tested any
+  blade law against a measured load on a known motion; those parts are new.
+
+**The fins' own law on the blade** (`helmbold.crossflow`, C_Dc as the face-on value; no cap):
+
+| | [GTW21] F_n by fifths; rms | [RLBQV19] F_x error/peak by window; F_x peak @; rms; M_z rms |
+|---|---|---|
+| cross-flow, C_Dc 1.3 | 0.78 / 0.40 / 0.52 / 0.73; 7.2 N | +0.05 / −0.10 / +0.09 / −0.15; 219 N @ 90° (meas. 199 @ 88°); **25 N**; 74 N·m |
+| cross-flow, C_Dc 2.05 | 0.93 / 0.51 / 0.72 / 1.10; 5.7 N | +0.07 / +0.14 / +0.61 / −0.11; 329 @ 91; 66 N; 161 |
+| Polhamus–Lamar, cap 1.3 / 2.05 (§189) | 1.15 / 0.64 / 0.65 / 0.71; 6.2 — 1.15 / 0.67 / 0.91 / 1.12; 5.0 | 41 N — 89 N |
+| slip C0 1.3 (Hoerner, [CR06]) | 0.26 / 0.19 / 0.35 / 0.64; 8.9 | 34 N |
+
+On the full-size blade the project's fin law with Hoerner's face-on 1.3 is the best law tested (rms 25 N, the peak
+at the right angle); on the half-scale tank it needs ~2, as every law does. It replaces Polhamus–Lamar as the
+review's candidate: fewer pieces, already in the code for another surface, no cap.
+
+**Is it novel?** Not as a dynamic model: it is quasi-steady low-aspect-ratio theory with a quasi-static bending law.
+What may be new is the validation: one law, already used for the hull's fins, tested against two independently
+measured blade loads on exactly known motions (half-scale robot; full-size bending oar), getting the normal and the
+tangential load and the peak's timing, with the free surface as the one parameter between them, and showing the
+standard rowing laws ([CR06]'s slip law; [CG07]/Atkinson's sin forms) fail the same tests. **Closest prior work, not
+yet read:** Barré & Kobus (2010), *Comparison between common models of forces on oar blades and forces measured by
+towing tank tests*, Proc. IMechE Part P: the two common model families against towing-tank data, peak coefficients
+depending on an unsteadiness (advance-number) parameter. Any claim waits on reading it.

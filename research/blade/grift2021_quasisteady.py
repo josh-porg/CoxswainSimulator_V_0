@@ -159,6 +159,8 @@ def main():
         "Polhamus-Lamar, no mirror, cap 2.05": liftdrag_law(helmbold.polhamus_lamar(HEIGHT, SPAN, SPAN * HEIGHT, False, 2.05)),
         "Polhamus-Lamar, mirror, cap 1.3": liftdrag_law(helmbold.polhamus_lamar(HEIGHT, SPAN, SPAN * HEIGHT, True, 1.3)),
         "Polhamus-Lamar, mirror, cap 2.05": liftdrag_law(helmbold.polhamus_lamar(HEIGHT, SPAN, SPAN * HEIGHT, True, 2.05)),
+        "cross-flow [WF58] form, C_Dc 1.3": liftdrag_law(helmbold.crossflow(HEIGHT, SPAN, SPAN * HEIGHT, False, 1.3)),
+        "cross-flow [WF58] form, C_Dc 2.05": liftdrag_law(helmbold.crossflow(HEIGHT, SPAN, SPAN * HEIGHT, False, 2.05)),
     }
     res = {}
     traces = {}

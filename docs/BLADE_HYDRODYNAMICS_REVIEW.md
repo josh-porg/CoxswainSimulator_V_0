@@ -23,6 +23,14 @@ blade that lets go. The questions for the literature:
    boat's speed through the water (the weakness of the [BR24] test)?
 4. What about the tangential load, which tier 1 leaves out and tier 2 predicts with a sign never checked?
 
+## 1a. Prior work in this project (checked 2026-10-27, §190)
+
+The low-aspect-ratio lift this review applies to the blade was already in the code for the fins and rudder:
+Polhamus/Helmbold's slope (`coxswain/hydro/appendages.py`) and Whicker & Fehlner's cross-flow form ([WF58], §169).
+Hoerner's near-surface plate is [CR06]'s computed C0 = 1.3, and §164 raised ventilation and the unmeasured
+near-surface regime. New here: applying these to the blade, and testing every blade law against measured loads on
+known motions. Before building, search `coxswain/` and SOURCES for the formula's name.
+
 ## 2. Sources
 
 **Read and used** (copies in `data/local/literature/<key>/`; numbers digitised to `data/literature/`):
@@ -106,8 +114,11 @@ plate (C0 1.3) gets the peak (198 against 199 N) and tier 2 over-predicts 1.4–
 the reverse. The free surface is the leading candidate ([GTW21] Fr 0.65 against 0.93 on the water; [RLBQV19]'s air
 cavity). **Bending improves every law** (rms −10 to −30%, peaks toward the measured).
 
-**3.6 The candidate research blade (§188–189).** Polhamus–Lamar normal force (K_p from Helmbold at the blade's
-along-flow aspect ratio, K_v = π) capped face-on, tangential drag-like from Helmbold's lift. Every piece is sourced;
+**3.6 The candidate research blade (§188–190).** The project's own fin law on the blade: Whicker & Fehlner's
+cross-flow form, C_N = C_Lα sin α cos α + C_Dc sin²α, with C_Lα the fins' Polhamus/Helmbold slope at the blade's
+along-flow aspect ratio and C_Dc the face-on coefficient (no cap needed); tangential drag-like from Helmbold's lift.
+On the full-size blade with Hoerner's 1.3 it is the best law tested (rms 25 N, peak at 90° against 88°). (§189's
+Polhamus–Lamar variant, K_v = π with a cap, is the same structure and is superseded.) Every piece is sourced;
 the one open number is the face-on cap, set by the free-surface regime (~2 at the half-scale tank's Froude number,
 ~1.3 at full scale). Against the research profile's slip law it has the right shape on both measured loads; against
 tier 2 it removes the catch excess and the tangential sign error.
@@ -131,8 +142,26 @@ tier 2 it removes the catch excess and the tangential sign error.
 6. **The free surface** (ventilation against Froude number, immersion): sized from [RLBQV19] Fig. 8 and [G20]'s
    depth curve before any law's level is changed.
 
+## 4a. Towards a paper (noted 2026-10-27, user: "we ought to validate it and note it to later produce a paper")
+
+Not a new dynamic model: quasi-steady low-aspect-ratio theory plus a quasi-static bending law. The possible
+contribution is the validation, and it has to be earned:
+
+| step | why | status |
+|---|---|---|
+| read Barré & Kobus (2010), Proc. IMechE P | the closest prior work: both model families against towing-tank data | to obtain |
+| [GTW21] Fig. 9(b): κ = 0.5, 0.75, 1.0 (Fr 0.33–0.65) | a Froude-number test inside one source; the paper says the κ²-scaled forces "reasonably match", which bounds where the cap changes | to extract |
+| [RLBQV19] Fig. 9 (roll angle) and the other trials | more full-size cases, not used to choose anything | to extract |
+| [CR06]'s measured blade load (her single) | an athlete on the water, her load measured; a scull | next |
+| the law in the simulator, closed loop, with bending | the blade inside the boat, on both athletes | to build |
+| a sourced function for the face-on value against Froude number | the one open number | open (arXiv 2503.18015 maps hydrofoil ventilation onset) |
+| independence | the law's pieces are fixed from sources before each test; nothing tuned to a test set | the rule |
+
 ## 5. Log
 
+- 2026-10-27: prior-work check (§190): the slope and the cross-flow form were already the fins'; the fins' law on
+  the blade is the best fit at full scale (rms 25 N). Not a novel dynamic model; a possible validation paper, plan
+  in §4a.
 - 2026-10-27: Polhamus–Lamar vortex lift with a face-on cap (§189): the same sourced law fits both measured loads,
   cap ~2 half-scale and ~1.3 full scale (ventilation the reading); [BR24]'s late drive still collapses under it, so
   his gap is his motion, not missing blade physics.

@@ -1,5 +1,8 @@
 """Tier 2's lift amplitude from Helmbold's low-aspect-ratio lift slope, the blade's own aspect ratio along the flow.
 
+Prior work (SOURCES §190): the slope is the fins' (`coxswain/hydro/appendages.py`), and `crossflow` below is the
+fins' Whicker & Fehlner law applied to the blade; it supersedes `PolhamusLamarBlade` as the review's candidate.
+
 At small incidence a rowing blade's flow runs along its length, so the plate's aspect ratio in that flow is
 height / length (0.48 for the project's sweep blade, 0.45 for [GTW21]'s); with the top edge at a free surface that
 acts as a mirror, twice that. Helmbold (1942), as given by Gutierrez-Castillo, Aguilar-Cabello, Alcalde-Morales, Parras & del Pino (preprint
@@ -19,6 +22,9 @@ from coxswain.crew.liftdrag import LiftDragBlade
 
 
 def helmbold_slope(aspect):
+    """The Polhamus/Helmbold slope the project already uses for its fins and rudder
+    (``coxswain.hydro.appendages.LiftingSurface.lift_curve_slope``), unswept: 2 pi AR / (2 + sqrt(AR^2 + 4)).
+    Written in Helmbold's form; identical (tests/unit/test_blade_review.py)."""
     a0 = 2.0 * np.pi
     k = a0 / (np.pi * aspect)
     return a0 / (np.sqrt(1.0 + k * k) + k)
@@ -55,3 +61,12 @@ def polhamus_lamar(height, length, area, mirror, cap, outboard=1.0, k_v=float(np
     """The blade above for this blade's along-flow aspect ratio (doubled with the surface's mirror)."""
     ar = (2.0 if mirror else 1.0) * height / length
     return PolhamusLamarBlade(helmbold_slope(ar) / 2.0, 2.07, area, outboard, 1000.0, None, k_v, cap)
+
+
+def crossflow(height, length, area, mirror, c_dc, outboard=1.0):
+    """The project's own fin law applied to the blade: Whicker & Fehlner's cross-flow form
+    (``coxswain/hydro/appendages.py``, [WF58]), C_N = C_L_alpha sin a cos a + C_Dc sin^2 a. The same structure as
+    Polhamus-Lamar with K_v = C_Dc, and self-capping: face-on it gives C_Dc, so no separate cap. C_Dc is the face-on
+    coefficient (the free-surface bracket: ~1.3 full scale, ~2 the half-scale tank)."""
+    ar = (2.0 if mirror else 1.0) * height / length
+    return PolhamusLamarBlade(helmbold_slope(ar) / 2.0, 2.07, area, outboard, 1000.0, None, float(c_dc), 99.0)
