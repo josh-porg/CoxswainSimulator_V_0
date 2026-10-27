@@ -12899,6 +12899,25 @@ and his handle torque (handle power over oar rate) through each law, per fifth, 
 | lift-drag Coppel, centre / span | 1.19 / 1.22 | 1.02 / 1.06 | 0.64 / 0.68 | 0.09 / 0.15 | 0.70 / 0.75 |
 | lift-drag Sliasas–Tullis, centre / span | 1.30 / 1.34 | 1.10 / 1.13 | 0.62 / 0.66 | 0.08 / 0.13 | 0.73 / 0.77 |
 
+**What is new here and what is not.** The open-loop check repeats, by fifths, `research/biorow/blade_law_check.py`
+(2026-09-27; "the slip law at his kinematics": his implied C₂ runs 185–819 through the drive, and no centre of
+pressure rescues one constant). New: the lift-drag sets built since (Coppel, Sliasas–Tullis full-size corrections,
+strips) fail the same way and worse; the closed-loop location of the gap; and the link to rung 2's [BR24] result.
+
+**Robust to his speed through the water.** The slip is the small difference of two ~4 m/s terms, so the check was
+repeated with his boat speed offset (a current, or the speed channel's calibration). The fourth fifth's ratio over
+each law's best of the first three (1.0 for a law with his shape):
+
+| offset, m/s | −0.4 | −0.2 | 0 | +0.2 | +0.4 |
+|---|---|---|---|---|---|
+| slip, centre / span | 0.57 / 0.64 | 0.46 / 0.54 | 0.32 / 0.41 | 0.09 / 0.19 | <0 |
+| lift-drag (the three sets, centre to span) | 0.26–0.33 | 0.17–0.23 | 0.06–0.12 | <0 | <0 |
+
+Even a 9% lower speed through the water leaves every law short of his late load. §"his measured blade force on the
+model's hull" (2026-09-27) found his force drives the model 5–12% fast, which, if his speed through the water is
+the higher one, makes the shortfall larger, not smaller. His handle-force scale is still open (DATA_REQUESTS,
+Kleshnev question 3); a scale error changes the level, not the fall through the drive.
+
 **So:** on his measured motion no sourced quasi-steady law holds his load through the drive. Each falls by a factor
 of 3 (slip) to 13 (lift-drag) from its best fifth to the fourth, where his blade still carries 110 N on a centre slip
 of about 0.3 m/s. A quasi-steady law ties force to the slip at that instant; his blade keeps load the instant's slip
@@ -12912,6 +12931,8 @@ fixes a shape that falls 3–13×.
   blade that lets go, and the drive shortens. The forward-dynamic rower cannot be judged on its hands until the
   blade holds load the way his does.
 - [CR06]'s fitted C₂ (2.4× her computed 58.7) is likely the same missing physics, absorbed into a level.
-- **Next:** an unsteady blade load with a sourced form (accelerating-plate added mass with the entrained water's
-  history; a Wagner-type lag on circulation), tested open loop exactly as above before any closed-loop run; and the
-  same open-loop table on [CR06], whose blade load is measured.
+- **Next** (sprint 1's #5, re-confirmed): an unsteady blade load with a sourced form, tested open loop exactly as
+  above before any closed-loop run, and the same table on [CR06], whose blade load is measured. Added mass alone
+  cannot do it (as the slip falls late in the drive, the entrained water gives momentum back and lowers the load);
+  what holds load on a falling slip is a lagged circulation or a shed vortex, so the search is for a measured
+  rowing-blade or accelerating-plate study with that history term.

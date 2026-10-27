@@ -61,7 +61,7 @@ def measured():
                 speed=float(np.mean(D["Vs"])), total_power=float(np.mean(D["H1"] * D["Vh1"] + D["H2"] * D["Vh2"])))
 
 
-def open_loop(boat, c2, blade_length=0.43):
+def open_loop(boat, c2, blade_length=0.43, speed_offset=0.0, quiet=False):
     """His own motion through each sourced blade law, the hull not simulated.
 
     Per sample over his drive: his oar angle and rate (each scull's own channel) and his boat speed give the blade's
@@ -69,6 +69,10 @@ def open_loop(boat, c2, blade_length=0.43):
     power over his oar rate is the torque he applied. Per fifth of the drive, the law's torque over his. A law that
     holds through the drive gives one ratio throughout; the level is a separate question (the slip law's C2 is
     [CR06]'s fit, 140.9, against her computed 58.7).
+
+    ``speed_offset``: added to his boat speed, m/s. The slip is the small difference of two ~4 m/s terms, so the
+    verdict is tested against an error in his speed through the water (a current, the speed channel's calibration;
+    SOURCES, "the slip law at his kinematics", 2026-09-27).
     """
     from coxswain.crew.liftdrag import LiftDragBlade
     from coxswain.crew.blade_strips import liftdrag_strips
@@ -99,7 +103,7 @@ def open_loop(boat, c2, blade_length=0.43):
         a = np.radians(np.roll(D["A" + ch], -i0))
         w = (np.roll(a, -1) - np.roll(a, 1)) / (2.0 * dt)       # his oar rate, catch to finish positive
         torque = np.roll(D["H" + ch] * D["Vh" + ch], -i0) / np.where(np.abs(w) > 0.2, w, np.nan)
-        vb = np.roll(D["Vs"], -i0)
+        vb = np.roll(D["Vs"], -i0) + float(speed_offset)
         j = int(np.argmax(a))
         for k in range(1, j):
             th, rate = -a[k], -w[k]                              # the model's signs: catch positive, drive negative
@@ -107,6 +111,10 @@ def open_loop(boat, c2, blade_length=0.43):
             rows.append([k / j, torque[k]] + model)
     R = np.array(rows, float)
     names = list(laws)
+    if quiet:
+        fifths = [(R[:, 0] >= i / BINS) & (R[:, 0] < (i + 1) / BINS) for i in range(BINS - 1)]
+        return {nm: [float(np.nanmean(R[g, 2 + c]) / np.nanmean(R[g, 1])) for g in fifths]
+                for c, nm in enumerate(names)}
     print("\nopen loop: each law's torque over his, on his own motion (blade centre %.3f m, span %.2f m, area %.3f)"
           % (outboard, blade_length, area))
     print("  %-30s" % "law" + "".join("  fifth %d" % (i + 1) for i in range(BINS - 1)) + "   drive")
@@ -186,6 +194,14 @@ def main():
     mo = model(a.strokes, **opts)
     if a.blade_law == "slip":
         mo["open_loop"] = open_loop(mo["boat_obj"], float(mo["blade"].c2))
+        print("\nthe same, his boat speed offset (m/s): fourth fifth over first-to-third best, per law")
+        sweep = {}
+        for dv in (-0.4, -0.2, 0.0, 0.2, 0.4):
+            r = open_loop(mo["boat_obj"], float(mo["blade"].c2), speed_offset=dv, quiet=True)
+            sweep[dv] = r
+            print("  %+.1f  " % dv + "  ".join("%s %.2f" % (nm.replace("lift-drag ", "").replace(", ", "/"),
+                                                             v[3] / max(v[:3])) for nm, v in r.items()))
+        mo["speed_sweep"] = {str(k): v for k, v in sweep.items()}
     H, M = by_fifths(h, h["drive"]), by_fifths(mo, mo["drive"])
     print("[BR24] measured: %.3f m/s, %.0f W (both sculls); drive %.3f s; drive means: force %.0f N, hand %.2f m/s, "
           "power %.0f W per scull; peak %.0f N at %.0f%% of the drive"
@@ -204,7 +220,7 @@ def main():
                                                     M["boat"][i] / mo["speed"]))
     json.dump(dict(measured=H, model=M, measured_speed=h["speed"], model_speed=mo["speed"],
                    measured_power=h["total_power"], model_power=mo["total_power"],
-                   measured_drive=h["drive"], model_drive=mo["drive"], open_loop=mo.get("open_loop")),
+                   measured_drive=h["drive"], model_drive=mo["drive"], open_loop=mo.get("open_loop"), speed_sweep=mo.get("speed_sweep")),
               open(os.path.join(OUT, "rung1_force_gap_%s.json" % tag), "w"), indent=1)
 
 
