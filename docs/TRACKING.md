@@ -4458,6 +4458,13 @@ implementation — a second splash system, a second wind bed, a second
 sky-noise term would *break* the constraints the first one was built
 to.
 
+### Rower training plans (outside the simulator)
+
+| what | where | pinned by |
+|---|---|---|
+| **Squad improvement yardstick.** Every 5k on the team erg sheet since 2013 converted to watts, then paired year on year by training age. Women under 40 in years 2–3: median +3.9 %/y, 90th percentile +8.4 %/y, best +12 %/y. Names stay in `data/local/training/squad_ids_private.json`. | `research/training/squad_progression.py` | — |
+| **Supplementary plan generator.** Zones (team FTP convention), projection against the squad record, milestones per test, macrocycle, week-by-week own sessions (Z2 + heavy strength) around the team week, deloads, race-week tapers, and fuelling and health rules with evidence tags. The literature review is in the README. The first athlete's plan document is a private Claude Doc. | `research/training/plan_generator.py`, `research/training/README.md` | `tests/unit/test_training_plan.py` |
+
 ### Scene and audio
 
 | what | where | pinned by |
