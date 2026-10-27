@@ -48,7 +48,7 @@ Sprint 2 finished two weeks early, so sprint 3 starts now. **2026-10-27, the use
 
 | # | item | status |
 |---|---|---|
-| S3.1 | **The Cambridge-side corridor** (TRACKING, decided 2026-10-21) | **built 2026-10-27** (opt-in `starboard="shore"`, tested); the HOCR review re-runs with the crews' lines unclamped are next |
+| S3.1 | **The Cambridge-side corridor** (TRACKING, decided 2026-10-21) | **built and re-run 2026-10-27** (opt-in `starboard="shore"`, tested). The re-run found the optimiser's bounds still symmetric (fixed: `limits_at`). Results, `*_shore.json` beside the published ones: the crews' own lines, unclamped, are 10-21 m shorter and carry 24-28 s of the research depth term (bridge: 1225 s); the line review's optimum gains 15 s (1190 s against 1205 s), so the bridge crew's gap to it grows from 21 to 35 s. The race review's four-point optimum still loses to our four's own line (-21 s; -50 s before): a parametrisation limit of `optimised_time`, not a result. Not published; the depth seconds rest on a term the GPS only weakly tests (§ shallow water) |
 | S3.2 | **The Charles current field** (backlog #9): discharge and cross-section to a depth-averaged velocity per cell, roughness a named choice | to do |
 | S3.3 | **Uncertainty distributions**: current, crew power, wind, temperature | to do |
 | S3.4 | **A first stochastic line policy** on the research boat | to do |

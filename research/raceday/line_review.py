@@ -216,7 +216,7 @@ def main(crew=None):
                           offset=np.round(T["off"], 1).tolist(), speed=np.round(T["S"][:, 2], 2).tolist(), rate=np.round(T["S"][:, 3], 1).tolist()))
     json.dump(out, open(os.path.join(HERE, shore_name("line_review_%s.json" % crew)), "w"))
     figure(out, course, model.gates, card)
-    print("written line_review_%s.json and .png" % crew)
+    print("written %s and .png" % shore_name("line_review_%s.json" % crew))
 
 
 def figure(R, course, gates, card):
