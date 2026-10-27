@@ -13119,3 +13119,37 @@ and [RLBQV19]'s mid-stroke 43–52% high. A linear lift slope cannot carry the n
 develop at moderate incidence (leading- and side-edge vortices; [GTW21] see the LEV form at the tip); its sourced
 form is Polhamus's leading-edge suction analogy, extended to side edges by Lamar (both NASA reports, open). The
 mid-stroke level at full scale (drag near 90°) is the free-surface question of §185/§187.
+
+## 189. Polhamus–Lamar vortex lift with a face-on cap: the same sourced law fits both measured loads, the cap separates them; [BR24] unchanged (2026-10-27)
+
+*Module `research/blade/helmbold.py` (`PolhamusLamarBlade`, a `LiftDragBlade`, so the strip integration and the
+simulator's loads use it unchanged); variants in `grift2021_quasisteady.py`, `robert2019_quasisteady.py` and
+`research/crew/rung1_force_gap.py`. Sources: Polhamus (1966) NASA TN D-3767; Lamar (1974) NASA TR R-428 (eq. 23, and
+conclusion 3: for rectangular wings below AR 2.8, K_v,le + K_v,se "very near π"); Lamar (1976); Luckring (2016) for
+the history. Copies in `data/local/literature/{polhamus1966,lamar1974,lamar1976,luckring2016}/`.*
+
+**The law.** C_N = K_p sin α cos α + K_v sin²α (Lamar's eq. 23, the force normal to the plate), K_p from Helmbold at
+the blade's along-flow aspect ratio (§188), K_v = π, capped at a face-on value: the analogy is a moderate-incidence
+result and would give π face-on. The cap is a sourced bracket, 1.3 (deep AR-2 plate, [G20]) or 2.05 ([LJH12]'s
+dynamic measurement; [CG07] 2.07). Tangential: tier 2's resolution with Helmbold's lift (drag-like, §188).
+
+| | [GTW21] (half-scale, Fr 0.65) F_n by fifths; rms | [RLBQV19] (full size, awash) F_x error/peak by window; rms |
+|---|---|---|
+| CG07 (tier 2 as built) | 1.91 / 0.80 / 0.83 / 1.09; 4.9 N | +0.35 / +0.82 / +0.68 / −0.13; 121 N |
+| Polhamus–Lamar, cap 2.05 | **1.15 / 0.67 / 0.91 / 1.12; 5.0 N** | +0.11 / +0.46 / +0.67 / −0.06; 89 N |
+| Polhamus–Lamar, cap 1.3 | 1.15 / 0.64 / 0.65 / 0.71; 6.2 N | **+0.11 / +0.29 / +0.07 / −0.12; 41 N** |
+| (slip, C0 1.3) | 0.26 / 0.19 / 0.35 / 0.64; 8.9 N | −0.02 / −0.30 / −0.04 / −0.06; 34 N |
+
+With the surface's mirror the catch is too strong again (1.64 on [GTW21]); without it, both sources' catches are
+right. **One sourced law, one parameter between the two experiments: the face-on cap**, ~2 in the half-scale tank
+and ~1.3 at full scale. The physical reading is ventilation (§185, §187): at full-scale Froude number air reaches the
+back of the blade and removes suction-side pressure, which is where both the vortex lift and the face-on drag live.
+The cap is therefore a function of the free-surface regime, and on the water (full scale) the 1.3 end applies; no
+source yet gives the function.
+
+**[BR24] open loop** (his torque, by fifths): Polhamus–Lamar 0.80 / 0.94 / 0.68 / 0.10 (centre, cap 1.3), 0.55 /
+0.54 / 0.48 / 0.18 (span). The catch is fixed (CG07 1.63) but the fourth fifth still collapses, as it does for every
+law. With two measured loads now saying a sourced law holds the late drive, his collapse is not missing blade
+physics: his channels describe a blade at 34–48° late in the drive where the measured on-water path ([GTW21]) is at
+73–79° (§184, finding 6). Whether that is a sculling difference or his speed and angle channels is the open
+question; [CR06] (her blade load measured) is the next athlete test.

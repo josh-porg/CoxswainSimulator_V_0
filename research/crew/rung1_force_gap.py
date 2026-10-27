@@ -37,6 +37,9 @@ import like_for_like as L                                         # noqa: E402
 from coxswain.crew.blade_strips import slip_strips               # noqa: E402
 from coxswain.crew.oarlock import BladeModel                      # noqa: E402
 
+sys.path.insert(0, os.path.join(ROOT, "research", "blade"))
+import helmbold as HB                                             # noqa: E402
+
 V = R.V
 OUT = os.path.join(ROOT, "data", "local", "crew")
 BINS = 5
@@ -92,7 +95,11 @@ def open_loop(boat, c2, blade_length=0.43, speed_offset=0.0, quiet=False):
                        ("coppel", lambda: LiftDragBlade.big_blade_full_scale(outboard=outboard, area=area,
                                                                               source="coppel")),
                        ("sliasas_tullis", lambda: LiftDragBlade.big_blade_full_scale(
-                           outboard=outboard, area=area, source="sliasas_tullis"))):
+                           outboard=outboard, area=area, source="sliasas_tullis")),
+                       # the blade review's sourced laws (docs/BLADE_HYDRODYNAMICS_REVIEW.md, SOURCES 188-189): a scull
+                       # Big Blade 0.43 x 0.215 m (coxswain/crew/blade_added_mass.py), along-flow AR 0.50, no mirror
+                       ("Polhamus-Lamar cap 1.3", lambda: HB.polhamus_lamar(0.215, blade_length, area, False, 1.3, outboard)),
+                       ("Polhamus-Lamar cap 2.05", lambda: HB.polhamus_lamar(0.215, blade_length, area, False, 2.05, outboard))):
         ld = make()
         laws["lift-drag %s, centre" % name] = (lambda ld: lambda th, rate, v, side: float(
             ld.loads(th, rate, np.array([v, 0.0]), side)[0]))(ld)

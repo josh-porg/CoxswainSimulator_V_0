@@ -152,6 +152,10 @@ def main():
             liftdrag_law(helmbold.blade(HEIGHT, SPAN, 1.818, AREA, False)[0]),
         "lift-drag, Helmbold lift, surface mirror (AR %.2f)" % helmbold.blade(HEIGHT, SPAN, 1.818, AREA, True)[1]:
             liftdrag_law(helmbold.blade(HEIGHT, SPAN, 1.818, AREA, True)[0]),
+        "Polhamus-Lamar, no mirror, cap 1.3": liftdrag_law(helmbold.polhamus_lamar(HEIGHT, SPAN, AREA, False, 1.3)),
+        "Polhamus-Lamar, no mirror, cap 2.05": liftdrag_law(helmbold.polhamus_lamar(HEIGHT, SPAN, AREA, False, 2.05)),
+        "Polhamus-Lamar, mirror, cap 1.3": liftdrag_law(helmbold.polhamus_lamar(HEIGHT, SPAN, AREA, True, 1.3)),
+        "Polhamus-Lamar, mirror, cap 2.05": liftdrag_law(helmbold.polhamus_lamar(HEIGHT, SPAN, AREA, True, 2.05)),
     }
     traces = {name: loads(K, law) for name, law in laws.items()}
     for lab, m_a in (("Patton", patton_added_mass(SPAN, HEIGHT, RHO)), ("[LB19]", labbe_added_mass(SPAN, HEIGHT, RHO))):

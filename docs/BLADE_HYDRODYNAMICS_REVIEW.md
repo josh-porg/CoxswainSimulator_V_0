@@ -106,6 +106,12 @@ plate (C0 1.3) gets the peak (198 against 199 N) and tier 2 over-predicts 1.4–
 the reverse. The free surface is the leading candidate ([GTW21] Fr 0.65 against 0.93 on the water; [RLBQV19]'s air
 cavity). **Bending improves every law** (rms −10 to −30%, peaks toward the measured).
 
+**3.6 The candidate research blade (§188–189).** Polhamus–Lamar normal force (K_p from Helmbold at the blade's
+along-flow aspect ratio, K_v = π) capped face-on, tangential drag-like from Helmbold's lift. Every piece is sourced;
+the one open number is the face-on cap, set by the free-surface regime (~2 at the half-scale tank's Froude number,
+~1.3 at full scale). Against the research profile's slip law it has the right shape on both measured loads; against
+tier 2 it removes the catch excess and the tangential sign error.
+
 ## 4. What this means for the models
 
 1. **Tier 1 should not stay the research blade.** On the one measured load with a known motion it has the wrong
@@ -127,6 +133,9 @@ cavity). **Bending improves every law** (rms −10 to −30%, peaks toward the m
 
 ## 5. Log
 
+- 2026-10-27: Polhamus–Lamar vortex lift with a face-on cap (§189): the same sourced law fits both measured loads,
+  cap ~2 half-scale and ~1.3 full scale (ventilation the reading); [BR24]'s late drive still collapses under it, so
+  his gap is his motion, not missing blade physics.
 - 2026-10-27: Helmbold's low-AR lift slope in tier 2 (§188): fixes the catch over-prediction and the tangential
   sign on both measured loads; the moderate-incidence vortex lift (Polhamus, Lamar) and the full-scale drag level
   remain.

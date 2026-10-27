@@ -155,6 +155,10 @@ def main():
             liftdrag_law(helmbold.blade(HEIGHT, SPAN, 1.0, SPAN * HEIGHT, False)[0]),
         "lift-drag, Helmbold lift, surface mirror (AR %.2f)" % helmbold.blade(HEIGHT, SPAN, 1.0, SPAN * HEIGHT, True)[1]:
             liftdrag_law(helmbold.blade(HEIGHT, SPAN, 1.0, SPAN * HEIGHT, True)[0]),
+        "Polhamus-Lamar, no mirror, cap 1.3": liftdrag_law(helmbold.polhamus_lamar(HEIGHT, SPAN, SPAN * HEIGHT, False, 1.3)),
+        "Polhamus-Lamar, no mirror, cap 2.05": liftdrag_law(helmbold.polhamus_lamar(HEIGHT, SPAN, SPAN * HEIGHT, False, 2.05)),
+        "Polhamus-Lamar, mirror, cap 1.3": liftdrag_law(helmbold.polhamus_lamar(HEIGHT, SPAN, SPAN * HEIGHT, True, 1.3)),
+        "Polhamus-Lamar, mirror, cap 2.05": liftdrag_law(helmbold.polhamus_lamar(HEIGHT, SPAN, SPAN * HEIGHT, True, 2.05)),
     }
     res = {}
     traces = {}
