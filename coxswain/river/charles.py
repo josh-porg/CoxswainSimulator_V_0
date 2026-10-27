@@ -754,6 +754,49 @@ def test_section(channel=None, origin=CHARLES_ORIGIN,
     return segment[0], segment[-1], segment
 
 
+#: A blade's reach beyond the hull, metres: how far inside the bank (lidar) the
+#: Cambridge limit stops when the charted water runs up to it.
+BLADE_REACH = 4.0
+
+
+def cambridge_shore_limit(course: Course, channel=None, terrain=None,
+                          reach: float = BLADE_REACH, max_offset: float = 160.0,
+                          dock_margin: float = DOCK_MARGIN) -> np.ndarray:
+    """The starboard (Cambridge) limit that follows the water, per centreline vertex, metres.
+
+    HOCR Rule 6.2 makes the Cambridge shore the starboard boundary wherever there are
+    no green buoys, and every HOCR 2026 track rows the start stretch 61-78 m out,
+    beyond the navigable corridor's 1.22 m contour and its 60 m cap (TRACKING, "The
+    Charles corridor stops at the 1.22 m contour"). This limit is where the CRAB chart's
+    water ends, measured laterally from the centreline, with the docks taken out as in
+    :func:`rowable_channel`, and capped at the lidar bank (USGS 3DEP, first 3 m of
+    ground above the pool) less a blade's ``reach``: the chart stops near its 2-ft
+    contour, short of the bank on the start stretch. Never narrower than the course's
+    existing starboard limit.
+
+    Opt-in: depth is then left to the drag model, so use it only with a boat whose
+    depth term is the research one (``raceday.card.depth_boat``).
+    """
+    channel = charles_channel() if channel is None else channel
+    if terrain is None:
+        from .terrain import charles_terrain
+        terrain = charles_terrain()
+    rowable = rowable_channel(channel, margin=dock_margin)
+    docks = channel.navigable & ~rowable.navigable
+    offsets = -np.arange(0.0, float(max_offset) + 0.5, 1.0)     # starboard is negative
+    limit = np.array(course.starboard_limit, dtype=float)
+    for i, station in enumerate(course.station):
+        xy = course.offset_position(np.full(offsets.shape, float(station)), offsets)
+        cells = [channel.index_of(x, y) for x, y in xy]
+        wet = np.array([bool(channel.water[c]) and not bool(docks[c]) for c in cells])
+        chart = float(-offsets[int(np.argmin(wet))]) if (~wet).any() else float(max_offset)
+        ground = (terrain.at(xy[:, 0], xy[:, 1]) - terrain.pool) > 0.5
+        run = np.convolve(ground.astype(int), np.ones(3, int), "same") >= 3
+        bank = float(-offsets[int(np.argmax(run))]) if run.any() else float("inf")
+        limit[i] = max(limit[i], min(chart, bank - float(reach)))
+    return limit
+
+
 def hocr_race_course(month: int = 10, statistic: str = "median",
                      origin: Tuple[float, float] = CHARLES_ORIGIN,
                      level_offset: float = 0.0) -> Course:

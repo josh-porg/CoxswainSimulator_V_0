@@ -42,6 +42,18 @@ Proposed build, smallest first:
    the clock. First check: the round trip (the generalised muscle force from rung 1's own inverse dynamics must give
    tau' = 1 back), as rung 3 did for the trunk.
 
+## Sprint 3 (started early, 2026-10-27): back to the main goal, the stochastic Charles line
+
+Sprint 2 finished two weeks early (S2.3 awaits the user's review), so sprint 3 starts now.
+
+| # | item | status |
+|---|---|---|
+| S3.1 | **The Cambridge-side corridor** (TRACKING, decided 2026-10-21) | **built 2026-10-27** (opt-in `starboard="shore"`, tested); the HOCR review re-runs with the crews' lines unclamped are next |
+| S3.2 | **The Charles current field** (backlog #9): discharge and cross-section to a depth-averaged velocity per cell, roughness a named choice | to do |
+| S3.3 | **Uncertainty distributions**: current, crew power, wind, temperature | to do |
+| S3.4 | **A first stochastic line policy** on the research boat | to do |
+| S3.5 | **Gate**: the policy against the HOCR 2026 tracks on held-out conditions | to do |
+
 ---
 
 # Sprint 1 (closed)

@@ -114,15 +114,29 @@ class CourseModel:
     route: object
     landmarks: List[Tuple[str, float]] = field(default_factory=list)
     notes: Dict[str, str] = field(default_factory=dict)
+    #: depth below which the evaluator calls the boat aground, metres
+    minimum_depth: float = 1.2
+    #: ``"navigable"`` (the 1.22 m contour, capped at 60 m) or ``"shore"`` (the Cambridge water's edge)
+    starboard: str = "navigable"
 
     @classmethod
-    def build(cls, level_offset: float = 0.0) -> "CourseModel":
+    def build(cls, level_offset: float = 0.0, starboard: str = "navigable") -> "CourseModel":
         """``level_offset``: the basin's level against the survey's normal pool, metres (USGS 01104715
         at the New Charles River Dam). It moves the depth under the line only; the centreline,
-        landmarks and bridges stay those of the normal pool, so stations compare across levels."""
+        landmarks and bridges stay those of the normal pool, so stations compare across levels.
+
+        ``starboard="shore"`` (opt-in): the Cambridge limit follows the water
+        (:func:`~coxswain.river.charles.cambridge_shore_limit`), and the evaluator's aground depth drops
+        to a shell's draft with fins (0.5 m) so shallow water is priced by the drag model rather than
+        walled off. Only meaningful with a research boat's depth term (``depth_boat``); ``_evaluate``
+        refuses it otherwise (TRACKING, "The Charles corridor stops at the 1.22 m contour")."""
+        if starboard not in ("navigable", "shore"):
+            raise ValueError("starboard must be 'navigable' or 'shore', got %r" % (starboard,))
         raster = charles.charles_channel()
         _, _, race_line, _ = charles.hocr_course(raster)
         course = charles.charles_course(centreline=race_line, month=10, level_offset=level_offset)
+        if starboard == "shore":
+            course.starboard_limit = charles.cambridge_shore_limit(course, raster)
         flow = charles.ContinuityFlow(course, discharge=charles.monthly_discharge(10))
         geometry = CourseGeometry(channel=raster)
         gates = geometry.gates_on_course()
@@ -149,7 +163,8 @@ class CourseModel:
             if d - kept[-1][1] >= MERGE_M:
                 kept.append((name, d))
         kept.append(("Finish", float(course.length)))
-        return cls(raster, course, flow, gates, route, kept, notes)
+        return cls(raster, course, flow, gates, route, kept, notes,
+                   minimum_depth=0.5 if starboard == "shore" else 1.2, starboard=starboard)
 
 
 def _heading(course, at, step: float = 25.0) -> np.ndarray:
@@ -224,9 +239,12 @@ def depth_boat(boat):
 
 
 def _evaluate(model: CourseModel, boat, reference_time: float, wind: Optional[Tuple[float, float]]):
+    if getattr(model, "starboard", "navigable") == "shore" and depth_boat(boat) is None:
+        raise ValueError("the shore corridor leaves depth to the drag model; it needs a research boat "
+                         "(race_card.build_boat(..., profile='research')), whose depth term HOCR GPS supports")
     ev = RouteEvaluator(model.course, flow=model.flow, reference_speed=model.course.length / reference_time,
-                        upstream=True, margin=4.0, minimum_depth=1.2, n_samples=900,
-                        boat=depth_boat(boat))
+                        upstream=True, margin=4.0, minimum_depth=getattr(model, "minimum_depth", 1.2),
+                        n_samples=900, boat=depth_boat(boat))
     steering = ReducedModel()
     ev.with_steering(steering, raster=model.raster, gates=model.gates)
     ev.with_exertion()

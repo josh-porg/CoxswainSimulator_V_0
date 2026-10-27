@@ -65,7 +65,14 @@ the frozen game and the shipped report.
 
 ### The Charles corridor stops at the 1.22 m contour, capped at 60 m — crews row outside it
 **Impact: high for HOCR line reviews and optimised lines on the start stretch and
-after Eliot; decided 2026-10-21, not yet built.**
+after Eliot; decided 2026-10-21; built 2026-10-27 as an opt-in (below); the review re-runs are pending.**
+
+*Built 2026-10-27:* `charles.cambridge_shore_limit` (the chart's water edge measured laterally, docks out as in
+`rowable_channel`, capped at the lidar bank less a 4 m blade reach, never narrower than before) and
+`card.CourseModel.build(starboard="shore")`, which also sets the evaluator's aground depth to 0.5 m; `_evaluate`
+refuses the shore corridor without a research boat. Start stretch limit 69-91 m (was 60), after Eliot 45-54 m
+(was 34-42); unchanged elsewhere within 1-5 m. Tests: `tests/unit/test_raceday_shore.py`. The shipped course and
+the race cards keep `"navigable"`. Port side unchanged (buoy positions still not in the repo).
 
 `charles_course` takes `half_width` from `ChannelRaster.half_width_along`: the
 distance to the edge of water at least `NAVIGABLE_DEPTH` = 1.22 m deep, clipped at
