@@ -240,7 +240,8 @@ class DynamicOarSimulator(RowingSimulator):
                  crew: str = "clock", release: str = "angle",
                  blade_added_mass: str = "none", catch: str = "rest",
                  blade_span: float = None, blade_coefficients: str = "cg07",
-                 blade_depth=None, blade_immersion=None, **kwargs):
+                 blade_depth=None, blade_immersion=None, oar_bending=None,
+                 liftdrag_blade=None, **kwargs):
         if blade_law not in self.BLADE_LAWS:
             raise ValueError("unknown blade law %r; this simulator runs %s"
                              % (blade_law, ", ".join(self.BLADE_LAWS)))
@@ -365,6 +366,18 @@ class DynamicOarSimulator(RowingSimulator):
         self.n_oar_states = len(self._seats)
         #: the oar angle at which each blade entered this stroke; nan while it is out
         self._entry_angle = np.full(self.n_oar_states, np.nan)
+        #: Optional :class:`~coxswain.crew.oar_bending.OarBending`: the shaft bends as a quasi-static hinge
+        #: ([RLBQV19] eq. 1; SOURCES §186, §193). ``None`` (the default) is the rigid oar, exactly as before.
+        #: Per oar, the blade's rotation about the hinge ``phi`` (positive lagging toward the catch while it
+        #: drives) and its rate, updated after every step of the sweep catch's stepping. The loads on the oar
+        #: and the hull see it; the post-run blade-efficiency tally reads the stored states and stays rigid.
+        if oar_bending is not None and catch != "sweep":
+            raise ValueError("oar bending is updated step by step under the sweep catch only; catch=%r" % (catch,))
+        self.oar_bending = oar_bending
+        self._bend_history = None
+        self._bend = np.zeros(self.n_oar_states)
+        self._bend_rate = np.zeros(self.n_oar_states)
+        self._bend_lever = np.ones(self.n_oar_states)
         self._oar_state = None
         #: Sweep catch only: which oars are still on the sweep with their
         #: blade out; the same mask for every step of the stroke just run,
@@ -409,7 +422,16 @@ class DynamicOarSimulator(RowingSimulator):
         # oar -- sweep and sculling blades differ in area, 0.110 m^2 against
         # 0.083 -- and the water it rows in.
         self._liftdrag = []
-        if self.blade_law == "liftdrag":
+        #: Optional :class:`~coxswain.crew.liftdrag.LiftDragBlade` (or subclass) for every oar, in place of one
+        #: built from ``blade_coefficients``: how a study law enters the simulator (STRUCTURAL_ISSUES S3; it used
+        #: to be patched into ``_liftdrag`` after construction, outside every check and cache key).
+        if liftdrag_blade is not None and (blade_law != "liftdrag" or blade_coefficients != "cg07"):
+            raise ValueError("liftdrag_blade replaces the coefficients name: use it with blade_law='liftdrag' and "
+                             "the default blade_coefficients")
+        self.liftdrag_blade = liftdrag_blade
+        if self.blade_law == "liftdrag" and liftdrag_blade is not None:
+            self._liftdrag = [liftdrag_blade for _ in self._seats]
+        elif self.blade_law == "liftdrag":
             from ..crew.liftdrag import LiftDragBlade
 
             for slot, seat in enumerate(self._seats):
@@ -469,7 +491,7 @@ class DynamicOarSimulator(RowingSimulator):
                          blade_added_mass: str = "none",
                          blade_span: float = None,
                          blade_coefficients: str = "cg07",
-                         blade_depth=None) -> float:
+                         blade_depth=None, oar_bending=None, liftdrag_blade=None) -> float:
         """The peak handle torque at which each rower does ``watts``.
 
         Under the rest catch this is :meth:`peak_torque_for_power`, exactly:
@@ -493,7 +515,7 @@ class DynamicOarSimulator(RowingSimulator):
         if catch == "rest":
             return closed
         key = _match_key(boat, watts, catch, blade_law, blade_added_mass,
-                         blade_span, blade_coefficients, blade_depth)
+                         blade_span, blade_coefficients, blade_depth, oar_bending, liftdrag_blade)
         if key in cls._MATCHED:
             return cls._MATCHED[key]
         from .control import Coxswain
@@ -505,7 +527,7 @@ class DynamicOarSimulator(RowingSimulator):
                       blade_law=blade_law, blade_added_mass=blade_added_mass,
                       blade_span=blade_span,
                       blade_coefficients=blade_coefficients,
-                      blade_depth=blade_depth,
+                      blade_depth=blade_depth, oar_bending=oar_bending, liftdrag_blade=liftdrag_blade,
                       coxswain=Coxswain(rudder_override=lambda t, s: 0.0),
                       fast=True)
             run = sim.run_strokes(int(strokes), surge_speed=speed)
@@ -574,6 +596,48 @@ class DynamicOarSimulator(RowingSimulator):
         return self._blade_loads_arm(slot, angle, rate, state, lock)[:2]
 
     def _blade_loads_arm(self, slot, angle, rate, state, lock):
+        """``(F_n, F_t, arm)`` with the shaft's bending, if any: the blade at ``angle + phi``, its slip at the
+        centre carrying the hinge's rate ``(l - h) phi_dot`` (exact at the centre; across strips, the rate is
+        that of the centre's point, within ``h / l`` of each strip's own)."""
+        if self.oar_bending is None:
+            return self._blade_loads_arm_rigid(slot, angle, rate, state, lock)
+        return self._blade_loads_arm_rigid(slot, angle + float(self._bend[slot]),
+                                           rate + float(self._bend_lever[slot] * self._bend_rate[slot]),
+                                           state, lock)
+
+    def _update_bending(self, y, step):
+        """After a step: per oar, the hinge rate at which the shaft's spring balances the blade's moment about the
+        pin, implicitly, ``K (phi + dt phi_dot) = l F_n(angle + phi + dt phi_dot, rate + k phi_dot)``; a blade out
+        of the water unbends at once."""
+        from scipy.optimize import brentq
+
+        n = self.n_oar_states
+        state = State.from_vector(y[:STATE_SIZE])
+        k = float(self.oar_bending.k_ang)
+        for slot, seat in enumerate(self._seats):
+            if self._in_air is not None and self._in_air[slot]:
+                self._bend_rate[slot] = -self._bend[slot] / step
+                self._bend[slot] = 0.0
+                continue
+            lock = self.boat.rig.seats[seat].oarlocks[0]
+            oar = self._oars[slot]
+            arm0 = float(oar.outboard)
+            hinge = self.oar_bending.hinge_radius(arm0, float(lock.oar.blade_length))
+            self._bend_lever[slot] = (arm0 - hinge) / arm0
+            angle, rate, phi = float(y[STATE_SIZE + slot]), float(y[STATE_SIZE + n + slot]), float(self._bend[slot])
+
+            def g(pd):
+                f_n, _f_t, arm = self._blade_loads_arm_rigid(
+                    slot, angle + phi + step * pd, rate + self._bend_lever[slot] * pd, state, lock)
+                return k * (phi + step * pd) - arm * f_n
+
+            lo, hi = -phi / step - 60.0, 60.0
+            glo, ghi = g(lo), g(hi)
+            pd = brentq(g, lo, hi, xtol=1e-7) if glo * ghi < 0.0 else (lo if abs(glo) < abs(ghi) else hi)
+            self._bend_rate[slot] = pd
+            self._bend[slot] = phi + step * pd
+
+    def _blade_loads_arm_rigid(self, slot, angle, rate, state, lock):
         """``(F_n, F_t, arm)``: the loads and the radius the normal load acts at.
 
         ``arm`` is the blade centre unless :attr:`blade_span` integrates the
@@ -748,20 +812,11 @@ class DynamicOarSimulator(RowingSimulator):
                 side = int(lock.side)
                 normal = np.array([np.cos(angle), -side * np.sin(angle), 0.0])
                 axis = np.array([np.sin(angle), side * np.cos(angle), 0.0])
-                if (self.blade_law == "slip" and self.release == "angle"
-                        and self.blade_depth is None and self.blade_immersion is None
-                        and self.blade_span is None):
-                    speed = self._lock_speed_on_normal(state, lock, angle)
-                    normal_force = float(oar.blade.normal_force(angle, rate,
-                                                                speed))
-                    load = normal_force * normal
-                    arm = oar.outboard
-                else:
-                    f_n, f_t, arm = self._blade_loads_arm(slot, angle, rate,
-                                                          state, lock)
-                    # The tangential load acts along the shaft, so it moves
-                    # the boat without turning the oar.
-                    load = f_n * normal + f_t * axis
+                # One path for every blade option (SOURCES §193, STRUCTURAL_ISSUES S1): a special case for the
+                # plain slip law used to skip _blade_loads_arm, so options added later (bending) were ignored.
+                f_n, f_t, arm = self._blade_loads_arm(slot, angle, rate, state, lock)
+                # The tangential load acts along the shaft, so it moves the boat without turning the oar.
+                load = f_n * normal + f_t * axis
                 point = np.asarray(lock.position, dtype=float) + arm * axis
                 force += load
                 moment += np.cross(point, load)
@@ -1011,10 +1066,12 @@ class DynamicOarSimulator(RowingSimulator):
         times = np.empty(n_steps + 1)
         states = np.empty((len(y0), n_steps + 1))
         air = np.zeros((n, n_steps + 1), dtype=bool)
+        bend = np.zeros((2, n, n_steps + 1))                       # (phi, phi_dot) per oar per step
         t, y = t_start, np.array(y0, dtype=float)
         if self._in_air is None:
             self._in_air = np.zeros(n, dtype=bool)
         times[0], states[:, 0], air[:, 0] = t, y, self._in_air
+        bend[0, :, 0], bend[1, :, 0] = self._bend, self._bend_rate
         handle = self.crew == "handle"
         finishes = np.array([oar.finish_angle for oar in self._oars])
         for i in range(n_steps):
@@ -1048,9 +1105,13 @@ class DynamicOarSimulator(RowingSimulator):
                         self._entry_angle[slot] = float(angle)
                         self.entries.append((int(slot), float(t),
                                              float(angle), float(rate)))
+            if self.oar_bending is not None:
+                self._update_bending(y, step)
             times[i + 1], states[:, i + 1] = t, y
             air[:, i + 1] = self._in_air
+            bend[0, :, i + 1], bend[1, :, i + 1] = self._bend, self._bend_rate
         self._air_mask = air
+        self._bend_history = bend if self.oar_bending is not None else None
         return times, states
 
     def _handle_power(self, times, states):
@@ -1390,9 +1451,15 @@ class DynamicOarSimulator(RowingSimulator):
         angles = states[STATE_SIZE:STATE_SIZE + n]
         rates = states[STATE_SIZE + n:STATE_SIZE + 2 * n]
         air = self._air_mask
+        history = getattr(self, "_bend_history", None) if self.oar_bending is not None else None
+        if history is not None and history.shape[2] != np.asarray(times).size:
+            history = None
+        saved = (self._bend.copy(), self._bend_rate.copy())
         weighted, total = 0.0, 0.0
         for k in range(np.asarray(times).size):
             state = State.from_vector(states[:STATE_SIZE, k])
+            if history is not None:                # the bending this sample had (STRUCTURAL_ISSUES S1)
+                self._bend[:], self._bend_rate[:] = history[0, :, k], history[1, :, k]
             for slot, seat in enumerate(self._seats):
                 oar = self._oars[slot]
                 angle, rate = float(angles[slot, k]), float(rates[slot, k])
@@ -1400,19 +1467,19 @@ class DynamicOarSimulator(RowingSimulator):
                     continue
                 if air is not None and air[slot, k]:
                     continue                      # on the sweep, blade out
+                # the blade's own angle and rate: the shaft's, plus its bending if any
+                b_angle, b_rate = angle, rate
+                if self.oar_bending is not None:
+                    b_angle += float(self._bend[slot])
+                    b_rate += float(self._bend_lever[slot] * self._bend_rate[slot])
                 for lock in self.boat.rig.seats[seat].oarlocks:
                     if self.blade_law == "slip":
-                        speed = self._lock_speed_on_normal(state, lock, angle)
-                        load = abs(float(oar.blade.normal_force(angle, rate,
-                                                                speed)))
-                        if self.release == "slip" and float(
-                                oar.blade.slip_velocity(angle, rate,
-                                                        speed)) >= 0.0:
-                            load = 0.0            # released: carries nothing
+                        speed = self._lock_speed_on_normal(state, lock, b_angle)
+                        load = abs(float(self._blade_loads_arm(slot, angle, rate, state, lock)[0]))
                         if load <= 0.0:
                             continue
                         efficiency = float(oar.blade.efficiency(
-                            angle, rate, speed))
+                            b_angle, b_rate, speed))
                     else:
                         # Same definition as tier 1, so the two tiers score
                         # against one band: 1 - |normal slip|/|blade speed|,
@@ -1425,13 +1492,14 @@ class DynamicOarSimulator(RowingSimulator):
                         if load <= 0.0:
                             continue
                         w_n, _w_a = blade.relative_velocity(
-                            angle, rate, velocity, int(lock.side))
-                        sweep = abs(oar.outboard * rate)
+                            b_angle, b_rate, velocity, int(lock.side))
+                        sweep = abs(oar.outboard * b_rate)
                         efficiency = (float(np.clip(1.0 - abs(w_n) / sweep,
                                                     0.0, 1.0))
                                       if sweep > 1e-9 else 0.0)
                     weighted += load * efficiency
                     total += load
+        self._bend[:], self._bend_rate[:] = saved
         return weighted / total if total > 0.0 else None
 
     # -- running ---------------------------------------------------------------
@@ -1617,7 +1685,7 @@ def _crossflow_face_on(coefficients):
 
 
 def _match_key(boat, watts, catch, blade_law, added_mass="none",
-               blade_span=None, coefficients="cg07", depth=None) -> tuple:
+               blade_span=None, coefficients="cg07", depth=None, bending=None, blade=None) -> tuple:
     """Everything a matched sweep-catch torque depends on, as a cache key.
 
     Two boats share a torque only if they would row the same stroke: same
@@ -1683,4 +1751,7 @@ def _match_key(boat, watts, catch, blade_law, added_mass="none",
             float(getattr(shallow, "depth", float("inf"))),
             float(watts), str(catch), str(blade_law), crew, str(added_mass),
             None if blade_span is None else float(blade_span), str(coefficients),
-            None if depth is None else depth.key(), fins, munk, roll)
+            None if depth is None else depth.key(), fins, munk, roll,
+            # the shaft's bending changes the stroke, so it changes the matched torque (2026-10-27)
+            None if bending is None else (float(bending.k_ang), float(bending.hinge_inboard_of_root)),
+            None if blade is None else repr(blade))

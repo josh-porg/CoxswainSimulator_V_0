@@ -125,7 +125,18 @@ class Oar:
 
     @property
     def outboard(self) -> float:
-        """``L - r_h``, oarlock to the blade TIP (``L`` is overall length)."""
+        """``L - r_h``, oarlock to the blade TIP (``L`` is overall length).
+
+        **Not the blade's lever arm.** The force acts at the blade centre, :attr:`blade_centre_outboard`; the
+        dynamic oar's own blade objects call that ``outboard`` too, so the one name means two lengths
+        (STRUCTURAL_ISSUES S2). New code says which it means: :attr:`tip_outboard` or
+        :attr:`blade_centre_outboard`.
+        """
+        return self.length - self.inboard
+
+    @property
+    def tip_outboard(self) -> float:
+        """Oarlock to the blade tip, ``L - r_h``: the same as :attr:`outboard`, named for what it is."""
         return self.length - self.inboard
 
     @property

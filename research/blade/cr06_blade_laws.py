@@ -104,8 +104,10 @@ def main():
     wn = L * thd + v * np.cos(th)
     mid = drive[(prog > 0.4) & (prog < 0.6)]
     fr = float(np.mean(np.abs(wn[mid])) / np.sqrt(9.81 * HEIGHT))
-    print("\nher Froude number, the review's definition (centre normal slip at mid-drive / sqrt(g h)): %.2f" % fr)
-    json.dump(dict(results=out, froude=fr), open(os.path.join(OUT, "cr06_blade_laws.json"), "w"), indent=1)
+    eta = float(np.mean(v[mid] / (L * np.abs(thd[mid]))))
+    print("\nher Froude number, the review's definition (centre normal slip at mid-drive / sqrt(g h)): %.2f; "
+          "advance ratio at mid-drive %.2f" % (fr, eta))
+    json.dump(dict(results=out, froude=fr, advance=eta), open(os.path.join(OUT, "cr06_blade_laws.json"), "w"), indent=1)
 
 
 def _centre_slip(slip, a, r, u):

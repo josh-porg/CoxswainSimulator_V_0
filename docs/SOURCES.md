@@ -13315,3 +13315,71 @@ that responds), the tangential drag, the lift, or the rung-1 model around the bl
 crew model that already runs [BR24] 5–12% fast under his own measured force, §blade-law check 2026-09-27)? Next: the
 same closed loop with the cross-flow normal load and tier 2's tangential, and with tier 2's lift and the cross-flow
 face-on term, to separate the two pieces; then the power decomposition (normal slip, tangential, hull).
+
+## 193. The closed-loop deficit is the tangential load; oar bending in the simulator; what Barré & Kobus's abstract says; the fits audited (2026-10-27)
+
+*User, 2026-10-27: a BEMT-like approach or strips? add oar bending; work out what we need from the abstract of the paper
+we do not have; check what is calibrated or fitted, "did we fit some value to our previous model that no longer
+holds", and make tracking that a process. New: `coxswain/crew/oar_bending.py`, `DynamicOarSimulator(oar_bending=...,
+liftdrag_blade=...)`, `docs/CALIBRATION_REGISTER.md`, `docs/STRUCTURAL_ISSUES.md`; scripts
+`research/blade/crossflow_decomposition.py`, `crossflow_profile.py` (advance ratios).*
+
+**1. The fits, audited.** The research model's physics has exactly one value fitted to data: the scull C2 = 140.88
+(2.4× [CR06]'s computed plate), fitted to [CR06]'s single woman on 2026-09-18, under the model of that day (centre
+read, sweep catch, clock crew on ergometer kinematics), before five later changes (de Leva legs, Kato roll friction,
+the fin law, the hands-on-handle crew, [K05]'s on-water drive law). The ledger filed it "sourced"; its "fitted" style
+had never been used. Two consequences: (a) §192's "research slip −0.4% on [CR06]" is a consistency check on the athlete
+it was fitted to, not a validation; (b) the cross-flow runs use no fitted value, so a stale fit does not explain the
+cross-flow blade's slowness. Process from now on: `docs/CALIBRATION_REGISTER.md` (every fit, its data, the model state
+at the fit, what it can absorb, its re-check triggers, each re-check); the ledger now tags the 140.88 "fitted".
+
+**2. The deficit decomposed** (rung 1, both athletes, nothing fitted; speed at the athlete's measured power):
+
+| CR06 / BR24 | rigid oar | with the scull's bending |
+|---|---|---|
+| tier 2 CG07 | +2.6% / +6.4% | +3.8% / +9.6% |
+| cross-flow, full | −7.4% / −8.9% | −6.2% / −6.3% |
+| cross-flow normal, **no tangential** | **−0.7% / +2.0%** | +0.3% / +4.3% |
+| cross-flow normal, CG07 tangential | +1.3% / +5.2% | +2.3% / +7.5% |
+| CG07 normal, **cross-flow tangential** | **−3.4% / −3.9%** | −2.2% / −0.9% |
+
+The drag-like tangential load costs 6–10% of speed whichever normal law carries it; the cross-flow normal load alone
+puts [CR06] within 1%. The tangential sign is right ([GTW21], §184), but its level is far too high: Hofmijster et al.
+[H10] put the parallel force at about +18% of blade losses, worth of order 1% of speed, not 6–10%. The level comes
+from tier 2's resolution, (A_d − 2A_l) sin²α cos α with [CG07]'s 2.07; the measured C_T (0.2–0.36 at moderate α) is
+the next sourced target.
+
+**3. Oar bending in the simulator.** `OarBending` (`coxswain/crew/oar_bending.py`): [RLBQV19]'s bench law as a
+quasi-static hinge; per oar, after every step, the hinge rate that balances the shaft's spring against the blade's
+moment about the pin is solved implicitly, and the blade loads are read at θ + φ with the hinge's rate in the slip. The
+scull's stiffness is **derived**: [LNA15]'s 1.18° at 201 N at the blade end through a uniform cantilever (the same beam
+formula puts [RLBQV19]'s hinge 0.935 m inboard of the root against their bench's 0.861 m); ~1.1° at 400 N·m, against
+7.8° for their sweep oar on its mount. Research option; refused outside the sweep catch; carried in the matched-torque
+key; a very stiff shaft reproduces the rigid oar (test). In the boat the scull's bending is worth +1 to +3% at equal
+power and under a point of IVV.
+
+**4. Barré & Kobus (2010), from the abstract** (paywalled; requested from the authors by the user). The tank tests are
+0.7-scale blades; the force is described by **maximum drag and lift coefficients that depend on an unsteadiness
+parameter, related to the advance number and treatable as a reduced frequency**. That is our one open number (the
+face-on coefficient is a maximum drag coefficient) and a named candidate for what it depends on. The advance ratio
+at mid-stroke in the four datasets in hand: [GTW21] 0.77, [LJH12] 0.74, [RLBQV19] 0.72, [CR06] 0.82. They barely
+vary, because a real stroke is near η ≈ 0.75 by construction; so the advance number cannot separate [RLBQV19] (1.3) from
+[LJH12] (2.2) at η 0.72 against 0.74, and the paper's other advance parameters (the request) are what would test it.
+What the abstract alone gives us: the form (a maximum coefficient as a function of one unsteadiness parameter) and
+that their data are 0.7-scale towing-tank runs like [LJH12]'s.
+
+**5. BEMT or strips?** Strips are the blade-element half of BEMT: each strip's own velocity through the water and
+its own angle of attack, quasi-steady coefficients, no induced velocity. BEMT's other half, momentum theory, adds the
+velocity the blade itself induces in the water it acts on. For a propeller that is a steady inflow through a disc;
+for a rowing blade it is the water the blade has set moving: the entrained wake whose momentum grows through the
+drive ([G19]: F = m_p a + ½ρV²C_D A + (dm_h/dt) a (t − t_sr) + m_h a, rates measured at model scale), and on a looped
+path the water it re-enters. So strips do not handle it, and propeller BEMT is the wrong form; the momentum half for
+a rowing blade is [G19]'s entrainment, a sourced form with model-scale rates. It is also the one candidate in hand with
+the sign of two observations: the load per unit dynamic pressure falls with speed inside [GTW21] (−10% over a doubling,
+§191), and a fixed coefficient over-loads the catch. Next model item after the tangential level.
+
+**6. Structural issues** (user: keep a list, fix the class): three load paths bypassing the general blade-load
+function (strips, the slip fast path, the efficiency tally), a tip-versus-centre lever under one name, a study blade
+patched into a private attribute, cache keys missing fields, a fit filed as a source, a duplicated formula:
+`docs/STRUCTURAL_ISSUES.md`, S1–S6, with the fixes made today (one load path; `Oar.tip_outboard`;
+`liftdrag_blade=`; the bending and the blade in the cache key; the register; one slope function).

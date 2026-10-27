@@ -142,6 +142,15 @@ tier 2 it removes the catch excess and the tangential sign error.
 6. **The free surface** (ventilation against Froude number, immersion): sized from [RLBQV19] Fig. 8 and [G20]'s
    depth curve before any law's level is changed.
 
+## 3a. Strips, or blade-element momentum theory? (user, 2026-10-27; §193)
+
+Strips are BEMT's blade-element half: each strip's own velocity and angle of attack, quasi-steady coefficients, no
+induced velocity. The momentum half adds the velocity the blade induces in the water it acts on; for a rowing blade
+that is not a propeller's steady inflow but the water the blade has set moving through the drive: [G19]'s entrained
+wake, F = m_p a + ½ρV²C_D A + (dm_h/dt) a (t − t_sr) + m_h a (model-scale rates in hand). Strips do not include it.
+It is the sourced candidate with the sign of two observations (load per unit dynamic pressure falling with speed in
+[GTW21]; fixed coefficients over-loading the catch), and the next model item after the tangential level.
+
 ## 4a. Towards a paper (noted 2026-10-27, user: "we ought to validate it and note it to later produce a paper")
 
 Not a new dynamic model: quasi-steady low-aspect-ratio theory plus a quasi-static bending law. The possible
@@ -149,19 +158,24 @@ contribution is the validation, and it has to be earned:
 
 | step | why | status |
 |---|---|---|
-| read Barré & Kobus (2010), Proc. IMechE P 224:37–50 (DOI 10.1243/17543371JSET43) | the closest prior work: both model families against towing-tank data | **paywalled**; their tank data are in hand through [LJH12] (§191); the paper requested (DATA_REQUESTS §12) |
+| read Barré & Kobus (2010), Proc. IMechE P 224:37–50 (DOI 10.1243/17543371JSET43) | the closest prior work: both model families against towing-tank data | **requested from the authors by the user (2026-10-27)**; the abstract: maximum drag and lift coefficients depending on an unsteadiness (advance) parameter; the four datasets in hand sit at advance ratio 0.72–0.82, so it does not separate them (§193) |
 | a third measured load | not a two-paper result | **done**: [LJH12]'s flat blade (§191); the fins' law reaches its floor (F_x rms 6.2 N) |
 | the one open number profiled, one Froude definition | what separates the datasets | **done** (§191): C_Dc 2.3 / 2.2 / 1.3 at Fr 0.49 / 0.87 / 1.00 |
 | [GTW21] Fig. 9(b): three speeds | a speed effect inside one source | **done** (§191): impulse/κ² −10% over a doubling; Reynolds confounded |
 | [CR06]'s blade load (an athlete, a scull) | held out | **done** (§191): the predicted face-on value gives her impulse to 1%; her rms does not discriminate |
 | [RLBQV19] Fig. 9 (roll) and the immersion series as held-out cases | more full-size cases | to do; needs the blade's wetted geometry (area not stated) |
 | the law in the simulator, closed loop | the blade inside the boat | **built and run (§192): negative.** −7 to −9% speed at the athletes' power, IVV worse; tier 2 best closed loop. Separate the tangential drag from the weaker lift next |
-| the oar's bending in the simulator | sweep oars bend ~7° ([RLBQV19]); sculls less ([LNA15]) | to build after the closed-loop question |
+| the oar's bending in the simulator | sweep oars bend ~7° ([RLBQV19]); sculls less ([LNA15]) | **built** (§193): `oar_bending=`; scull derived from [LNA15] (~1° at 400 N·m); +1–3% at equal power |
+| why the cross-flow blade is slow closed loop | before any claim | **found** (§193): the drag-like tangential load costs 6–10% of speed; its level, not its sign, is wrong ([H10]: ~1%). The measured C_T level is next |
 | a sourced face-on function of Froude number, or a fourth dataset above Fr 1 | the one open number | open |
 | independence | nothing tuned to a test set | the rule; C_Dc is profiled, not fitted, and the athlete test used the predicted value |
 
 ## 5. Log
 
+- 2026-10-27 (§193): the closed-loop deficit is the tangential load's level (6–10% of speed; [H10] implies ~1%);
+  oar bending in the simulator; Barré & Kobus's abstract (the advance number does not separate the datasets in hand);
+  the fits audited (one fit, the scull C2, filed as sourced: docs/CALIBRATION_REGISTER.md); structural issues listed
+  and fixed (docs/STRUCTURAL_ISSUES.md).
 - 2026-10-27: the cross-flow blade in the core and the simulator (§192); closed loop on both athletes it is 7–9%
   slow at their power and worsens IVV, while tier 2 is best: the open-loop fit does not carry over; not promoted.
 - 2026-10-27: paper steps (§191): [LJH12]'s flat blade as a third measured load (the fins' law at the data's floor);

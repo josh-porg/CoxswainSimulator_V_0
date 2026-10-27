@@ -58,6 +58,23 @@ def robert(c, D, K, meas):
     return float(np.sqrt(np.mean((tr[:, 0] - meas[:, 0]) ** 2)))
 
 
+def advance():
+    """The advance ratio at mid-stroke, eta = boat speed / (centre radius x oar rate): Barre & Kobus (2010)'s
+    unsteadiness parameter is "related to the advance number" (their abstract); [LJH12] held eta_0 = 0.742."""
+    g, th, thd, vtip = G.motion()
+    n = np.stack([np.cos(th), np.sin(th)], 1)
+    t_ = np.stack([-np.sin(th), np.cos(th)], 1)
+    pin = vtip + 1.0 * thd[:, None] * n                          # pin 1.0 m inboard of the tip (straightest path, §184)
+    mid = np.abs(g / G.T_DRIVE - 0.5) < 0.05
+    eta_g = float(np.mean(np.linalg.norm(pin[mid], axis=1) / ((1.0 - 0.5 * G.SPAN) * np.abs(thd[mid]))))
+    D = R.load()
+    K = R.kinematics(D, rigid=False)
+    i = int(np.argmin(np.abs(K["psi_deg"] - 90.0)))
+    rc = (R.L_E + 0.5 * R.SPAN) * np.cos(R.THETA1)
+    eta_r = float(R.VB / (rc * (K["rate"][i] - K["phi_dot"][i])))
+    return dict(GTW21=eta_g, LJH12=J.ETA0, RLBQV19=eta_r)
+
+
 def froude():
     g, th, thd, vtip = G.motion()
     n = np.stack([np.cos(th), np.sin(th)], 1)
@@ -83,6 +100,9 @@ def main():
     prof = {"GTW21": [grift(c) for c in CDC], "LJH12": [leroyer(c, DJ, theta) for c in CDC],
             "RLBQV19": [robert(c, DR, KR, measR) for c in CDC]}
     fr = froude()
+    eta = advance()
+    print("advance ratio at mid-stroke (boat speed / (centre radius x oar rate)): " +
+          ", ".join("%s %.2f" % kv for kv in eta.items()))
     print("one Froude number for all three (centre normal slip at mid-stroke / sqrt(g h)): " +
           ", ".join("%s %.2f" % kv for kv in fr.items()))
     print("\nC_Dc  " + "  ".join("%7.1f" % c for c in CDC))
@@ -94,7 +114,7 @@ def main():
         best[k] = dict(best=float(CDC[j]), rms=float(v[j]), within_10pct=[float(ok.min()), float(ok.max())])
         print("%-7s " % k + "  ".join("%7.1f" % x for x in v) + "    least at %.1f (rms %.1f); within 10%%: %.1f-%.1f"
               % (CDC[j], v[j], ok.min(), ok.max()))
-    json.dump(dict(cdc=CDC.tolist(), profiles=prof, best=best, froude=fr),
+    json.dump(dict(cdc=CDC.tolist(), profiles=prof, best=best, froude=fr, advance=eta),
               open(os.path.join(G.OUT, "crossflow_profile.json"), "w"), indent=1)
 
 
