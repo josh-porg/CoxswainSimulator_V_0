@@ -16,7 +16,12 @@ low-passed at 11 Hz, inertial and aerodynamic parts removed. Two figures:
 The tick labels are outlined glyphs, not text, so the axes are calibrated from the gridlines with the printed tick
 values (read from the rendered figure), and each calibration is checked against the label glyphs' positions.
 
-Writes data/literature/robert2019_trial154.csv (series, psi0_deg, value).
+- Fig. 8, p. 11: M_z against psi_0 for three immersion angles (9.5, 10.5, 11.5 deg; trials 109, 122, 99: carriage
+  4.1 m/s, roll 4 deg): the experiment's three curves are one dashed path, split where x jumps back, and ordered by
+  depth (the paper: the maxima increase with the immersion angle). The first published force-versus-immersion data
+  for a rowing blade that this project has found.
+
+Writes data/literature/robert2019_trial154.csv (series, psi0_deg, value) and robert2019_immersion.csv.
 """
 from __future__ import annotations
 
@@ -76,6 +81,37 @@ def main():
         for s, a, b in rows:
             f.write("%s,%.4f,%.4f\n" % (s, a, b))
     print("written %s" % os.path.relpath(OUT, ROOT))
+    immersion(doc)
+
+
+def immersion(doc):
+    """Fig. 8's measured M_z for theta_1 = 9.5, 10.5, 11.5 deg (labels 50 / 150 deg at x 438.6 / 535.1; 0 and -200 N m
+    at y 99.0 / 136.8)."""
+    drawings = doc[10].get_drawings()
+    frame = drawings[115]["rect"]
+    P = np.array([(it[1].x, it[1].y) for it in drawings[124]["items"]])
+    parts = np.split(P, np.where(np.diff(P[:, 0]) < -20)[0] + 1)
+    fx, fy = lin(438.6, 50.0, 535.1, 150.0), lin(99.0, 0.0, 136.8, -200.0)
+    curves = []
+    for q in parts:
+        q = q[(q[:, 0] >= frame.x0) & (q[:, 0] <= frame.x1)]
+        x, y = fx(q[:, 0]), fy(q[:, 1])
+        o = np.argsort(x, kind="stable")
+        curves.append((x[o], y[o]))
+    curves.sort(key=lambda c: c[1].min(), reverse=True)            # shallowest (smallest moment) first
+    out = os.path.join(ROOT, "data", "literature", "robert2019_immersion.csv")
+    with open(out, "w", encoding="utf-8") as f:
+        f.write("# Robert et al. (2019) Fig. 8 (CC BY 4.0): MEASURED M_z (N m) about the rotation axis against sweep angle for\n"
+                "# immersion angles 9.5, 10.5, 11.5 deg (trials 109, 122, 99; carriage 4.1 m/s, roll 4 deg). At 9.5 deg the\n"
+                "# blade's top edge is awash; each degree lowers the blade ~3 cm at its centre. Extracted by\n"
+                "# research/blade/extract_robert2019.py; ordered by depth from the maxima (the paper: they increase with depth).\n"
+                "theta1_deg,psi0_deg,Mz_Nm\n")
+        for th, (x, y) in zip((9.5, 10.5, 11.5), curves):
+            for a, b in zip(x, y):
+                f.write("%.1f,%.4f,%.4f\n" % (th, a, b))
+            m = (x > 60) & (x < 110)
+            print("immersion %.1f deg: M_z min %.0f N m, mean over 60-110 deg %.0f" % (th, y.min(), y[m].mean()))
+    print("written %s" % os.path.relpath(out, ROOT))
 
 
 if __name__ == "__main__":

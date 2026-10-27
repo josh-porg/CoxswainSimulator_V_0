@@ -127,6 +127,9 @@ cavity). **Bending improves every law** (rms −10 to −30%, peaks toward the m
 
 ## 5. Log
 
+- 2026-10-27: [RLBQV19] Fig. 8, the first published force-against-immersion curve for a rowing blade (§187): +11%
+  for 3 cm of cover, +16% for 6 cm, full load awash; the project's chosen immersion shape (zero awash) is not
+  supported, and [G20]'s slow plate gains far more: the surface's effect depends on speed.
 - 2026-10-27: oar bending as a quasi-static hinge solved from the blade's own load (§186): stable; the
   over-loading laws over-bend the oar 1.6–2×, so bending is a second check on a law's level.
 - 2026-10-27: [RLBQV19] extracted (motion, bending, measured F_x, F_y, M_z) and every law tested on it (§185).

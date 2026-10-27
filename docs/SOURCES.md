@@ -13069,3 +13069,26 @@ their mount; a scull's ([LNA15]: 1.18° at 201 N at the blade end) are not yet i
 
 **Next for the simulator:** the hinge as a research option of `DynamicOarSimulator` (one bending angle per oar,
 quasi-static, the same balance), the slip law's balance solved in closed form, the lift-drag law's by bracketing.
+
+## 187. The first published force-against-immersion curve for a rowing blade ([RLBQV19] Fig. 8), against the project's chosen shape (2026-10-27)
+
+*Extracted by `research/blade/extract_robert2019.py` to `data/literature/robert2019_immersion.csv`.*
+
+`BladeModel.immersion_factor` (§7) is a **chosen shape**, `1 − exp(−k c/W)` with k set so half a blade width of
+cover retains 90%; its docstring records that "no published force-versus-immersion curve for a rowing blade was
+found". [RLBQV19] Fig. 8 is one: three trials on a full-size blade differing only in immersion angle (9.5° with the
+top edge awash, 10.5°, 11.5°; carriage 4.1 m/s, roll 4°). Measured M_z, mean over 60–110°: −381, −422, −442 N·m;
+peaks −418, −466, −501. Each degree lowers the blade about 3 cm at its centre, so:
+
+| cover over the top edge (approx.) | measured, relative to awash | chosen shape, relative to 3 cm | [G20] plate C_D (0.3 m/s), relative to awash |
+|---|---|---|---|
+| 0 (awash) | 1.00 | the shape gives 0 | 1.00 (1.10) |
+| ~3 cm (0.12 W) | 1.11 | — (0.435) | ~1.25 (0.12 plate heights) |
+| ~6 cm (0.24 W) | 1.16 | 1.58× the 3 cm value (0.687) | ~1.43 (0.24 heights) |
+
+**So:** a blade awash at full scale carries most of its deep load, and the measured gain from burying it is +11% for
+the first 3 cm and +5% for the next 3. The chosen shape's zero at the surface and its steep rise are not supported
+by either measurement. [G20]'s slow plate gains more (+45% by 0.2 plate heights), consistent with the Froude-number
+question in §185: the surface's effect on the load depends on speed, and a full-scale blade sits in a different
+regime from a slow plate or a half-scale robot. The research runs use a constant cover (0.9 of the deep load), so
+the shape changes no current result; it becomes a defect as soon as cover varies (the catch, and `blade_depth`).

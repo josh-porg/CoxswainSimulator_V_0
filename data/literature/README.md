@@ -14,6 +14,7 @@ accuracy. Where a value was read off a figure rather than a table, the file says
 | `vieira2017_cop.csv` | Vieira et al. (2017) PLoS ONE (CC-BY), Figs 3–4 — footplate centre of pressure (mm from the heel) through one rower's drive, and the group's mean at peak force and over the drive; digitised by `research/cr06/extract_vieira2017.py` | §177 |
 | `grift2021_kinematics.csv`, `grift2021_forces.csv` | Grift, Tummers & Westerweel (2021) JFM 918 A29 (open access), Figs 4(b), 7(b), 9(a) — a 1:2 sweep blade's oar angle and tip path (an on-water M4− stroke, robot-reproduced) and the measured F_n, F_t (three realisations); extracted from the vector figures by `research/blade/extract_grift2021.py`, axes from the printed tick labels | §184 |
 | `robert2019_trial154.csv` | Robert, Leroyer, Barré, Queutey & Visonneau (2019) J. Mar. Sci. Technol. 24 (CC BY 4.0, HAL hal-02394848), Figs 3 and 7 — the imposed oar angular velocity against sweep angle, and trial 154's measured F_x, F_y, F_z, M_z of a full-size blade on a bending oar; extracted from the vector figures by `research/blade/extract_robert2019.py`, axes from the gridlines and printed tick values | §185 |
+| `robert2019_immersion.csv` | the same paper, Fig. 8 — measured M_z against sweep angle at immersion angles 9.5, 10.5, 11.5° (the first published force-against-immersion data for a rowing blade found here) | §187 |
 
 Not here, deliberately:
 - **Commercial or private data** — [BR24] (BioRow), the coxing race recordings, cox-box
