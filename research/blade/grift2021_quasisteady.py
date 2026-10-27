@@ -33,8 +33,9 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
-sys.path.insert(0, ROOT)
+sys.path[:0] = [HERE, ROOT]
 from coxswain.crew.liftdrag import LiftDragBlade                  # noqa: E402
+import helmbold                                                   # noqa: E402
 from coxswain.crew.blade_added_mass import labbe_added_mass, patton_added_mass   # noqa: E402
 
 LIT = os.path.join(ROOT, "data", "literature")
@@ -150,6 +151,10 @@ def main():
                                                                                        source="coppel")),
         "lift-drag Sliasas-Tullis": liftdrag_law(LiftDragBlade.big_blade_full_scale(outboard=1.0, area=SPAN * HEIGHT,
                                                                                     source="sliasas_tullis")),
+        "lift-drag, Helmbold lift, no mirror (AR %.2f)" % helmbold.blade(HEIGHT, SPAN, 1.0, SPAN * HEIGHT, False)[1]:
+            liftdrag_law(helmbold.blade(HEIGHT, SPAN, 1.0, SPAN * HEIGHT, False)[0]),
+        "lift-drag, Helmbold lift, surface mirror (AR %.2f)" % helmbold.blade(HEIGHT, SPAN, 1.0, SPAN * HEIGHT, True)[1]:
+            liftdrag_law(helmbold.blade(HEIGHT, SPAN, 1.0, SPAN * HEIGHT, True)[0]),
     }
     res = {}
     traces = {}

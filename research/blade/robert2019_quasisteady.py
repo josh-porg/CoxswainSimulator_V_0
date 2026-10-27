@@ -35,9 +35,10 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
-sys.path.insert(0, ROOT)
+sys.path[:0] = [HERE, ROOT]
 from coxswain.crew.blade_added_mass import labbe_added_mass, patton_added_mass   # noqa: E402
 from coxswain.crew.liftdrag import LiftDragBlade                  # noqa: E402
+import helmbold                                                   # noqa: E402
 
 LIT = os.path.join(ROOT, "data", "literature", "robert2019_trial154.csv")
 OUT = os.path.join(ROOT, "data", "local", "blade")
@@ -147,6 +148,10 @@ def main():
         "lift-drag Coppel": liftdrag_law(LiftDragBlade.big_blade_full_scale(outboard=1.818, area=AREA, source="coppel")),
         "lift-drag Sliasas-Tullis": liftdrag_law(LiftDragBlade.big_blade_full_scale(outboard=1.818, area=AREA,
                                                                                     source="sliasas_tullis")),
+        "lift-drag, Helmbold lift, no mirror (AR %.2f)" % helmbold.blade(HEIGHT, SPAN, 1.818, AREA, False)[1]:
+            liftdrag_law(helmbold.blade(HEIGHT, SPAN, 1.818, AREA, False)[0]),
+        "lift-drag, Helmbold lift, surface mirror (AR %.2f)" % helmbold.blade(HEIGHT, SPAN, 1.818, AREA, True)[1]:
+            liftdrag_law(helmbold.blade(HEIGHT, SPAN, 1.818, AREA, True)[0]),
     }
     traces = {name: loads(K, law) for name, law in laws.items()}
     for lab, m_a in (("Patton", patton_added_mass(SPAN, HEIGHT, RHO)), ("[LB19]", labbe_added_mass(SPAN, HEIGHT, RHO))):

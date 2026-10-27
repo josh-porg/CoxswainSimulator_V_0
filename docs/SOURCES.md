@@ -13092,3 +13092,30 @@ by either measurement. [G20]'s slow plate gains more (+45% by 0.2 plate heights)
 question in §185: the surface's effect on the load depends on speed, and a full-scale blade sits in a different
 regime from a slow plate or a half-scale robot. The research runs use a constant cover (0.9 of the deep load), so
 the shape changes no current result; it becomes a defect as soon as cover varies (the catch, and `blade_depth`).
+
+## 188. Tier 2's lift from Helmbold's low-aspect-ratio slope: one sourced change fixes the catch and the tangential sign on both measured loads (2026-10-27)
+
+*Module `research/blade/helmbold.py`; variants in `grift2021_quasisteady.py` and `robert2019_quasisteady.py`.
+Sources: Helmbold (1942) as given by Gutierrez-Castillo, Aguilar-Cabello, Alcalde-Morales, Parras & del Pino
+(preprint submitted to J. Wind Eng. Ind. Aerodyn., 2020, Univ. Málaga repository, eq. 4; their measured slopes for
+AR 1–8 plates), copy in `data/local/literature/liftslope_uma/`.*
+
+**The argument.** At small incidence a blade's flow runs along its length, so the plate the flow sees has aspect
+ratio height/length: 0.48 (project sweep blade), 0.45 ([GTW21]); doubled if the free surface acts as a mirror on the
+top edge. Helmbold's slope, C_Lα = a₀ / (√(1 + (a₀/πAR)²) + a₀/πAR), gives 0.74 /rad at AR 0.48 and 1.43 at 0.96,
+against [CG07]'s 2A_l = 2.5 /rad. Setting A_l = C_Lα/2 keeps [CG07]'s shape and drag. A consequence: tier 2's
+tangential coefficient (A_d − 2A_l) sin²α cos α turns **positive** (drag-like), 0.23 at 45° with the mirror,
+against [GTW21]'s measured 0.2–0.36 (§184).
+
+| | [GTW21] F_n by fifths 1/2/3/4 | F_n impulse | F_t impulse ratio | F_t rms N | [RLBQV19] F_x error/peak 20–50/50–80/80–110/110–150 | F_x impulse | F_x rms N |
+|---|---|---|---|---|---|---|---|
+| CG07 | 1.91 / 0.80 / 0.83 / 1.09 | 1.07 | −0.25 | 3.1 | +0.35 / +0.82 / +0.68 / −0.13 | 1.80 | 121 |
+| Helmbold, no mirror | 0.63 / 0.33 / 0.53 / 1.00 | 0.72 | +0.79 | 1.6 | +0.03 / −0.20 / +0.43 / −0.14 | 0.95 | 52 |
+| Helmbold, surface mirror | 1.09 / 0.50 / 0.64 / 1.04 | 0.85 | +0.41 | 1.4 | +0.15 / +0.20 / +0.52 / −0.13 | 1.28 | 63 |
+
+**Findings.** The catch over-prediction (both sources) and the tangential sign (both) go with one sourced number.
+What remains is opposite on the two: [GTW21]'s moderate incidences (fifths 2–3, tip α 35–56°) are now 35–50% low,
+and [RLBQV19]'s mid-stroke 43–52% high. A linear lift slope cannot carry the nonlinear vortex lift that low-AR plates
+develop at moderate incidence (leading- and side-edge vortices; [GTW21] see the LEV form at the tip); its sourced
+form is Polhamus's leading-edge suction analogy, extended to side edges by Lamar (both NASA reports, open). The
+mid-stroke level at full scale (drag near 90°) is the free-surface question of §185/§187.

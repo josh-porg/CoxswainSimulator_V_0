@@ -127,6 +127,9 @@ cavity). **Bending improves every law** (rms −10 to −30%, peaks toward the m
 
 ## 5. Log
 
+- 2026-10-27: Helmbold's low-AR lift slope in tier 2 (§188): fixes the catch over-prediction and the tangential
+  sign on both measured loads; the moderate-incidence vortex lift (Polhamus, Lamar) and the full-scale drag level
+  remain.
 - 2026-10-27: [RLBQV19] Fig. 8, the first published force-against-immersion curve for a rowing blade (§187): +11%
   for 3 cm of cover, +16% for 6 cm, full load awash; the project's chosen immersion shape (zero awash) is not
   supported, and [G20]'s slow plate gains far more: the surface's effect depends on speed.
