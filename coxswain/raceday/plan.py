@@ -219,7 +219,10 @@ def optimise_line(model: CourseModel, boat, reference_time: float, pins: Dict[st
             arch = bridges.racing_arch(gate, model.raster) or legal[0]
         st, lo, hi = arch_window(model, gate, arch, margin)
         gate_st.append(st); gate_lo.append(lo); gate_hi.append(hi)
-    end_lim = [max(float(course.half_width_at(s)) - margin, 0.0) for s in (0.0, L)]
+    # the corridor's own sides (port, starboard), not the symmetric half-width: the opt-in shore corridor
+    # widens only the starboard side, and a symmetric bound kept the search out of it (TRACKING, 2026-10-27)
+    side = lambda s: [max(float(v) - margin, 0.0) for v in course.limits_at(s)]   # noqa: E731
+    end_lim = [side(0.0), side(L)]
     fixed = np.array([0.0] + gate_st + [L])
     if free is None:
         free = np.arange(step, L - 0.5 * step, step)
@@ -230,10 +233,8 @@ def optimise_line(model: CourseModel, boat, reference_time: float, pins: Dict[st
     for i in range(1, len(stations)):              # two arch points on one station
         if stations[i] <= stations[i - 1] + 0.5:
             stations[i] = stations[i - 1] + 0.5
-    lo = np.concatenate([[-end_lim[0]], gate_lo, [-end_lim[1]],
-                         [-max(float(course.half_width_at(f)) - margin, 0.0) for f in free]])[order]
-    hi = np.concatenate([[end_lim[0]], gate_hi, [end_lim[1]],
-                         [max(float(course.half_width_at(f)) - margin, 0.0) for f in free]])[order]
+    lo = np.concatenate([[-end_lim[0][1]], gate_lo, [-end_lim[1][1]], [-side(f)[1] for f in free]])[order]
+    hi = np.concatenate([[end_lim[0][0]], gate_hi, [end_lim[1][0]], [side(f)[0] for f in free]])[order]
 
     def route_of(x):
         return Route(stations, np.clip(x, lo, hi), name="optimised")

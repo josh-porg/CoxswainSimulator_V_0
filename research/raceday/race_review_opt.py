@@ -30,15 +30,15 @@ FT = 0.3048
 MARGIN = 4.0
 STEP = 150.0
 sys.path.insert(0, CODE)
-from review_crews import CFG                                               # noqa: E402
+from review_crews import CFG, STARBOARD, shore_name                                               # noqa: E402
 DAY = CFG["day"]
 
 
 def main():
     R = json.load(open(os.path.join(HERE, CFG["json"])))
     level, q = R["level_ft"], R["flow_cfs"] * 0.0283168466
-    model = C.CourseModel.build(level_offset=level * FT)
-    deep = C.CourseModel.build(level_offset=level * FT + 2.0)
+    model = C.CourseModel.build(starboard=STARBOARD, level_offset=level * FT)
+    deep = C.CourseModel.build(starboard=STARBOARD, level_offset=level * FT + 2.0)
     course = model.course
     L = float(course.length)
     spec = RC.CREWS[CFG["crew"]]
@@ -75,7 +75,7 @@ def main():
     # from our line and bestline's shortest legal line; the old search fixed every arch point at the
     # arch centre, and the trestle rule was wrong (TRACKING)
     model.flow = charles.ContinuityFlow(course, discharge=q)
-    BLs = json.load(open(os.path.join(ROOT, "data", "local", "bestline", "bestline_vs_model.json")))
+    BLs = json.load(open(os.path.join(ROOT, "data", "local", "bestline", shore_name("bestline_vs_model.json"))))
     sh = next(x for x in BLs["lines"] if x["name"] == "their shortest line")
     shortest = Route(np.asarray(sh["stations"], float), np.asarray(sh["offsets"], float), name="shortest")
     opt = P.optimise_line(model, boat, ref, R["pins"], k, wind, starts=(ours, shortest), step=STEP, margin=MARGIN)
@@ -124,7 +124,7 @@ def main():
                                       frame_s=rad["frame_s"], frame_n=rad["frame_n"], curvature=rad["curvature"], mesh=rad["mesh"],
                                       gates=rad["gates"], edge_m=rad["edge_m"]))
     # bestline.row3r.com's published lines, timed the same way (for this crew's pace and conditions)
-    BL = json.load(open(os.path.join(ROOT, "data", "local", "bestline", "bestline_vs_model.json")))
+    BL = json.load(open(os.path.join(ROOT, "data", "local", "bestline", shore_name("bestline_vs_model.json"))))
     R["calibrated"]["bestline"] = []
     for ln in [x for x in BL["lines"] if "stations" in x]:
         r = Route(np.asarray(ln["stations"], float), np.asarray(ln["offsets"], float), name=ln["name"])

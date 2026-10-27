@@ -14,7 +14,8 @@ import numpy as np
 CODE = os.path.dirname(os.path.abspath(__file__))   # this script (committed, research/)
 HERE = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "data", "local", "bestline"))   # its data and outputs (gitignored)
 ROOT = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
-sys.path.insert(0, ROOT); sys.path.insert(0, os.path.join(ROOT, "scripts"))
+sys.path.insert(0, ROOT); sys.path.insert(0, os.path.join(ROOT, "scripts")); sys.path.insert(0, os.path.join(ROOT, "research", "raceday"))
+from review_crews import STARBOARD, shore_name                                   # noqa: E402
 from coxswain.raceday import card as C
 from coxswain.river import charles
 from coxswain.river.course import local_tangent_plane
@@ -38,8 +39,8 @@ def to_route(course, latlon, name, L):
         if m.sum():
             so.append(float(st[m].mean())); oo.append(float(np.median(off[m])))
     so, oo = np.array(so), np.array(oo)
-    hw = course.half_width_at(so)
-    oo = np.clip(oo, -(hw - 1.0), hw - 1.0)
+    port, stbd = course.limits_at(so)                         # each side's own limit (shore corridor: asymmetric)
+    oo = np.clip(oo, -(stbd - 1.0), port - 1.0)
     return Route(np.concatenate([[0.0], so, [L]]), np.concatenate([[oo[0]], oo, [oo[-1]]]), name=name), float(so.min()), float(so.max())
 
 
@@ -47,7 +48,7 @@ def main():
     R = json.load(open(os.path.join(ROOT, "data", "local", "raceday", "race_review_2026.json")))
     cal = R["calibrated"]
     B = json.load(open(os.path.join(HERE, "bestline_2026.json")))
-    model = C.CourseModel.build(level_offset=R["level_ft"] * FT)
+    model = C.CourseModel.build(starboard=STARBOARD, level_offset=R["level_ft"] * FT)
     course = model.course
     L = float(course.length)
     q = R["flow_cfs"] * 0.0283168466
@@ -82,7 +83,7 @@ def main():
         out["lines"].append(dict(name="site rank %d (%s)" % (i, e["row"][1].split()[-1]), site_pct=e["row"][2], time_s=t, path_m=p,
                                  turning_s=r, stations=list(map(float, rt.stations)), offsets=list(map(float, rt.offsets))))
         print("site rank %2d %-8s %5s over: model %.1f s, %.0f m, turning %.1f s" % (i, e["row"][1].split()[-1], e["row"][2], t, p, r))
-    json.dump(out, open(os.path.join(HERE, "bestline_vs_model.json"), "w"))
+    json.dump(out, open(os.path.join(HERE, shore_name("bestline_vs_model.json")), "w"))
 
 
 if __name__ == "__main__":

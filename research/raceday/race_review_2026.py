@@ -29,7 +29,7 @@ from coxswain.river.course import local_tangent_plane
 from coxswain.river.route import Route
 import race_card as RC
 
-from review_crews import CFG                                               # REVIEW_CREW picks the crew (default ours)
+from review_crews import CFG, STARBOARD, shore_name                                               # REVIEW_CREW picks the crew (default ours)
 COXBOX = CFG["coxbox"]
 EDT = timezone(timedelta(hours=-4))
 START_ET = CFG["start_et"]                                       # the CBGPS session start, US Eastern
@@ -86,7 +86,7 @@ def usgs(site, param, t0, t1):
 
 
 def main():
-    model = C.CourseModel.build()
+    model = C.CourseModel.build(starboard=STARBOARD)
     course = model.course
     L = float(course.length)
     S = strokes()
@@ -112,8 +112,8 @@ def main():
             so.append(float(np.mean(st[m]))); oo.append(float(np.median(off[m])))
     so, oo = np.array(so), np.array(oo)
     oo = np.convolve(np.pad(oo, 1, mode="edge"), np.ones(3) / 3, mode="valid")
-    hw = course.half_width_at(so)
-    oo = np.clip(oo, -(hw - 2.0), hw - 2.0)
+    port, stbd = course.limits_at(so)                         # each side's own limit (shore corridor: asymmetric)
+    oo = np.clip(oo, -(stbd - 2.0), port - 2.0)
     ours = Route(np.concatenate([[0.0], so, [L]]), np.concatenate([[oo[0]], oo, [oo[-1]]]), name="our line")
 
     # the arches we took: nearest arch centre to our offset at each bridge
@@ -153,8 +153,8 @@ def main():
     level_off = lvl_ft - 107.32
     print("wind %.1f m/s from %03.0f (%s); flow %.0f cfs; basin %+.2f ft" % (wind[0], wind[1], w_note, q_cfs, level_off))
 
-    model = C.CourseModel.build(level_offset=level_off * FT)
-    deep = C.CourseModel.build(level_offset=level_off * FT + 2.0)
+    model = C.CourseModel.build(starboard=STARBOARD, level_offset=level_off * FT)
+    deep = C.CourseModel.build(starboard=STARBOARD, level_offset=level_off * FT + 2.0)
     q = q_cfs * 0.0283168466
     spec = RC.CREWS[CFG["crew"]]
     boat = RC.build_boat(CFG["crew"], spec["rate"], profile="research")   # depth: Sretenskii, wave term only (PHYSICS_PROGRAMME, 2026-10-21)

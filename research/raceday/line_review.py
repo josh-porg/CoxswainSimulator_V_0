@@ -39,7 +39,7 @@ FT = 0.3048
 MARGIN, STEP = 4.0, 150.0
 BASE_2025 = 1.02
 CB = os.path.join(ROOT, "data", "local", "coxbox", "Sharing file  CoxBox %s.csv")
-from review_crews import LINE_REVIEW as CREWS, alias           # noqa: E402  private: data/local/raceday/crews.json
+from review_crews import LINE_REVIEW as CREWS, alias, STARBOARD, shore_name           # noqa: E402  private: data/local/raceday/crews.json
 
 
 def track(crew, model):
@@ -64,8 +64,8 @@ def track(crew, model):
             so.append(float(np.mean(st[m]))); oo.append(float(np.median(off[m])))
     so, oo = np.array(so), np.array(oo)
     oo = np.convolve(np.pad(oo, 1, mode="edge"), np.ones(3) / 3, mode="valid")
-    hw = course.half_width_at(so)
-    oo = np.clip(oo, -(hw - 2.0), hw - 2.0)
+    port, stbd = course.limits_at(so)                         # each side's own limit (shore corridor: asymmetric)
+    oo = np.clip(oo, -(stbd - 2.0), port - 2.0)
     route = Route(np.concatenate([[0.0], so, [L]]), np.concatenate([[oo[0]], oo, [oo[-1]]]), name=crew)
     arches = {}
     for gate, metres in model.gates:
@@ -106,15 +106,15 @@ def conditions(crew, T):
 
 def main(crew=None):
     crew = crew or alias("msm_four")
-    model0 = C.CourseModel.build()
+    model0 = C.CourseModel.build(starboard=STARBOARD)
     T, O = track(crew, model0), track("ours", model0)
     print("%s: model-course time %.1f s (official %.1f), last stroke at %.0f m of %.0f; arches %s"
           % (crew, T["race_s"], CREWS[crew]["official"], T["end_station"], model0.course.length, T["pins"]))
     print("ours: model-course time %.1f s (official %.1f), last stroke at %.0f m; arches %s"
           % (O["race_s"], CREWS["ours"]["official"], O["end_station"], O["pins"]))
     cond = conditions(crew, T)
-    model = C.CourseModel.build(level_offset=cond["level_ft"] * FT)
-    deep = C.CourseModel.build(level_offset=cond["level_ft"] * FT + 2.0)
+    model = C.CourseModel.build(starboard=STARBOARD, level_offset=cond["level_ft"] * FT)
+    deep = C.CourseModel.build(starboard=STARBOARD, level_offset=cond["level_ft"] * FT + 2.0)
     course, q = model.course, cond["q"]
     L = float(course.length)
     spec = RC.CREWS["four"]
@@ -146,7 +146,7 @@ def main(crew=None):
         # plan.optimise_line (2026-10-22): bridge points free inside their arches, ends free, warm starts
         # from the crew's line and bestline's shortest legal line (TRACKING)
         model.flow = charles.ContinuityFlow(course, discharge=q)
-        BLs = json.load(open(os.path.join(ROOT, "data", "local", "bestline", "bestline_vs_model.json")))
+        BLs = json.load(open(os.path.join(ROOT, "data", "local", "bestline", shore_name("bestline_vs_model.json"))))
         sh = next(x for x in BLs["lines"] if x["name"] == "their shortest line")
         shortest = Route(np.asarray(sh["stations"], float), np.asarray(sh["offsets"], float), name="shortest")
         return P.optimise_line(model, boat, ref, pins, k, wind, starts=(warm, shortest), step=STEP, margin=MARGIN)["route"]
@@ -176,7 +176,7 @@ def main(crew=None):
     # her line in OUR conditions and pace (race_review_2026.json, calibrated)
     R = json.load(open(os.path.join(HERE, "race_review_2026.json")))
     Rc = R["calibrated"]
-    m_ours = C.CourseModel.build(level_offset=R["level_ft"] * FT)
+    m_ours = C.CourseModel.build(starboard=STARBOARD, level_offset=R["level_ft"] * FT)
     q_ours = R["flow_cfs"] * 0.0283168466
     w_ours = (Rc["wind"]["speed"], Rc["wind"]["direction"])
     in_ours = {nm: total(sections(m_ours, r, q_ours, w_ours, k, Rc["ref_s"])) for nm, r in
@@ -214,7 +214,7 @@ def main(crew=None):
                        for nm, r in (("line", T["route"]), ("our_line", O["route"]), ("optimum", best_own), ("optimum_our_arches", best_ours))},
                track=dict(t=np.round(T["t"] - T["t_start"], 2).tolist(), station=np.round(T["st"], 1).tolist(),
                           offset=np.round(T["off"], 1).tolist(), speed=np.round(T["S"][:, 2], 2).tolist(), rate=np.round(T["S"][:, 3], 1).tolist()))
-    json.dump(out, open(os.path.join(HERE, "line_review_%s.json" % crew), "w"))
+    json.dump(out, open(os.path.join(HERE, shore_name("line_review_%s.json" % crew)), "w"))
     figure(out, course, model.gates, card)
     print("written line_review_%s.json and .png" % crew)
 
@@ -252,7 +252,7 @@ def figure(R, course, gates, card):
         a.text(m, a.get_ylim()[1] if False else hw.max() * 0.95, g.name.replace(" Footbridge", "").replace(" Bridge", ""), rotation=90, fontsize=7, va="top", ha="right", color="#555")
     a.set_xlabel("distance along the course centreline (m)"); a.set_ylabel("offset from centreline (m)\n(negative = Cambridge)")
     a.set_xlim(0, L); a.legend(loc="lower right", fontsize=8, frameon=False, ncol=2)
-    fig.savefig(os.path.join(HERE, "line_review_%s.png" % R["crew"]), dpi=150)
+    fig.savefig(os.path.join(HERE, shore_name("line_review_%s.png" % R["crew"])), dpi=150)
 
 
 if __name__ == "__main__":

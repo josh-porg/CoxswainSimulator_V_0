@@ -52,3 +52,22 @@ def alias(role):
 
 WHO = os.environ.get("REVIEW_CREW", "ours")
 CFG = CREWS[WHO]
+
+#: REVIEW_STARBOARD=shore: the Cambridge limit follows the water (card.CourseModel.build(starboard="shore"),
+#: aground depth 0.5 m, research boats only), the crews' lines are clamped to each side's own limit, and every
+#: output gets a "_shore" suffix so the published (navigable-corridor) reviews are not overwritten.
+STARBOARD = os.environ.get("REVIEW_STARBOARD", "navigable")
+if STARBOARD not in ("navigable", "shore"):
+    raise SystemExit("REVIEW_STARBOARD must be navigable or shore")
+
+
+def shore_name(name):
+    """An output file name, suffixed "_shore" under the shore corridor."""
+    if STARBOARD == "navigable":
+        return name
+    root, ext = os.path.splitext(name)
+    return root + "_shore" + ext
+
+
+if STARBOARD == "shore":
+    CFG = dict(CFG, json=shore_name(CFG["json"]), html=shore_name(CFG["html"]))

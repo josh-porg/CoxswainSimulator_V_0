@@ -64,8 +64,8 @@ def arch_point(course, gate, along: float, margin: float = 4.0) -> tuple:
     the Grand Junction trestle (41 degrees skew) the line then crossed the deck metres away, outside
     the trestle's narrow second-from-Cambridge arch (2026-10-22)."""
     station, offset = to_offset(course, gate.point_at(along))
-    limit = max(float(course.half_width_at(station)) - margin, 0.0)
-    return float(station), float(np.clip(offset, -limit, limit))
+    port, starboard = (max(float(v) - margin, 0.0) for v in course.limits_at(station))   # each side its own limit
+    return float(station), float(np.clip(offset, -starboard, port))
 
 
 def crossing_along(route, course, gate, metres: float, reach: float = 300.0):
