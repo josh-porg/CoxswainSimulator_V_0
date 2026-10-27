@@ -127,6 +127,8 @@ cavity). **Bending improves every law** (rms −10 to −30%, peaks toward the m
 
 ## 5. Log
 
+- 2026-10-27: oar bending as a quasi-static hinge solved from the blade's own load (§186): stable; the
+  over-loading laws over-bend the oar 1.6–2×, so bending is a second check on a law's level.
 - 2026-10-27: [RLBQV19] extracted (motion, bending, measured F_x, F_y, M_z) and every law tested on it (§185).
 - 2026-10-27: review started. [GTW21] extracted and every project law tested on it (§184). Tangential sign of tier
   2 rejected; slip law's shape rejected; catch over-prediction confirmed on a second source. [RLBQV19], [LJH12],

@@ -13040,3 +13040,32 @@ early (58–62° against 88°).
    against 0.93 on the water (their Table 1), and [RLBQV19] stress the air cavity behind a full-scale blade. A
    Froude-dependent ventilation loss is not in any project law; [RLBQV19] Fig. 8 (immersion angle) can size it.
 4. *Added mass applied at full strength makes things worse again* (the finish: −0.6 to −0.9 of the peak).
+
+## 186. Oar bending as a quasi-static hinge, predicted from the blade's own load ([RLBQV19]'s bench law) (2026-10-27)
+
+*Script: `research/blade/oar_bending.py` (output `data/local/blade/oar_bending.json`, `.png`). User, 2026-10-27:
+"blade bending is good to model".*
+
+**The model.** [RLBQV19]'s eq. 1 makes the blade's linear and angular deflections proportional to the oarlock
+moment, f = M/K_lin and φ = M/K_ang, so f/φ = K_ang/K_lin = 0.861 m for any load: the blade moves as if the shaft
+were rigid and hinged at h = L_e − K_ang/K_lin = 0.697 m from the pin, with a spring giving φ = M/K_ang. Quasi-static
+(their treatment; the oar's inertia is small against the fluid load): K_ang φ = M(φ, φ̇), where the load's moment
+depends on φ̇ through the slip, w_n(r) = r cos θ₁ ψ̇ − (r − h) φ̇ − V_b sin(ψ − φ). The water is the damper and the
+shaft the spring; φ̇ is solved per step (bracketing), φ integrated (Heun). Nothing is taken from the measured load.
+
+**On [RLBQV19] trial 154** (measured bending, their law on the measured M_z: 7.48° peak):
+
+| law | predicted bending peak (rms error) | F_x peak @ | F_x rms N | M_z rms N·m | F_x rms, bending from the measured M_z (§185) |
+|---|---|---|---|---|---|
+| slip C0 1.3 (computed) | 5.47° (1.49°) | 149 N @ 97° | 36.8 | 76.7 | 34.2 |
+| Coppel | 12.27° (3.12°) | 347 @ 86 | 85.3 | 160.6 | 73.7 |
+| CG07 | 14.94° (4.89°) | 409 @ 91 | 127.9 | 251.6 | 120.6 |
+
+**So:** the closed-loop bending is stable and cheap, and it is a second, independent check on a law's level: laws
+that over-load the blade (tier 2 here, §185) also over-bend the oar, 1.6–2× the measured deflection. The computed
+plate under-bends (5.5 against 7.5°) while matching the peak force open loop; its closed-loop peak falls to 149 N,
+because the bending it predicts relieves the load before the peak. The bending constants are [RLBQV19]'s sweep oar on
+their mount; a scull's ([LNA15]: 1.18° at 201 N at the blade end) are not yet in a comparable form.
+
+**Next for the simulator:** the hinge as a research option of `DynamicOarSimulator` (one bending angle per oar,
+quasi-static, the same balance), the slip law's balance solved in closed form, the lift-drag law's by bracketing.
