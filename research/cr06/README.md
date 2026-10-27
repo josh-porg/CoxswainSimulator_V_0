@@ -42,7 +42,7 @@ record in docs/TRACKING.md, printing the recorded numbers beside its own.
 | 2 | the hip moment top-down from the handle (no foot data) | `hip_topdown_cr06.py` | rebuilt |
 | 3 | her trunk driven forward by the hip torque, open loop | `trunk_forward_cr06.py` | rebuilt |
 | 4 | the trunk under delayed feedback | `trunk_forward_cr06.py` | rebuilt |
-| 5 | the controlled trunk inside the simulator, two-way coupled | `coupled_trunk_cr06.py` (linear check in `trunk_forward_cr06.py`) | rebuilt 2026-10-25; **the record's controlled cases are not reproduced** (below) |
+| 5 | the controlled trunk inside the simulator, two-way coupled | `coupled_trunk_cr06.py` (linear check in `trunk_forward_cr06.py`) | rebuilt 2026-10-25; **reproduced 2026-10-26** with the gains designed on the coupled plant (`coupled_control_cr06.py`, below) |
 | 4.3 legs | knee and ankle with the sourced foot-force direction and centre of pressure; the hip from below | `knee_ankle_cr06.py` | original (2026-10-24) |
 
 ### Rebuilt against recorded
@@ -72,6 +72,14 @@ reported as found; a difference is explained, not tuned away.
 | bias with 45 / 75 / 100 / 117 ms delay: error max | 9.34 / 9.61 / 9.69 / 10.42° (none diverge) | 3.80 / 3.88 / 4.17 / **45.6° (diverged)** | **not reproduced** |
 | audit `--one-way` (hull sees the prescribed trunk): bias; 100; 117 ms | 3.28 / −3.02°, 20.2 N·m; 3.38°; 3.65° (holds) | 3.71 / −3.43°, 22.2; 4.17; 45.6 | the record's bias case matches a one-way run; its divergence does not |
 | audit `--hull-blind` (trunk's equation omits the recoil): bias; 100; 117 ms | 7.05°, 47.5 N·m; 9.54°; 12.80°, 101 N·m (holds) | as above | matches nothing in the record |
+
+**Correction (2026-10-26, SOURCES §182): the record is reproduced.** The paragraph below withdrew two of the
+record's claims on 2026-10-25. Designing the gains on the coupled plant (`coupled_control_cr06.py`: |s| 6.39 kg·m²,
+λ² 24.7 s⁻²) reproduces the record case by case (bias end error −3.46° against −3.43°; 45 / 75 / 100 ms hold; 117 ms
+diverges, linear boundary 114 ms; the predictor and the observer as recorded), so the record's "gains from the plant"
+were the coupled plant's and both claims stand. What the paragraph found about the recoil holds, and is now the point:
+without it in the design the trunk is held half as stiffly; with it, the delay margin falls from 144 to 114 ms, into
+the measured trunk-muscle latencies. *As written on 2026-10-25:*
 
 **A finding from the rebuild (rung 5): the boat's recoil halves the controller's stiffness.** Two-way coupled,
 the trunk's forward swing pushes the hull back, 0.17 m/s² per rad/s² of trunk acceleration in the simulator, which
@@ -136,7 +144,10 @@ catch (SOURCES §177). Open.
 .venv/Scripts/python.exe research/cr06/stretcher_cr06.py         # rung 1
 .venv/Scripts/python.exe research/cr06/hip_topdown_cr06.py       # rung 2
 .venv/Scripts/python.exe research/cr06/trunk_forward_cr06.py     # rungs 3, 4 and rung 5's linear check (~10 min)
-.venv/Scripts/python.exe research/cr06/coupled_trunk_cr06.py     # rung 5, two-way coupled (~1.5 h; --one-way / --hull-blind audits ~45 min)
+.venv/Scripts/python.exe research/cr06/coupled_trunk_cr06.py     # rung 5, two-way coupled, one-way gains (~1.5 h; --one-way / --hull-blind audits)
+.venv/Scripts/python.exe research/cr06/coupled_control_cr06.py prepare   # the coupled plant and the feedforward
+.venv/Scripts/python.exe research/cr06/coupled_control_cr06.py run pd:0 pd:45 pd:75 pd:100 pd:117 pred:117 obs:117
+.venv/Scripts/python.exe research/cr06/coupled_control_cr06.py report    # the record's table, reproduced; the linear checks
 .venv/Scripts/python.exe research/cr06/knee_ankle_cr06.py        # the legs and the hip from below
 ```
 

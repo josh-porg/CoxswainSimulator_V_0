@@ -12679,6 +12679,9 @@ each script printing the recorded numbers beside its own; full comparison in `re
 
 ## 179. Rung 5 rebuilt: the boat's recoil halves the trunk controller's stiffness; and a step rule for the fitted blade (2026-10-25)
 
+*Superseded in part by §182 (2026-10-26): the record's controlled cases are reproduced with the gains designed on
+the coupled plant, so the two withdrawals below are reversed. The recoil and step-rule findings stand.*
+
 `research/cr06/coupled_trunk_cr06.py` rebuilds step 4.3's fifth rung (the record: TRACKING, "Step 4.3, fifth
 rung", 2026-09-14) on the shared module of §178. [CR06]'s single with her rig and her measured handle force
 drives a torque-driven oar (oar-only balance, research profile); her legs ride on her clock as in
@@ -12819,3 +12822,37 @@ scaled by the athlete's measured power over the population run's 255 W:
   onto an elite man by drive progress and a power scale, its shape is the weakest link.
 - *Caveats:* rung 1 for [BR24] delivers 302 W, not his 432, so his rung 1 → rung 2 change is not at equal power; one
   population; HANDOVER is chosen; the hand positions for the oar's moment arms are still read on the clock.
+
+## 182. Rung 5 reproduced after all: the record's gains were designed on the coupled plant; §179's withdrawal is reversed (2026-10-26)
+
+`research/cr06/coupled_control_cr06.py` (sprint 2, S2.1). §179 rebuilt rung 5 with the PD gains designed on the
+**one-way** plant (K_p = ω_n² + 1/0.274², the e-folding of rung 3) and, finding the record's controlled cases not
+reproduced, withdrew two of its claims. Measuring the coupled plant and designing the same rule on it
+(K_p = ω_n² + λ_c², ζ 0.7, ω_n 5 rad/s) reproduces the record:
+
+**The coupled plant**, along an undisturbed coupled stroke (40 phases): slope |s| 6.39 kg·m² (5.92–7.22; one-way 9.12),
+toppling λ² 24.7 s⁻² (16.1–29.1; one-way 17.1). Linear predictions (bias 10 N·m): one-way gains, static error 6.6°,
+delay boundary 144 ms; **coupled gains, static error 3.6°, boundary 114 ms**.
+
+| 10 N·m bias, last of 12 strokes | rebuilt, coupled gains | record (2026-09-14) |
+|---|---|---|
+| no delay: error max / end, feedback | 4.59 / −3.46°, 24.9 N·m | 3.71 / −3.43°, 22.2 N·m |
+| 45 ms | 4.69 / −3.12°, 24.9 | 3.80 / 3.35°, 23.0 |
+| 75 ms | 4.78 / −2.84°, 25.6 | 3.88 / 3.21°, 23.7 |
+| 100 ms | 5.44 / −2.59°, 30.5 | 4.17 / 2.89°, 27.9 |
+| **117 ms** | **diverged** | **diverged** (45.6°) |
+| state predictor, 117 ms | 12.3 / −9.85°, 51.5 | 12.3 / −11.1°, 78 |
+| predictor + disturbance observer, 117 ms | 5.51 / −2.91°, 27.8 (d̂ −1.70 against −1.56 rad/s²) | 4.44 / −3.61°, 27.6 |
+
+- **The end errors agree within 0.6° and the feedback within a few N·m; the divergence at 117 ms, the predictor's
+  failure to hold accuracy and the observer's recovery all reproduce.** The maxima run about 1° higher here (the
+  first-stroke transient differs; the hull is the fitted-C₂ one, 4.098 against 4.118 m/s).
+- **So the record's "gains from the plant" were the coupled plant's**, and its two claims stand: with each plant's
+  own gains, coupling changes the bias response little (3.46° coupled against 3.04° one-way), and the coupled
+  boundary lies between 100 and 117 ms (114 ms linear). §179's withdrawal was an error of attribution, not of physics,
+  and is reversed; the records carry the correction.
+- **What §179 found still holds and is now the point**: the hull's recoil lowers the trunk's effective inertia by a
+  third and raises its toppling rate. A controller designed without it holds the trunk half as stiffly (8.96° under
+  the bias); designed with it, it holds as stiffly as intended but loses delay margin, from 144 to 114 ms, which lands
+  inside the measured trunk-muscle latencies (103–117 ms, [MS16]). The recoil is what puts a human's trunk loop on its
+  stability edge, and what makes an internal model (the predictor with a load estimate) necessary.
