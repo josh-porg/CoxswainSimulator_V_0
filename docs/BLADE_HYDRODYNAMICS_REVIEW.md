@@ -98,6 +98,14 @@ tip the coefficient his load implies is 1.7 (plate-like); at the centre 3.7. So 
 not describe the blade's motion late in the drive (a sculling single accelerates far more within the drive than
 [GTW21]'s four). §183's open loop survives a ±0.4 m/s offset; a channel *lag* has not been tested.
 
+**3.5 The full-size cross-check, [RLBQV19] (SOURCES §185).** A real oar on a towing carriage, its bending computed
+from the measured moment through the paper's own bench law. Two results carry across both sources: tier 2's
+early-stroke over-prediction (+0.5 to +0.8 of the peak at 50–80° here; 1.4–1.9× in [GTW21]'s first fifth), and added
+mass at full strength making things worse. One does not: the **level**. On the full-size blade, awash, the computed
+plate (C0 1.3) gets the peak (198 against 199 N) and tier 2 over-predicts 1.4–1.8×; on [GTW21]'s half-scale blade
+the reverse. The free surface is the leading candidate ([GTW21] Fr 0.65 against 0.93 on the water; [RLBQV19]'s air
+cavity). **Bending improves every law** (rms −10 to −30%, peaks toward the measured).
+
 ## 4. What this means for the models
 
 1. **Tier 1 should not stay the research blade.** On the one measured load with a known motion it has the wrong
@@ -110,11 +118,16 @@ not describe the blade's motion late in the drive (a sculling single accelerates
    - (c) the release spike: the blade's deceleration and extraction (added mass with the history of (b));
    - (d) the point of application: the strip integration's centre of pressure against [GTW21]'s tip-referenced
      loads, and whether a tip load is needed ([BR24]'s 1.7 at the tip).
-4. **[RLBQV19] is the cross-check** that keeps this from being a one-paper fit: a full-size blade, a different
-   motion (constant carriage speed), a flexible oar. Its bending must be modelled first (the blade lags the motor).
+4. **[RLBQV19] is the cross-check** that keeps this from being a one-paper fit (done, §185).
+5. **Oar bending into the simulator** (user, 2026-10-27: "blade bending is good to model"): a quasi-static shaft
+   compliance, f = M/K_lin and phi = M/K_ang, with [RLBQV19]'s bench constants for a sweep oar and [LNA15]'s for
+   sculls, as a research option; tested first on [RLBQV19], where the moment is measured.
+6. **The free surface** (ventilation against Froude number, immersion): sized from [RLBQV19] Fig. 8 and [G20]'s
+   depth curve before any law's level is changed.
 
 ## 5. Log
 
+- 2026-10-27: [RLBQV19] extracted (motion, bending, measured F_x, F_y, M_z) and every law tested on it (§185).
 - 2026-10-27: review started. [GTW21] extracted and every project law tested on it (§184). Tangential sign of tier
   2 rejected; slip law's shape rejected; catch over-prediction confirmed on a second source. [RLBQV19], [LJH12],
   [vV22], [WBD04], [LTW19], [L25], [vN23], [G19] obtained.

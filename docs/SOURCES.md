@@ -12993,3 +12993,50 @@ and F_t · w_a are positive in every fifth, so the printed forces are those the 
 
 **What follows:** tier 1's shape is rejected on a measured load; tier 2's normal law is the better base with its
 tangential sign and catch to fix; the models to build and their tests are in the review, §4.
+
+## 185. A second measured load: a full-size blade on a bending oar, [RLBQV19] trial 154 (2026-10-27)
+
+*Scripts: `research/blade/extract_robert2019.py` (Fig. 3's imposed angular velocity and Fig. 7's measured F_x, F_y,
+F_z, M_z, to `data/literature/robert2019_trial154.csv`), `research/blade/robert2019_quasisteady.py` (`--rigid` drops
+the bending; outputs `data/local/blade/robert2019_quasisteady*.json`, `.png`).*
+
+### [RLBQV19] Robert, Leroyer, Barré, Queutey & Visonneau (2019), *Validation of CFD simulations of the flow around a full-scale rowing blade with realistic kinematics*, J. Mar. Sci. Technol. 24, 1105–1118
+Open (HAL hal-02394848, CC BY 4.0). A real sweep oar with a hatchet blade, held at the handle and the oarlock
+(inboard L_i = 0.800 m; oarlock to blade root L_e = 1.558 m) on a motor-driven arm on a towing carriage. Trial 154:
+carriage 4.202 m/s, immersion angle 9.5° (the blade's top edge awash), roll 6°; the oar's angular velocity is
+imposed against its angle (Fig. 3; five phases, 0 = along the travel). Six-component platform at 500 Hz, low-passed
+11 Hz, the oar's inertial and aerodynamic loads subtracted. RANS (ISIS-CFD) with free surface and FSI over-predicts
+the maxima by 5–12%; experimental uncertainty ~11%. **The oar bends**: their simplified model (eq. 1, from a bench)
+is f = M/K_lin, φ = M/K_ang with K_lin = 3424.1 N, K_ang = 2948 N·m, M the bending moment at the oarlock; maxima
+~12 cm and ~8° (their text). Extraction: the tick labels are outlined glyphs, so the axes come from gridlines and the
+printed tick values; F_x peaks at 199 N at 88°, M_z at −385 N·m (CFD ~−400).
+
+**The test.** The motion is known: carriage speed, the imposed angular velocity, and the bending from the measured
+M_z through their eq. 1 (7.5°, 0.112 m at the peak). Each project law in strips across the project's sweep blade
+(0.52 m, 0.110 m², centre 1.818 m against the paper's reference 1.815 m). Mean error over each window of sweep angle
+as a fraction of the measured peak; F_x peak; rms:
+
+| law (bending in) | 20–50° | 50–80° | 80–110° | 110–150° | F_x peak @ | F_x rms N | F_y rms | M_z rms N·m |
+|---|---|---|---|---|---|---|---|---|
+| slip C0 1.3 (computed) | −0.02 | −0.30 | −0.04 | −0.06 | 198 N @ 96° | 34 | 21 | 74 |
+| slip, research level | +0.03 | +0.29 | +1.23 | +0.04 | 475 @ 96 | 126 | 37 | 243 |
+| CG07 | +0.35 | +0.82 | +0.68 | −0.13 | 346 @ 81 | 121 | 93 | 275 |
+| Coppel | +0.24 | +0.53 | +0.32 | −0.10 | 295 @ 78 | 74 | 65 | 172 |
+| Sliasas–Tullis | +0.27 | +0.50 | +0.22 | −0.13 | 266 @ 75 | 71 | 69 | 176 |
+| CG07 + Patton added mass | +0.47 | +1.03 | +0.60 | −0.59 | — | 151 | 156 | 372 |
+
+Rigid oar (`--rigid`): every law worse (CG07 rms 144, Coppel 102, Sliasas–Tullis 102, slip 1.3 38) and tier 2's peak
+early (58–62° against 88°).
+
+**Findings.**
+1. *Bending is worth modelling:* it improves every law's rms by 10–30% and moves every peak toward the measured one.
+   The simulator has no shaft compliance; [LNA15]'s ceiling (§§ blade-load work) covers sculls only.
+2. *Tier 2 over-predicts the early stroke on both measured loads* (here +0.5 to +0.8 of the peak at 50–80°; on
+   [GTW21] 1.4–1.9× in the first fifth): its lift at small and moderate incidence is too strong. A sourced fix is
+   the next model item.
+3. *The two sources disagree about the level.* On [GTW21]'s half-scale blade tier 2 is about right and the computed
+   plate (C0 1.3) carries half the load; on this full-size blade, awash, the computed plate is right (peak 198 against
+   199 N) and tier 2 over-predicts 1.4–1.8×. The leading candidate is the free surface: [GTW21] ran at Fr 0.65
+   against 0.93 on the water (their Table 1), and [RLBQV19] stress the air cavity behind a full-scale blade. A
+   Froude-dependent ventilation loss is not in any project law; [RLBQV19] Fig. 8 (immersion angle) can size it.
+4. *Added mass applied at full strength makes things worse again* (the finish: −0.6 to −0.9 of the peak).
