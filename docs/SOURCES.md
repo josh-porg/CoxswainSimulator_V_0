@@ -12773,3 +12773,49 @@ exactly, mapped through the body's own recovery (w(s) = P⁻¹(p_Y(s))), and the
   ergometer kinematics (§158, §160).
 - *Caveats:* one boat class, one body, the research model's drive kinematics; the absolute speeds are high (the
   research eight outruns race pace at stated watts, STATUS), so only the differences are claimed.
+
+## 181. Phase 4.3, rung 2: the hands' time law as an output, from the population's muscles (2026-10-26)
+
+`research/crew/rung2_clock.py` (the machinery) and `research/crew/rung2_population.py` (the test). Rung 1 puts the
+hands on the handle and moves body and oar on a prescribed clock (c = t − stroke start). Rung 2 makes that clock a
+state τ, solved at every integrator stage from a virtual-work balance on the body and oar along τ (the seat rolls
+frictionless and the stretcher and pin are fixed to the hull, so contact forces do no work along τ):
+
+    Q_muscle(τ) = Σ_i m_i (a_hull + x_i''(τ) τ'² + x_i'(τ) τ'' − g)·x_i'(τ) + Σ_oars T_handle(φ'')·φ'(τ)
+
+The hull and the handle torque are affine in τ'', so the simulator's own derivative at τ'' = 0 and 1 gives an exact
+solve (as rung 5 does for the trunk). τ' = 1 reproduces rung 1 exactly. Two pieces of the design, both found by
+running it:
+- **The period.** The simulator segments strokes on a fixed clock, so after the drive the recovery is retimed by a
+  cubic Hermite in clock time from (release, τ, τ') to (period, period, 1): τ and τ' continuous, no impulse on the
+  hull, and the next catch on time. Without it an unsettled start drifted τ off the clock and the run collapsed
+  (τ' −0.85 to 2.96, 1.5 m/s).
+- **The finish's turning point.** There the hands and body stop together, the generalised inertia along τ goes to
+  zero, and any residual force drives τ'' without bound (τ' ran to 4.1–4.7 in the last 60 ms). The dynamic drive
+  hands over to the recovery curve at 95% of the arc (`HANDOVER`, a named choice). The catch is the other turning
+  point (a brief τ' of 2.0 at entry remains).
+
+**Round trip** (the muscle force from rung 1's own inverse dynamics, [CR06]'s single): 4.0591 against 4.0590 m/s,
+IVV 55.70 against 55.70%, τ' 0.999–1.000; from an unsettled 4.3 m/s start it settles back (τ' 0.9993–1.0008 on the
+last stroke).
+
+**The test, nothing fitted.** Q_pop from [K05]'s population (its body, legs at 0.51 m, drive law and rate, on
+[CR06]'s rig) against drive progress, carried to each athlete at the same progress (posture, not cycle phase) and
+scaled by the athlete's measured power over the population run's 255 W:
+
+| athlete | run | speed | IVV | power | oar arc fraction vs measured, rms |
+|---|---|---|---|---|---|
+| [CR06] (W1x) | measured | 4.191 m/s | 49.4% | 261 W | — |
+| | rung 1, population law imposed | 4.059 | 55.7% | 240 | 0.035 (3.7°) |
+| | **rung 2, population muscles ×1.025** | **4.107** | **51.7%** | 252 | **0.018 (1.9°)** |
+| [BR24] (M1x) | measured | 4.641 | 49.1% | 432 | — |
+| | rung 1, population law imposed | 4.233 | 60.5% | 302 | 0.025 |
+| | rung 2, population muscles ×1.697 | 4.737 | 54.7% | 418 | 0.047 |
+
+- **On [CR06], rung 2 is better on every measure**: IVV within 2.3 points (the S2.5 gate is about 5), the hands'
+  time law twice as close to hers, speed within 2.0%.
+- **On [BR24], the IVV improves by 6 points to 5.6 over his**, at the gate's edge, and speed at his power is 2.1%
+  high; but his hands' time law is *worse* than the imposed population law. The force comes from five women; carried
+  onto an elite man by drive progress and a power scale, its shape is the weakest link.
+- *Caveats:* rung 1 for [BR24] delivers 302 W, not his 432, so his rung 1 → rung 2 change is not at equal power; one
+  population; HANDOVER is chosen; the hand positions for the oar's moment arms are still read on the clock.

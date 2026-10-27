@@ -47,13 +47,18 @@ from coxswain.sim.dynamic_oar import DynamicOarSimulator         # noqa: E402
 OUT = os.path.join(ROOT, "data", "local", "crew")
 os.makedirs(OUT, exist_ok=True)
 G = 9.81
+#: the drive progress (fraction of the oar's arc) at which the dynamic clock hands over to the prescribed recovery
+#: curve, before the finish's turning point where the coordinate degenerates. A chosen number; swept in the test.
+HANDOVER = 0.95
 
 
 class ClockSim(DynamicOarSimulator):
     """Rung 1 with the stroke clock a state (mode 'free') or the clock itself (mode 'reference')."""
 
-    def setup_clock(self, mode, Q=None):
+    def setup_clock(self, mode, Q=None, body=None):
+        """``body``: a crew field f(t) -> (mass, pos, vel, acc) on the clock (default the boat's own)."""
         self.mode, self.Q = mode, Q
+        self.body = body
         self._clock = None
         self.qlog = []                                           # reference: (c, Q) at accepted times
         self.tlog = []                                           # free: (t, tau, tau')
@@ -62,6 +67,9 @@ class ClockSim(DynamicOarSimulator):
         self._last = -np.inf
 
     # -- the clock -------------------------------------------------------------------------------------
+    def _body(self, t):
+        return self.boat.crew_field(t) if getattr(self, "body", None) is None else self.body(t)
+
     def _tau(self, c):
         return (float(c), 1.0, 0.0) if self._clock is None else self._clock
 
@@ -81,7 +89,7 @@ class ClockSim(DynamicOarSimulator):
 
     def crew_field(self, t, exact=False):
         tau, td, tdd = self._tau(t - self._stroke_start)
-        mass, pos, vel, acc = self.boat.crew_field(self._stroke_start + tau)
+        mass, pos, vel, acc = self._body(self._stroke_start + tau)
         vel = np.asarray(vel, float)
         return mass, np.asarray(pos, float), vel * td, np.asarray(acc, float) * td * td + vel * tdd
 
@@ -119,7 +127,12 @@ class ClockSim(DynamicOarSimulator):
             y2 = orig(f, t, y, h)
             c = t + h - self._stroke_start
             done = getattr(self, "_handle_done", None)
-            if self._rec is None and done is not None and np.all(done):
+            sw, tm = self.boat.oar_sweep, self.boat.timing
+            progress = (sw.catch_angle - float(sw(float(y2[-2]), tm))) / (sw.catch_angle - sw.finish_angle)
+            # Hand over to the prescribed recovery at the blade's release, or just before the finish's turning point:
+            # there the hands and body stop together, the generalised inertia along tau goes to zero, and any
+            # residual force drives tau'' without bound (tau' ran to 4-5 there). HANDOVER is a named choice.
+            if self._rec is None and (done is not None and np.all(done) or progress >= HANDOVER):
                 self._start_recovery(c, float(y2[-2]), float(y2[-1]))
             if self._rec is not None:                            # the recovery follows its curve exactly
                 y2[-2], y2[-1] = self._recovery_clock(c)[:2]
@@ -131,6 +144,23 @@ class ClockSim(DynamicOarSimulator):
         finally:
             I.rk4_step = orig
             self._clock = None
+
+    def _handle_power(self, times, states):
+        """Handle power on the dynamic clock: each sample's rate is the sweep's at tau times tau'."""
+        if self.mode != "free":
+            return super()._handle_power(times, states)
+        n = self.n_oar_states
+        power = np.zeros_like(times)
+        air = self._air_mask
+        try:
+            for k in range(times.size):
+                self._clock = (float(states[-2, k]), float(states[-1, k]), 0.0)
+                rate = self._sweep_motion(float(times[k]) - self._stroke_start)[0]
+                mask = air[:, k] if air is not None else np.zeros(n, dtype=bool)
+                power[k] = float(np.sum(self.handle_torques(times[k], states[:-2, k], mask))) * rate
+        finally:
+            self._clock = None
+        return power
 
     # -- the period: the recovery retimed to end at the catch on the clock ------------------------------
     def _start_recovery(self, c0, tau0, td0):
@@ -158,7 +188,7 @@ class ClockSim(DynamicOarSimulator):
     # -- the equation ------------------------------------------------------------------------------------
     def residual(self, t, base, d, tau, td, a):
         """The generalised muscle force along tau the motion needs at tau'' = a (W per unit tau')."""
-        m, _p, vf, af = self.boat.crew_field(self._stroke_start + tau)
+        m, _p, vf, af = self._body(self._stroke_start + tau)
         m = np.asarray(m, float); vf = np.asarray(vf, float); af = np.asarray(af, float)
         a_rel = af * td * td + vf * a
         a_abs = a_rel + np.array([d[6], d[7], d[8]]) + np.array([0.0, 0.0, G])

@@ -97,6 +97,10 @@ class CoupledControl(C.TrunkSim):
         self.obs_log.append((t, self.d_hat))
 
     def feedback(self, t, e, ed, s):
+        ht, he, hed = self.hist
+        if len(ht) > 8000:                                      # a sliding window: the lookups only reach back
+            keep = bisect.bisect_left(ht, t - self.delay - 0.2)   # delay + 5 ms, and a full list made them O(n^2)
+            del ht[:keep]; del he[:keep]; del hed[:keep]
         e_d, ed_d = self.delayed(t, e, ed)
         if self.predictor and self.delay > 0:
             ts = t - self.delay + self.h * np.arange(self.L)

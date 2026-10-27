@@ -16,7 +16,7 @@
 | 10 | Hill & Fahrig | boat speeds with their drive durations | 2026-09-19 | none | — |
 | 11a, 11b, 11d | Sinclair; Baca; Smith & Loschner | foot-stretcher force components | 2026-09-19 | none | Draper route (below) not yet tried |
 | 11c | Buckeridge → McGregor | foot-force direction | 2026-09-19; McGregor 2026-10-21 | Buckeridge referred on 2026-09-25; **McGregor declined 2026-10-21** | direction now sourced from [BU15] (SOURCES §177) |
-| 11e | Vieira & Giacomozzi | centre of pressure through the drive | 2026-10-24 | **Vieira declined 2026-10-26**: the raw insole data were collected by Giacomozzi, out of touch for ten years | reply asking him for her current address drafted (awaiting approval); no verified address for her found; figures digitised meanwhile |
+| 11e | Vieira & Giacomozzi | centre of pressure through the drive | 2026-10-24 | **Vieira declined 2026-10-26**: the raw insole data were collected by Giacomozzi, out of touch for ten years | reply asking him for her current address **sent 2026-10-26**; no verified address for her found; figures digitised meanwhile |
 
 Follow-ups for Gmail threads are drafted by the `outreach-followups` task after 14 days and never sent without approval.
 
@@ -768,7 +768,7 @@ or digitised from their tables and figures.
 Prof. Vieira (Politecnico di Torino) replied that the raw insole data were collected by his co-author Claudia
 Giacomozzi, with whom he has not been in touch for over ten years, and suggested writing to her directly. No address for
 her could be verified (her ISS-era papers list none; searches turn up only other people), so none is used. A short reply
-thanking him and asking for her current address is drafted in the project Gmail (thread 1a1702778264f6ab), not sent.
+thanking him and asking for her current address was sent 2026-10-26 (thread 1a1702778264f6ab).
 
 ## Contact addresses (compiled 2026-09-19)
 
