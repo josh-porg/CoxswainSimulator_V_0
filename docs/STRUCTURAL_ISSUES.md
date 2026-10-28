@@ -14,6 +14,8 @@ instance without the class is not a fix. Indexed in docs/PROJECT_MANAGEMENT.md; 
 | S5 | **A fit filed as a source** | the research profile's scull C2 (140.88, fitted to one athlete 2026-09-18) carried "sourced" in the ledger; the ledger's "fitted" style had never been used | `docs/CALIBRATION_REGISTER.md`: every fit, the model state it was fitted under, its re-check triggers; the ledger tags fits "fitted" | **fixed** as process 2026-10-27 (memory `calibration-register`) |
 | S6 | **Duplicated physics formulas** | the Polhamus/Helmbold slope re-derived for the blade beside the fins' copy (2026-10-27, §190) | one function, `hydro.appendages.polhamus_helmbold_slope`, used by the fins and the blade; a test pins the study copy to it | **fixed** 2026-10-27 |
 
+| S7 | **A unit in a name that the value does not have** | `CoupledCrew.spread_seconds` returned radians (2026-10-28, found writing SOURCES §194); `scripts/recovery.py` traced it as a time | `spread_radians` names the radians; `spread_seconds` converts with the stroke frequency of the last step and refuses before any step; a test pins the conversion | **fixed** 2026-10-28; `test_coupled_crew.py::test_spread_seconds_is_in_seconds` |
+
 ## How to use this list
 
 - When a bug is found, ask whether it is an instance of a listed class or a new one. If either, it goes here.

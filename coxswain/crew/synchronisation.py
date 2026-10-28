@@ -72,7 +72,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-__all__ = ["CoupledCrew", "stroke_chain_topology",
+__all__ = ["CoupledCrew", "stroke_chain_topology", "broadcast_topology",
            "all_to_all_topology", "mixed_topology"]
 
 
@@ -92,6 +92,20 @@ def stroke_chain_topology(n_seats: int, include_stroke: bool = False):
         matrix[i, i + 1] = 1.0
     if include_stroke and n_seats > 1:
         matrix[n_seats - 1, n_seats - 2] = 1.0
+    return matrix
+
+
+def broadcast_topology(n_seats: int, source: int = -1):
+    """Everyone hears one source -- by default the stroke seat's catch.
+
+    Sound reaches every seat at once whichever way the rower faces, so
+    unlike the visual chain this is not directed down the boat.  The source
+    hears nobody (row ``source`` is zero).
+    """
+    matrix = np.zeros((n_seats, n_seats))
+    src = source % n_seats
+    matrix[:, src] = 1.0
+    matrix[src, src] = 0.0
     return matrix
 
 
@@ -135,9 +149,34 @@ class CoupledCrew:
     #: one washes out early or rows it in.
     vertical_coupling: float = 6.0
     seed: int = 0
+    #: Auditory coupling strength, 1/s: hearing the catches.  Sound is a
+    #: *broadcast* -- every seat hears the same event at once, whatever way
+    #: it faces -- and beat-based timing is far stronger by ear than by eye
+    #: (Grahn, Henry & McAuley 2011; Repp & Penel 2002), so this channel is
+    #: kept separate from the directed visual chain in ``topology``.
+    auditory_gain: float = 0.0
+    #: Auditory delay, seconds (anticipated like the visual one).
+    auditory_delay: float = 0.10
+    #: Who is heard: defaults to the stroke seat's catch, broadcast to all
+    #: (:func:`broadcast_topology`); :func:`all_to_all_topology` is hearing
+    #: the whole crew's catches.
+    auditory_topology: np.ndarray = None
+    #: Coupling to an external pacer -- the coxswain calling the rhythm --
+    #: heard by every seat, 1/s.  Zero is no rhythm calls.
+    pacer_gain: float = 0.0
+    #: How far the pacer adapts to the crew, 1/s.  Zero is a metronome that
+    #: holds the called rate whatever the crew does; large is a pacer that
+    #: follows the crew.  Joint-tapping studies find partners synchronise
+    #: about as well with a responsive partner as with a predictable machine
+    #: (Konvalinka et al. 2010), and that adaptivity has a cost when it is
+    #: overdone (Fairhurst, Janata & Keller 2013).
+    pacer_adaptivity: float = 0.0
+    #: The rate the pacer calls, rad/s; ``None`` is the nominal ``omega``.
+    pacer_rate: float = None
 
     phi: np.ndarray = field(default=None, repr=False)
     psi: np.ndarray = field(default=None, repr=False)
+    theta: float = field(default=0.0, repr=False)
 
     def __post_init__(self):
         if self.n_seats < 1:
@@ -156,22 +195,30 @@ class CoupledCrew:
             self.phi = np.zeros(self.n_seats)
         if self.psi is None:
             self.psi = np.zeros(self.n_seats)
+        if self.auditory_delay < 0.0:
+            raise ValueError("auditory_delay must be non-negative")
+        if self.auditory_topology is None:
+            self.auditory_topology = broadcast_topology(self.n_seats)
         self._history = []
 
     # -- dynamics ---------------------------------------------------------
-    def _delayed_phi(self, t):
-        """Phase as seen ``delay`` seconds ago.
+    def _delayed(self, t, delay):
+        """Crew phases and pacer phase as they were ``delay`` seconds ago.
 
         Before enough history exists, the present is used -- the crew have
         not been going long enough to be looking at the past.
         """
-        if self.delay <= 0.0 or not self._history:
-            return self.phi
-        target = t - self.delay
-        for time, phases in reversed(self._history):
+        if delay <= 0.0 or not self._history:
+            return self.phi, self.theta
+        target = t - delay
+        for time, phases, theta in reversed(self._history):
             if time <= target:
-                return phases
-        return self._history[0][1]
+                return phases, theta
+        return self._history[0][1], self._history[0][2]
+
+    def _delayed_phi(self, t):
+        """Phase as seen ``delay`` seconds ago (the visual channel)."""
+        return self._delayed(t, self.delay)[0]
 
     def step(self, t: float, dt: float, omega: float,
              hull_roll_rate: float = 0.0):
@@ -182,7 +229,8 @@ class CoupledCrew:
         rolling is telling every rower something simultaneously, with no
         delay and no choice about listening.
         """
-        self._history.append((t, self.phi.copy()))
+        self._omega = float(omega)
+        self._history.append((t, self.phi.copy(), self.theta))
         if len(self._history) > 4096:
             del self._history[:2048]
 
@@ -211,7 +259,33 @@ class CoupledCrew:
         mechanical = self.hull_gain * float(hull_roll_rate) \
             * np.ones(self.n_seats)
 
-        drift = omega + self.detuning + sensory + mechanical
+        # Hearing: the same anticipated comparison, but broadcast and with
+        # its own (shorter) delay and its own gain.
+        auditory = 0.0
+        pacer = 0.0
+        if self.auditory_gain > 0.0 or self.pacer_gain > 0.0:
+            heard_phi, heard_theta = self._delayed(t, self.auditory_delay)
+            if self.auditory_gain > 0.0:
+                heard = heard_phi + omega * self.auditory_delay
+                auditory = self.auditory_gain * (
+                    self.auditory_topology
+                    * np.sin(heard[None, :] - self.phi[:, None])).sum(axis=1)
+            if self.pacer_gain > 0.0:
+                rate = omega if self.pacer_rate is None else self.pacer_rate
+                pacer = self.pacer_gain * np.sin(
+                    heard_theta + rate * self.auditory_delay - self.phi)
+
+        drift = omega + self.detuning + sensory + mechanical + auditory + pacer
+
+        # The pacer (the coxswain's rhythm calls) runs at its called rate and,
+        # if adaptive, is pulled toward the crew's mean phase as the coxswain
+        # perceives it (immediately: the coxswain faces the crew and has the
+        # CoxBox).  Advanced from the same starting state as the crew.
+        if self.pacer_gain > 0.0:
+            rate = omega if self.pacer_rate is None else self.pacer_rate
+            crew_mean = float(np.angle(np.mean(np.exp(1j * self.phi))))
+            self.theta = self.theta + dt * (
+                rate + self.pacer_adaptivity * np.sin(crew_mean - self.theta))
 
         # Both phases advance from the *same* starting state.  Updating phi
         # first and then feeding the new value into psi would make psi chase
@@ -261,9 +335,19 @@ class CoupledCrew:
         return float(abs(self.order_parameter))
 
     @property
-    def spread_seconds(self) -> float:
-        """Peak-to-peak timing spread, given the crew's own frequency."""
+    def spread_radians(self) -> float:
+        """Peak-to-peak phase spread across the seats, radians."""
         return float(self.phi.max() - self.phi.min())
+
+    @property
+    def spread_seconds(self) -> float:
+        """Peak-to-peak timing spread in seconds, at the stroke frequency of the last step.
+
+        Until 2026-10-28 this returned radians under a seconds name (STRUCTURAL_ISSUES S7).
+        """
+        if not getattr(self, "_omega", None):
+            raise RuntimeError("spread_seconds needs at least one step (it uses that step's omega)")
+        return self.spread_radians / self._omega
 
 
 def mixed_topology(n_seats: int, chain_fraction: float = 0.25):

@@ -13383,3 +13383,95 @@ function (strips, the slip fast path, the efficiency tally), a tip-versus-centre
 patched into a private attribute, cache keys missing fields, a fit filed as a source, a duplicated formula:
 `docs/STRUCTURAL_ISSUES.md`, S1–S6, with the fixes made today (one load path; `Oar.tip_outboard`;
 `liftdrag_blade=`; the bending and the blade in the cache key; the register; one slope function).
+
+
+## 194. Hearing, seeing and a calling coxswain: the rhythm and ensemble literature in the crew-synchronisation model (2026-10-28)
+
+*User, 2026-10-28: revisit the synchronisation work (Leonard's dance work, the antiphase rowing papers, the coxing
+review); add Jessica Grahn (Western, rhythm and beat perception) to both; conducting may be relevant to coxing.*
+
+### What the literature adds
+
+§22 modelled two coupling channels: the shared hull, and a "sensory" channel built as a delayed **visual** chain
+down the boat. Sound was folded into that chain. Three bodies of work say it should not be.
+
+| source | finding | consequence for the model |
+|---|---|---|
+| Grahn & Brett 2007, *J Cogn Neurosci* 19:893 [GB07] | rhythms with a regular beat are reproduced better and engage basal ganglia and SMA more | the beat is a motor event: a heard beat acts on the system that times the stroke |
+| Grahn, Henry & McAuley 2011, *NeuroImage* 54:1231 [GHM11] | weaker beat sensitivity for visual than auditory sequences; audition primes vision, not the reverse | the heard channel should carry more timing weight than the seen one |
+| Repp & Penel 2002, *JEP:HPP* 28:1085 [RP02] | tapping to flashes is less stable than to tones; an ignored tone sequence captures visuomotor timing, not vice versa | the same, at the level of synchronisation |
+| Leow, Parrott & Grahn 2014, *Front Hum Neurosci* 8:811 [LPG14] | metronome > high-groove > low-groove for step synchronisation; low groove slowed weak beat perceivers below uncued | rowers differ: coupling gain to a heard beat is a per-rower parameter |
+| Wing, Endo, Bradbury & Vorberg 2014, *J R Soc Interface* 11:20131125 [WEBV14] | string quartets: linear phase correction, mean gain near the variance-minimising 1/N; asynchrony SD 24–28 ms; one quartet led by violin 1 (others' gain toward him 0.208 vs his 0.113), the other near-equal | the coupling matrix is measurable from onsets; "chain vs all-to-all" is the quartets' "led vs democratic" |
+| D'Ausilio et al. 2012, *PLoS ONE* 7:e35757 [DA12] | conductor → violinists Granger causality; expert-rated quality rose with conductor influence and fell with musician–musician coordination | leadership is measurable as directed influence; the telemetry discriminator of §22 has a precedent |
+| Luck & Sloboda 2009, *Music Percept* 26:465 [LS09] | the beat in conducting gestures is read at acceleration peaks | a visual reference's timing lives in its acceleration, not its position |
+| Konvalinka et al. 2010, *Q J Exp Psychol* 63:2220 [KVRF10]; Fairhurst, Janata & Keller 2013, *Cereb Cortex* 23:2592 [FJK13] | pairs synchronise as well with a responsive irregular partner as with a predictable computer; partner adaptivity changes the networks engaged, over-adaptivity recruits executive control | the coxswain's rhythm is a pacer whose adaptivity is a parameter, not a constant |
+| Leonard et al., human flocking in dance, arXiv:1808.07842 [L-DANCE] | time-varying who-responds-to-whom graphs from tracked dancers show emergent leaders | the coupling topology can change within a piece |
+| de Brouwer, de Poel & Hofmijster 2013, *PLoS ONE* 8:e54996 [dBdPH13]; Cuijpers, Den Hartigh, Zaal & de Poel 2019, *Hum Mov Sci* 64:38 [CDZdP19] | antiphase rowing less accurate and more variable, power unaffected; mechanical coupling (linked ergometers) stabilises coordination, most in antiphase | independent confirmation that the hull channel of §22 is real and stabilising |
+
+Rowing's measured relative-phase SD, 11–25 ms at 32 spm (§25, Cuijpers et al. 2015), sits in the same range as the
+quartets' 24–28 ms asynchrony SD: crews and string quartets are comparable ensembles.
+
+### What changed in the code
+
+`CoupledCrew` (`coxswain/crew/synchronisation.py`) gains, all off by default (every earlier result unchanged,
+pinned by a test):
+
+- an **auditory channel**: `auditory_gain`, `auditory_delay` (anticipated like the visual one) and
+  `auditory_topology`, default `broadcast_topology` (every seat hears the stroke's catch);
+- an **external pacer**, the coxswain's rhythm calls: `pacer_gain`, `pacer_rate`, and `pacer_adaptivity` (0 = a
+  metronome holding the called rate; large = following the crew's mean phase).
+
+### What the model says (`research/crew/hearing_and_pacer.py`; 24 crews per cell, detuning sd 0.10 rad/s, rate 32)
+
+| condition | seat spread |
+|---|---|
+| visual chain, gain 4 (§22's case) | 78.2 ms |
+| hearing the stroke only, gain 4 | **23.6 ms** |
+| visual 4 + hearing 1 / 2 / 4 | 41.2 / 28.6 / 18.3 ms |
+| hearing every catch, gain 4 | 19.8 ms |
+
+At equal gain the broadcast holds a crew about three times tighter than the chain, **from topology alone**: the
+model gives both channels the same noise and delay treatment, so the modality advantage in [GHM11, RP02] would add
+to this, not replace it. A modest heard coupling (gain 1) brings the visually coupled crew from the edge of the
+65 ms balance budget (§21–22) to well inside it.
+
+With a crew whose preferred rate is 3 % below the call, rhythm calls (pacer gain 2) cut the spread from 75 to 20 ms
+and hold the called rate (rate error −2.3 % → +0.0 %). The pacer's adaptivity is a trade-off, not an optimum:
+
+| pacer adaptivity, 1/s | 0 | 1 | 4 | 16 |
+|---|---|---|---|---|
+| crew rate vs the call | +0.0 % | −0.8 % | −1.3 % | −1.6 % |
+| crew behind the call | 14.6 ms | 7.9 ms | 3.3 ms | 1.0 ms |
+| sd of that lag, with timing noise 0.15 rad/s^0.5 | 6.3 ms | 5.0 ms | 3.6 ms | 2.4 ms |
+
+Seat spread does not change with adaptivity (20 ms clean, 51 ms with noise). A metronomic coxswain holds the rate; a
+following coxswain gives the crew a smaller and steadier asynchrony with the calls, the quantity joint-tapping work
+associates with feeling in sync [KVRF10, FJK13], and lets the rate slide toward what the crew prefers.
+
+### Limits, stated
+
+- The pacer gain (2) and the auditory gains are not calibrated: no measurement of a crew's coupling to calls exists.
+  The quartet method [WEBV14] estimates such gains from onset times and is the route to one (per-seat catch times).
+- Modality is represented only by topology and gain; perceptual noise per channel is not modelled.
+- The coxswain perceives the crew's mean phase without delay in the pacer law.
+
+### Where it goes
+
+Coxing review (`data/local/coxing/review/`): new subsections *Conducting and ensemble performance* and *Rhythm, beat
+and auditory–motor timing*, call properties *rhythm* and *adaptivity*, a *beat perception* moderator, hypotheses
+H23–H27. Plan: `PLAN_SYNCHRONISATION_AND_BLADES.md` A5.
+
+### References
+
+[GB07] Grahn JA, Brett M (2007). J Cogn Neurosci 19(5):893–906.
+[GHM11] Grahn JA, Henry MJ, McAuley JD (2011). NeuroImage 54(2):1231–1243. doi:10.1016/j.neuroimage.2010.09.033 (PMC3002396).
+[RP02] Repp BH, Penel A (2002). J Exp Psychol Hum Percept Perform 28(5):1085–1099.
+[LPG14] Leow L-A, Parrott T, Grahn JA (2014). Front Hum Neurosci 8:811 (PMC4205839).
+[WEBV14] Wing AM, Endo S, Bradbury A, Vorberg D (2014). J R Soc Interface 11(93):20131125 (PMC3928944).
+[DA12] D'Ausilio A, Badino L, Li Y, et al. (2012). PLoS ONE 7(5):e35757 (PMC3348913).
+[LS09] Luck G, Sloboda JA (2009). Music Percept 26(5):465–473.
+[KVRF10] Konvalinka I, Vuust P, Roepstorff A, Frith CD (2010). Q J Exp Psychol 63(11):2220–2230.
+[FJK13] Fairhurst MT, Janata P, Keller PE (2013). Cereb Cortex 23(11):2592–2600.
+[L-DANCE] Leonard NE, Young G, Hochgraf K, et al. In the dance studio: an art and engineering exploration of human flocking. arXiv:1808.07842 (ACC 2012 version).
+[dBdPH13] de Brouwer AJ, de Poel HJ, Hofmijster MJ (2013). PLoS ONE 8(1):e54996 (PMC3559869).
+[CDZdP19] Cuijpers LS, Den Hartigh RJR, Zaal FTJM, de Poel HJ (2019). Hum Mov Sci 64:38–46.

@@ -120,6 +120,19 @@ Phase spread is not merely realism, it is the missing disturbance input:
   synchronisation quality relates to lateral stability, which is the
   qualitative version of the link this plan makes quantitative.
 * Kleshnev — measured crew timing scatter, for calibrating σ.
+* **Grahn** (Western, rhythm and beat perception; added 2026-10-28, SOURCES §194) — the beat engages
+  motor areas; beat timing is far stronger by ear than by eye, and audition primes vision, not the
+  reverse; individual beat perception moderates synchronisation to rhythm. In the model: a separate
+  **auditory broadcast** channel (`auditory_gain`, `broadcast_topology`), not part of the visual chain.
+* **Ensembles and conducting** (§194) — string-quartet phase-correction gains (Wing et al. 2014: near
+  1/N; led vs democratic), conductor → musician Granger influence tracking quality (D'Ausilio 2012),
+  joint-tapping mutual adaptation (Konvalinka 2010; Fairhurst 2013). In the model: the coxswain as an
+  **external pacer** (`pacer_gain`, `pacer_adaptivity`). Result: adaptivity trades held rate against
+  asynchrony with the calls; it does not change seat spread.
+* **de Poel group** — antiphase rowing (de Brouwer 2013), mechanical coupling stabilises coordination
+  (Cuijpers 2019): independent evidence for the hull channel.
+* **Next measurement:** per-seat catch times → phase-correction gains (Wing's method) and Granger
+  influence from call onsets (D'Ausilio's) calibrate `sensory_gain`, `auditory_gain` and `pacer_gain`.
 
 ### A6. Validation targets
 

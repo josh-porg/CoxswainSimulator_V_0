@@ -254,3 +254,65 @@ def test_offsets_are_in_stroke_fractions_ready_for_the_boat(omega):
     crew.phi = np.zeros(8)
     crew.phi[0] = 2.0 * np.pi
     assert crew.phase_offsets()[0] == pytest.approx(1.0)
+
+
+# --------------------------------------------------------------------------
+# hearing and the coxswain's rhythm (SOURCES section 194)
+# --------------------------------------------------------------------------
+def test_sound_is_a_broadcast_from_the_stroke():
+    """Every seat hears the stroke's catch whichever way it faces; the stroke hears nobody."""
+    from coxswain.crew.synchronisation import broadcast_topology
+    matrix = broadcast_topology(8)
+    assert np.all(matrix[:7, 7] == 1.0)
+    assert matrix[7].sum() == 0.0
+    assert matrix[:, :7].sum() == 0.0
+
+
+def test_hearing_the_stroke_holds_a_crew_tighter_than_the_visual_chain(omega):
+    """Equal gain, different topology: the broadcast reaches every seat at once, the chain accumulates
+    lag down the boat (research/crew/hearing_and_pacer.py E1: 78 ms against 24 ms)."""
+    seen, heard = [], []
+    for seed in range(8):                      # a property of crews on average, not of every crew
+        detuning = np.random.default_rng(seed).normal(0.0, 0.10, 8)
+        seen.append(_settle(CoupledCrew(n_seats=8, detuning=detuning, sensory_gain=4.0), omega).spread_seconds)
+        heard.append(_settle(CoupledCrew(n_seats=8, detuning=detuning, sensory_gain=0.0, auditory_gain=4.0),
+                             omega).spread_seconds)
+    assert np.mean(heard) < 0.5 * np.mean(seen)
+
+
+def test_defaults_leave_the_section_22_model_unchanged(omega):
+    """No hearing and no pacer by default: results match an explicit zero."""
+    detuning = np.random.default_rng(4).normal(0.0, 0.10, 8)
+    a = _settle(CoupledCrew(n_seats=8, detuning=detuning), omega, 6.0)
+    b = _settle(CoupledCrew(n_seats=8, detuning=detuning, auditory_gain=0.0, pacer_gain=0.0), omega, 6.0)
+    np.testing.assert_allclose(a.phi, b.phi)
+
+
+def _crew_rate(crew, omega, settle=12.0, measure=6.0, dt=0.004):
+    _settle(crew, omega, settle, dt)
+    start, t0 = crew.phi.copy(), settle
+    for i in range(int(measure / dt)):
+        crew.step(t0 + i * dt, dt, omega)
+    return float((crew.phi - start).mean() / measure)
+
+
+def test_a_metronome_cox_holds_the_called_rate_and_a_following_cox_lets_it_slide(omega):
+    """A crew that prefers 3% below the call: rhythm calls held as a metronome keep the called rate; a
+    coxswain who adapts to the crew trades rate for a smaller lag behind the call."""
+    detuning = -0.03 * omega + np.random.default_rng(5).normal(0.0, 0.10, 8)
+    free = _crew_rate(CoupledCrew(n_seats=8, detuning=detuning, sensory_gain=4.0), omega)
+    metronome = _crew_rate(CoupledCrew(n_seats=8, detuning=detuning, sensory_gain=4.0, pacer_gain=2.0,
+                                       pacer_adaptivity=0.0), omega)
+    follower = _crew_rate(CoupledCrew(n_seats=8, detuning=detuning, sensory_gain=4.0, pacer_gain=2.0,
+                                      pacer_adaptivity=16.0), omega)
+    assert metronome == pytest.approx(omega, rel=0.003)
+    assert free < follower < metronome
+
+
+def test_spread_seconds_is_in_seconds(omega):
+    """STRUCTURAL_ISSUES S7: the seconds name returned radians until 2026-10-28."""
+    crew = CoupledCrew(n_seats=8, detuning=np.random.default_rng(1).normal(0.0, 0.10, 8))
+    with pytest.raises(RuntimeError):
+        crew.spread_seconds
+    _settle(crew, omega, 4.0)
+    assert crew.spread_seconds == pytest.approx(crew.spread_radians / omega)

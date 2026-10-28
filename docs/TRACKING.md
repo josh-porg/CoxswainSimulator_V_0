@@ -4458,6 +4458,13 @@ implementation — a second splash system, a second wind bed, a second
 sky-noise term would *break* the constraints the first one was built
 to.
 
+### Crew synchronisation: hearing and the coxswain's rhythm
+
+| what | where | pinned by |
+|---|---|---|
+| **Auditory broadcast channel and coxswain pacer** in the coupled-crew model (SOURCES §194: Grahn, Repp & Penel, string quartets, conducting, joint tapping). Off by default. At equal gain, hearing the stroke holds an eight about 3× tighter than the visual chain (24 vs 78 ms); rhythm calls hold the called rate; pacer adaptivity trades rate for asynchrony. | `coxswain/crew/synchronisation.py`, `research/crew/hearing_and_pacer.py` | `test_coupled_crew.py` (hearing, defaults, metronome/follower, S7 units) |
+| **Coxing review: conducting, ensembles, rhythm** — two subsections, call properties *rhythm* and *adaptivity*, *beat perception* moderator, H23–H27; Cuijpers 2015/2017 citation corrected. | `data/local/coxing/review/review.tex` (private) | refs_verified.md fourth pass |
+
 ### Rower training plans (outside the simulator)
 
 | what | where | pinned by |
