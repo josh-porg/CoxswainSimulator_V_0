@@ -90,6 +90,24 @@ Privacy works like the race-card site (`scripts/raceday_encrypt.py`):
 - **What stays secret:** the sheet id, the athlete's row label and the passphrase are repository secrets.
 - **What never enters the bundle:** names and body mass. The fuelling rules are given per kg.
 
+**Pages.** The site has four files:
+
+- `index.html`: the plan.
+- `textbook.html`: the short textbook (10 chapters). Its text is generic; the athlete's own numbers fill in from
+  the decrypted bundle.
+- `common.js`: unlock, decryption and storage, shared by both pages.
+- `cycle.js`: the optional cycle tracker.
+
+**Cycle tracker.** The tracker keeps everything in the browser's localStorage (`rowing-plan/cycle-v1`). It never
+reaches the bundle, the repository or any server. What it does follows the evidence:
+
+- **No phase-based reshuffling.** McNulty 2020 and Colenso-Semple 2023 find no basis for it.
+- **Symptom check on the day:** a bad day turns her own session into 20–30 min easy or rest (Bruinvels 2021).
+- **Estimated phases on the calendar.**
+- **Health notes:** cycles outside 21–35 days, or none for 90 days, raise a note (REDs).
+- **Heat note** on estimated luteal days (Baker 2020).
+- **Hormonal contraception** switches phases off and keeps the symptom check.
+
 ## 4. The ceiling — `ceiling.py`
 
 This script maps a 5k time to a VO2max and back, through four links:

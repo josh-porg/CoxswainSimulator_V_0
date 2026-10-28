@@ -14,7 +14,7 @@ The config holds only what is not on the sheet and identifies nobody: the team w
 settings, key races, the plan's start and the target. Tests, sex, birth year and body mass come from the
 athlete's row. The squad yardstick is recomputed from the whole sheet on every build.
 
-Output: <out>/index.html (the page shell, research/training/site/index.html, which holds no data),
+Output: the page shells, styles and scripts of research/training/site/ (no data in any of them),
 <out>/data.enc and <out>/.nojekyll. data.enc is AES-256-GCM with a key from PBKDF2-SHA256 (250 000
 iterations, random salt) over the passphrase, the scheme of the race-card site (scripts/raceday_encrypt.py);
 the browser decrypts it with Web Crypto. No name enters the bundle; figures that would reveal body mass are
@@ -35,6 +35,7 @@ import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+import ceiling as cl                   # noqa: E402
 import plan_generator as pg            # noqa: E402
 import squad_progression as sq         # noqa: E402
 
@@ -95,7 +96,21 @@ def bundle(p, squad_path):
         rules=[dict(title=t, items=items) for t, items in pg.rules(p, grams=False)],
         evidence=pg.EVIDENCE,
         start=p["start"].isoformat(),
+        ceiling=ceiling_block(z["test"]["time_s"], p["target"]["time_s"], proj),
     )
+
+
+FULL_TIME = (1170.0, 1140.0, 1110.0)   # textbook chapter 9: full-time professional, 19:30 / 19:00 / 18:30
+
+
+def ceiling_block(t5k, target, proj):
+    """The aerobic-ceiling numbers the textbook's chapter 9 shows (research/training/ceiling.py). Absolute
+    L/min only: per-kg values would reveal body mass."""
+    return dict(now=cl.vo2max_from_5k(t5k), need=cl.vo2max_from_5k(target),
+                levels=[dict(name=n, vo2=v, t5k=cl.t5k_from_vo2max(v)) for n, v in cl.LEVELS],
+                full_time=[dict(t5k=t, vo2=cl.vo2max_from_5k(t)) for t in FULL_TIME],
+                part_time=[dict(label=r["label"], rate=r["rate"], t5k=r["time"], vo2=cl.vo2max_from_5k(r["time"]))
+                           for r in proj["ladder"]])
 
 
 def encrypt(data: bytes, passphrase: str):
@@ -135,7 +150,8 @@ def main():
     raw = json.dumps(b, default=str, separators=(",", ":")).encode("utf-8")
     os.makedirs(a.out, exist_ok=True)
     json.dump(encrypt(raw, passphrase), open(os.path.join(a.out, "data.enc"), "w"))
-    shutil.copy(os.path.join(HERE, "site", "index.html"), os.path.join(a.out, "index.html"))
+    for name in os.listdir(os.path.join(HERE, "site")):          # the page shells, styles and scripts: no data
+        shutil.copy(os.path.join(HERE, "site", name), os.path.join(a.out, name))
     open(os.path.join(a.out, ".nojekyll"), "w").close()
     if a.plain:
         open(os.path.join(a.out, "bundle.plain.json"), "wb").write(raw)

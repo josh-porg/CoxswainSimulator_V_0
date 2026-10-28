@@ -57,8 +57,17 @@ EVIDENCE = {
             "al. 2009, n = 10); the team week already holds two hard sessions.",
     "HRV": "HRV-guided adjustment gives a small VO2max benefit, larger in amateurs and women (Granero-Gallegos et al. "
            "2020); vagal markers improve, resting HR not (Manresa-Rocamora et al. 2021).",
-    "CYCLE": "Menstrual-cycle effects on performance are trivial and the evidence is low quality: no phase-based "
-             "programming; track symptoms and adjust individually (McNulty et al. 2020).",
+    "CYCLE": "No phase-based programming: phase effects on performance are trivial and low quality (McNulty et al. "
+             "2020), and an umbrella review finds no phase effect on strength or training adaptations (Colenso-Semple "
+             "et al. 2023; a narrative review argues for follicular-weighted lifting, Kissow et al. 2022, on small "
+             "trials). Symptoms are common and cost training (6812 women: fatigue 86%, cramps 84%; Bruinvels et al. "
+             "2021), so a symptom day changes that day. Cycles over 35 days or none for 3 months: see a doctor (REDs). "
+             "Oral contraceptives: probably trivial performance effect, no general advice (Elliott-Sale et al. 2020). "
+             "The site's optional cycle tracker applies this in the browser only; nothing is stored in the plan.",
+    "IRON": "Iron deficiency affects ~15-35% of female athletes; exercise raises hepcidin and cuts absorption for "
+            "hours (Sim et al. 2019): ferritin test once or twice a year, supplement only on a result.",
+    "HEAT": "Core temperature runs ~0.3-0.7 C higher in the luteal phase (Baker et al. 2020): on warm days drink more "
+            "and pace by watts, not heart rate.",
     "REDS": "Low energy availability harms health and performance in female athletes: eat to the training (2023 IOC "
             "REDs consensus, Mountjoy et al.).",
     "PROTEIN": "Gains from protein plateau near 1.6 g/kg/day (Morton et al. 2018), spread over meals.",
@@ -390,7 +399,10 @@ def rules(p, grams=True):
         "Sleep to individual need; protect the nights before team sessions [SLEEP].",
         "Rib or side-of-chest pain that is worse with rowing or deep breaths: stop rowing volume and get it "
         "checked [RIB].",
-        "Track the menstrual cycle and symptoms; move sessions by how she feels, not by phase [CYCLE].",
+        "Track the menstrual cycle and symptoms; move sessions by how she feels, not by phase. A bad symptom day: "
+        "the day's own session becomes 20-30 min easy or rest [CYCLE].",
+        "Ferritin blood test once or twice a year; iron supplements only if it is low [IRON].",
+        "Warm days after ovulation: drink more and pace by watts, not heart rate [HEAT].",
     ]
     return [("Rules that adjust the plan", adjust), ("Fuelling, sleep and health", health)]
 

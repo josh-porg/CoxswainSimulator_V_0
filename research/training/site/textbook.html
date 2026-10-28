@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Training for the 5k</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <div id="lock" hidden>
+    <div class="eyebrow">Private training plan</div>
+    <h1>Training for the 5k</h1>
+    <p class="quiet">The textbook fills in your own numbers from the encrypted plan. Enter the passphrase to open it on this device; nothing is sent anywhere.</p>
+    <form id="unlock">
+      <input id="pass" type="password" autocomplete="current-password" placeholder="Passphrase" aria-label="Passphrase" required>
+      <label class="remember"><input id="remember" type="checkbox"> Remember on this device</label>
+      <button type="submit">Open the textbook</button>
+      <div id="err" role="status"></div>
+    </form>
+  </div>
+
+  <div id="app" hidden>
+  <nav class="topnav"><a href="index.html">Plan</a><a href="textbook.html" aria-current="page">Textbook</a><span class="spacer"></span><button id="forget" class="linkish">Lock</button></nav>
+  <header style="display:grid;gap:6px;margin-top:8px"><div class="eyebrow">A short textbook</div><h1>Training for the 5k</h1>
+    <p class="quiet">Why your plan looks the way it does: the exercise physiology, what the research says, and what it means for your week. Each claim links to its source; where the evidence is weak, it says so.</p></header>
+
+  <div class="book">
+  <nav class="toc" aria-label="Chapters">
+    <a href="#how">How to use this book</a>
+    <a href="#ch1">1. What limits a 5k</a>
+    <a href="#ch2">2. How endurance training changes you</a>
+    <a href="#ch3">3. Intensity: why most training is easy</a>
+    <a href="#ch4">4. Strength</a>
+    <a href="#ch5">5. Doing both</a>
+    <a href="#ch6">6. Overload and recovery</a>
+    <a href="#ch7">7. Fuel and sleep</a>
+    <a href="#ch8">8. Training as a woman</a>
+    <a href="#ch9">9. Testing and pacing</a>
+    <a href="#ch10">10. How far can training take you?</a>
+    <a href="#gloss">Glossary</a>
+  </nav>
+
+  <div style="display:grid;gap:26px">
+
+  <section class="chapter" id="how">
+    <h2>How to use this book</h2>
+    <p>Your plan asks for three things: lots of easy rowing, a little hard rowing (the team covers that), and heavy lifting twice a week. Each chapter takes one idea from exercise physiology, what the research says about it, and what it means for your week. If a session in the plan seems odd, find the chapter that explains it:</p>
+    <div class="panel scroll"><table><thead><tr><th>if you are wondering…</th><th>read</th></tr></thead><tbody>
+      <tr><td>why most of my own sessions are so easy</td><td>Chapters 2 and 3</td></tr>
+      <tr><td>why I lift heavy instead of doing circuits</td><td>Chapter 4</td></tr>
+      <tr><td>whether lifting and rowing cancel each other out</td><td>Chapter 5</td></tr>
+      <tr><td>why there is an easy week every fourth week</td><td>Chapter 6</td></tr>
+      <tr><td>what to eat and how much to sleep</td><td>Chapter 7</td></tr>
+      <tr><td>whether my cycle should change my training</td><td>Chapter 8</td></tr>
+      <tr><td>how to pace the test and read my numbers</td><td>Chapter 9</td></tr>
+      <tr><td>how fast I could actually get</td><td>Chapter 10</td></tr>
+    </tbody></table></div>
+  </section>
+
+  <section class="chapter" id="ch1">
+    <h2>1. What limits a 5k</h2>
+    <p>A 5k on the erg is an aerobic event. Muscles get energy aerobically, burning fuel with oxygen in the mitochondria, and anaerobically, breaking fuel down fast without it. In an all-out effort the two contribute equally at about 75 seconds (<a href="https://pubmed.ncbi.nlm.nih.gov/11547894/">Gastin 2001</a>). A 2k is already 70–88% aerobic (<a href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4535249/">review</a>), and a 20-minute 5k more so. <span class="so">For a 5k, your aerobic engine is almost everything.</span></p>
+    <p>Exercise physiologists split that engine into three parts (<a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC2375555/">Joyner &amp; Coyle 2008</a>):</p>
+    <ol>
+      <li><strong>VO2max</strong>: the most oxygen your body can take up and use, in litres per minute. Set by how much blood your heart pumps per beat, how much oxygen it carries, and how well your muscles extract it.</li>
+      <li><strong>The share of VO2max you can hold.</strong> Nobody rows 20 minutes at VO2max. How close you can stay is set by your threshold, the point above which lactate builds faster than you clear it: around 75–85% of VO2max in trained athletes.</li>
+      <li><strong>Efficiency</strong>: watts per litre of oxygen, set by technique and strength.</li>
+    </ol>
+    <figure>
+      <svg class="diagram" viewBox="0 0 760 430" role="img" aria-label="5k power is VO2max times the share you can hold times efficiency">
+        <g fill="none" stroke="var(--rule)" stroke-width="1.5">
+          <path d="M210 230H232V100H254M232 230H254M232 230V360H254"/>
+          <path d="M444 100H462V50H480M444 100H480M444 100H462V150H480M444 230H462V205H480M444 230H462V255H480M444 360H462V335H480M444 360H462V385H480"/>
+        </g>
+        <g font-size="13" fill="var(--ink)">
+          <rect x="16" y="200" width="194" height="60" rx="8" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="2"/>
+          <text x="113" y="224" text-anchor="middle" font-weight="600">5k power</text>
+          <text x="113" y="244" text-anchor="middle" font-size="12"><tspan data-k="latestW"></tspan> W now; <tspan data-k="targetW"></tspan> W for <tspan data-k="target"></tspan></text>
+          <g><rect x="254" y="76" width="190" height="48" rx="8" fill="var(--panel)" stroke="var(--rule)"/><text x="349" y="96" text-anchor="middle" font-weight="600">VO2max</text><text x="349" y="114" text-anchor="middle" font-size="12" fill="var(--quiet)">most oxygen you can use</text></g>
+          <text x="349" y="170" text-anchor="middle" font-size="16" fill="var(--quiet)">×</text>
+          <g><rect x="254" y="206" width="190" height="48" rx="8" fill="var(--panel)" stroke="var(--rule)"/><text x="349" y="226" text-anchor="middle" font-weight="600">% of VO2max you hold</text><text x="349" y="244" text-anchor="middle" font-size="12" fill="var(--quiet)">set by your threshold</text></g>
+          <text x="349" y="300" text-anchor="middle" font-size="16" fill="var(--quiet)">×</text>
+          <g><rect x="254" y="336" width="190" height="48" rx="8" fill="var(--panel)" stroke="var(--rule)"/><text x="349" y="356" text-anchor="middle" font-weight="600">Efficiency</text><text x="349" y="374" text-anchor="middle" font-size="12" fill="var(--quiet)">watts per litre of oxygen</text></g>
+          <g font-size="12.5">
+            <rect x="480" y="30" width="264" height="40" rx="8" fill="var(--panel)" stroke="var(--rule)"/><text x="492" y="47" font-weight="600">Heart: stroke volume</text><text x="492" y="63" font-size="11.5" fill="var(--quiet)">trained by volume and intervals</text>
+            <rect x="480" y="80" width="264" height="40" rx="8" fill="var(--panel)" stroke="var(--rule)"/><text x="492" y="97" font-weight="600">Blood volume and haemoglobin</text><text x="492" y="113" font-size="11.5" fill="var(--quiet)">trained by volume; needs iron</text>
+            <rect x="480" y="130" width="264" height="40" rx="8" fill="var(--panel)" stroke="var(--rule)"/><text x="492" y="147" font-weight="600">Capillaries and mitochondria</text><text x="492" y="163" font-size="11.5" fill="var(--quiet)">trained mostly by easy volume</text>
+            <rect x="480" y="185" width="264" height="40" rx="8" fill="var(--panel)" stroke="var(--rule)"/><text x="492" y="202" font-weight="600">Mitochondria and enzymes</text><text x="492" y="218" font-size="11.5" fill="var(--quiet)">trained by volume and threshold work</text>
+            <rect x="480" y="235" width="264" height="40" rx="8" fill="var(--panel)" stroke="var(--rule)"/><text x="492" y="252" font-weight="600">Clearing lactate</text><text x="492" y="268" font-size="11.5" fill="var(--quiet)">trained by volume and intervals</text>
+            <rect x="480" y="315" width="264" height="40" rx="8" fill="var(--panel)" stroke="var(--rule)"/><text x="492" y="332" font-weight="600">Technique</text><text x="492" y="348" font-size="11.5" fill="var(--quiet)">trained by low-rate, focused rowing</text>
+            <rect x="480" y="365" width="264" height="40" rx="8" fill="var(--panel)" stroke="var(--rule)"/><text x="492" y="382" font-weight="600">Strength and stroke power</text><text x="492" y="398" font-size="11.5" fill="var(--quiet)">trained by heavy lifting</text>
+          </g>
+        </g>
+      </svg>
+      <figcaption>The three determinants of endurance performance (after Joyner &amp; Coyle 2008) and what trains each.</figcaption>
+    </figure>
+    <p>The erg turns power into pace through a cube: watts = 2.80 / (pace per metre)³. A 10% gain in power takes only about 3% off your time. That is why <span data-k="target"></span>, <span data-k="gapTime"></span> faster than your <span data-k="latest"></span>, needs <span data-k="needPct"></span> more power. Chapter 10 comes back to that.</p>
+  </section>
+
+  <section class="chapter" id="ch2">
+    <h2>2. How endurance training changes you</h2>
+    <p>Endurance training works by repeating a small chemical signal many times; each session leaves a little more machinery behind.</p>
+    <p><strong>Heart and blood.</strong> Training enlarges the heart's main chamber and the blood it pumps per beat, and expands blood volume. Stroke volume is the largest single reason trained athletes have a higher VO2max (<a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC2375555/">Joyner &amp; Coyle 2008</a>). More blood only carries more oxygen with the haemoglobin to fill it, which is why iron matters (Chapter 8).</p>
+    <p><strong>Muscle.</strong> Rowing muscles grow new capillaries and more mitochondria. The signal chain:</p>
+    <ol>
+      <li>Contraction uses ATP faster than it is replaced; AMP and calcium build up.</li>
+      <li>These switch on the energy sensor AMPK and calcium-sensitive enzymes.</li>
+      <li>They activate <strong>PGC-1α</strong>, the master switch for the genes of new mitochondria.</li>
+      <li>Over weeks the muscle builds more mitochondria and capillaries and burns more fuel aerobically at the same power.</li>
+    </ol>
+    <p><strong>Volume builds content; intensity builds function.</strong> Total training predicts how much mitochondrial content you build; intensity predicts how well each mitochondrion works (<a href="https://pubmed.ncbi.nlm.nih.gov/24128929/">Bishop, Granata &amp; Eynon 2014</a>). Your own sessions supply volume; the team's hard sessions supply intensity. These changes reverse quickly when training stops, so consistency beats any single big week.</p>
+    <p><strong>People respond differently.</strong> On the same 20 weeks of training, VO2max rose 384 mL/min on average but anywhere from nothing to over 1,000 mL/min, and up to 47% of that spread was inherited (<a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC2760930">HERITAGE study</a>).</p>
+    <div class="callout you">Your 5k power is up <strong><span data-k="gainPct"></span></strong> since your first test (<span data-k="first"></span> to <span data-k="latest"></span>). You respond well.</div>
+  </section>
+
+  <section class="chapter" id="ch3">
+    <h2>3. Intensity: why most training is easy</h2>
+    <p>The best endurance athletes do about three-quarters or more of their sessions below the first threshold, with the hard work a small, deliberate dose (<a href="https://doi.org/10.1123/ijspp.5.3.276">Seiler 2010</a>).</p>
+    <p><strong>Two thresholds, three bands.</strong> As power rises, blood lactate stays near rest, then starts to rise (the first threshold, roughly the top of steady conversation). Higher still it climbs without levelling off (the second threshold, roughly what you could hold for an hour).</p>
+    <div class="panel scroll"><table><thead><tr><th>band</th><th>team zones</th><th>how it feels</th><th>what it trains</th></tr></thead><tbody>
+      <tr><td>below the first threshold</td><td>Z1–Z2</td><td>full sentences, rate 18–20</td><td>mitochondria, capillaries, technique; repeatable daily</td></tr>
+      <tr><td>between the thresholds</td><td>Z3–Z4, sweet spot</td><td>short phrases</td><td>threshold, race rhythm; costs real recovery</td></tr>
+      <tr><td>above the second threshold</td><td>Z5–Z7</td><td>a word at a time</td><td>VO2max, speed; costs the most recovery</td></tr>
+    </tbody></table></div>
+    <p><strong>Why easy?</strong> Hard sessions send a strong signal but leave you tired for a day or two; easy ones send a smaller signal at almost no cost. Norway's medal-winning rowers raised yearly hours 20% from the 1970s to the 1990s, low-lactate work from 30 to 50 hours a month and race-pace work down from 23 to 7, while VO2max rose 12% and 6-minute erg performance almost 10% (<a href="https://pubmed.ncbi.nlm.nih.gov/15387804/">Fiskerstrand &amp; Seiler 2004</a>).</p>
+    <p><strong>The exact split matters less than keeping easy days easy.</strong> National elite rowers improved the same in 11 weeks whether their hard minutes were polarised or pyramidal, because both did 93% easy (<a href="https://www.frontiersin.org/articles/10.3389/fphys.2017.00515/text">Treff et al. 2017</a>); polarised gives a small extra VO2peak gain and nothing else clear (<a href="https://link.springer.com/content/pdf/10.1007/s40279-024-02034-z.pdf">Oliveira et al. 2024</a>).</p>
+    <p><strong>The common mistake is the grey zone</strong>: easy sessions creeping up to moderately hard. Too hard to recover from, not hard enough to replace the team's intervals. Your Z2 is <span data-k="z2split"></span> a 500 m; if it feels embarrassingly easy, you are doing it right.</p>
+  </section>
+
+  <section class="chapter" id="ch4">
+    <h2>4. Strength: why heavy lifting helps a rower</h2>
+    <p>Across controlled trials in rowers, strength training improved leg strength (SMD 0.42) and rowing performance (SMD 0.32), whatever the program or level (<a href="https://pubmed.ncbi.nlm.nih.gov/32216524/">Thiele et al. 2020</a>). Small effects, but on top of everything rowing already gives.</p>
+    <ol>
+      <li><strong>The nervous system learns first:</strong> in the first weeks most of the gain is coordination, recruiting more fibres at once.</li>
+      <li><strong>Muscle protein next:</strong> heavy loads switch on <strong>mTORC1</strong>, the growth controller, raising muscle protein synthesis for a day or two after each session, more with protein on board. Lifting also induces its own form of PGC-1α, PGC-1α4, which raises IGF-1 and lowers myostatin (<a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC3520615">Ruas et al. 2012</a>).</li>
+      <li><strong>Tendons stiffen,</strong> so more of each push reaches the handle.</li>
+    </ol>
+    <p><strong>Why it helps endurance:</strong> a stronger leg uses a smaller share of its maximum each stroke, so the efficient, fatigue-resistant fibres do more of the work. Heavy strength training improves economy and power at VO2max in endurance athletes (<a href="https://pubmed.ncbi.nlm.nih.gov/23914932/">Rønnestad &amp; Mujika 2014</a>).</p>
+    <p><strong>Why heavy, not circuits:</strong> in young elite female rowers, heavy loads raised strength and power more than strength-endurance work of equal volume (<a href="https://www.frontiersin.org/journals/physiology/articles/10.3389/fphys.2020.00888/pdf">Thiele et al. 2020</a>). Rowing already trains muscular endurance thousands of strokes a week; the gym's job is the force rowing can't load.</p>
+  </section>
+
+  <section class="chapter" id="ch5">
+    <h2>5. Doing both: does rowing cancel out lifting?</h2>
+    <p>Mostly no. The worry comes from cell biology: rowing raises AMPK, which switches on PGC-1α and mitochondria; lifting switches on mTORC1. In rodent muscle stimulated electrically, AMPK brakes mTORC1, the “AMPK–mTOR switch”.</p>
+    <figure>
+      <svg class="diagram" viewBox="0 0 760 330" role="img" aria-label="Rowing and lifting use different switches; in human muscle they barely collide">
+        <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--quiet)"/></marker></defs>
+        <g fill="none" stroke="var(--quiet)" stroke-width="1.25">
+          <path d="M184 60H210" marker-end="url(#arr)"/><path d="M370 60H396" marker-end="url(#arr)"/><path d="M556 60H582" marker-end="url(#arr)"/>
+          <path d="M184 200H210" marker-end="url(#arr)"/><path d="M370 200H396" marker-end="url(#arr)"/><path d="M556 200H582" marker-end="url(#arr)"/>
+          <path d="M104 222V290H200" marker-end="url(#arr)"/><path d="M380 290H662V222" marker-end="url(#arr)"/>
+        </g>
+        <path d="M290 82V176" stroke="var(--warn)" stroke-width="1.5" stroke-dasharray="5 4"/><path d="M281 176H299" stroke="var(--warn)" stroke-width="2"/>
+        <text x="302" y="124" font-size="11.5" fill="var(--ink)">AMPK brakes mTORC1 in rodent muscle;</text><text x="302" y="140" font-size="11.5" fill="var(--quiet)">weak or absent in human studies</text>
+        <g font-size="13" fill="var(--ink)" text-anchor="middle">
+          <rect x="24" y="38" width="160" height="44" rx="8" fill="var(--panel)" stroke="var(--rule)"/><text x="104" y="57" font-weight="600">Rowing</text><text x="104" y="74" font-size="11.5" fill="var(--quiet)">easy and intervals</text>
+          <rect x="210" y="38" width="160" height="44" rx="8" fill="var(--panel)" stroke="var(--rule)"/><text x="290" y="57" font-weight="600">AMPK, calcium</text><text x="290" y="74" font-size="11.5" fill="var(--quiet)">the energy sensors</text>
+          <rect x="396" y="38" width="160" height="44" rx="8" fill="var(--panel)" stroke="var(--rule)"/><text x="476" y="57" font-weight="600">PGC-1α</text><text x="476" y="74" font-size="11.5" fill="var(--quiet)">the master switch</text>
+          <rect x="582" y="38" width="160" height="44" rx="8" fill="var(--panel)" stroke="var(--rule)"/><text x="662" y="57" font-weight="600">Mitochondria</text><text x="662" y="74" font-size="11.5" fill="var(--quiet)">and capillaries</text>
+          <rect x="24" y="178" width="160" height="44" rx="8" fill="var(--panel)" stroke="var(--rule)"/><text x="104" y="197" font-weight="600">Heavy lifting</text><text x="104" y="214" font-size="11.5" fill="var(--quiet)">3–8 reps</text>
+          <rect x="210" y="178" width="160" height="44" rx="8" fill="var(--panel)" stroke="var(--rule)"/><text x="290" y="197" font-weight="600">mTORC1</text><text x="290" y="214" font-size="11.5" fill="var(--quiet)">the growth controller</text>
+          <rect x="396" y="178" width="160" height="44" rx="8" fill="var(--panel)" stroke="var(--rule)"/><text x="476" y="197" font-weight="600">Protein synthesis</text><text x="476" y="214" font-size="11.5" fill="var(--quiet)">for a day or two after</text>
+          <rect x="582" y="178" width="160" height="44" rx="8" fill="var(--panel)" stroke="var(--rule)"/><text x="662" y="197" font-weight="600">Stronger fibres</text><text x="662" y="214" font-size="11.5" fill="var(--quiet)">and more muscle</text>
+          <rect x="200" y="268" width="180" height="44" rx="8" fill="var(--panel)" stroke="var(--rule)"/><text x="290" y="287" font-weight="600">PGC-1α4</text><text x="290" y="304" font-size="11.5" fill="var(--quiet)">IGF-1 up, myostatin down</text>
+        </g>
+      </svg>
+      <figcaption>Simplified signalling, from Coffey &amp; Hawley 2017 and Ruas et al. 2012.</figcaption>
+    </figure>
+    <div class="panel scroll"><table><thead><tr><th>question</th><th>what human studies found</th><th>source</th></tr></thead><tbody>
+      <tr><td>Does rowing before lifting blunt the growth signal?</td><td>No: mTORC1 signalling and muscle protein synthesis after lifting were not impaired by prior endurance or interval work</td><td><a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC5407958">Coffey &amp; Hawley 2017</a></td></tr>
+      <tr><td>Does lifting blunt the endurance signal?</td><td>No: PGC-1α rose more after lifting plus cycling than after lifting alone</td><td><a href="https://pubmed.ncbi.nlm.nih.gov/23632629/">Apró et al. 2013</a></td></tr>
+      <tr><td>Do strength and muscle gains suffer?</td><td>Maximal strength (SMD −0.06) and muscle size (−0.01): no. Explosive strength: a little (−0.28), mainly in the same session</td><td><a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC8891239/">Schumann et al. 2022</a>, 43 trials</td></tr>
+      <tr><td>Who is affected?</td><td>Leg-strength interference showed in already-trained lifters, and only within about 20 minutes</td><td><a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC8053170">Petré et al. 2021</a></td></tr>
+      <tr><td>How much gap is enough?</td><td>0 h cut strength gains against 6 or 24 h; with 3 h or more, explosive-strength loss was no longer significant</td><td><a href="https://pubmed.ncbi.nlm.nih.gov/25546450/">Robineau et al. 2016</a>; Schumann 2022</td></tr>
+      <tr><td>Does order matter on one day?</td><td>Lifting first gave +4.0 kg more leg 1RM; VO2max was unaffected by order</td><td><a href="https://pubmed.ncbi.nlm.nih.gov/28783467/">Murlasits et al. 2018</a></td></tr>
+    </tbody></table></div>
+    <div class="callout you"><strong>What this means for your week:</strong> lift on days without team rowing; when a lift and an easy row share a day, lift in the morning and row at least 6 hours later; keep jumps and power cleans well away from rowing; 20–40 g of protein after lifting.</div>
+  </section>
+
+  <section class="chapter" id="ch6">
+    <h2>6. Overload and recovery</h2>
+    <p>You get fitter during recovery, not during the session. Each session leaves fitness and fatigue; fatigue fades in days, fitness lasts weeks.</p>
+    <p><strong>Progressive overload.</strong> Your own easy minutes rise about 3% each loading week, slowly on purpose: rowers' rib stress injuries often follow sudden jumps in training (<a href="https://nutrition-evidence.com/article/235926/rib-stress-fractures-among-rowers-a-systematic-review-on-return-to-sports-risk-factors-and-prevention">D'Ailly et al. 2017</a>). Rules like “never more than 10% a week” or the acute:chronic workload ratio have no proven causal link to injury (<a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC7534938/">Impellizzeri et al. 2020</a>); how you feel and recover has the final say.</p>
+    <p><strong>Deloads</strong> every fourth week (own volume to about 60%) are coaching convention rather than trial-tested: a scheduled chance to absorb training and catch niggles early.</p>
+    <p><strong>Periodisation.</strong> Block periodisation shows a small edge in low-quality studies (<a href="https://doaj.org/article/571cde51efbf445794afd17f8e57dab9">Mølmen et al. 2019</a>); a load-matched trial found no difference (<a href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8921659/">Almquist et al. 2022</a>). Total load and consistency matter more than the model.</p>
+    <p><strong>Tapers.</strong> About two weeks, volume cut 41–60%, intensity and frequency kept (<a href="https://pubmed.ncbi.nlm.nih.gov/17762369/">Bosquet et al. 2007</a>): fatigue clears faster than fitness fades.</p>
+    <p><strong>Signs of too much:</strong> resting heart rate up or HRV down for several mornings; easy splits feel hard; poor sleep, irritability, lost appetite; repeated colds. Two together means an easy day or two now. Adjusting training to morning HRV gives slightly bigger VO2max gains, especially in amateurs and women (<a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC7663087">Granero-Gallegos et al. 2020</a>).</p>
+  </section>
+
+  <section class="chapter" id="ch7">
+    <h2>7. Fuel and sleep</h2>
+    <p>Adding training without adding food and sleep is the most common way a good plan fails.</p>
+    <p><strong>Energy availability</strong> is the energy left for the rest of your body once training is paid for. When it runs low for long, the body economises: hormones shift, periods can stop, bones lose density, immunity and performance drop. The IOC calls this <strong>REDs</strong>, relative energy deficiency in sport; low carbohydrate is a growing part of the picture (<a href="https://pubmed.ncbi.nlm.nih.gov/37752011/">Mountjoy et al. 2023</a>). It happens without dieting, just by not eating more as training rises.</p>
+    <p><strong>Protein:</strong> gains from training level off near 1.6 g per kg of body mass a day (<a href="https://pubmed.ncbi.nlm.nih.gov/28698222/">Morton et al. 2018</a>), over four meals of 25–40 g, one after lifting.</p>
+    <p><strong>Carbohydrate</strong> is the fuel for hard rowing: roughly 3–5 g/kg on light days and 5–7 g/kg on bigger days (<a href="https://research.birmingham.ac.uk/en/publications/carbohydrates-for-training-and-competition/">Burke et al. 2011</a>; approximate). Eat before the team's hard sessions and after the long one.</p>
+    <p><strong>Sleep</strong> is when much of the repair happens. Rather than a fixed 7–9 hours, sleep to your own need (<a href="https://researchonline.ljmu.ac.uk/id/eprint/16297/">Walsh et al. 2021</a>): waking without an alarm on rest days is a good test. Protect the nights before team sessions.</p>
+  </section>
+
+  <section class="chapter" id="ch8">
+    <h2>8. Training as a woman</h2>
+    <p>Most of training science applies to everyone. A few things are specific to women, and the evidence on each is clearer than social media suggests.</p>
+    <h3>Should training follow the menstrual cycle?</h3>
+    <p><strong>Not by phase.</strong> Across 78 studies, performance may be trivially lower in the early follicular phase (around your period), with low-quality evidence and no basis for general phase rules (<a href="https://irep.ntu.ac.uk/id/eprint/41201/1/1344931_Elliott-Sale.pdf">McNulty et al. 2020</a>). An umbrella review of the meta-analyses found no influence of cycle phase on strength or on gains from lifting (<a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC10076834">Colenso-Semple et al. 2023</a>). A narrative review argues follicular-phase strength training may work better (<a href="https://researchprofiles.ku.dk/en/publications/effects-of-follicular-and-luteal-phase-based-menstrual-cycle-resi/">Kissow et al. 2022</a>), but the trials are small and often don't verify the phase.</p>
+    <p><strong>But symptoms do matter.</strong> In 6,812 exercising women, mood change (91%), fatigue (86%) and cramps (84%) were common, and more symptoms meant more missed or changed training (<a href="https://bjsm.bmj.com/content/55/8/438">Bruinvels et al. 2021</a>). So the plan doesn't move sessions by phase, but a bad symptom day changes that day.</p>
+    <div class="callout you"><strong>On the plan page:</strong> the optional cycle tracker keeps everything in your browser only. A symptom check swaps your own session for an easy one, estimated phases show on the calendar, and long or irregular cycles raise a health note. Nothing is uploaded.</div>
+    <h3>Your cycle as a health signal</h3>
+    <p>Regular cycles run 21–35 days. Cycles longer than 35 days, or no period for three months, can mean low energy availability (Chapter 7) or another medical issue, and are worth a doctor's visit (<a href="https://pubmed.ncbi.nlm.nih.gov/37752011/">IOC REDs consensus</a>). In athletes, a lost period is not a sign of fitness; it is a warning light, linked to bone loss and stress injuries.</p>
+    <h3>Hormonal contraception</h3>
+    <p>Oral contraceptive users may perform slightly worse on average than naturally cycling women, but the difference is probably trivial and performance is steady across the pill cycle; there is no basis for general advice to use or avoid it (<a href="https://nrl.northumbria.ac.uk/id/eprint/43772">Elliott-Sale et al. 2020</a>). That choice is yours and your doctor's, not your training plan's.</p>
+    <h3>Iron</h3>
+    <p>Iron deficiency affects roughly 15–35% of female athletes. Menstrual losses add to it, and hard exercise raises the hormone hepcidin for a few hours, cutting iron absorption (<a href="https://acuresearchbank.acu.edu.au/item/8vx8v/iron-considerations-for-the-athlete-a-narrative-review">Sim et al. 2019</a>). Fatigue, poor recovery and falling results are the symptoms; a ferritin blood test once or twice a year is cheap insurance. Supplement only if a test shows you need it.</p>
+    <h3>Heat</h3>
+    <p>Core temperature runs about 0.3–0.7 °C higher after ovulation (the luteal phase), and stays higher during exercise in the heat (<a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC7575238/">Baker et al. 2020</a>). On hot days in that phase, drink more and pace by watts rather than heart rate, which will run higher.</p>
+    <h3>Strength</h3>
+    <p>Women gain lower-body strength and muscle at the same relative rate as men, and upper-body strength faster (<a href="https://pubmed.ncbi.nlm.nih.gov/32218059/">Roberts et al. 2020</a>). Heavy lifting won't make you bulky on this plan: large muscle gains need high lifting volume and a food surplus.</p>
+    <h3>Bones and ribs</h3>
+    <p>Rowing's signature injury is the rib stress fracture. Causes aren't proven, but sudden training changes, low bone density, female sex and low energy availability keep turning up; one costs 4–6 weeks (<a href="https://nutrition-evidence.com/article/235926/rib-stress-fractures-among-rowers-a-systematic-review-on-return-to-sports-risk-factors-and-prevention">D'Ailly et al. 2017</a>). Side-of-chest pain that worsens with rowing or deep breaths means stop rowing volume and get it checked.</p>
+  </section>
+
+  <section class="chapter" id="ch9">
+    <h2>9. Testing, pacing and reading your numbers</h2>
+    <p>Keep tests comparable: same drag factor, similar time of day, fed, not straight after a hard week.</p>
+    <p><strong>How noisy is a test?</strong> Repeated 2k tests on a Concept2 vary by about 1.3% in power (<a href="https://read.qxmd.com/read/15552583/reliability-of-power-output-during-rowing-changes-with-ergometer-type-and-race-distance">Soper &amp; Hume 2004</a>), about 0.4% in time: roughly 6 seconds on a 22-minute 5k. Treat changes under about 10 seconds as noise; the plan only reacts to two tests in a row.</p>
+    <p><strong>Pacing.</strong> Elite 2k rowers go out fast: the first 500 m at about 101.5% of average speed on the erg, then settle and lift at the end (<a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC1725010">Garland 2005</a>). There is much less research on 5k pacing; usual advice is an even pace with a controlled start:</p>
+    <ol>
+      <li><strong>First 500 m:</strong> 1–2 s/500 m faster than target, no more; settle by 300 m.</li>
+      <li><strong>500 m to 4000 m:</strong> dead even at target split, rate steady.</li>
+      <li><strong>Last 1000 m:</strong> lift 1–2 s/500 m if you have it; empty the tank over the final 250.</li>
+    </ol>
+    <div class="callout you">Your next test's on-track time is <strong><span data-k="nextOn"></span></strong>, a split of <span data-k="nextOnSplit"></span>. The floor is <span data-k="nextFloor"></span>.</div>
+    <div class="panel scroll"><table><thead><tr><th>number</th><th>what it is</th><th>what to do with it</th></tr></thead><tbody>
+      <tr><td>Split (/500 m)</td><td>time per 500 m at the current power</td><td>pace the test; read your zones</td></tr>
+      <tr><td>Watts</td><td>power; watts = 2.80 / (split/500)³</td><td>compare tests and track progress</td></tr>
+      <tr><td>FTP</td><td>5k watts × 0.935, the team convention; yours is <span data-k="ftp"></span> W</td><td>sets the zones; updates after each test</td></tr>
+      <tr><td>Rate (spm)</td><td>strokes per minute</td><td>18–20 on easy days, technique first</td></tr>
+      <tr><td>Heart rate</td><td>effort cross-check</td><td>easy days well below 75% of max; resting HR up = fatigue</td></tr>
+    </tbody></table></div>
+  </section>
+
+  <section class="chapter" id="ch10">
+    <h2>10. How far can training take you?</h2>
+    <p><span data-k="ceilLead"></span></p>
+    <p><strong>Step 1: times to an aerobic engine.</strong> In women rowers, VO2max tracks maximal erg power closely: VO2max (mL/min) = 9.58 × max power + 958, r = 0.94, error about 4.6% (<a href="https://lida.sport-iat.de/ta/Record/4083314?lng=en">Mazza et al. 2023</a>). Estimating max power from your 5k with Paul's law (a coaching rule of thumb) gives about <strong><span data-k="vo2now"></span> L/min now</strong>, ±10%.</p>
+    <p><strong>Step 2: compare with real rowers.</strong> Polish national U23 women average about 3.5–3.8 L/min, and a World Championship bronze double measured 4.45 L/min (<a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC4327362">Klusiewicz et al. 2014</a>). <strong><span data-k="target"></span> needs about <span data-k="vo2need"></span> L/min, <span data-k="vo2needPct"></span> more than now.</strong></p>
+    <figure><div class="panel" id="ceilchart"></div><figcaption>The 5k each VO2max level supports (Concept2 power, Paul's law, Mazza et al. 2023), with reference levels from Klusiewicz et al. 2014.</figcaption></figure>
+    <p><strong>Step 3: how much can VO2max rise?</strong> It depends heavily on genes (Chapter 2). In untrained adults gains level off within 6–12 months unless the load keeps rising (<a href="https://pubmed.ncbi.nlm.nih.gov/19346973/">1-year training study</a>); after that, improvement comes more from threshold and efficiency. Paula Radcliffe's running economy improved 15% over 11 years on the way to her marathon world record (<a href="https://scilit.com/publications/b81263a0d68d448e43f7252dc8d1477f">Jones 2006</a>).</p>
+    <p><strong>Full-time?</strong> A professional rows 14–20 hours a week instead of about 9–10, with coaching and recovery support. Adult beginners can go far: Helen Glover took up rowing at 21 or 22 through a talent search and won Olympic gold four years later (<a href="https://olympics.com/en/news/helen-glover-teacher-mother-champion-british-rower">Olympics.com</a>), though that scheme selected tall, already-athletic women. Full-time training would most likely mean <strong><span data-k="fullRange"></span></strong>; part-time on this plan, <strong><span data-k="partRange"></span></strong>. Height, which these numbers leave out, matters too.</p>
+  </section>
+
+  <section class="chapter" id="gloss">
+    <h2>Glossary</h2>
+    <div class="panel scroll"><table><tbody>
+      <tr><td>1RM</td><td>the most weight you can lift once; lifting loads are given as % of it</td></tr>
+      <tr><td>AMPK</td><td>the cell's energy sensor, switched on when ATP runs low</td></tr>
+      <tr><td>Deload</td><td>a planned lighter week, here every fourth</td></tr>
+      <tr><td>Ferritin</td><td>the blood test for iron stores</td></tr>
+      <tr><td>Follicular / luteal phase</td><td>the parts of the cycle before and after ovulation</td></tr>
+      <tr><td>FTP</td><td>functional threshold power; for the team, 5k watts × 0.935</td></tr>
+      <tr><td>Hepcidin</td><td>a hormone that controls iron absorption; it rises after hard exercise</td></tr>
+      <tr><td>HRV</td><td>heart-rate variability, a morning marker of recovery</td></tr>
+      <tr><td>Mitochondria</td><td>the parts of a cell that burn fuel with oxygen</td></tr>
+      <tr><td>mTORC1</td><td>the muscle's growth controller, switched on by lifting and protein</td></tr>
+      <tr><td>PGC-1α / PGC-1α4</td><td>the master switch for new mitochondria / the form made after lifting that promotes muscle growth</td></tr>
+      <tr><td>REDs</td><td>relative energy deficiency in sport</td></tr>
+      <tr><td>SMD</td><td>standardised mean difference, an effect size: about 0.2 small, 0.5 moderate</td></tr>
+      <tr><td>VO2max</td><td>the most oxygen your body can take up and use per minute</td></tr>
+    </tbody></table></div>
+  </section>
+
+  </div></div>
+  </div>
+</main>
+<script src="common.js"></script>
+<script>
+(function(){
+"use strict";
+var mmss = RP.mmss;
+function fill(B){
+  var P = function(t){ return 2.8 / Math.pow(t / 5000, 3); };
+  var first = B.tests[0], L = B.latest, C = B.ceiling, now = RP.today();
+  var next = B.milestones.find(function(m){ return RP.d(m.date) >= now; }) || B.milestones[B.milestones.length - 1];
+  var z2 = B.zones.find(function(z){ return z.zone.indexOf("Z2") === 0; });
+  var pct = function(x){ return Math.round(100 * x) + "%"; };
+  var full = C.full_time.map(function(r){ return r.t5k; }), part = C.part_time.map(function(r){ return r.t5k; });
+  var K = {
+    latest: mmss(L.time, true), latestW: Math.round(L.watts), target: mmss(B.target.time), targetW: Math.round(B.target.watts),
+    gapTime: mmss(L.time - B.target.time), needPct: pct(B.target.watts / L.watts - 1),
+    first: mmss(first.time), gainPct: pct(L.watts / first.watts - 1), ftp: Math.round(B.ftp),
+    z2split: z2 ? mmss(RP.split(z2.watts[1])) + "–" + mmss(RP.split(z2.watts[0])) : "",
+    nextOn: mmss(next.on_track), nextOnSplit: mmss(next.on_track / 10), nextFloor: mmss(next.floor),
+    vo2now: C.now.toFixed(1), vo2need: C.need.toFixed(1), vo2needPct: pct(C.need / C.now - 1),
+    fullRange: mmss(Math.max.apply(null, full)) + "–" + mmss(Math.min.apply(null, full)) + ", centred near " + mmss(full[1]),
+    partRange: mmss(Math.max.apply(null, part)) + "–" + mmss(Math.min.apply(null, part)) + ", centred near " + mmss(part[1]),
+  };
+  K.ceilLead = "On your current plan, a realistic target for " + RP.nice(B.target.by).replace(/^\d+ /, "") + " is about " + mmss(part[1]) + ". As a full-time professional, about " + mmss(full[1]) +
+               " is likely. " + mmss(B.target.time) + " is possible only with an exceptional response to training. Here is how those numbers are worked out.";
+  document.querySelectorAll("[data-k]").forEach(function(el){ if (K[el.dataset.k] !== undefined) el.textContent = K[el.dataset.k]; });
+  document.getElementById("ceilchart").innerHTML = ceilChart(C, L, B);
+}
+function ceilChart(C, L, B){
+  var W = 760, left = 40, right = 720, axisY = 150, x0 = 2.2, x1 = 4.7;
+  var X = function(v){ return left + (v - x0) / (x1 - x0) * (right - left); };
+  var pts = [{n: "You now", v: C.now, t: L.time, k: "now"}, {n: "Target", v: C.need, t: B.target.time, k: "target"}]
+            .concat(C.levels.map(function(l){ return {n: l.name.replace("Polish U23 squad, ", "U23 squad ").replace("World Championship bronze double, 2010", "World bronze 2010").replace(" (assumed)", "").replace(/^t/, "T"), v: l.vo2, t: l.t5k, k: "ref"}; }))
+            .sort(function(a, b){ return a.v - b.v; });
+  var s = '<svg class="chart" viewBox="0 0 ' + W + ' 250" role="img" aria-label="Aerobic engine needed for each 5k time">';
+  s += '<line x1="' + left + '" x2="' + right + '" y1="' + axisY + '" y2="' + axisY + '" stroke="var(--quiet)"/>';
+  [2.5, 3.0, 3.5, 4.0, 4.5].forEach(function(v){ s += '<line x1="' + X(v) + '" x2="' + X(v) + '" y1="' + axisY + '" y2="' + (axisY + 5) + '" stroke="var(--quiet)"/><text x="' + X(v) + '" y="' + (axisY + 19) + '" text-anchor="middle" font-size="12" fill="var(--quiet)">' + v.toFixed(1) + '</text>'; });
+  s += '<text x="' + right + '" y="' + (axisY + 34) + '" text-anchor="end" font-size="12" fill="var(--quiet)">VO2max, L/min</text>';
+  pts.forEach(function(p, i){
+    var y = i % 2 ? 58 : 98, col = p.k === "now" ? "var(--accent)" : p.k === "target" ? "var(--warn)" : "var(--quiet)";
+    s += '<line x1="' + X(p.v) + '" x2="' + X(p.v) + '" y1="' + (y + 20) + '" y2="' + (axisY - 6) + '" stroke="var(--rule)"/>' +
+         '<circle cx="' + X(p.v) + '" cy="' + axisY + '" r="' + (p.k === "ref" ? 4.5 : 6) + '" fill="' + col + '"/>' +
+         '<text x="' + X(p.v) + '" y="' + y + '" text-anchor="middle" font-size="12" font-weight="' + (p.k === "ref" ? 400 : 600) + '" fill="var(--ink)">' + RP.esc(p.n) + '</text>' +
+         '<text x="' + X(p.v) + '" y="' + (y + 14) + '" text-anchor="middle" font-size="12" fill="var(--quiet)">' + mmss(p.t) + '</text>';
+  });
+  var band = function(rows, y, label, main){
+    var vs = rows.map(function(r){ return r.vo2; }), lo = Math.min.apply(null, vs), hi = Math.max.apply(null, vs);
+    var ts = rows.map(function(r){ return r.t5k; });
+    return '<rect x="' + X(lo) + '" y="' + (y - 8) + '" width="' + (X(hi) - X(lo)) + '" height="16" rx="8" fill="' + (main ? "var(--accent-soft)" : "var(--team-soft)") + '" stroke="' + (main ? "var(--accent)" : "var(--team)") + '"/>' +
+           '<text x="' + left + '" y="' + (y + 4) + '" font-size="12.5" font-weight="600" fill="var(--ink)">' + label + '</text>' +
+           '<text x="' + (X(hi) + 10) + '" y="' + (y + 4) + '" font-size="12" fill="var(--ink)">' + mmss(Math.max.apply(null, ts)) + " to " + mmss(Math.min.apply(null, ts)) + '</text>';
+  };
+  s += band(C.part_time, 205, "Your plan, part-time", true) + band(C.full_time, 235, "Full-time professional", false);
+  return s + '</svg>';
+}
+document.getElementById("forget").onclick = RP.forget;
+RP.unlock(function(B){ fill(B); document.getElementById("app").hidden = false; if (location.hash) { var el = document.querySelector(location.hash); if (el) el.scrollIntoView(); } });
+})();
+</script>
+</body>
+</html>
