@@ -83,8 +83,8 @@ var Cycle = (function(){
       h += '</div><div style="display:grid;gap:10px;align-content:start">';
       if (S.on && p) h += '<div class="stat"><div class="eyebrow">Today</div><div class="big" style="font-size:24px">' + RP.esc(p.name.charAt(0).toUpperCase() + p.name.slice(1)) + (p.predicted ? " (est.)" : "") + '</div><div class="sub">Day ' + p.day + ' of about ' + avgLen() + '</div></div>';
       al.forEach(function(a){ h += '<div class="alert ' + a[0] + '">' + RP.esc(a[1]) + '</div>'; });
-      h += '<p class="quiet" style="font-size:13px">Your plan does not change by cycle phase: the research finds phase effects on performance trivial and on training gains absent. What changes your day is how you feel. A symptom check swaps your own session for an easy one. Logged cycles also act as a health check. <a href="textbook.html#ch8">Why, in the textbook</a>.</p>' +
-           '<p class="quiet" style="font-size:13px"><strong>Private:</strong> everything here is stored only in this browser on this device. The site has no server and nothing is uploaded. It is gone if you clear site data or use another device.</p>';
+      h += '<p class="quiet" style="font-size:13px">Your plan doesn’t change with your cycle phase: research finds it makes little or no difference to performance or to what you gain from training. How you feel does matter. On a bad day, the symptom check turns your own session into an easy one. Logging your cycle also works as a quiet health check. <a href="textbook.html#ch8">More in the textbook</a>.</p>' +
+           '<p class="quiet" style="font-size:13px"><strong>Private:</strong> this stays in this browser on this device. The site has no server and nothing is uploaded. Clearing your browser data or switching device starts it fresh (the backup button under “When and where” saves a copy).</p>';
       h += '</div></div>';
       container.innerHTML = h;
       var q = function(id){ return document.getElementById(id); };

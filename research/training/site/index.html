@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<title>5k Training Plan</title>
+<title>Your 5k Plan</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
@@ -13,13 +13,13 @@
 <body>
 <main>
   <div id="lock" hidden>
-    <div class="eyebrow">Private training plan</div>
-    <h1>5k Training Plan</h1>
-    <p class="quiet">The plan, zones and test history on this page are encrypted. Enter the passphrase to open them on this device; nothing is sent anywhere.</p>
+    <div class="eyebrow">Your training plan</div>
+    <h1>Your 5k Plan</h1>
+    <p class="quiet">Your plan, zones and test history are encrypted. Enter your passphrase to open them on this device. Nothing you enter here is sent anywhere.</p>
     <form id="unlock">
       <input id="pass" type="password" autocomplete="current-password" placeholder="Passphrase" aria-label="Passphrase" required>
-      <label class="remember"><input id="remember" type="checkbox"> Remember on this device</label>
-      <button type="submit">Open the plan</button>
+      <label class="remember"><input id="remember" type="checkbox" checked> Remember on this device</label>
+      <button type="submit">Open my plan</button>
       <div id="err" role="status"></div>
     </form>
   </div>
@@ -27,78 +27,122 @@
 </main>
 <script src="common.js"></script>
 <script src="cycle.js"></script>
+<script src="log.js"></script>
 <script>
 (function(){
 "use strict";
-var esc = RP.esc, mmss = RP.mmss, d = RP.d, nice = RP.nice, short = RP.short, MON = RP.MON;
+var esc = RP.esc, mmss = RP.mmss, d = RP.d, nice = RP.nice, short = RP.short, MON = RP.MON, DAYS = Log.DAYS;
 function tags(s){ return esc(s).replace(/\[([A-Z]+)\]/g, '<span class="tag">[$1]</span>'); }
 var PHASE = {"transition":"Transition","base":"Base","build":"Build","spring-race":"Spring racing","summer-base":"Summer base","fall-race":"Fall racing"};
 var CYC = {period: "var(--lift)", follicular: "var(--good)", ovulation: "var(--accent)", luteal: "var(--warn)"};
 function phaseName(p){ var base = p.split(" (")[0], extra = p.indexOf("(") >= 0 ? " · " + p.slice(p.indexOf("(") + 1, p.indexOf(")")) : ""; return (PHASE[base] || base) + extra; }
-function stat(label, big, sub, lead){ return '<div class="stat' + (lead ? " lead" : "") + '"><div class="eyebrow">' + esc(label) + '</div><div class="big">' + esc(big) + '</div><div class="sub">' + esc(sub) + '</div></div>'; }
+function stat(label, big, sub, lead, id){ return '<div class="stat' + (lead ? " lead" : "") + '"' + (id ? ' id="' + id + '"' : "") + '><div class="eyebrow">' + esc(label) + '</div><div class="big">' + esc(big) + '</div><div class="sub">' + esc(sub) + '</div></div>'; }
+function label(s){ return s.kind === "team" ? "Team" : s.kind === "aerobic" ? "Easy " + esc(s.zone) : "Strength"; }
 
 function render(B){
-  var app = document.getElementById("app"), now = RP.today();
+  var app = document.getElementById("app"), now = RP.today(), L = B.latest, first = B.tests[0];
   var wi = B.weeks.findIndex(function(w){ var m = d(w.monday); return now >= m && now < new Date(m.getTime() + 7 * 864e5); });
-  if (wi < 0) wi = now < d(B.weeks[0].monday) ? 0 : B.weeks.length - 1;
-  var cur = wi, L = B.latest;
+  var started = now >= d(B.weeks[0].monday);
+  if (wi < 0) wi = started ? B.weeks.length - 1 : 0;
+  var cur = wi;
   var next = B.milestones.find(function(m){ return d(m.date) >= now; });
-  var daysTo = next ? RP.days(now, d(next.date)) : null;
+  var best = B.tests.reduce(function(a, t){ return t.time < a.time ? t : a; }, B.tests[0]);
+  var z2 = B.zones.find(function(z){ return z.zone.indexOf("Z2") === 0; });
+  var z2then = RP.split(0.75 * B.ftp_factor * first.watts), z2now = RP.split(z2.watts[1]);
 
   var h = '<nav class="topnav"><a href="index.html" aria-current="page">Plan</a><a href="textbook.html">Textbook</a><span class="spacer"></span><button id="forget" class="linkish">Lock</button></nav>';
-  h += '<header style="display:grid;gap:6px"><div class="eyebrow">Supplementary plan · regenerated from the team erg sheet</div><h1>5k Training Plan</h1>' +
-       '<p class="quiet">Three team sessions a week, plus the sessions below. Target ' + mmss(B.target.time) + ' by ' + nice(B.target.by) + '.</p></header>';
+  h += '<header style="display:grid;gap:6px"><div class="eyebrow">Your plan · updates itself after every team test</div><h1>Your 5k Plan</h1>' +
+       '<p class="quiet">Three team sessions a week, plus a few of your own: easy rowing and two lifts. The easy work is the point, so keep it easy.</p></header>';
   h += '<section class="strip">' +
-       stat("Latest 5k", mmss(L.time, true), nice(L.date) + " · " + Math.round(L.watts) + " W", true) +
-       stat("FTP", Math.round(B.ftp) + " W", "5k watts × " + B.ftp_factor) +
-       (next ? stat("Next test", daysTo + " days", nice(next.date)) : "") +
-       (next ? stat("On track at that test", mmss(next.on_track), "floor " + mmss(next.floor)) : "") + '</section>';
+       stat("This week", "", "", true, "wk-goal") +
+       (next ? stat("Next step", mmss(next.on_track), "the on-track time at the " + short(next.date) + " test") : "") +
+       stat("Latest 5k", mmss(L.time, true), nice(L.date) + " · " + Math.round(L.watts) + " W") +
+       stat("Long-term goal", mmss(B.target.time), "by " + RP.MON[d(B.target.by).getMonth()] + " " + d(B.target.by).getFullYear()) + '</section>';
+
   h += '<section><div class="weekbar"><h2 class="label" id="wk-title"></h2>' +
        '<button id="prev" aria-label="Previous week">← Previous</button><button id="thisw">This week</button><button id="nextw" aria-label="Next week">Next →</button></div>' +
-       '<div class="legend"><span style="--c:var(--team)">Team session</span><span style="--c:var(--easy)">Easy aerobic (Z2)</span><span style="--c:var(--lift)">Strength</span></div>' +
-       '<div class="days" id="days"></div><p class="quiet" id="wk-note" style="font-size:13px"></p></section>';
-  h += '<section><h2>Cycle (optional, private)</h2><div id="cycle"></div></section>';
-  h += '<section><h2>Progress</h2><div class="panel">' + chart(B) + '</div>' +
-       '<p class="quiet" style="font-size:13px">Dots: your 5k tests. Blue dashed: the on-track path (the squad’s top-10% yearly rate). Grey dashed: the floor (squad median). Two tests running below the floor means the plan needs a review.</p></section>';
-  h += '<section class="two"><div><h2>Zones</h2><div class="panel scroll"><table><thead><tr><th>zone</th><th class="num">watts</th><th class="num">split /500 m</th></tr></thead><tbody>' +
+       '<div class="legend"><span style="--c:var(--team)">Team session</span><span style="--c:var(--easy)">Easy aerobic (Z2)</span><span style="--c:var(--lift)">Strength</span><span style="--c:var(--good)">Done</span></div>' +
+       '<div class="days" id="days"></div><p class="quiet" id="wk-note" style="font-size:13px"></p>' +
+       '<p class="quiet" style="font-size:13px">Tick a session when it’s done. Your own sessions can move to any day that suits you; the page tells you if a move clashes with the team’s hard days.</p></section>';
+
+  h += '<section><h2>You so far</h2><div class="two">' +
+       '<div class="panel" style="display:grid;gap:8px">' +
+       '<div><span class="big num" style="font-size:26px">+' + Math.round(100 * (L.watts / first.watts - 1)) + '%</span> <span class="quiet">power since your first test (' + mmss(first.time) + ' → ' + mmss(L.time) + ')</span></div>' +
+       '<div>Your best 5k: <strong class="num">' + mmss(best.time, true) + '</strong> (' + nice(best.date) + ')</div>' +
+       '<div>Your easy pace has gone from about <strong class="num">' + mmss(z2then) + '</strong> to <strong class="num">' + mmss(z2now) + '</strong> a 500 m, at the same effort.</div></div>' +
+       '<div class="panel"><div class="eyebrow" style="margin-bottom:8px">Your own sessions, week by week</div><div id="consist"></div></div></div></section>';
+
+  h += '<section><h2>When and where</h2><div id="planner"></div></section>';
+  h += '<section><h2>Your cycle (optional, private)</h2><div id="cycle"></div></section>';
+  h += '<section><h2>Your tests</h2><div class="panel">' + chart(B) + '</div>' +
+       '<p class="quiet" style="font-size:13px">Dots: your 5k tests. Blue dashed: on track (the pace of the squad’s fastest-improving tenth). Grey dashed: the floor (the squad’s typical rate). Hitting the blue line is a great year; staying above the grey line is a good one.</p>' +
+       '<div class="panel scroll"><table><thead><tr><th>test</th><th class="num">on track</th><th class="num">floor</th><th>your result</th></tr></thead><tbody>' + milestones(B) + '</tbody></table></div></section>';
+  h += '<section class="two"><div><h2>Your zones</h2><div class="panel scroll"><table><thead><tr><th>zone</th><th class="num">watts</th><th class="num">split /500 m</th></tr></thead><tbody>' +
        B.zones.map(function(z){ var top = z.watts[1] > 2 * B.ftp; return '<tr><td>' + esc(z.zone) + '</td><td class="num">' + z.watts[0] + "–" + (top ? "" : z.watts[1]) + '</td><td class="num">' +
          (z.watts[0] > 0 ? (top ? "faster than " + mmss(RP.split(z.watts[0])) : mmss(RP.split(z.watts[1])) + "–" + mmss(RP.split(z.watts[0]))) : "slower than " + mmss(RP.split(z.watts[1]))) + '</td></tr>'; }).join("") +
-       '</tbody></table></div><p class="quiet" style="font-size:13px;margin-top:8px">Your own sessions stay in Z1–Z2. Zones update after every test.</p></div>' +
-       '<div><h2>Milestones</h2><div class="panel scroll"><table><thead><tr><th>test</th><th class="num">on track</th><th class="num">floor</th><th>result</th></tr></thead><tbody>' + milestones(B) + '</tbody></table></div></div></section>';
-  h += '<section><h2>Strength</h2><p>' + esc("Exercises (4–5 a session, legs and hinge first): " + B.exercises.join("; ") + ".") + ' Lift on days without team rowing; on a shared day lift first and row at least 6 hours later.</p>' +
-       '<div class="panel scroll"><table><thead><tr><th>phase</th><th>focus</th><th>sets × reps at % of 1RM</th><th class="num">per week</th></tr></thead><tbody>' +
-       B.strength.map(function(s){ return '<tr><td>' + esc(PHASE[s.phase] || s.phase) + '</td><td>' + esc(s.focus) + '</td><td>' + esc(s.rx) + '</td><td class="num">' + s.per_week + '</td></tr>'; }).join("") +
-       '</tbody></table></div></section>';
+       '</tbody></table></div><p class="quiet" style="font-size:13px;margin-top:8px">FTP ' + Math.round(B.ftp) + ' W (your 5k watts × ' + B.ftp_factor + ', the team’s convention). Your own sessions stay in Z1–Z2. These update after every test.</p></div>' +
+       '<div><h2>Strength</h2><p style="font-size:14px">' + esc("Pick 4–5 a session, legs and hips first: " + B.exercises.join("; ") + ".") + '</p>' +
+       '<div class="panel scroll"><table><thead><tr><th>phase</th><th>sets × reps at % of your 1-rep max</th><th class="num">per week</th></tr></thead><tbody>' +
+       B.strength.map(function(s){ return '<tr><td>' + esc(PHASE[s.phase] || s.phase) + '</td><td>' + esc(s.rx) + '</td><td class="num">' + s.per_week + '</td></tr>'; }).join("") +
+       '</tbody></table></div></div></section>';
   h += '<section class="two">' + B.rules.map(function(r){ return '<div><h2>' + esc(r.title) + '</h2><ul class="rules">' + r.items.map(function(x){ return '<li>' + tags(x) + '</li>'; }).join("") + '</ul></div>'; }).join("") + '</section>';
-  h += '<section><h2>The season</h2><div class="panel scroll"><table><thead><tr><th>from</th><th>phase</th></tr></thead><tbody>' +
+  h += '<section><h2>Your season</h2><div class="panel scroll"><table><thead><tr><th>from</th><th>phase</th></tr></thead><tbody>' +
        B.macro.filter(function(m){ return d(m.start) >= new Date(now.getFullYear() - 1, now.getMonth(), 1); }).slice(0, 14).map(function(m){ return '<tr><td class="num">' + nice(m.start) + '</td><td>' + esc(PHASE[m.phase] || m.phase) + '</td></tr>'; }).join("") +
        '</tbody></table></div></section>';
-  h += '<section><h2>Why</h2><p>The <a href="textbook.html">textbook</a> explains the physiology behind each part of the plan.</p><details><summary>The evidence behind each rule</summary><div style="display:grid;gap:8px">' +
+  h += '<section><h2>Why it’s built this way</h2><p>The <a href="textbook.html">textbook</a> explains the science behind each part of your plan, chapter by chapter.</p><details><summary>The research behind each rule</summary><div style="display:grid;gap:8px">' +
        Object.keys(B.evidence).map(function(k){ return '<p><span class="tag">[' + esc(k) + ']</span> ' + esc(B.evidence[k]) + '</p>'; }).join("") + '</div></details></section>';
-  h += '<footer><span>Rebuilt ' + esc(B.updated.replace("T", " ").replace("+00:00", " UTC")) + ' from the team erg sheet.</span></footer>';
+  h += '<footer><span>Updated ' + esc(B.updated.slice(0, 10)) + ' from the team erg sheet.</span></footer>';
   app.innerHTML = h;
   app.hidden = false;
 
   function showWeek(i){
     cur = Math.max(0, Math.min(B.weeks.length - 1, i));
-    var w = B.weeks[cur], mon = d(w.monday), started = now >= d(B.weeks[0].monday), luteal = 0;
-    document.getElementById("wk-title").textContent = (cur === wi && started ? "This week" : (cur === 0 && !started ? "First week, from " + short(w.monday) : "Week of " + short(w.monday))) + " · " + phaseName(w.phase);
-    document.getElementById("days").innerHTML = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(function(n, k){
+    var w = B.weeks[cur], mon = d(w.monday), luteal = 0, arranged = Log.arrange(w);
+    document.getElementById("wk-title").textContent = (cur === wi && started ? "This week" : (cur === 0 && !started ? "Your first week, from " + short(w.monday) : "Week of " + short(w.monday))) + " · " + phaseName(w.phase);
+    document.getElementById("days").innerHTML = DAYS.map(function(n, k){
       var date = new Date(mon.getTime() + k * 864e5), isToday = date.getTime() === now.getTime();
-      var ss = w.sessions[n] || [], cp = Cycle.phase(date), adv = isToday ? Cycle.advice(date, ss).filter(function(a){ return a.indexOf("luteal") < 0; }) : [];
+      var items = arranged[n], cp = Cycle.phase(date), own = items.some(function(x){ return x.s.kind !== "team"; });
+      var adv = isToday ? Cycle.advice(date, items.map(function(x){ return x.s; })).filter(function(a){ return a.indexOf("luteal") < 0; }) : [];
       if (cp && cp.name === "luteal") luteal++;
+      var notes = items.some(function(x){ return x.from; }) ? Log.moveNote(arranged, n) : [];
       return '<div class="day' + (isToday ? " today" : "") + '"><div class="dname"><span>' + n + '</span><span class="num">' + date.getDate() + " " + MON[date.getMonth()] + '</span></div>' +
+        (own && Log.when(n) ? '<div class="when-chip">' + esc(Log.when(n)) + '</div>' : "") +
         (cp ? '<div class="phase" style="--c:' + CYC[cp.name] + '">' + cp.name + (cp.predicted ? " (est.)" : "") + '</div>' : "") +
-        (ss.length ? ss.map(function(s){ return '<div class="sess ' + s.kind + '"><div class="t"><span>' + (s.kind === "team" ? "Team" : s.kind === "aerobic" ? "Easy " + esc(s.zone) : "Strength") + '</span><span class="num">' + s.minutes + ' min</span></div>' + esc(s.what) + '</div>'; }).join("") : '<div class="rest">Rest</div>') +
-        adv.map(function(a){ return '<div class="advice">' + esc(a) + '</div>'; }).join("") + '</div>';
+        (items.length ? items.map(function(x){
+          var s = x.s, done = Log.isDone(x.id);
+          var mv = s.kind !== "team" ? '<select class="mv" data-id="' + esc(x.id) + '" data-home="' + esc(x.id.split("|")[1]) + '" aria-label="Move this session">' +
+                   DAYS.map(function(dn){ return '<option value="' + dn + '"' + (dn === n ? " selected" : "") + '>' + (dn === n ? "Move…" : dn) + '</option>'; }).join("") + '</select>' : "";
+          return '<div class="sess ' + s.kind + (done ? " done" : "") + '"><div class="t"><span>' + label(s) + '</span><span class="num">' + s.minutes + ' min</span></div>' + esc(s.what) +
+            (x.from ? '<div class="quiet" style="font-size:12px">moved from ' + x.from + '</div>' : "") +
+            '<div class="sess-actions"><button class="tick" data-tick="' + esc(x.id) + '" aria-pressed="' + done + '">' + (done ? "✓ Done" : "Mark done") + '</button>' + mv + '</div></div>';
+        }).join("") : '<div class="rest">Rest day. Recovery is where the fitness is built.</div>') +
+        notes.concat(adv).map(function(a){ return '<div class="advice">' + esc(a) + '</div>'; }).join("") + '</div>';
     }).join("");
-    document.getElementById("wk-note").textContent = Math.round(w.minutes) + " minutes on the water or erg (lifting not counted), " + Math.round(100 * w.share_low) + "% of it easy. Week " + (cur + 1) + " of " + B.weeks.length + "." +
-      (luteal ? " Estimated luteal days this week: core temperature runs a little higher, so on warm days drink more and pace by watts, not heart rate." : "");
+    document.querySelectorAll("[data-tick]").forEach(function(b){ b.onclick = function(){ Log.toggle(b.dataset.tick); showWeek(cur); }; });
+    document.querySelectorAll("select.mv").forEach(function(s){ s.onchange = function(){ Log.move(s.dataset.id, s.value, s.dataset.home); showWeek(cur); }; });
+    var ownPlanned = 0, ownDone = 0;
+    DAYS.forEach(function(n){ arranged[n].forEach(function(x){ if (x.s.kind !== "team") { ownPlanned++; if (Log.isDone(x.id)) ownDone++; } }); });
+    var light = /deload|taper|transition/.test(w.phase);
+    document.getElementById("wk-note").textContent = Math.round(w.minutes) + " minutes on the water or erg (lifting not counted), " + Math.round(100 * w.share_low) + "% of it easy." +
+      (light ? " A lighter week on purpose: let the last three weeks sink in." : "") +
+      (luteal ? " Estimated luteal days this week: on warm days drink more and pace by watts, not heart rate." : "");
+    if (cur === wi) { var g = document.getElementById("wk-goal"); g.querySelector(".big").textContent = ownDone + " of " + ownPlanned; g.querySelector(".sub").textContent = ownDone >= ownPlanned && ownPlanned ? "all your own sessions done. Nice work." : "of your own sessions done"; }
+    consistencyView();
+  }
+  function consistencyView(){
+    var el = document.getElementById("consist");
+    if (!started) { el.innerHTML = '<p class="quiet" style="margin:0">Your record starts on ' + nice(B.weeks[0].monday) + '. Tick sessions as you do them and this fills in, week by week.</p>'; return; }
+    var rows = Log.consistency(B, wi, 8), solid = rows.filter(function(r){ return r.planned && r.done / r.planned >= 0.75; }).length;
+    el.innerHTML = '<div class="bars">' + rows.map(function(r){ var f = r.planned ? r.done / r.planned : 0;
+        return '<div class="bar" title="Week of ' + short(r.monday) + ': ' + r.done + ' of ' + r.planned + '"><div class="fill" style="height:' + Math.max(4, Math.round(60 * f)) + 'px"></div><span>' + short(r.monday).split(" ")[0] + '</span></div>'; }).join("") + '</div>' +
+      '<p class="quiet" style="font-size:13px;margin:8px 0 0">' + (rows.length > 1 ? solid + " of the last " + rows.length + " weeks you did most of your own sessions. " : "") + 'Consistency over weeks is what builds the engine; a missed day doesn’t undo anything.</p>';
   }
   document.getElementById("prev").onclick = function(){ showWeek(cur - 1); };
   document.getElementById("nextw").onclick = function(){ showWeek(cur + 1); };
   document.getElementById("thisw").onclick = function(){ showWeek(wi); };
   document.getElementById("forget").onclick = RP.forget;
+  Log.onChange = function(){ showWeek(cur); };
+  Log.planner(document.getElementById("planner"));
   Cycle.panel(document.getElementById("cycle"), function(){ showWeek(cur); });
   showWeek(wi);
 }
@@ -106,8 +150,8 @@ function render(B){
 function milestones(B){
   return B.milestones.map(function(m){
     var done = B.tests.find(function(t){ return Math.abs(d(t.date) - d(m.date)) < 45 * 864e5; });
-    var res = done ? '<span class="num">' + mmss(done.time) + '</span> <span class="pill ' + (done.time <= m.on_track + 0.5 ? "ok" : done.time <= m.floor ? "" : "low") + '">' +
-              (done.time <= m.on_track + 0.5 ? "on track" : done.time <= m.floor ? "above floor" : "below floor") + '</span>' : '<span class="quiet">—</span>';
+    var res = done ? '<span class="num">' + mmss(done.time) + '</span> <span class="pill ' + (done.time <= m.on_track + 0.5 ? "ok" : "") + '">' +
+              (done.time <= m.on_track + 0.5 ? "on track" : done.time <= m.floor ? "above the floor" : "below the floor this time") + '</span>' : '<span class="quiet">—</span>';
     return '<tr><td class="num">' + short(m.date) + " " + d(m.date).getFullYear() + '</td><td class="num">' + mmss(m.on_track) + '</td><td class="num">' + mmss(m.floor) + '</td><td>' + res + '</td></tr>';
   }).join("");
 }
@@ -120,14 +164,14 @@ function chart(B){
   var wmax = Math.max(B.target.watts, Math.max.apply(null, B.milestones.map(function(m){ return P(m.on_track); }))) * 1.05;
   var wmin = Math.min.apply(null, B.tests.map(function(t){ return t.watts; })) * 0.9;
   var Y = function(w){ return bottom - (w - wmin) / (wmax - wmin) * (bottom - y0); };
-  var s = '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="5k tests and the paths to the target">';
+  var s = '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Your 5k tests and the paths ahead">';
   for (var w = Math.ceil(wmin / 25) * 25; w <= wmax; w += 25) s += '<line x1="' + left + '" x2="' + (W - right) + '" y1="' + Y(w) + '" y2="' + Y(w) + '" stroke="var(--rule)"/><text x="' + (left - 8) + '" y="' + (Y(w) + 4) + '" text-anchor="end" font-size="12" fill="var(--quiet)">' + w + ' W</text>';
   for (var yr = new Date(t0).getFullYear() + 1; yr <= new Date(t1).getFullYear(); yr++) { var xs = X(yr + "-01-01"); s += '<text x="' + xs + '" y="' + (bottom + 20) + '" text-anchor="middle" font-size="12" fill="var(--quiet)">' + yr + '</text><line x1="' + xs + '" x2="' + xs + '" y1="' + bottom + '" y2="' + (bottom + 5) + '" stroke="var(--quiet)"/>'; }
   var L = B.latest, pathOf = function(key){ return "M" + X(L.date) + " " + Y(L.watts) + B.milestones.map(function(m){ return " L" + X(m.date) + " " + Y(P(m[key])); }).join(""); };
   s += '<path d="' + pathOf("floor") + '" fill="none" stroke="var(--quiet)" stroke-width="1.5" stroke-dasharray="5 4"/><path d="' + pathOf("on_track") + '" fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="6 4"/>';
   var lastM = B.milestones[B.milestones.length - 1];
   if (lastM) s += '<text x="' + (X(lastM.date) + 8) + '" y="' + (Y(P(lastM.on_track)) + 4) + '" font-size="12" fill="var(--accent)">on track ' + mmss(lastM.on_track) + '</text><text x="' + (X(lastM.date) + 8) + '" y="' + (Y(P(lastM.floor)) + 4) + '" font-size="12" fill="var(--quiet)">floor ' + mmss(lastM.floor) + '</text>';
-  s += '<circle cx="' + X(B.target.by) + '" cy="' + Y(B.target.watts) + '" r="5" fill="none" stroke="var(--warn)" stroke-width="2"/><text x="' + (X(B.target.by) + 8) + '" y="' + (Y(B.target.watts) + 4) + '" font-size="12" fill="var(--warn)">target ' + mmss(B.target.time) + '</text>';
+  s += '<circle cx="' + X(B.target.by) + '" cy="' + Y(B.target.watts) + '" r="5" fill="none" stroke="var(--warn)" stroke-width="2"/><text x="' + (X(B.target.by) + 8) + '" y="' + (Y(B.target.watts) + 4) + '" font-size="12" fill="var(--warn)">long-term goal ' + mmss(B.target.time) + '</text>';
   s += '<path d="' + B.tests.map(function(t, i){ return (i ? " L" : "M") + X(t.date) + " " + Y(t.watts); }).join("") + '" fill="none" stroke="var(--ink)" stroke-width="2"/>';
   B.tests.forEach(function(t){ s += '<circle cx="' + X(t.date) + '" cy="' + Y(t.watts) + '" r="4.5" fill="var(--ink)"><title>' + nice(t.date) + ": " + mmss(t.time, true) + " (" + Math.round(t.watts) + ' W)</title></circle>'; });
   s += '<text x="' + X(L.date) + '" y="' + (Y(L.watts) + 22) + '" text-anchor="middle" font-size="12" font-weight="600" fill="var(--ink)">' + mmss(L.time) + '</text>';

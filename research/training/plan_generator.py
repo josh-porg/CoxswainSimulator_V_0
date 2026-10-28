@@ -216,12 +216,12 @@ def days_to_next_key(date, p):
 
 
 STRENGTH = {   # Ronnestad & Mujika 2014; Thiele et al. 2020: heavy loads, few reps, through the year
-    "transition": ("Re-entry", "2 x 12-15 @ ~60% 1RM, technique, full range", 1),
-    "base": ("Strength", "3-4 x 6-8 @ 75-85% 1RM, 2-3 min rest; then 4 x 4-6 @ ~85% in the second half of base", 2),
-    "build": ("Max strength to power", "3-4 x 3-5 @ 85-90% 1RM, plus 3 x 5 fast concentric (e.g. power clean / jump)", 2),
-    "spring-race": ("Maintain", "2-3 x 3-5 @ ~85% 1RM, low volume", 1),
-    "summer-base": ("Strength", "3-4 x 6-8 @ 75-85% 1RM", 2),
-    "fall-race": ("Maintain", "2-3 x 3-5 @ ~85% 1RM, low volume", 1),
+    "transition": ("Easing back in", "2 sets of 12-15 reps, light (about 60% of your max); technique and full range", 1),
+    "base": ("Strength", "3-4 sets of 6-8 reps at 75-85% of your max, 2-3 min rest; later in base, 4 sets of 4-6 at about 85%", 2),
+    "build": ("Strength into power", "3-4 sets of 3-5 reps at 85-90% of your max, plus 3 sets of 5 fast lifts (power cleans or jumps)", 2),
+    "spring-race": ("Holding strength", "2-3 sets of 3-5 reps at about 85% of your max; short and sharp", 1),
+    "summer-base": ("Strength", "3-4 sets of 6-8 reps at 75-85% of your max", 2),
+    "fall-race": ("Holding strength", "2-3 sets of 3-5 reps at about 85% of your max; short and sharp", 1),
 }
 EXERCISES = ("back or front squat (or leg press)", "Romanian deadlift or trap-bar deadlift", "bench pull or seated row",
              "hip thrust", "split squat", "pull-up or lat pull-down", "trunk: dead bug, side plank, Pallof press")
@@ -272,12 +272,12 @@ def build_week(monday, p, year_index, week_in_block, base_minutes):
         long_m, remaining = long_m + add, remaining - add
         n_sessions = min(len(others), -(-remaining // cap_short)) if remaining >= 30 else 0
     if long_m:
-        sessions[long_day].append(dict(kind="aerobic", what="long steady, erg or cross-training (bike, run, ski)",
+        sessions[long_day].append(dict(kind="aerobic", what="Long and steady: erg, water, bike, run or ski",
                                        zone="Z2", minutes=long_m))
     for k, d in enumerate(others[:n_sessions]):
         m = min(r5(remaining / (n_sessions - k)), cap_short)
         remaining -= m
-        sessions[d].append(dict(kind="aerobic", what="steady, technique focus at low rate (18-20) or cross-training",
+        sessions[d].append(dict(kind="aerobic", what="Steady and easy at rate 18-20, focus on technique (or bike, run, ski)",
                                 zone="Z2", minutes=m))
     # a lift and an aerobic session on one day: lift first, row at least 6 h later [CONCURRENT]
     for d in lift_days:
@@ -368,43 +368,46 @@ def milestones(proj, tests):
 
 def rules(p, grams=True):
     """The adjustment and health rules as (section title, [rule]) pairs: one source for the markdown report and the
-    website. grams=False leaves out figures that would reveal body mass (for a published page)."""
+    website. grams=False leaves out figures that would reveal body mass (for a published page). Written to the
+    athlete, in the second person: the page and the report are hers."""
     adjust = [
-        "Monitoring: morning resting HR or HRV and a 1-10 readiness score; if HRV is below its normal range or "
-        "readiness is low two mornings running, the day's own session becomes Z1 or rest [HRV].",
-        "Progression: own aerobic minutes grow ~%.0f%% a week in load weeks (%d to %d min), every 4th week is a "
-        "deload (~60%%) [DELOAD]." % (100 * p.get("load_week_growth", 0.05), p["own_aerobic_minutes_start"],
-                                     p["own_aerobic_minutes_cap"]),
-        "Tapers: 8-14 days before the key fall and spring races, volume down to ~50%, intensity and frequency "
-        "kept [TAPER].",
-        "Lifting and rowing on one day: lift first, row at least 6 h later [CONCURRENT].",
-        "Two tests running below the floor milestone: hold volume, check sleep, fuelling and illness first, then "
-        "review the plan; one slow test is noise.",
-        "The plan regenerates after every test: zones, projection and milestones move with the newest result.",
+        "Check in each morning: resting heart rate or HRV if you have it, and how ready you feel out of 10. Two low "
+        "mornings in a row? Make today's own session very easy (Z1) or rest. The team session is as you feel [HRV].",
+        "Your own easy minutes grow about %.0f%% a week, from %d toward %d. Every fourth week is lighter (about 60%%) "
+        "so the work can sink in [DELOAD]." % (100 * p.get("load_week_growth", 0.05), p["own_aerobic_minutes_start"],
+                                              p["own_aerobic_minutes_cap"]),
+        "In the two weeks before a key race your own volume halves; the team's intensity stays. You should feel "
+        "fresh, not flat [TAPER].",
+        "Lifting and rowing on the same day: lift first, row at least 6 hours later [CONCURRENT].",
+        "Missed a session or a week? Pick up where you are; don't make it up. One miss doesn't undo anything.",
+        "One slow test is noise. Two tests in a row below the floor: keep your volume steady, look at sleep, food and "
+        "illness first, then we change the plan.",
+        "Your zones, milestones and plan update by themselves after every test.",
     ]
     mass = p.get("body_mass_kg")
     if mass and grams:
-        health = ["Protein ~1.6 g/kg/day = %.0f g, spread over 4 meals [PROTEIN]." % (1.6 * mass),
-                  "Carbohydrate scaled to the day: ~3-5 g/kg on light days (%.0f-%.0f g), ~5-7 g/kg on days with two "
-                  "sessions or a long one (%.0f-%.0f g), approximate; eat soon after hard or long sessions [CARBS] "
-                  "[REDS]." % (3 * mass, 5 * mass, 5 * mass, 7 * mass)]
+        health = ["Protein: about %.0f g a day (1.6 g/kg), over 4 meals, one after lifting [PROTEIN]." % (1.6 * mass),
+                  "Carbohydrate to match the day: roughly %.0f-%.0f g on light days, %.0f-%.0f g on days with two "
+                  "sessions or the long one (approximate). Eat soon after hard or long sessions [CARBS] [REDS]."
+                  % (3 * mass, 5 * mass, 5 * mass, 7 * mass)]
     else:
-        health = ["Protein ~1.6 g per kg of body mass a day, spread over 4 meals, one after lifting [PROTEIN].",
-                  "Carbohydrate scaled to the day: ~3-5 g/kg on light days, ~5-7 g/kg on days with two sessions or a "
-                  "long one (approximate); eat soon after hard or long sessions [CARBS] [REDS]."]
+        health = ["Protein: about 1.6 g per kg of body weight a day, over 4 meals, one after lifting [PROTEIN].",
+                  "Carbohydrate to match the day: roughly 3-5 g/kg on light days, 5-7 g/kg on days with two "
+                  "sessions or the long one (approximate). Eat soon after hard or long sessions [CARBS] [REDS]."]
     health += [
-        "Warning signs of low energy availability: missed or irregular periods, repeated illness, falling test "
-        "results, persistent fatigue, bone pain. Any of these: stop progressing volume and see a doctor or sports "
+        "Eat to the training. Missed or irregular periods, colds that keep coming back, tiredness that won't lift, "
+        "falling results or bone pain are signs you're under-fuelled: hold your volume and see a doctor or sports "
         "dietitian [REDS].",
-        "Sleep to individual need; protect the nights before team sessions [SLEEP].",
-        "Rib or side-of-chest pain that is worse with rowing or deep breaths: stop rowing volume and get it "
-        "checked [RIB].",
-        "Track the menstrual cycle and symptoms; move sessions by how she feels, not by phase. A bad symptom day: "
-        "the day's own session becomes 20-30 min easy or rest [CYCLE].",
-        "Ferritin blood test once or twice a year; iron supplements only if it is low [IRON].",
+        "Sleep as much as you need; waking without an alarm on rest days is a good sign. Protect the nights before "
+        "team sessions [SLEEP].",
+        "Pain at the side of your chest that gets worse with rowing or deep breaths: stop the rowing volume and get "
+        "it checked [RIB].",
+        "Your cycle doesn't change the plan, but how you feel does. On a bad symptom day, make your own session "
+        "20-30 minutes easy, or rest. The tracker on the plan page does this for you, privately [CYCLE].",
+        "A ferritin (iron) blood test once or twice a year; iron supplements only if it comes back low [IRON].",
         "Warm days after ovulation: drink more and pace by watts, not heart rate [HEAT].",
     ]
-    return [("Rules that adjust the plan", adjust), ("Fuelling, sleep and health", health)]
+    return [("How the plan adjusts", adjust), ("Fuel, sleep and health", health)]
 
 
 # ---------------------------------------------------------------------------------------------------------------

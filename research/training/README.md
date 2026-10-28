@@ -108,6 +108,19 @@ reaches the bundle, the repository or any server. What it does follows the evide
 - **Heat note** on estimated luteal days (Baker 2020).
 - **Hormonal contraception** switches phases off and keeps the symptom check.
 
+**Designed to be followed.** The pages speak to the athlete in the second person. The plan page builds in
+behaviour-change techniques that have evidence behind them. Its log data stays in the browser
+(`log.js`, localStorage `rowing-plan/log-v1`), with a backup-file export.
+
+| technique | evidence | on the page |
+|---|---|---|
+| Process goals first, outcome goal last | In sport, process goals beat outcome goals for performance (d = 1.36 vs 0.09; Williamson et al. 2022). Specific, hard, reachable goals work best (Locke & Latham 2002). | Order of the top strip: this week's own sessions, then the next test's on-track time, then the long-term goal |
+| Recorded self-monitoring | Monitoring goal progress: d = 0.40 over 138 experiments, larger when it is physically recorded (Harkin et al. 2016) | "Mark done" on each session |
+| Implementation intentions | d = 0.65 (Gollwitzer & Sheeran 2006); stronger in if–then form (Sheeran et al. 2024). A stable context builds habit, and one missed day does not derail it (Lally et al. 2010) | "When and where" per weekday, plus two if–then backup plans |
+| Autonomy | Need support and autonomous motivation mediate the effects of interventions based on self-determination theory (Ntoumanis et al. 2021) | Her own sessions can move to any day, with clash warnings; Z2 work can be done on another machine |
+| Mastery feedback for self-efficacy | Self-efficacy correlates with sport performance, r = 0.38 (Moritz et al. 2000) | "You so far": power gain, best 5k, easy pace then vs now |
+| What it leaves out | Measuring an activity raises output but lowers enjoyment and continuation (Etkin 2016). Goal-chasing trackers are linked to compulsive exercise. | No daily streaks, badges or red failure marks; consistency is counted by the week, and rest and light weeks count as on-plan |
+
 ## 4. The ceiling — `ceiling.py`
 
 This script maps a 5k time to a VO2max and back, through four links:
