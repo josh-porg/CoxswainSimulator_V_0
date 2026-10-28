@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>5k Training Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ground:#eef1ec; --panel:#f8faf6; --ink:#1b2320; --quiet:#5b665f; --rule:#d5dbd2;
+  --accent:#1d5fae; --accent-soft:#dbe6f4;
+  --team:#6b7670; --team-soft:#e3e7e1;
+  --easy:#1d5fae; --easy-soft:#dbe6f4;
+  --lift:#a5521b; --lift-soft:#f4e3d6;
+  --good:#2f7a4a; --warn:#a36a00;
+  --today:#fff7d6;
+  --display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#141917; --panel:#1b211e; --ink:#e4ebe5; --quiet:#9aa7a0; --rule:#2e3833;
+    --accent:#7fb0ee; --accent-soft:#1f3048;
+    --team:#a3aea8; --team-soft:#28302c;
+    --easy:#7fb0ee; --easy-soft:#1f3048;
+    --lift:#e39a68; --lift-soft:#3a281c;
+    --good:#6fc28d; --warn:#e0b04a; --today:#2f2c1c;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#141917; --panel:#1b211e; --ink:#e4ebe5; --quiet:#9aa7a0; --rule:#2e3833;
+  --accent:#7fb0ee; --accent-soft:#1f3048;
+  --team:#a3aea8; --team-soft:#28302c;
+  --easy:#7fb0ee; --easy-soft:#1f3048;
+  --lift:#e39a68; --lift-soft:#3a281c;
+  --good:#6fc28d; --warn:#e0b04a; --today:#2f2c1c;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--ground);color:var(--ink);font:15px/1.55 var(--body);-webkit-font-smoothing:antialiased}
+main{max-width:1040px;margin:0 auto;padding:28px 16px 64px;display:grid;gap:28px}
+h1,h2,h3{font-family:var(--display);font-weight:600;letter-spacing:.01em;text-wrap:balance;margin:0}
+h1{font-size:40px;line-height:1.05}
+h2{font-size:26px;margin-bottom:10px}
+h3{font-size:19px}
+p{margin:0 0 10px;max-width:68ch}
+.eyebrow{font:500 12px/1 var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--quiet)}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.quiet{color:var(--quiet)}
+section{display:grid;gap:12px}
+.panel{background:var(--panel);border:1px solid var(--rule);border-radius:10px;padding:16px}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
+th{font:600 12px/1.3 var(--body);letter-spacing:.06em;text-transform:uppercase;color:var(--quiet)}
+td.num,th.num{text-align:right;white-space:nowrap}
+button,input{font:inherit;color:inherit}
+button{background:var(--panel);border:1px solid var(--rule);border-radius:8px;padding:7px 12px;cursor:pointer}
+button:hover{border-color:var(--quiet)}
+button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* lock */
+#lock{max-width:440px;margin:12vh auto 0;display:grid;gap:14px}
+#lock form{display:grid;gap:10px}
+#lock input[type=password]{padding:10px 12px;border:1px solid var(--rule);border-radius:8px;background:var(--panel)}
+#lock label.remember{display:flex;gap:8px;align-items:center;color:var(--quiet);font-size:14px}
+#err{color:var(--warn);min-height:1.4em;font-size:14px}
+
+/* header strip */
+.strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.stat{background:var(--panel);border:1px solid var(--rule);border-radius:10px;padding:12px 14px;display:grid;gap:4px}
+.stat .big{font:500 30px/1.1 var(--mono);font-variant-numeric:tabular-nums}
+.stat .sub{font-size:13px;color:var(--quiet)}
+.stat.lead{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+
+/* week */
+.weekbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.weekbar .label{flex:1 1 220px;min-width:0}
+.days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}
+@media (max-width:820px){.days{grid-template-columns:1fr}}
+.day{background:var(--panel);border:1px solid var(--rule);border-radius:10px;padding:10px;display:grid;gap:8px;align-content:start;min-height:110px}
+.day.today{background:var(--today)}
+.day .dname{display:flex;justify-content:space-between;font:600 13px/1 var(--body);letter-spacing:.06em;text-transform:uppercase;color:var(--quiet)}
+.sess{border-radius:7px;padding:7px 8px;font-size:13px;line-height:1.35;border-left:3px solid}
+.sess .t{font-weight:600;display:flex;justify-content:space-between;gap:6px}
+.sess.team{background:var(--team-soft);border-color:var(--team)}
+.sess.aerobic{background:var(--easy-soft);border-color:var(--easy)}
+.sess.strength{background:var(--lift-soft);border-color:var(--lift)}
+.rest{font-size:13px;color:var(--quiet)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--quiet)}
+.legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px;background:var(--c)}
+
+/* chart */
+svg text{font-family:var(--body)}
+.chart{width:100%;height:auto;display:block}
+
+.two{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media (max-width:820px){.two{grid-template-columns:1fr}}
+ul.rules{margin:0;padding-left:18px;display:grid;gap:6px;max-width:72ch}
+.tag{font:500 11px/1 var(--mono);color:var(--quiet);white-space:nowrap}
+details{background:var(--panel);border:1px solid var(--rule);border-radius:10px;padding:10px 14px}
+details summary{cursor:pointer;font-weight:600}
+details[open] summary{margin-bottom:8px}
+.pill{display:inline-block;border-radius:999px;padding:1px 8px;font-size:12px;border:1px solid var(--rule);white-space:nowrap}
+.pill.ok{color:var(--good);border-color:var(--good)}
+.pill.low{color:var(--warn);border-color:var(--warn)}
+footer{font-size:13px;color:var(--quiet);display:flex;gap:16px;flex-wrap:wrap;justify-content:space-between}
+@media (prefers-reduced-motion:no-preference){.fade{animation:fade .25s ease-out}@keyframes fade{from{opacity:.4}to{opacity:1}}}
+</style>
+</head>
+<body>
+<main>
+  <div id="lock">
+    <div class="eyebrow">Private training plan</div>
+    <h1>5k Training Plan</h1>
+    <p class="quiet">The plan, zones and test history on this page are encrypted. Enter the passphrase to open them on this device; nothing is sent anywhere.</p>
+    <form id="unlock">
+      <input id="pass" type="password" autocomplete="current-password" placeholder="Passphrase" aria-label="Passphrase" required>
+      <label class="remember"><input id="remember" type="checkbox"> Remember on this device</label>
+      <button type="submit">Open the plan</button>
+      <div id="err" role="status"></div>
+    </form>
+  </div>
+  <div id="app" hidden></div>
+</main>
+<script>
+(function(){
+"use strict";
+var b64 = function(s){ return Uint8Array.from(atob(s), function(c){ return c.charCodeAt(0); }); };
+var esc = function(s){ return String(s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); };
+var KEY = "plan-pass";
+function store(get, v){ try { if (get) return localStorage.getItem(KEY); if (v === null) localStorage.removeItem(KEY); else localStorage.setItem(KEY, v); } catch (e) { return null; } }
+
+async function decrypt(pass){
+  var enc = await (await fetch("data.enc", {cache: "no-cache"})).json();
+  var km = await crypto.subtle.importKey("raw", new TextEncoder().encode(pass), "PBKDF2", false, ["deriveKey"]);
+  var key = await crypto.subtle.deriveKey({name: "PBKDF2", salt: b64(enc.salt), iterations: enc.iterations, hash: "SHA-256"},
+                                          km, {name: "AES-GCM", length: 256}, false, ["decrypt"]);
+  var pt = await crypto.subtle.decrypt({name: "AES-GCM", iv: b64(enc.iv)}, key, b64(enc.data));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+
+// ---- helpers ---------------------------------------------------------------------------------------------
+function mmss(t, tenths){ var k = tenths ? 10 : 1, r = Math.round(t * k) / k, m = Math.floor(r / 60), s = r - 60 * m; return m + ":" + (s < 10 ? "0" : "") + s.toFixed(tenths ? 1 : 0); }
+function split(w){ return 500 * Math.cbrt(2.80 / w); }
+function d(s){ var p = s.split("-"); return new Date(+p[0], +p[1] - 1, +p[2]); }
+var MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function nice(s){ var x = d(s); return x.getDate() + " " + MON[x.getMonth()] + " " + x.getFullYear(); }
+function short(s){ var x = d(s); return x.getDate() + " " + MON[x.getMonth()]; }
+function today(){ var n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()); }
+function tags(s){ return esc(s).replace(/\[([A-Z]+)\]/g, '<span class="tag">[$1]</span>'); }
+var PHASE = {"transition":"Transition","base":"Base","build":"Build","spring-race":"Spring racing","summer-base":"Summer base","fall-race":"Fall racing"};
+function phaseName(p){ var base = p.split(" (")[0], extra = p.indexOf("(") >= 0 ? " · " + p.slice(p.indexOf("(") + 1, p.indexOf(")")) : ""; return (PHASE[base] || base) + extra; }
+
+// ---- render ----------------------------------------------------------------------------------------------
+function render(B){
+  var app = document.getElementById("app");
+  var now = today();
+  var wi = B.weeks.findIndex(function(w){ var m = d(w.monday); return now >= m && now < new Date(m.getTime() + 7 * 864e5); });
+  if (wi < 0) wi = now < d(B.weeks[0].monday) ? 0 : B.weeks.length - 1;
+  var cur = wi;
+  var next = B.milestones.find(function(m){ return d(m.date) >= now; });
+  var daysTo = next ? Math.round((d(next.date) - now) / 864e5) : null;
+  var L = B.latest;
+
+  var html = "";
+  html += '<header style="display:grid;gap:6px"><div class="eyebrow">Supplementary plan · regenerated from the team erg sheet</div><h1>5k Training Plan</h1>' +
+          '<p class="quiet">Three team sessions a week, plus the sessions below. Target ' + mmss(B.target.time) + ' by ' + nice(B.target.by) + '.</p></header>';
+
+  html += '<section class="strip">' +
+    stat("Latest 5k", mmss(L.time, true), nice(L.date) + " · " + Math.round(L.watts) + " W", true) +
+    stat("FTP", Math.round(B.ftp) + " W", "5k watts × " + B.ftp_factor) +
+    (next ? stat("Next test", daysTo + " days", nice(next.date)) : "") +
+    (next ? stat("On track at that test", mmss(next.on_track), "floor " + mmss(next.floor)) : "") +
+    '</section>';
+
+  html += '<section><div class="weekbar"><h2 class="label" id="wk-title"></h2>' +
+          '<button id="prev" aria-label="Previous week">← Previous</button><button id="thisw">This week</button><button id="nextw" aria-label="Next week">Next →</button></div>' +
+          '<div class="legend"><span style="--c:var(--team)">Team session</span><span style="--c:var(--easy)">Easy aerobic (Z2)</span><span style="--c:var(--lift)">Strength</span></div>' +
+          '<div class="days" id="days"></div><p class="quiet" id="wk-note" style="font-size:13px"></p></section>';
+
+  html += '<section><h2>Progress</h2><div class="panel">' + chart(B) + '</div>' +
+          '<p class="quiet" style="font-size:13px">Dots: her 5k tests. Blue dashed: the on-track path (the squad’s top-10% yearly rate). Grey dashed: the floor (squad median). Two tests running below the floor means the plan needs a review.</p></section>';
+
+  html += '<section class="two"><div><h2>Zones</h2><div class="panel scroll"><table><thead><tr><th>zone</th><th class="num">watts</th><th class="num">split /500 m</th></tr></thead><tbody>' +
+          B.zones.map(function(z){ return '<tr><td>' + esc(z.zone) + '</td><td class="num">' + z.watts[0] + "–" + (z.watts[1] > 2 * B.ftp ? "" : z.watts[1]) + '</td><td class="num">' +
+            (z.watts[0] > 0 ? (z.watts[1] > 2 * B.ftp ? "faster than " + mmss(split(z.watts[0])) : mmss(split(z.watts[1])) + "–" + mmss(split(z.watts[0]))) : "slower than " + mmss(split(z.watts[1]))) + '</td></tr>'; }).join("") +
+          '</tbody></table></div><p class="quiet" style="font-size:13px;margin-top:8px">Your own sessions stay in Z1–Z2. Zones update after every test.</p></div>' +
+          '<div><h2>Milestones</h2><div class="panel scroll"><table><thead><tr><th>test</th><th class="num">on track</th><th class="num">floor</th><th>result</th></tr></thead><tbody>' + milestones(B) + '</tbody></table></div></div></section>';
+
+  html += '<section><h2>Strength</h2><p>' + esc("Exercises (4–5 a session, legs and hinge first): " + B.exercises.join("; ") + ".") + ' Lift on days without team rowing; on a shared day lift first and row at least 6 hours later.</p>' +
+          '<div class="panel scroll"><table><thead><tr><th>phase</th><th>focus</th><th>sets × reps at % of 1RM</th><th class="num">per week</th></tr></thead><tbody>' +
+          B.strength.map(function(s){ return '<tr><td>' + esc(PHASE[s.phase] || s.phase) + '</td><td>' + esc(s.focus) + '</td><td>' + esc(s.rx) + '</td><td class="num">' + s.per_week + '</td></tr>'; }).join("") +
+          '</tbody></table></div></section>';
+
+  html += '<section class="two">' + B.rules.map(function(r){ return '<div><h2>' + esc(r.title) + '</h2><ul class="rules">' + r.items.map(function(x){ return '<li>' + tags(x) + '</li>'; }).join("") + '</ul></div>'; }).join("") + '</section>';
+
+  html += '<section><h2>The season</h2><div class="panel scroll"><table><thead><tr><th>from</th><th>phase</th></tr></thead><tbody>' +
+          B.macro.filter(function(m){ return d(m.start) >= new Date(now.getFullYear() - 1, now.getMonth(), 1); }).slice(0, 14).map(function(m){ return '<tr><td class="num">' + nice(m.start) + '</td><td>' + esc(PHASE[m.phase] || m.phase) + '</td></tr>'; }).join("") +
+          '</tbody></table></div></section>';
+
+  html += '<section><h2>Why</h2><details><summary>The evidence behind each rule</summary><div style="display:grid;gap:8px">' +
+          Object.keys(B.evidence).map(function(k){ return '<p><span class="tag">[' + esc(k) + ']</span> ' + esc(B.evidence[k]) + '</p>'; }).join("") + '</div></details></section>';
+
+  html += '<footer><span>Rebuilt ' + esc(B.updated.replace("T", " ").replace("+00:00", " UTC")) + ' from the team erg sheet.</span><span><button id="forget">Lock and forget on this device</button></span></footer>';
+
+  app.innerHTML = html;
+  app.hidden = false;
+  document.getElementById("lock").hidden = true;
+
+  function showWeek(i){
+    cur = Math.max(0, Math.min(B.weeks.length - 1, i));
+    var w = B.weeks[cur], mon = d(w.monday);
+    var started = now >= d(B.weeks[0].monday);
+    document.getElementById("wk-title").textContent = (cur === wi && started ? "This week" : (cur === 0 && !started ? "First week, from " + short(w.monday) : "Week of " + short(w.monday))) + " · " + phaseName(w.phase);
+    var names = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+    document.getElementById("days").innerHTML = names.map(function(n, k){
+      var date = new Date(mon.getTime() + k * 864e5), isToday = date.getTime() === now.getTime();
+      var ss = w.sessions[n] || [];
+      return '<div class="day' + (isToday ? " today" : "") + '"><div class="dname"><span>' + n + '</span><span class="num">' + date.getDate() + " " + MON[date.getMonth()] + '</span></div>' +
+        (ss.length ? ss.map(function(s){ return '<div class="sess ' + s.kind + '"><div class="t"><span>' + (s.kind === "team" ? "Team" : s.kind === "aerobic" ? "Easy " + esc(s.zone) : "Strength") + '</span><span class="num">' + s.minutes + ' min</span></div>' + esc(s.what) + '</div>'; }).join("") : '<div class="rest">Rest</div>') + '</div>';
+    }).join("");
+    document.getElementById("wk-note").textContent = Math.round(w.minutes) + " minutes on the water or erg (lifting not counted), " + Math.round(100 * w.share_low) + "% of it easy. Week " + (cur + 1) + " of " + B.weeks.length + ".";
+    document.getElementById("days").classList.remove("fade"); void document.getElementById("days").offsetWidth; document.getElementById("days").classList.add("fade");
+  }
+  document.getElementById("prev").onclick = function(){ showWeek(cur - 1); };
+  document.getElementById("nextw").onclick = function(){ showWeek(cur + 1); };
+  document.getElementById("thisw").onclick = function(){ showWeek(wi); };
+  document.getElementById("forget").onclick = function(){ store(false, null); location.reload(); };
+  showWeek(wi);
+}
+
+function stat(label, big, sub, lead){ return '<div class="stat' + (lead ? " lead" : "") + '"><div class="eyebrow">' + esc(label) + '</div><div class="big">' + esc(big) + '</div><div class="sub">' + esc(sub) + '</div></div>'; }
+
+function milestones(B){
+  return B.milestones.map(function(m){
+    var done = B.tests.find(function(t){ return Math.abs(d(t.date) - d(m.date)) < 45 * 864e5; });
+    var res = done ? '<span class="num">' + mmss(done.time) + '</span> <span class="pill ' + (done.time <= m.on_track + 0.5 ? "ok" : done.time <= m.floor ? "" : "low") + '">' +
+              (done.time <= m.on_track + 0.5 ? "on track" : done.time <= m.floor ? "above floor" : "below floor") + '</span>' : '<span class="quiet">—</span>';
+    return '<tr><td class="num">' + short(m.date) + " " + d(m.date).getFullYear() + '</td><td class="num">' + mmss(m.on_track) + '</td><td class="num">' + mmss(m.floor) + '</td><td>' + res + '</td></tr>';
+  }).join("");
+}
+
+function chart(B){
+  var W = 960, H = 340, left = 56, right = 150, y0 = 24, bottom = 290;
+  var t0 = d(B.tests[0].date).getTime(), t1 = d(B.target.by).getTime();
+  var X = function(s){ return left + (d(s).getTime() - t0) / (t1 - t0) * (W - left - right); };
+  var wmax = Math.max(B.target.watts, Math.max.apply(null, B.milestones.map(function(m){ return 2.8 / Math.pow(m.on_track / 5000, 3); }))) * 1.05;
+  var wmin = Math.min.apply(null, B.tests.map(function(t){ return t.watts; })) * 0.9;
+  var Y = function(w){ return bottom - (w - wmin) / (wmax - wmin) * (bottom - y0); };
+  var P = function(t){ return 2.8 / Math.pow(t / 5000, 3); };
+  var s = '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="5k tests and the paths to the target">';
+  var ticks = [];
+  for (var w = Math.ceil(wmin / 25) * 25; w <= wmax; w += 25) ticks.push(w);
+  ticks.forEach(function(w){ s += '<line x1="' + left + '" x2="' + (W - right) + '" y1="' + Y(w) + '" y2="' + Y(w) + '" stroke="var(--rule)"/>' +
+    '<text x="' + (left - 8) + '" y="' + (Y(w) + 4) + '" text-anchor="end" font-size="12" fill="var(--quiet)">' + w + ' W</text>'; });
+  for (var yr = new Date(t0).getFullYear() + 1; yr <= new Date(t1).getFullYear(); yr++) {
+    var xs = X(yr + "-01-01"); s += '<text x="' + xs + '" y="' + (bottom + 20) + '" text-anchor="middle" font-size="12" fill="var(--quiet)">' + yr + '</text><line x1="' + xs + '" x2="' + xs + '" y1="' + bottom + '" y2="' + (bottom + 5) + '" stroke="var(--quiet)"/>';
+  }
+  var L = B.latest, pathOf = function(key){ return "M" + X(L.date) + " " + Y(L.watts) + B.milestones.map(function(m){ return " L" + X(m.date) + " " + Y(P(m[key])); }).join(""); };
+  s += '<path d="' + pathOf("floor") + '" fill="none" stroke="var(--quiet)" stroke-width="1.5" stroke-dasharray="5 4"/>';
+  s += '<path d="' + pathOf("on_track") + '" fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="6 4"/>';
+  var lastM = B.milestones[B.milestones.length - 1];
+  if (lastM) {
+    s += '<text x="' + (X(lastM.date) + 8) + '" y="' + (Y(P(lastM.on_track)) + 4) + '" font-size="12" fill="var(--accent)">on track ' + mmss(lastM.on_track) + '</text>';
+    s += '<text x="' + (X(lastM.date) + 8) + '" y="' + (Y(P(lastM.floor)) + 4) + '" font-size="12" fill="var(--quiet)">floor ' + mmss(lastM.floor) + '</text>';
+  }
+  s += '<circle cx="' + X(B.target.by) + '" cy="' + Y(B.target.watts) + '" r="5" fill="none" stroke="var(--warn)" stroke-width="2"/><text x="' + (X(B.target.by) + 8) + '" y="' + (Y(B.target.watts) + 4) + '" font-size="12" fill="var(--warn)">target ' + mmss(B.target.time) + '</text>';
+  s += '<path d="' + B.tests.map(function(t, i){ return (i ? " L" : "M") + X(t.date) + " " + Y(t.watts); }).join("") + '" fill="none" stroke="var(--ink)" stroke-width="2"/>';
+  B.tests.forEach(function(t){ s += '<circle cx="' + X(t.date) + '" cy="' + Y(t.watts) + '" r="4.5" fill="var(--ink)"><title>' + nice(t.date) + ": " + mmss(t.time, true) + " (" + Math.round(t.watts) + ' W)</title></circle>'; });
+  s += '<text x="' + X(L.date) + '" y="' + (Y(L.watts) + 22) + '" text-anchor="middle" font-size="12" font-weight="600" fill="var(--ink)">' + mmss(L.time) + '</text>';
+  var nowX = left + (today().getTime() - t0) / (t1 - t0) * (W - left - right);
+  if (nowX > left && nowX < W - right) s += '<line x1="' + nowX + '" x2="' + nowX + '" y1="' + y0 + '" y2="' + bottom + '" stroke="var(--quiet)" stroke-dasharray="2 4"/><text x="' + nowX + '" y="' + (y0 - 6) + '" text-anchor="middle" font-size="11" fill="var(--quiet)">today</text>';
+  return s + '</svg>';
+}
+
+// ---- unlock ----------------------------------------------------------------------------------------------
+async function open(pass, remember){
+  var err = document.getElementById("err");
+  err.textContent = "Opening…";
+  try {
+    var B = await decrypt(pass);
+    if (remember) store(false, pass);
+    err.textContent = "";
+    render(B);
+  } catch (e) {
+    err.textContent = "That passphrase did not open the plan. Check it and try again.";
+    store(false, null);
+  }
+}
+document.getElementById("unlock").addEventListener("submit", function(e){ e.preventDefault(); open(document.getElementById("pass").value, document.getElementById("remember").checked); });
+var saved = store(true);
+if (saved) open(saved, true);
+})();
+</script>
+</body>
+</html>

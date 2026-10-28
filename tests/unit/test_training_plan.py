@@ -73,6 +73,21 @@ def test_no_heavy_lift_the_day_before_the_interval_session(weeks):
                 assert not any(s["kind"] == "team" and s["zone"] in ("Z5", "Z6") for s in w["sessions"][nxt])
 
 
+def test_a_shared_day_lifts_first_and_rows_hours_later(weeks):
+    """Same-session concurrent training blunts explosive strength; 3-6 h apart it does not (Schumann 2022,
+    Robineau 2016). Any day holding both says so, and the lift is listed first."""
+    p, ws = weeks
+    shared = 0
+    for w in ws:
+        for d, ss in w["sessions"].items():
+            kinds = [s["kind"] for s in ss if s["kind"] != "team"]
+            if "strength" in kinds and "aerobic" in kinds:
+                shared += 1
+                assert kinds.index("strength") < kinds.index("aerobic")
+                assert all("6 h after the lift" in s["what"] for s in ss if s["kind"] == "aerobic")
+    assert shared > 0                                     # the synthetic week does produce shared days
+
+
 def test_deload_every_fourth_week_cuts_volume(weeks):
     p, ws = weeks
     for prev, w in zip(ws, ws[1:]):

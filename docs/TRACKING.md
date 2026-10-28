@@ -4464,6 +4464,9 @@ to.
 |---|---|---|
 | **Squad improvement yardstick.** Every 5k on the team erg sheet since 2013 converted to watts, then paired year on year by training age. Women under 40 in years 2–3: median +3.9 %/y, 90th percentile +8.4 %/y, best +12 %/y. Names stay in `data/local/training/squad_ids_private.json`. | `research/training/squad_progression.py` | — |
 | **Supplementary plan generator.** Zones (team FTP convention), projection against the squad record, milestones per test, macrocycle, week-by-week own sessions (Z2 + heavy strength) around the team week, deloads, race-week tapers, and fuelling and health rules with evidence tags. The literature review is in the README. The first athlete's plan document is a private Claude Doc. | `research/training/plan_generator.py`, `research/training/README.md` | `tests/unit/test_training_plan.py` |
+| **Concurrent-training placement.** A lift and an aerobic session on the same day: lift first, row at least 6 h later (explosive-strength interference within one session; Schumann 2022, Robineau 2016). The mechanism (AMPK–mTOR, PGC-1α, PGC-1α4) is reviewed in the README. | `plan_generator.py` `build_week`, `EVIDENCE["CONCURRENT"]` | `test_a_shared_day_lifts_first_and_rows_hours_later` |
+| **Auto-updating encrypted plan website.** Daily GitHub Action in the public `rowing-plan` repo: downloads the erg sheet, regenerates the plan, publishes it encrypted to Pages. The sheet id, row label and passphrase are repo secrets; no names or body mass in the bundle. | `research/training/site_build.py`, `research/training/site/index.html` | — |
+| **Aerobic ceiling estimate.** 5k ↔ VO2max chain (Concept2, Paul's law, Mazza 2023), compared with national-squad reference values; the full-time-athlete question. | `research/training/ceiling.py` | — |
 
 ### Scene and audio
 

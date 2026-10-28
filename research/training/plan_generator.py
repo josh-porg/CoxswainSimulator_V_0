@@ -37,8 +37,15 @@ EVIDENCE = {
                 "Mujika 2014); in rowers small effects on leg strength (SMD 0.42) and rowing performance (SMD 0.32) "
                 "regardless of type or level (Thiele et al. 2020); heavy loads raise strength and power more than "
                 "strength-endurance work in female rowers (Thiele et al. 2020, Front Physiol).",
-    "CONCURRENT": "Interference is small; keep lower-body heavy work away from the hardest endurance sessions and "
-                  "lift before endurance work when both fall on one day (Wilson et al. 2012; Murlasits et al. 2017).",
+    "CONCURRENT": "The AMPK-mTOR 'switch' comes from rodent muscle stimulation; in humans prior endurance work does not "
+                  "blunt mTORC1 signalling after lifting, and adding lifting raises PGC-1a expression (Coffey & Hawley "
+                  "2017 review). Over 43 trials, concurrent training leaves maximal strength (SMD -0.06) and muscle "
+                  "size (-0.01) intact but blunts explosive strength (-0.28), mainly in the same session; with 3 h or "
+                  "more between them the effect was not significant (Schumann et al. 2022). Interference appears in "
+                  "trained lifters and within 20 min (Petre et al. 2021); 0 h between them cut strength gains against 6 "
+                  "or 24 h, and VO2peak rose most with 24 h (Robineau et al. 2016). Lifting first gives more strength "
+                  "(Murlasits et al. 2018). So: lift and row on separate days where possible, otherwise lift first and "
+                  "row 6 h or more later; keep the power work of the build phase off rowing days.",
     "PERIOD": "Periodize, but no model is proven superior: block periodization of intervals shows a small, "
               "low-quality advantage (Molmen et al. 2019); a load-matched trial found none (Almquist et al. 2022).",
     "DELOAD": "3:1 load-to-recovery mesocycles are convention, not trial-tested; progression caps such as 10% per "
@@ -83,7 +90,7 @@ def split(w):
 
 
 def mmss(seconds, tenths=True):
-    m, s = divmod(float(seconds), 60.0)
+    m, s = divmod(round(float(seconds), 1 if tenths else 0), 60.0)       # round first: never "21:60"
     return ("%d:%04.1f" if tenths else "%d:%02.0f") % (int(m), s)
 
 
@@ -263,6 +270,11 @@ def build_week(monday, p, year_index, week_in_block, base_minutes):
         remaining -= m
         sessions[d].append(dict(kind="aerobic", what="steady, technique focus at low rate (18-20) or cross-training",
                                 zone="Z2", minutes=m))
+    # a lift and an aerobic session on one day: lift first, row at least 6 h later [CONCURRENT]
+    for d in lift_days:
+        for s in sessions[d]:
+            if s["kind"] == "aerobic":
+                s["what"] += " - at least 6 h after the lift (lift in the morning, row in the evening)"
     # zone accounting for the week
     zmin = {"low": 0.0, "mid": 0.0, "high": 0.0}
     for d in days:
@@ -345,6 +357,44 @@ def milestones(proj, tests):
     return out
 
 
+def rules(p, grams=True):
+    """The adjustment and health rules as (section title, [rule]) pairs: one source for the markdown report and the
+    website. grams=False leaves out figures that would reveal body mass (for a published page)."""
+    adjust = [
+        "Monitoring: morning resting HR or HRV and a 1-10 readiness score; if HRV is below its normal range or "
+        "readiness is low two mornings running, the day's own session becomes Z1 or rest [HRV].",
+        "Progression: own aerobic minutes grow ~%.0f%% a week in load weeks (%d to %d min), every 4th week is a "
+        "deload (~60%%) [DELOAD]." % (100 * p.get("load_week_growth", 0.05), p["own_aerobic_minutes_start"],
+                                     p["own_aerobic_minutes_cap"]),
+        "Tapers: 8-14 days before the key fall and spring races, volume down to ~50%, intensity and frequency "
+        "kept [TAPER].",
+        "Lifting and rowing on one day: lift first, row at least 6 h later [CONCURRENT].",
+        "Two tests running below the floor milestone: hold volume, check sleep, fuelling and illness first, then "
+        "review the plan; one slow test is noise.",
+        "The plan regenerates after every test: zones, projection and milestones move with the newest result.",
+    ]
+    mass = p.get("body_mass_kg")
+    if mass and grams:
+        health = ["Protein ~1.6 g/kg/day = %.0f g, spread over 4 meals [PROTEIN]." % (1.6 * mass),
+                  "Carbohydrate scaled to the day: ~3-5 g/kg on light days (%.0f-%.0f g), ~5-7 g/kg on days with two "
+                  "sessions or a long one (%.0f-%.0f g), approximate; eat soon after hard or long sessions [CARBS] "
+                  "[REDS]." % (3 * mass, 5 * mass, 5 * mass, 7 * mass)]
+    else:
+        health = ["Protein ~1.6 g per kg of body mass a day, spread over 4 meals, one after lifting [PROTEIN].",
+                  "Carbohydrate scaled to the day: ~3-5 g/kg on light days, ~5-7 g/kg on days with two sessions or a "
+                  "long one (approximate); eat soon after hard or long sessions [CARBS] [REDS]."]
+    health += [
+        "Warning signs of low energy availability: missed or irregular periods, repeated illness, falling test "
+        "results, persistent fatigue, bone pain. Any of these: stop progressing volume and see a doctor or sports "
+        "dietitian [REDS].",
+        "Sleep to individual need; protect the nights before team sessions [SLEEP].",
+        "Rib or side-of-chest pain that is worse with rowing or deep breaths: stop rowing volume and get it "
+        "checked [RIB].",
+        "Track the menstrual cycle and symptoms; move sessions by how she feels, not by phase [CYCLE].",
+    ]
+    return [("Rules that adjust the plan", adjust), ("Fuelling, sleep and health", health)]
+
+
 # ---------------------------------------------------------------------------------------------------------------
 def report(p, z, proj, weeks, macro, tests):
     L = []
@@ -376,8 +426,10 @@ def report(p, z, proj, weeks, macro, tests):
     L.append("| test | what | on track | floor |\n|---|---|---|---|")
     for (d, w), m in zip(tests, milestones(proj, tests)):
         L.append("| %s | %s | %s | %s |" % (d, w, mmss(m["on_track"]), mmss(m["floor"])))
-    L.append("\n## Strength\n\nExercises (pick 4-5 a session; legs and hinge first, pulls, then trunk): %s. Lift before "
-             "any endurance work on the same day; leave 2 reps in reserve; add load when the top set feels like "
+    L.append("\n## Strength\n\nExercises (pick 4-5 a session; legs and hinge first, pulls, then trunk): %s. Lift on "
+             "days without rowing where possible; on a shared day lift first and row at least 6 h later (the fast "
+             "power work of the build phase is the most sensitive to interference); 20-40 g protein after "
+             "lifting; leave 2 reps in reserve; add load when the top set feels like "
              "3+ in reserve [STRENGTH] [CONCURRENT].\n" % "; ".join(EXERCISES))
     L.append("| phase | focus | prescription | sessions/wk |\n|---|---|---|---|")
     for ph, (focus, rx, n) in STRENGTH.items():
@@ -392,31 +444,10 @@ def report(p, z, proj, weeks, macro, tests):
                                                                     (" @ " + s["zone"]) if s["zone"] != "-" else "")
                                                       for s in ss))
         L.append("")
-    L.append("## Rules that adjust the plan\n")
-    L.append("- Monitoring: morning resting HR or HRV and a 1-10 readiness score; if HRV is below its normal range or "
-             "readiness is low two mornings running, the day's own session becomes Z1 or rest [HRV].")
-    L.append("- Progression: own aerobic minutes grow ~%.0f%% a week in load weeks (%d to %d min), every 4th week is a "
-             "deload (~60%%) [DELOAD]." % (100 * p.get("load_week_growth", 0.05), p["own_aerobic_minutes_start"],
-                                          p["own_aerobic_minutes_cap"]))
-    L.append("- Tapers: 8-14 days before the key fall and spring races, volume down to ~50%, intensity and frequency "
-             "kept [TAPER].")
-    L.append("- Two tests running below the floor milestone: hold volume, check sleep, fuelling and illness first, then "
-             "review the plan; one slow test is noise.")
-    L.append("- Rerun this generator after every test: zones, projection and plan move with the newest result.\n")
-    mass = p.get("body_mass_kg")
-    L.append("## Fuelling, sleep and health\n")
-    if mass:
-        L.append("- Protein ~1.6 g/kg/day = %.0f g, spread over 4 meals [PROTEIN]." % (1.6 * mass))
-        L.append("- Carbohydrate scaled to the day: ~3-5 g/kg on light days (%.0f-%.0f g), ~5-7 g/kg on days with two "
-                 "sessions or a long one (%.0f-%.0f g), approximate; eat soon after hard or long sessions [CARBS] [REDS]."
-                 % (3 * mass, 5 * mass, 5 * mass, 7 * mass))
-    L.append("- Warning signs of low energy availability: missed or irregular periods, repeated illness, falling test "
-             "results, persistent fatigue, bone pain. Any of these: stop progressing volume and see a doctor or "
-             "sports dietitian [REDS].")
-    L.append("- Sleep to individual need; protect the nights before team sessions [SLEEP].")
-    L.append("- Rib or side-of-chest pain that is worse with rowing or deep breaths: stop rowing volume and get it "
-             "checked [RIB].")
-    L.append("- Track the menstrual cycle and symptoms; move sessions by how she feels, not by phase [CYCLE].\n")
+    for title, lines in rules(p):
+        L.append("## %s\n" % title)
+        L.extend("- " + x for x in lines)
+        L.append("")
     L.append("## Evidence\n")
     for k, v in EVIDENCE.items():
         L.append("- **[%s]** %s" % (k, v))
