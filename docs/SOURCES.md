@@ -13777,3 +13777,70 @@ A tangential law with the right phase needs the mechanism; the two measured load
 2. A k ≈ ¼ cross-flow blade as a named research option is a candidate for the blade decision, once the IVV gap (the
    body) is closed and the phase question has an answer; not promoted now.
 3. Separate the curvature explanation: Caplan & Gardner's flume tested a flat plate against the curved blades.
+
+## 201. [CG07]'s measured points: the force on a stalled blade is normal to it; the cross-flow law's tangential term is a construction artefact (2026-10-31)
+
+`research/blade/cg07_tangential.py`. [CG07]'s quarter-scale Big Blade in a steady flume (lift and drag at nine sweep
+angles, `data/literature/cg07_bigblade_via_coppel2010.csv`, ±0.02 / ±0.01), resolved onto the blade's own axes
+(C_N = C_L cos α + C_D sin α, C_T = C_D cos α − C_L sin α; in a steady flume the sweep angle is the angle of attack):
+
+| angle | 20 | 45 | 70 | 90 | 115 | 135 | 160 |
+|---|---|---|---|---|---|---|---|
+| measured C_N | 0.80 | 1.72 | 1.83 | 2.06 | 1.99 | 1.75 | 0.91 |
+| measured C_T (blade axis) | −0.014 | −0.032 | −0.050 | −0.040 | −0.038 | −0.039 | −0.030 |
+| drag-like C_T/C_N, measured | −0.02 | −0.02 | −0.03 | −0.02 | +0.02 | +0.02 | +0.03 |
+| cross-flow law (C_Dc 2.2) | +0.31 | +0.34 | +0.19 | 0 | +0.23 | +0.34 | +0.31 |
+| tier 2 (Atkinson's interpolation) | −0.06 | −0.09 | −0.07 | 0 | −0.08 | −0.09 | −0.06 |
+
+1. **The measured tangential coefficient is a fixed bias on the blade's own axis, −0.035 ± 0.010 at every angle**, the
+   same whichever way the flow runs along the blade: a property of the curved, asymmetric blade (the curvature
+   explanation of [H10]), about 2 % of the normal coefficient. It is not a drag along the sliding.
+2. **The force on a stalled blade is normal to it**, within ~2 % of C_N at every measured angle: the classic separated
+   flat-plate result (normal force, tangential only friction), and what the slip law always assumed.
+3. **The cross-flow law's tangential term, (A_d − 2A_l) sin²α cos α, is a construction artefact.** It resolves an
+   attached-flow lift (Helmbold's low-aspect-ratio slope) and a separated-flow drag (2.07 sin²α) onto the blade's axes
+   as if they were one flow state; the mismatch appears as a tangential load of ~0.3 C_N that neither the steady flume
+   nor the water shows. Tier 2's thrust-like term is the same artefact with the other lift (Atkinson's 1.25 sin 2α).
+4. Three measurements of the tangential load: steady flume ([CG07]) ~2 % of the normal, a fixed bias; on the water
+   ([H10], §200) ~3 % mid-drive, larger at entry and release; robot tank on an on-water path ([GTW21]) ~17 %, lagging
+   the sliding (an unsteady load: the water the blade has set moving). Two of three, and the closed loop (§200: the
+   level that matches [H10]'s loss share costs 2–3 % of speed; none costs nothing), put the quasi-steady tangential
+   load at ~0.
+
+**Consequence for the model.** The sourced quasi-steady blade is the cross-flow **normal** law (the fins' cross-flow
+form, C_Dc profiled by Froude number, §191) with **no tangential load**; the entry and release transients that carry
+[H10]'s parallel force at the ends, and [GTW21]'s unsteady tangential load, are unmodelled and named. Closed loop on
+rung 1 it puts [CR06] at −0.7 % and [BR24] at +2.0 % of their speed at their power (§193), nothing fitted; rung 2 on
+it: §202.
+
+## 202. Rung 2 on the sourced blade: S2.5's gate passes on both athletes, nothing fitted (2026-10-31)
+
+`research/crew/rung2_population.py --blade slip | crossflow_normal | crossflow_h10` (§181's test unchanged: [K05]'s
+population muscles from its own rung-1 run on the same blade, carried to each athlete by drive progress and scaled by
+the athlete's measured power; the hands' time law is an output). Logs: `data/local/crew/logs/rung2_population_*.log`.
+Speed at the athlete's measured power by the cube law; "hands" is the rms of the oar's progress through its arc
+against the measured, over the drive.
+
+| blade | [CR06] speed / IVV / hands | [BR24] speed / IVV / hands | muscle scale (CR06 / BR24) |
+|---|---|---|---|
+| research slip (C2 fitted to [CR06]; §181) | −0.9 % / 51.7 % / 0.018 | +3.2 % / 54.7 % / 0.047 | 1.025 / 1.697 |
+| **cross-flow normal, no tangential (§201)** | **−1.2 % / 51.5 % / 0.031** | **+2.6 % / 52.4 % / 0.039** | 0.965 / 1.598 |
+| cross-flow, tangential × ¼ ([H10]'s level, §200) | −2.5 % / 52.5 % / 0.038 | +0.6 % / 52.9 % / 0.029 | 0.935 / 1.548 |
+| measured | 4.191 m/s, 49.4 % | 4.641 m/s, 49.1 % | |
+
+1. **S2.5's gate (IVV within about 5 points) passes on both athletes with either sourced blade**: +2.1 and +3.3 points
+   with the normal-only blade, against the slip law's +2.3 and +5.6 (the edge). Speed is within 2.6 % on both, nothing
+   fitted: the slip law's C2 was fitted to [CR06], so its −0.9 % there is a consistency check.
+2. **The normal-only blade gives the lowest IVV on both athletes.** A tangential load deepens the swing (§200), so
+   [H10]'s level costs about a point on [CR06].
+3. **[BR24] improves on every measure with the cross-flow blades**; his population-muscle scale falls from 1.70 to
+   1.55–1.60, so less of his power is made up by scaling five women's muscles. **[CR06]'s hands are worse** (0.031
+   against 0.018, i.e. 3.3° rms against 1.9°), on the athlete the slip law was fitted to.
+4. Still open, as before: rung 2's catch turning point (τ' up to 1.9–2.3 for an instant at entry), HANDOVER (a named
+   choice), one population.
+
+**Decision to put to the programme:** the research profile's blade is the slip law with a C2 fitted to one athlete
+(CALIBRATION_REGISTER). The cross-flow normal law (the fins' cross-flow form; C_Dc profiled by Froude number; no
+tangential load, as [CG07] and [H10] measure) is sourced, fits two measured blade loads open loop (§184–191), and now
+passes rung 2's gate on both athletes closed loop. Promoting it changes every research-profile number and needs the
+validation scorecard re-run; recorded as a decision for the user, not made here.

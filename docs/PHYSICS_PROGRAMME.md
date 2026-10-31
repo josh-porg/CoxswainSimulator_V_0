@@ -1117,6 +1117,12 @@ the boat speeds that go with their drive durations).
   S2.5's gate, [BR24] misses because the blade lets go: on his own measured motion every sourced quasi-steady blade
   (slip, lift-drag CG07/Coppel/Sliasas-Tullis, centre or span) carries 0.08-0.31 of his torque in the fourth fifth of
   the drive. **Next rower item: an unsteady blade load** (sourced form, tested open loop on [BR24] and [CR06] first).
+- **Rung 2 on the sourced blade (§199–202, 2026-10-31): S2.5's gate passes on both athletes.** The tangential load the
+  review blade carried is a construction artefact ([CG07]'s measured points and [H10] on the water put it at ~2–3 % of
+  the normal load). The cross-flow normal law with no tangential load, nothing fitted: [CR06] −1.2 %, IVV 51.5 % (49.4);
+  [BR24] +2.6 %, IVV 52.4 % (49.1); his muscle scale falls 1.70 → 1.60. [CR06]'s hands are worse than on the slip law
+  fitted to her (3.3° against 1.9° rms). **Open decision:** promote the cross-flow normal blade to the research profile
+  (re-runs the validation scorecard).
 
 ## Calibration and validation data from the squad's own boats (noted 2026-10-08)
 
@@ -1273,6 +1279,10 @@ Cambridge-side limit should follow the water, as HOCR Rule 6.2 does, but only to
 research depth term; see TRACKING for the decision and what it needs.
 
 ## Decisions taken
+
+*Open (2026-10-31): replace the research profile's slip blade (C2 fitted to [CR06]) with the cross-flow normal blade
+(sourced; passes rung 2's gate on both athletes, SOURCES §202). Waiting on the user; it changes every research-profile
+number and needs the validation scorecard re-run.*
 
 | date | decision | why |
 |---|---|---|

@@ -21,7 +21,12 @@ The test, with nothing fitted:
 
 S2.5's gate: the athletes' IVV within about 5 points of measured, or stop and record.
 
-Outputs: data/local/crew/rung2_population.json.
+``--blade crossflow_h10``: the same test on the review's cross-flow blade with its tangential load at [H10]'s on-water
+level (x 0.25 of the quasi-steady law; SOURCES §200), strips across the blade, for the population run and the athletes
+alike. ``--blade crossflow_normal``: the same normal load with no tangential load ([CG07]'s measured points resolve to a
+force normal to the blade within ~2 %, SOURCES §201). Default ``slip``: the research profile's slip law (the run of SOURCES §181).
+
+Outputs: data/local/crew/rung2_population.json (``_crossflow_h10`` suffix for that blade).
 """
 from __future__ import annotations
 
@@ -46,10 +51,30 @@ V = C2.R.V
 OUT = C2.OUT
 
 
+BLADE = "slip"
+H10_TANGENTIAL = 0.25                                            # SOURCES §200: [H10]'s share needs x 0.22-0.29
+
+
+def blade_options(boat):
+    """Simulator options for the blade under test (``BLADE``)."""
+    if BLADE == "slip":
+        return {}
+    sys.path.insert(0, os.path.join(ROOT, "research", "blade"))
+    from tangential_level_sweep import ScaledTangential
+    from coxswain.crew.liftdrag import LiftDragBlade
+    oar = boat.rig.seats[0].oarlocks[0].oar
+    area, rho, r = float(oar.blade_area), float(boat.water.density), float(oar.blade_centre_outboard)
+    cf = LiftDragBlade.crossflow(outboard=r, area=area, length=float(oar.blade_length), face_on=2.2, density=rho)
+    blade = ScaledTangential(lift_amplitude=cf.lift_amplitude, drag_amplitude=cf.drag_amplitude, area=area, outboard=r,
+                             density=rho, normal_from=cf, tangential_from=cf,
+                             tangential_scale=H10_TANGENTIAL if BLADE == "crossflow_h10" else 0.0)
+    return dict(blade_law="liftdrag", liftdrag_blade=blade, blade_span=float(oar.blade_length))
+
+
 def make(boat, mode, Q=None, body=None):
     boat.power_scales = np.ones(boat.n_seats)
     sim = C2.ClockSim(boat, peak_torque=0.0, catch="sweep", crew="handle",
-                      coxswain=Coxswain(rudder_override=lambda t, s: 0.0), fast=True)
+                      coxswain=Coxswain(rudder_override=lambda t, s: 0.0), fast=True, **blade_options(boat))
     sim.setup_clock(mode, Q, body=body)
     return sim
 
@@ -164,7 +189,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--strokes", type=int, default=10)
     ap.add_argument("--athletes", nargs="+", default=["cr06", "br24"])
+    ap.add_argument("--blade", default="slip", choices=["slip", "crossflow_h10", "crossflow_normal"])
     a = ap.parse_args()
+    global BLADE
+    BLADE = a.blade
+    print("blade: %s" % BLADE, flush=True)
     out = dict(handover=C2.HANDOVER)
 
     # 1. the population, rung 1 with its own body and drive law
@@ -188,7 +217,7 @@ def main():
     # 2. each athlete
     for name in a.athletes:
         out[name] = athlete(name, a.strokes, s_pop, q_drive, ph, q, s_p["power"])
-    json.dump(out, open(os.path.join(OUT, "rung2_population.json"), "w"), indent=1, default=float)
+    json.dump(out, open(os.path.join(OUT, "rung2_population%s.json" % ("" if BLADE == "slip" else "_" + BLADE)), "w"), indent=1, default=float)
 
 
 if __name__ == "__main__":

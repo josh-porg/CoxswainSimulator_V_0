@@ -172,6 +172,11 @@ contribution is the validation, and it has to be earned:
 
 ## 5. Log
 
+- 2026-10-31 (§201–202): [CG07]'s measured points resolve to a force normal to the blade (axis bias −0.035, ~2 %);
+  the cross-flow law's tangential term is an artefact of resolving attached-flow lift with separated-flow drag. The
+  cross-flow **normal** law with no tangential load passes rung 2's gate on both athletes. Candidate for the research
+  profile's blade; decision open.
+
 - 2026-10-31 (§199–200): [H10] read and Fig. 9 traced. On the water the parallel force is drag-like but small
   (F_t/|F| ~0.03 mid-drive against the law's ~0.3) and changes sign before the blade is square; [GTW21]'s tank load
   lags the sliding instead. At [H10]'s 14.9 % share of blade losses (the law × ~¼) the review blade is within 3 % of both
