@@ -4458,6 +4458,14 @@ implementation — a second splash system, a second wind bed, a second
 sky-noise term would *break* the constraints the first one was built
 to.
 
+### Audio-only coxswain recordings and the race viewer
+
+| what | where | pinned by |
+|---|---|---|
+| **Transcribe any recording** (m4a/mp3/wav → 16 kHz WAV → faster-whisper small.en, word times; same settings as the HOCR retranscription). | `research/coxing/transcribe_audio.py` | — |
+| **Sync audio to the CoxBox without video.** The windowed-rate method fails on audio (window confidence ~0.14). The working method is a stroke lock: average the 20–150 Hz loudness envelope (the boat's thump) at every CoxBox stroke time. It reports the margin over the next whole-stroke shift and whether the two halves of the race agree. First crew (2026-10-30): +12.26 s, lock 1.00 vs 0.91 one stroke away, halves 12.26/12.24 s, consistent with the start call. | `research/coxing/sync_audio_coxbox.py` (`lock_sync`) | — |
+| **Race viewer**: audio + CoxBox tiles and split/rate charts with a playhead + running transcript + an offline map that follows the boat (water from the surveyed reach, HOCR corridor, bridge decks; heading-up option). Private: built into data/local/viewer/<key>/, opened through the `race-viewer` local server. | `tools/race_viewer/index.html`, `research/coxing/build_viewer.py` | — |
+
 ### Crew synchronisation: hearing and the coxswain's rhythm
 
 | what | where | pinned by |

@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Race Viewer</title>
+<!-- Built by research/coxing/build_viewer.py, which writes data.js and the audio beside this page.
+     Everything is local: no map tiles, no network. The map is drawn from the project's course geometry. -->
+<style>
+:root{--bg:#0f1416;--panel:#161d20;--ink:#e6eeec;--quiet:#93a3a0;--rule:#28333a;--accent:#5fb3ff;--boat:#ffcc4d;
+  --water:#1d3442;--edge:#3f6a80;--limit:#c46a3a;--bridge:#d9dde0;--good:#6fd39a;--warn:#f0a35a}
+@media (prefers-color-scheme:light){:root{--bg:#eef2f3;--panel:#ffffff;--ink:#132024;--quiet:#5b6b70;--rule:#d5dde0;
+  --accent:#1767c2;--boat:#c88a00;--water:#cfe3ee;--edge:#7aa3b8;--limit:#c0571f;--bridge:#3a4448;--good:#2b8a55;--warn:#b86a12}}
+*{box-sizing:border-box}html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+.num{font-variant-numeric:tabular-nums;font-family:ui-monospace,"Cascadia Mono",Consolas,monospace}
+header{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--rule)}
+header h1{font-size:17px;margin:0 12px 0 0;font-weight:650}
+button,select{font:inherit;color:inherit;background:var(--panel);border:1px solid var(--rule);border-radius:7px;padding:5px 10px;cursor:pointer}
+button:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.clock{margin-left:auto;color:var(--quiet)}
+main{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(320px,1fr);grid-template-rows:auto minmax(0,1fr);gap:10px;padding:10px;height:calc(100% - 52px)}
+@media (max-width:900px){main{grid-template-columns:1fr;height:auto}}
+.panel{background:var(--panel);border:1px solid var(--rule);border-radius:10px;overflow:hidden;position:relative}
+#mapwrap{grid-row:1 / span 2;min-height:420px}
+#map{width:100%;height:100%;display:block}
+.mapctl{position:absolute;top:8px;right:8px;display:flex;gap:6px}
+.maplegend{position:absolute;left:10px;bottom:8px;font-size:12px;color:var(--quiet);display:flex;gap:12px;flex-wrap:wrap}
+.maplegend span::before{content:"";display:inline-block;width:14px;height:3px;margin-right:5px;vertical-align:3px;background:var(--c)}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:10px}
+.tile{border:1px solid var(--rule);border-radius:8px;padding:6px 9px}
+.tile .k{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--quiet)}
+.tile .v{font-size:22px;font-weight:600}
+.now{padding:0 10px 10px;min-height:44px;font-size:15px}
+.now .lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--quiet)}
+#charts{width:100%;height:190px;display:block;cursor:pointer}
+.right{display:grid;grid-template-rows:auto auto minmax(0,1fr);min-height:0}
+#calls{overflow:auto;border-top:1px solid var(--rule);min-height:160px}
+.call{display:grid;grid-template-columns:56px 1fr;gap:8px;padding:5px 10px;cursor:pointer;border-bottom:1px solid var(--rule)}
+.call:hover{background:color-mix(in srgb,var(--accent) 8%,transparent)}
+.call.on{background:color-mix(in srgb,var(--accent) 18%,transparent)}
+.call .t{color:var(--quiet)}
+input[type=range]{width:100%}
+.scrub{padding:4px 14px 0}
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">Race viewer</h1>
+  <button id="play" aria-label="Play or pause">▶ Play</button>
+  <button id="back" aria-label="Back 10 seconds">−10 s</button>
+  <button id="fwd" aria-label="Forward 10 seconds">+10 s</button>
+  <select id="speed" aria-label="Playback speed"><option value="1">1×</option><option value="1.5">1.5×</option><option value="2">2×</option><option value="4">4×</option></select>
+  <span class="clock num" id="clock"></span>
+</header>
+<div class="scrub"><input type="range" id="scrub" min="0" max="1000" value="0" aria-label="Race position"></div>
+<main>
+  <div class="panel" id="mapwrap"><canvas id="map"></canvas>
+    <div class="mapctl"><button id="zin" aria-label="Zoom in">+</button><button id="zout" aria-label="Zoom out">−</button><button id="hup" aria-pressed="false">Heading up</button></div>
+    <div class="maplegend"><span style="--c:var(--edge)">water</span><span style="--c:var(--limit)">course limit</span><span style="--c:var(--accent)">track</span><span style="--c:var(--bridge)">bridge</span></div>
+  </div>
+  <div class="panel right">
+    <div class="tiles">
+      <div class="tile"><div class="k">Split /500</div><div class="v num" id="vsplit">–</div></div>
+      <div class="tile"><div class="k">Rate</div><div class="v num" id="vrate">–</div></div>
+      <div class="tile"><div class="k">Speed m/s</div><div class="v num" id="vspeed">–</div></div>
+      <div class="tile"><div class="k">Distance</div><div class="v num" id="vdist">–</div></div>
+      <div class="tile"><div class="k">Stroke</div><div class="v num" id="vstroke">–</div></div>
+      <div class="tile"><div class="k">m / stroke</div><div class="v num" id="vdps">–</div></div>
+    </div>
+    <div class="now"><div class="lbl">Now</div><div id="nowcall">–</div></div>
+    <div id="calls"></div>
+  </div>
+  <div class="panel"><canvas id="charts"></canvas></div>
+</main>
+<audio id="audio" preload="auto"></audio>
+<script src="data.js"></script>
+<script>
+(function(){
+"use strict";
+var V = window.VIEWER, S = V.strokes, N = S.t.length, OFF = V.offset;
+var audio = document.getElementById("audio");
+// Load the whole recording into memory: a plain static server (python -m http.server) does not answer the byte-range
+// requests a browser needs to seek within an audio file, so a direct src would play but never seek.
+audio.src = V.audio;
+fetch(V.audio).then(function(r){ return r.blob(); }).then(function(b){
+  var at = audio.currentTime; audio.src = URL.createObjectURL(b); audio.currentTime = at; }).catch(function(){});
+document.getElementById("title").textContent = V.title;
+var css = function(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); };
+function mmss(t, d){ if (!isFinite(t)) return "–"; var s = Math.abs(t), m = Math.floor(s / 60), r = s - 60 * m;
+  return (t < 0 ? "−" : "") + m + ":" + (r < 10 ? "0" : "") + r.toFixed(d || 0); }
+
+// ---- local metres from lat/lon (equirectangular about the course start) ----
+var lat0 = V.course.start[0], lon0 = V.course.start[1], R = 6371000, k = Math.cos(lat0 * Math.PI / 180);
+function xy(p){ return [R * (p[1] - lon0) * Math.PI / 180 * k, R * (p[0] - lat0) * Math.PI / 180]; }
+var G = {}; ["centre","water_port","water_starboard","limit_port","limit_starboard"].forEach(function(n){ G[n] = V.course[n].map(xy); });
+G.bridges = V.course.bridges.map(function(b){ return {name: b.name, a: xy(b.deck[0]), b: xy(b.deck[1])}; });
+var P = S.lat.map(function(la, i){ return xy([la, S.lon[i]]); });
+// smoothed heading per stroke, from the track three strokes either side
+var H = P.map(function(_, i){ var a = P[Math.max(0, i - 3)], b = P[Math.min(N - 1, i + 3)]; return Math.atan2(b[1] - a[1], b[0] - a[0]); });
+
+// ---- state at a race time (CoxBox elapsed seconds) ----
+function idx(t){ var lo = 0, hi = N - 1; if (t <= S.t[0]) return 0; if (t >= S.t[hi]) return hi - 1;
+  while (hi - lo > 1){ var m = (lo + hi) >> 1; if (S.t[m] <= t) lo = m; else hi = m; } return lo; }
+function at(t){
+  var i = idx(t), j = Math.min(i + 1, N - 1), f = j > i ? Math.min(1, Math.max(0, (t - S.t[i]) / (S.t[j] - S.t[i]))) : 0;
+  var L = function(a){ return a[i] + f * (a[j] - a[i]); };
+  var dh = H[j] - H[i]; if (dh > Math.PI) dh -= 2 * Math.PI; if (dh < -Math.PI) dh += 2 * Math.PI;
+  return {i: i, x: P[i][0] + f * (P[j][0] - P[i][0]), y: P[i][1] + f * (P[j][1] - P[i][1]), h: H[i] + f * dh,
+          split: S.split[i], rate: S.rate[i], speed: L(S.speed), dist: L(S.distance), dps: S.per_stroke[i]};
+}
+var raceT = function(){ return audio.currentTime - OFF; };
+
+// ---- map ----
+var map = document.getElementById("map"), mx = map.getContext("2d"), zoom = 1.6, headingUp = false;
+function sizeCanvas(c){ var r = c.getBoundingClientRect(), d = window.devicePixelRatio || 1; c.width = Math.max(1, r.width * d); c.height = Math.max(1, r.height * d); return d; }
+function drawMap(st){
+  var d = sizeCanvas(map), W = map.width, Hh = map.height;
+  mx.setTransform(1, 0, 0, 1, 0, 0); mx.fillStyle = css("--bg"); mx.fillRect(0, 0, W, Hh);
+  var sc = zoom * d, rot = headingUp ? -(Math.PI / 2 - st.h) : 0;
+  mx.setTransform(1, 0, 0, 1, W / 2, Hh * (headingUp ? 0.62 : 0.5)); mx.rotate(-rot); mx.scale(sc, -sc); mx.translate(-st.x, -st.y);
+  // water polygon
+  mx.beginPath(); G.water_port.forEach(function(p, n){ n ? mx.lineTo(p[0], p[1]) : mx.moveTo(p[0], p[1]); });
+  for (var n = G.water_starboard.length - 1; n >= 0; n--) mx.lineTo(G.water_starboard[n][0], G.water_starboard[n][1]);
+  mx.closePath(); mx.fillStyle = css("--water"); mx.fill();
+  var line = function(pts, col, w, dash){ mx.beginPath(); pts.forEach(function(p, n){ n ? mx.lineTo(p[0], p[1]) : mx.moveTo(p[0], p[1]); });
+    mx.strokeStyle = col; mx.lineWidth = w / sc; mx.setLineDash(dash ? dash.map(function(v){ return v / sc; }) : []); mx.stroke(); };
+  line(G.water_port, css("--edge"), 1.5 * d); line(G.water_starboard, css("--edge"), 1.5 * d);
+  line(G.limit_port, css("--limit"), 1.2 * d, [6 * d, 5 * d]); line(G.limit_starboard, css("--limit"), 1.2 * d, [6 * d, 5 * d]);
+  G.bridges.forEach(function(b){ line([b.a, b.b], css("--bridge"), 5 * d); });
+  // full track faint, travelled track bright
+  line(P, css("--quiet"), 1 * d, [3 * d, 4 * d]);
+  line(P.slice(0, st.i + 1).concat([[st.x, st.y]]), css("--accent"), 2.5 * d);
+  // start and finish
+  [V.course.start, V.course.finish].forEach(function(p, n){ var q = xy(p); mx.beginPath(); mx.arc(q[0], q[1], 6 * d / sc, 0, 2 * Math.PI);
+    mx.fillStyle = n ? css("--warn") : css("--good"); mx.fill(); });
+  // the boat: a four is ~13 m; drawn to scale but never smaller than 16 px
+  var Lm = Math.max(13, 16 * d / sc), Bm = Lm * 0.09;
+  mx.save(); mx.translate(st.x, st.y); mx.rotate(st.h);
+  mx.beginPath(); mx.moveTo(Lm / 2, 0); mx.quadraticCurveTo(0, Bm * 2.2, -Lm / 2, 0); mx.quadraticCurveTo(0, -Bm * 2.2, Lm / 2, 0);
+  mx.fillStyle = css("--boat"); mx.fill(); mx.restore();
+  // labels in screen space
+  mx.setTransform(1, 0, 0, 1, 0, 0); mx.font = (12 * d) + "px system-ui"; mx.fillStyle = css("--ink");
+  // world (east, north) -> screen: the same transform as above, applied by hand for text that stays upright
+  var cr = Math.cos(-rot), sr = Math.sin(-rot), cy0 = Hh * (headingUp ? 0.62 : 0.5);
+  G.bridges.forEach(function(b){
+    var ex = ((b.a[0] + b.b[0]) / 2 - st.x) * sc, ey = -((b.a[1] + b.b[1]) / 2 - st.y) * sc;
+    var px = W / 2 + ex * cr - ey * sr, py = cy0 + ex * sr + ey * cr;
+    if (px > -50 && px < W + 50 && py > -20 && py < Hh + 20) mx.fillText(b.name, px + 8 * d, py - 6 * d); });
+}
+
+// ---- charts: split (inverted) and rate against race time ----
+var ch = document.getElementById("charts"), cx = ch.getContext("2d");
+var T0 = Math.min(S.t[0], -OFF), T1 = Math.max(S.t[N - 1], audio.duration ? audio.duration - OFF : S.t[N - 1]);
+var sp = S.split.filter(function(v){ return v > 60 && v < 240; }).sort(function(a, b){ return a - b; });
+var SPLO = sp[Math.floor(sp.length * 0.02)] - 3, SPHI = sp[Math.floor(sp.length * 0.98)] + 3;
+var RLO = Math.floor(Math.min.apply(null, S.rate) - 1), RHI = Math.ceil(Math.max.apply(null, S.rate) + 1);
+function drawCharts(t){
+  var d = sizeCanvas(ch), W = ch.width, Hh = ch.height, l = 46 * d, r = 40 * d, top = 10 * d, mid = Hh * 0.55, bot = Hh - 18 * d;
+  cx.setTransform(1, 0, 0, 1, 0, 0); cx.fillStyle = css("--panel"); cx.fillRect(0, 0, W, Hh);
+  var X = function(tt){ return l + (tt - T0) / (T1 - T0) * (W - l - r); };
+  var Ys = function(v){ return top + (v - SPLO) / (SPHI - SPLO) * (mid - top - 8 * d); };   // faster split higher up
+  var Yr = function(v){ return bot - (v - RLO) / (RHI - RLO) * (bot - mid - 8 * d); };
+  cx.font = (11 * d) + "px system-ui"; cx.fillStyle = css("--quiet"); cx.strokeStyle = css("--rule"); cx.lineWidth = 1;
+  for (var m = 0; m * 60 <= T1; m += 2) { var xx = X(m * 60); cx.beginPath(); cx.moveTo(xx, top); cx.lineTo(xx, bot); cx.stroke(); cx.fillText(m + "′", xx + 2 * d, Hh - 4 * d); }
+  cx.fillText(mmss(SPLO), 4 * d, top + 10 * d); cx.fillText(mmss(SPHI), 4 * d, mid - 10 * d);
+  cx.fillText(RHI + " spm", 2 * d, mid + 12 * d); cx.fillText(RLO + "", 4 * d, bot);
+  var series = function(arr, Y, col){ cx.beginPath(); var first = true;
+    for (var i = 0; i < N; i++) { var v = arr[i]; if (!(v > 0)) continue; var px = X(S.t[i]), py = Y(v); if (first) { cx.moveTo(px, py); first = false; } else cx.lineTo(px, py); }
+    cx.strokeStyle = col; cx.lineWidth = 1.5 * d; cx.stroke(); };
+  series(S.split.map(function(v){ return Math.min(SPHI, Math.max(SPLO, v)); }), Ys, css("--accent"));
+  series(S.rate, Yr, css("--good"));
+  cx.fillStyle = css("--accent"); cx.fillText("split", W - r + 4 * d, top + 10 * d); cx.fillStyle = css("--good"); cx.fillText("rate", W - r + 4 * d, mid + 12 * d);
+  var px = X(t); cx.strokeStyle = css("--warn"); cx.lineWidth = 2 * d; cx.beginPath(); cx.moveTo(px, top); cx.lineTo(px, bot); cx.stroke();
+}
+ch.addEventListener("click", function(e){ var r = ch.getBoundingClientRect(), l = 46, rr = 40; var f = (e.clientX - r.left - l) / (r.width - l - rr);
+  seek(T0 + Math.min(1, Math.max(0, f)) * (T1 - T0)); });
+
+// ---- calls ----
+var list = document.getElementById("calls");
+list.innerHTML = V.calls.map(function(c, i){ return '<div class="call" data-i="' + i + '"><span class="t num">' + mmss(c.t0) + '</span><span>' +
+  c.text.replace(/[&<>]/g, function(ch){ return {"&":"&amp;","<":"&lt;",">":"&gt;"}[ch]; }) + '</span></div>'; }).join("");
+list.addEventListener("click", function(e){ var el = e.target.closest(".call"); if (el) seek(V.calls[+el.dataset.i].t0 - 0.2); });
+var lastCall = -1;
+function updateCalls(t){
+  var i = -1; for (var n = 0; n < V.calls.length; n++) { if (V.calls[n].t0 <= t) i = n; else break; }
+  if (i !== lastCall) { var old = list.querySelector(".on"); if (old) old.classList.remove("on");
+    if (i >= 0) { var el = list.children[i]; el.classList.add("on"); if (!audio.paused) el.scrollIntoView({block: "center", behavior: "smooth"}); }
+    lastCall = i; }
+  var c = i >= 0 ? V.calls[i] : null;
+  document.getElementById("nowcall").textContent = c && t <= c.t1 + 2.5 ? c.text : "…";
+}
+
+// ---- controls and loop ----
+var scrub = document.getElementById("scrub");
+function seek(t){ audio.currentTime = Math.max(0, t + OFF); render(); }
+scrub.addEventListener("input", function(){ seek(T0 + scrub.value / 1000 * (T1 - T0)); });
+document.getElementById("play").onclick = function(){ audio.paused ? audio.play() : audio.pause(); };
+audio.onplay = audio.onpause = function(){ document.getElementById("play").textContent = audio.paused ? "▶ Play" : "❚❚ Pause"; };
+document.getElementById("back").onclick = function(){ seek(raceT() - 10); };
+document.getElementById("fwd").onclick = function(){ seek(raceT() + 10); };
+document.getElementById("speed").onchange = function(){ audio.playbackRate = +this.value; };
+document.getElementById("zin").onclick = function(){ zoom = Math.min(12, zoom * 1.4); render(); };
+document.getElementById("zout").onclick = function(){ zoom = Math.max(0.08, zoom / 1.4); render(); };
+document.getElementById("hup").onclick = function(){ headingUp = !headingUp; this.setAttribute("aria-pressed", headingUp); render(); };
+map.addEventListener("wheel", function(e){ e.preventDefault(); zoom = Math.min(12, Math.max(0.08, zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15))); render(); }, {passive: false});
+document.addEventListener("keydown", function(e){ if (e.target.tagName === "SELECT") return;
+  if (e.code === "Space") { e.preventDefault(); audio.paused ? audio.play() : audio.pause(); }
+  if (e.code === "ArrowLeft") seek(raceT() - 5); if (e.code === "ArrowRight") seek(raceT() + 5); });
+function render(){
+  var t = raceT(), st = at(Math.min(Math.max(t, S.t[0]), S.t[N - 1]));
+  var before = t < S.t[0], after = t > S.t[N - 1];
+  document.getElementById("vsplit").textContent = before || after ? "–" : mmss(st.split, 0);
+  document.getElementById("vrate").textContent = before || after ? "–" : st.rate.toFixed(0);
+  document.getElementById("vspeed").textContent = before || after ? "–" : st.speed.toFixed(2);
+  document.getElementById("vdist").textContent = Math.round(before ? 0 : st.dist) + " m";
+  document.getElementById("vstroke").textContent = before ? "–" : (st.i + 1);
+  document.getElementById("vdps").textContent = before || after ? "–" : st.dps.toFixed(1);
+  document.getElementById("clock").textContent = (before ? "before the start " : after ? "after the finish " : "race ") + mmss(t, 1) + "  ·  recording " + mmss(audio.currentTime, 1);
+  scrub.value = Math.round((t - T0) / (T1 - T0) * 1000);
+  drawMap(st); drawCharts(t); updateCalls(t);
+}
+function loop(){ render(); if (!audio.paused) requestAnimationFrame(loop); }
+audio.addEventListener("play", function(){ requestAnimationFrame(loop); });
+audio.addEventListener("loadedmetadata", function(){ T1 = Math.max(S.t[N - 1], audio.duration - OFF); render(); });
+window.addEventListener("resize", render);
+render();
+})();
+</script>
+</body>
+</html>
