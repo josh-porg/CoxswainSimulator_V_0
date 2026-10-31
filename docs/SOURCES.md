@@ -13475,3 +13475,48 @@ H23–H27. Plan: `PLAN_SYNCHRONISATION_AND_BLADES.md` A5.
 [L-DANCE] Leonard NE, Young G, Hochgraf K, et al. In the dance studio: an art and engineering exploration of human flocking. arXiv:1808.07842 (ACC 2012 version).
 [dBdPH13] de Brouwer AJ, de Poel HJ, Hofmijster MJ (2013). PLoS ONE 8(1):e54996 (PMC3559869).
 [CDZdP19] Cuijpers LS, Den Hartigh RJR, Zaal FTJM, de Poel HJ (2019). Hum Mov Sci 64:38–46.
+
+
+## 195. Correction: the coxswain follows the boat, and points the crew at its own sound (2026-10-30)
+
+*User, 2026-10-29: "the coxswain does typically do rhythm speak but they follow the boat. There are times when long
+drawn out calls are used to nudge the boat but typically a coxswain encourages rowers to listen to the sound of the
+strokes and use that as the rhythm." §194 cast the coxswain as a pacer who could lead; that is not the practice.*
+
+### What a synced race recording shows (`research/coxing/rhythm_calls.py`)
+
+The first audio-only recording synced to its CoxBox (a club four at HOCR 2026; sync by stroke lock, +12.26 s, both
+halves agreeing to 0.02 s; `research/coxing/sync_audio_coxbox.py`):
+
+- **The boat has two beats per stroke in the recording.** The stroke-triggered 20–150 Hz envelope peaks at the CoxBox
+  stroke record (phase 0.99, the catch) and again at phase ~0.45 (the finish).
+- **The calls are timed off those beats.** Rhythm words ("catch", "send", "press", "swing", ...; n 187) land at phase
+  0.85, about 0.14 of a stroke (~0.27 s) before the catch beat (R 0.23, Rayleigh p 4e-5); counts (n 190) land at 0.55,
+  just after the finish beat (R 0.18, p 2e-3). All other speech is weakly locked too (R 0.08).
+- **Direction, stroke by stroke:** a longer stroke is followed by a call earlier relative to the beat (r −0.11, n 164,
+  the follower's sign, weak); a call's timing does not predict the next stroke's change (r 0.01, n 280). The data
+  agree with following and give no sign of leading.
+- **Not yet measurable here:** drawn-out nudges. Whisper's word ends run on through pauses (199 "long" words), and an
+  unbroken-voicing detector finds continuous speech, not held vowels (22 events, no rate effect, bootstrap p 0.65). A
+  pitch-stability detector is needed.
+
+### The model, corrected (`research/crew/hearing_and_pacer.py`, `practice()`)
+
+- **The following coxswain** is the pacer at high adaptivity: §194 E2 already showed it leaves the seat spread
+  unchanged. Rhythm speech that follows does not itself synchronise the crew.
+- **"Listen to the boat"** is the crew's coupling to its own catches (all-to-all hearing) raised by attention. With
+  timing noise 0.15 rad/s^0.5 on the visual chain: spread **132 → 82 → 64 → 49 → 37 ms** at hearing gain 0, 0.5, 1,
+  2, 4. In this model it is the coxswain's main timing lever, and it works through the crew's sound, not the calls'.
+- **A nudge** (3 strokes held 4% below the crew's rate, then back to following): the rate falls 2.5–3.9% while held
+  and returns within one stroke of release (−0.3, +0.3%). With phase correction alone a nudge cannot outlast itself.
+  `period_adaptation` (new, off by default: rowers' own tempo moves toward the rhythm they follow) keeps 0.7–1.3% of
+  it at 0.1–0.3 /s, but without an anchor (the stroke's intended rate) the whole crew's tempo then drifts; preliminary.
+- The literature for period correction in sensorimotor synchronisation (e.g. Mates 1994; Repp & Keller 2004) is
+  cited from memory and **to be verified**: the web search limit was reached on 2026-10-30.
+
+### Consequences
+
+The coxing review's H25 (metronome against follower) is replaced by: rhythm speech follows the boat; "listen to the
+boat" calls reduce timing variability by raising the crew's coupling to its own sound; drawn-out calls shift the
+rate only while held unless the crew adopts the new tempo. The conductor analogy holds for the coxswain's attention
+and information role, not for tempo: the crew, like a string quartet, generates its own tempo.

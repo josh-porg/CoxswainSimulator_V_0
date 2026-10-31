@@ -70,6 +70,50 @@ def cell(**kw):
     return {k: float(np.mean([r[k] for r in rows])) for k in rows[0]}
 
 
+def practice():
+    """The coxswain as practice describes it (user, 2026-10-29): rhythm speech follows the boat, the crew are told to
+    listen to the sound of the strokes, and long drawn-out calls nudge now and then. A synced race recording agrees:
+    rhythm words land just before the catch and counts just after the finish, both timed off the boat's own sound,
+    and the calls do not predict the next stroke (research/coxing/rhythm_calls.py, SOURCES section 195).
+
+    E4  "listen to the boat": the crew's coupling to its own catches (all-to-all hearing) raised from 0 to 4 on top
+        of the visual chain, the following coxswain contributing nothing to timing (section 194, E2: a follower
+        leaves the spread unchanged).
+    E5  a nudge: for 3 strokes the coxswain's call holds a rate 4 % below the crew's (a metronome, adaptivity 0,
+        gain 2), then returns to following. Crew rate before, during and after."""
+    chain, field = stroke_chain_topology(8), all_to_all_topology(8)
+    res = {"E4": {}, "E5": {}}
+    print("\nE4  listen to the boat: attention to the crew's own catches (all-to-all hearing), timing noise 0.15")
+    for g in (0.0, 0.5, 1.0, 2.0, 4.0):
+        r = cell(sensory_gain=4.0, topology=chain, auditory_gain=g, auditory_topology=field, noise=0.15)
+        res["E4"]["hearing %g" % g] = r
+        print("  hearing gain %-4g spread %6.1f ms" % (g, r["spread_ms"]))
+    print("\nE5  a 3-stroke nudge 4% below the crew's rate, then back to following")
+    period = 2.0 * np.pi / OMEGA
+    traces = []
+    for seed in range(N_CREWS):
+        rng = np.random.default_rng(seed)
+        crew = CoupledCrew(n_seats=8, detuning=rng.normal(0.0, 0.10, 8), sensory_gain=4.0, topology=chain,
+                           pacer_gain=2.0, pacer_adaptivity=16.0, seed=seed)
+        t, rows, last = 0.0, [], None
+        for i in range(int((SETTLE + 12 * period) / DT)):
+            nudge = SETTLE <= t < SETTLE + 3 * period
+            crew.pacer_adaptivity = 0.0 if nudge else 16.0
+            crew.pacer_rate = 0.96 * OMEGA if nudge else None
+            crew.step(t, DT, OMEGA)
+            t += DT
+            if t >= SETTLE - 3 * period and int((t - (SETTLE - 3 * period)) / period) != last:
+                last = int((t - (SETTLE - 3 * period)) / period)
+                rows.append(float(np.mean(crew.phi)))
+        rate = np.diff(rows) / period / OMEGA - 1.0
+        traces.append(100.0 * rate)
+    tr = np.mean(traces, axis=0)
+    res["E5"] = dict(rate_change_pct_by_stroke=[float(x) for x in tr], strokes_before=3, nudge_strokes=3)
+    print("  crew rate vs called, per stroke (3 before, 3 nudged, then released): " +
+          " ".join("%+.1f" % x for x in tr))
+    return res
+
+
 def main():
     res = {}
     chain, bcast, field = stroke_chain_topology(8), broadcast_topology(8), all_to_all_topology(8)
@@ -101,6 +145,7 @@ def main():
                   % ("adaptivity %g /s" % a, r["spread_ms"], r["rate_error_pct"], r["pacer_lag_ms"],
                      r["pacer_sd_ms"]))
         res[label] = rows
+    res.update(practice())
     out = os.path.join(ROOT, "data", "local", "crew", "hearing_and_pacer.json")
     os.makedirs(os.path.dirname(out), exist_ok=True)
     json.dump(res, open(out, "w"), indent=1)

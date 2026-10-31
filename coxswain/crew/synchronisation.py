@@ -173,6 +173,12 @@ class CoupledCrew:
     pacer_adaptivity: float = 0.0
     #: The rate the pacer calls, rad/s; ``None`` is the nominal ``omega``.
     pacer_rate: float = None
+    #: Period correction, 1/s: how fast each rower's own tempo moves toward the rhythm they are coupled to.
+    #: Zero (the default, every result before 2026-10-30) is phase correction only: a rower pulled off their own
+    #: rate snaps back the moment the pull stops. Above zero, the coupling force is integrated into the rower's
+    #: natural frequency, so a sustained change of rhythm (a coxswain's nudge) is kept. Sensorimotor-
+    #: synchronisation models separate the two corrections; the literature citation is to be verified (SOURCES §195).
+    period_adaptation: float = 0.0
 
     phi: np.ndarray = field(default=None, repr=False)
     psi: np.ndarray = field(default=None, repr=False)
@@ -276,6 +282,9 @@ class CoupledCrew:
                     heard_theta + rate * self.auditory_delay - self.phi)
 
         drift = omega + self.detuning + sensory + mechanical + auditory + pacer
+        if self.period_adaptation > 0.0:
+            # period correction: the perceptual pull is integrated into each rower's own tempo
+            self.detuning = self.detuning + dt * self.period_adaptation * (sensory + auditory + pacer)
 
         # The pacer (the coxswain's rhythm calls) runs at its called rate and,
         # if adaptive, is pulled toward the crew's mean phase as the coxswain
