@@ -13682,3 +13682,33 @@ unsteady reason the sliding blade carries less tangential load than the quasi-st
 t* ≈ 0.5).
 
 §196 points 2 and 4 are corrected by this section; its "Next" is done.
+
+## 199. [H10] read: the full-scale parallel force is small, drag-like at the ends, and leads the sliding (2026-10-31, preliminary)
+
+[H10] (PDF in data/local/literature/hofmijster2010/; figures are raster, digitising not yet done; values below are read
+by eye from Figs 9–10 and Table I). One world-class female sculler, Big Blades, 30–32 spm, instrumented oars and
+oarlocks.
+
+- Table I: blade losses 45.7 W (both blades) without the parallel force and 53.7 W with it: the parallel force carries
+  ~15 % of blade losses.
+- Fig. 9: parallel force −5 to −12 N (inward on the blade) over the first ~0.35 s, then +5 to +9 N (outward) to the
+  release. Against a total blade force of ~40–130 N (Fig. 10), that is ~5–20 % of the total, smallest mid-drive.
+  Inward early and outward late oppose the along-shaft sliding the boat's speed gives the blade: drag-like, as
+  [GTW21] measured and the review law assumes.
+- The sign changes at ~0.37 s, **~0.23 s before the blade is square to the boat** (Fig. 8, t ≈ 0.6 s). A quasi-steady
+  law can only change sign there. H10's first explanation, water accelerated outward along the blade in the first half,
+  is the spanwise (radial) flow of a revolving low-aspect-ratio plate.
+
+Against the review law on [CR06]'s measured path (another elite female sculler at a similar rate): the law's
+tangential load is 25–34 % of the normal load through the loaded drive and peaks at ~44 N in mid-drive, where [H10]'s
+is near zero. The law overstates the full-scale tangential load by ~3× in mid-drive, and has the wrong timing.
+(§198's "whole window" share also counted the blade dragged after the real release, where w_n > 0; the per-phase ratio
+is the cleaner comparison.)
+
+With §193's decomposition (cross-flow normal, no tangential: [CR06] −0.7 %, [BR24] +2.0 % at their power), the
+evidence brackets the full-scale tangential load between zero and well under the quasi-steady law. Setting its level
+from [H10] would be a one-athlete fit: held as a bracket.
+
+Next: digitise Figs 8–10 from the 400-dpi page renders (page6/page7_400dpi.png) into data/literature; compare the law's
+F_t(t)/|F|(t) on [CR06]'s path with [H10]'s, phase by phase; look for a sourced spanwise-flow (revolving-wing) correction
+to the along-shaft relative velocity.
