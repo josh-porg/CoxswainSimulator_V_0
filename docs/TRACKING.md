@@ -4393,7 +4393,7 @@ Nothing changed in the model.
 | minimap in the corner, north up, under the HUD's change key (position to 2 m, heading to 5°); off in settings or `--no-minimap` | `draw_minimap`, `fpv.py` | same; Minimal benched at 9.1 ms with it on |
 | ~~the rig editor's lineup **races**~~ — **not true as shipped**: `boat_from_lineup` was right and never called with a lineup, because `main` never read it off the setup menu. Fixed in v0.13 (see Fixed) | `boat_from_lineup`, `menu.py` | `tests/test_presets.py`, and now `tests/test_rig_reaches_the_water.py` |
 | saved presets in `presets.json`; Save as preset row; built-ins cycle first | `presets.py`, `rigview.py`, `fpv.py` | same |
-| Genevieve's Pink Ribbon built in; editor opens on a named default | `rigview.py` | `tests/test_rigview.py` |
+| A club coxswain's Pink Ribbon rig built in; editor opens on a named default | `rigview.py` | `tests/test_rigview.py` |
 | bonus run behind the word "boost": 77 coins / 8 boosts on HOTL, +0.30 on the call for 8 s, score and best kept | `bonus.py`, `fpv.py` | `tests/test_bonus.py` |
 
 
