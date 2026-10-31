@@ -13520,3 +13520,47 @@ The coxing review's H25 (metronome against follower) is replaced by: rhythm spee
 boat" calls reduce timing variability by raising the crew's coupling to its own sound; drawn-out calls shift the
 rate only while held unless the crew adopts the new tempo. The conductor analogy holds for the coxswain's attention
 and information role, not for tempo: the crew, like a string quartet, generates its own tempo.
+
+
+## 196. Combining the review blade and the sourced blade: the laws agree where the motion is measured; the boat's blade path is what is wrong (2026-10-30)
+
+*User, 2026-10-30: "can we combine the review blade and the sourced blade... are there things we can find by
+considering the strengths of both models and combining them?" Review blade: the fins' cross-flow law (§188–193).
+Sourced blade: tier 2, [CG07] lift and drag with the full-size options (§163).*
+
+### Their strengths, side by side
+
+| | review blade (cross-flow) | sourced blade (tier 2 [CG07]) |
+|---|---|---|
+| normal load on measured motions | right shape on [GTW21], [RLBQV19], [LJH12]; no catch excess (§188–191) | catch 1.4–1.9× over; middle drive within 10–20% |
+| face-on level | C_Dc profiled 2.3 / 2.2 / 1.3 by Froude number | [CG07]'s ≈2 at 90°, the same as [LJH12]'s dynamic 2.05 and the cross-flow value at Fr 0.5–0.9: **the two agree on the face-on level**; they differ at low incidence (lift slope) and in the tangential sign |
+| tangential load | drag-like, as measured | thrust-like: wrong sign ([GTW21] F_t impulse −0.25) |
+| closed loop at the athletes' power (§192–193) | −7.4 % / −8.9 % | +2.6 % / +6.4 % |
+
+### What the combination shows (`research/blade/tangential_share.py`)
+
+1. **On the one measured on-water blade motion the review blade's tangential load is right.** Its F_t impulse is 0.79
+   of [GTW21]'s measured (§184 table), and its share of the blade's dissipated work is **19.6 % against 15.7 %
+   measured**. Hofmijster et al. [H10] put the parallel force at about 18 % of blade losses: the same number. §193's
+   reading, "its level is far too high", compared the closed-loop cost with [H10]; the law itself is not too high.
+2. **In the boat the same law costs 6–10 % of speed** (§193), about 20–30 % of the rower's power by the cube law,
+   several times the share it takes on the measured motion. The law is unchanged; the motion is not. On [GTW21]'s
+   path the blade turns face-on late in the drive (centre angle of attack 6 / 22 / 45 / **73**° by fifths, sliding
+   fraction |w_a|/|w| 0.99 / 0.92 / 0.70 / **0.28**); on [BR24]'s measured channels it stays near 48° (§184, review
+   §3.4), still sliding along itself while loaded, so drag along the blade costs far more.
+3. **Tier 2's closed-loop speed is a compensating error.** Swapping only its tangential load for the review blade's
+   takes it from +2.6 / +6.4 % to −3.4 / −3.9 % (§193): its thrust-like tangential term, the one the tank rejects, is
+   what offsets the extra sliding. A law that scores best closed loop for that reason should not be promoted.
+4. **The combined blade** is therefore the review blade whole (cross-flow normal with the profiled face-on value,
+   drag-like tangential), which takes the sourced blade's level where the two agree. What it needs is not a coefficient
+   but a **blade path in the boat that matches the measured one**. The candidates set by the simulator, not the law:
+   the oar angle against time in the late drive (the [K05] drive law on each athlete's arc), the hull's speed through
+   the drive (the athletes' channels, and the open-loop sensitivity of §183 to a channel lag), and how the release is
+   timed.
+
+### Next
+
+Instrument the simulator through the constructor (a recording blade passed as `liftdrag_blade=`, never a patched
+private attribute: STRUCTURAL_ISSUES S3) and compare the closed-loop blade's centre angle of attack and sliding fraction
+by fifths with [GTW21]'s 6 / 22 / 45 / 73°. Then find which kinematic input moves it off the measured path. A blade
+law change is not the next step.

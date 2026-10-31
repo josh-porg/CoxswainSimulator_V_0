@@ -185,7 +185,8 @@ var lastCall = -1;
 function updateCalls(t){
   var i = -1; for (var n = 0; n < V.calls.length; n++) { if (V.calls[n].t0 <= t) i = n; else break; }
   if (i !== lastCall) { var old = list.querySelector(".on"); if (old) old.classList.remove("on");
-    if (i >= 0) { var el = list.children[i]; el.classList.add("on"); if (!audio.paused) el.scrollIntoView({block: "center", behavior: "smooth"}); }
+    // highlight only: the list never scrolls itself (the user reads and scrolls it freely)
+    if (i >= 0) list.children[i].classList.add("on");
     lastCall = i; }
   var c = i >= 0 ? V.calls[i] : null;
   document.getElementById("nowcall").textContent = c && t <= c.t1 + 2.5 ? c.text : "…";

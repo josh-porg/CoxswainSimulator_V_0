@@ -166,11 +166,17 @@ contribution is the validation, and it has to be earned:
 | [RLBQV19] Fig. 9 (roll) and the immersion series as held-out cases | more full-size cases | to do; needs the blade's wetted geometry (area not stated) |
 | the law in the simulator, closed loop | the blade inside the boat | **built and run (§192): negative.** −7 to −9% speed at the athletes' power, IVV worse; tier 2 best closed loop. Separate the tangential drag from the weaker lift next |
 | the oar's bending in the simulator | sweep oars bend ~7° ([RLBQV19]); sculls less ([LNA15]) | **built** (§193): `oar_bending=`; scull derived from [LNA15] (~1° at 400 N·m); +1–3% at equal power |
-| why the cross-flow blade is slow closed loop | before any claim | **found** (§193): the drag-like tangential load costs 6–10% of speed; its level, not its sign, is wrong ([H10]: ~1%). The measured C_T level is next |
+| why the cross-flow blade is slow closed loop | before any claim | **found** (§193, corrected §196): the drag-like tangential load costs 6–10% of speed in the boat, but on the measured on-water motion its share of blade work is right (19.6% against 15.7% measured, [H10] ~18%). The boat's blade path slides too much late in the drive; instrument it next |
 | a sourced face-on function of Froude number, or a fourth dataset above Fr 1 | the one open number | open |
 | independence | nothing tuned to a test set | the rule; C_Dc is profiled, not fitted, and the athlete test used the predicted value |
 
 ## 5. Log
+
+- 2026-10-30 (§196): the review and sourced blades combined. On [GTW21]'s measured on-water motion the review blade's
+  tangential share of blade work is 19.6 % against 15.7 % measured ([H10]: ~18 %): its level is right. The 6–10 % it
+  costs in the boat is the simulated blade still sliding along itself late in the drive (the measured path turns it to
+  73° at the centre). Tier 2's closed-loop speed comes from its wrong-signed tangential term offsetting that. Next is
+  the blade path in the boat, not a law.
 
 - 2026-10-27 (§193): the closed-loop deficit is the tangential load's level (6–10% of speed; [H10] implies ~1%);
   oar bending in the simulator; Barré & Kobus's abstract (the advance number does not separate the datasets in hand);
