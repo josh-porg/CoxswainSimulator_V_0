@@ -13695,7 +13695,8 @@ oarlocks.
   release. Against a total blade force of ~40–130 N (Fig. 10), that is ~5–20 % of the total, smallest mid-drive.
   Inward early and outward late oppose the along-shaft sliding the boat's speed gives the blade: drag-like, as
   [GTW21] measured and the review law assumes.
-- The sign changes at ~0.37 s, **~0.23 s before the blade is square to the boat** (Fig. 8, t ≈ 0.6 s). A quasi-steady
+- The sign changes at **0.45 s** (traced, §200; first read by eye as ~0.37 s), **0.17 s before the blade is square to
+  the boat** (Fig. 8, 0.62 s). A quasi-steady
   law can only change sign there. H10's first explanation, water accelerated outward along the blade in the first half,
   is the spanwise (radial) flow of a revolving low-aspect-ratio plate.
 
@@ -13712,3 +13713,67 @@ from [H10] would be a one-athlete fit: held as a bracket.
 Next: digitise Figs 8–10 from the 400-dpi page renders (page6/page7_400dpi.png) into data/literature; compare the law's
 F_t(t)/|F|(t) on [CR06]'s path with [H10]'s, phase by phase; look for a sourced spanwise-flow (revolving-wing) correction
 to the along-shaft relative velocity.
+
+## 200. The tangential load at [H10]'s level: the review blade within 3 % on both athletes, nothing fitted; both measured loads are out of phase with the sliding (2026-10-31)
+
+Data: [H10] Fig. 9 traced (`data/literature/hofmijster2010_fig9_parallel.csv`, median of the line per pixel column,
+~0.1 N); Figs 8 and 10 read by eye (`hofmijster2010_fig8_fig10_read.csv`, ~2° / ~5 N). Scripts:
+`research/blade/h10_parallel_force.py`, `research/blade/tangential_level_sweep.py`.
+
+### 1. Phase by phase (`h10_parallel_force.py`)
+
+F_t / |F| by tenths of the loaded drive (negative = inward on the blade):
+
+| | 0–10 | 10–20 | 20–30 | 30–40 | 40–50 | 50–60 | 60–70 | 70–80 | 80–90 | 90–100 % |
+|---|---|---|---|---|---|---|---|---|---|---|
+| [H10] measured, on the water | −0.26 | −0.16 | −0.07 | −0.03 | +0.01 | +0.05 | +0.08 | +0.09 | +0.21 | +0.13 |
+| review law on [CR06]'s measured path | −0.20 | −0.24 | −0.26 | −0.30 | −0.31 | −0.23 | +0.17 | +0.27 | +0.13 | +0.29 |
+
+- [H10]'s parallel force changes sign at 0.45 s (43 % of the drive), with the blade 25° short of square; it is square at
+  0.62 s (62 %). The law can only change sign where the still-water sliding does, at the square blade (62 % on
+  [CR06]'s path, 78 % on [BR24]'s). Mid-drive the law's ratio is ~0.3, [H10]'s ~0.03.
+- To cancel the still-water sliding at [H10]'s sign change, the water at the blade would have to move outward along
+  the shaft at 1.3 m/s on [CR06]'s path (a third of the blade's own speed).
+- **[GTW21]'s tank load is out of phase the other way.** On its own measured path (the robot reproduces the rotation
+  in still water) the measured tangential load changes sign at t* 0.90, the still-water sliding at 0.71: it **lags**,
+  as water the blade has set moving would make it. Its mid-drive ratio is ~0.17 against the law's 0.33. So rotation
+  alone does not explain [H10]'s lead (the robot rotates too). What both measurements share: the tangential load does
+  not follow the instantaneous still-water sliding, and it is smaller than the quasi-steady law (½ in the tank, ~⅕ on
+  the water). Candidates for the on-water lead, none tested: the free surface, the Big Blade's curvature and asymmetry
+  (Caplan & Gardner's flume found curvature matters for both lift and drag; [H10]'s second explanation), and the
+  reconstruction of a 5–12 N component from shaft strain ([H10]'s third).
+- The law's tangential share of blade losses on [CR06]'s loaded drive (to the release by [CR06]'s rule) is 36 %, against
+  [H10]'s 14.9 %.
+
+### 2. Closed loop at [H10]'s level (`tangential_level_sweep.py`)
+
+Rung 1 (hands on the handle, [K05]'s drive law, each athlete's own arc and rate; strips; rigid oar): the cross-flow
+normal load with the cross-flow tangential load × k. Speed at the athlete's measured power by the cube law; the
+tangential share of blade losses on the run's own path.
+
+| k | [CR06] speed / share / IVV | [BR24] speed / share / IVV |
+|---|---|---|
+| 0 | −0.7 % / 0 % / 53.8 % | +2.0 % / 0 % / 59.6 % |
+| 0.25 | −2.4 % / 12.9 % / 54.3 % | −0.6 % / 16.8 % / 60.5 % |
+| 0.5 | −4.0 % / 22.8 % / 54.8 % | −3.3 % / 28.8 % / 61.5 % |
+| 1 (the law) | −7.4 % / 37.1 % / 56.0 % | −8.9 % / 44.7 % / 63.7 % |
+| **at [H10]'s 14.9 %** | **−2.7 %** (k ≈ 0.29) | **−0.3 %** (k ≈ 0.22) |
+
+**The review blade with its tangential load at the level measured on the water by an independent sculler is within 3 %
+of both athletes' speed at their measured power**, nothing fitted to either (the research slip law: −0.4 % on [CR06],
+to whom its C2 was fitted, +2.8 % on [BR24]; tier 2: +2.6 / +6.4 %). The level needed is about a quarter of the
+quasi-steady law's on both athletes, which is what [H10]'s mid-drive ratio says too. The tangential load also deepens
+the swing: IVV rises 0.5–1 point per quarter of the law, so the measured level costs about a point of IVV against none
+(both athletes' IVV stays ~5–11 points high: the body, phase 4.3).
+
+What is and is not claimed: [H10]'s share is one sculler's, reconstructed from shaft strain; it is used as a sourced
+level, not fitted to the athletes it is tested on. The phase is still wrong (the scaled law keeps the law's timing).
+A tangential law with the right phase needs the mechanism; the two measured loads disagree on its direction.
+
+### Next
+
+1. Look for a second on-water measurement of the parallel force (Northumbria's oar-blade force system; [LTW19] cannot
+   recover it).
+2. A k ≈ ¼ cross-flow blade as a named research option is a candidate for the blade decision, once the IVV gap (the
+   body) is closed and the phase question has an answer; not promoted now.
+3. Separate the curvature explanation: Caplan & Gardner's flume tested a flat plate against the curved blades.

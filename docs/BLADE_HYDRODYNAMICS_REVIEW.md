@@ -166,11 +166,16 @@ contribution is the validation, and it has to be earned:
 | [RLBQV19] Fig. 9 (roll) and the immersion series as held-out cases | more full-size cases | to do; needs the blade's wetted geometry (area not stated) |
 | the law in the simulator, closed loop | the blade inside the boat | **built and run (§192): negative.** −7 to −9% speed at the athletes' power, IVV worse; tier 2 best closed loop. Separate the tangential drag from the weaker lift next |
 | the oar's bending in the simulator | sweep oars bend ~7° ([RLBQV19]); sculls less ([LNA15]) | **built** (§193): `oar_bending=`; scull derived from [LNA15] (~1° at 400 N·m); +1–3% at equal power |
-| why the cross-flow blade is slow closed loop | before any claim | **found** (§193, corrected §196): the drag-like tangential load costs 6–10% of speed in the boat, but on [GTW21]'s measured sweep path its share of blade work is right (19.6% against 15.7%). **Corrected §198:** the simulated blade path matches the athletes' measured scull paths (review blade's share 33 vs 32% for [CR06]); on scull paths, which slide at 40–55° through the drive, the law charges 25–32% against [H10]'s ~15–18% measured on a sculler. The excess is the law's tangential level on sliding motion, not the path. Next: [H10]'s parallel force by phase |
+| why the cross-flow blade is slow closed loop | before any claim | **found** (§193, corrected §196): the drag-like tangential load costs 6–10% of speed in the boat, but on [GTW21]'s measured sweep path its share of blade work is right (19.6% against 15.7%). **Corrected §198:** the simulated blade path matches the athletes' measured scull paths (review blade's share 33 vs 32% for [CR06]); on scull paths, which slide at 40–55° through the drive, the law charges 25–32% against [H10]'s ~15–18% measured on a sculler. The excess is the law's tangential level on sliding motion, not the path. **§199–200:** [H10] by phase: on the water the tangential load is ~⅒ of the law's mid-drive and leads the sliding; at [H10]'s level the review blade is within 3 % on both athletes. Next: the phase (a second on-water dataset; blade curvature) |
 | a sourced face-on function of Froude number, or a fourth dataset above Fr 1 | the one open number | open |
 | independence | nothing tuned to a test set | the rule; C_Dc is profiled, not fitted, and the athlete test used the predicted value |
 
 ## 5. Log
+
+- 2026-10-31 (§199–200): [H10] read and Fig. 9 traced. On the water the parallel force is drag-like but small
+  (F_t/|F| ~0.03 mid-drive against the law's ~0.3) and changes sign before the blade is square; [GTW21]'s tank load
+  lags the sliding instead. At [H10]'s 14.9 % share of blade losses (the law × ~¼) the review blade is within 3 % of both
+  athletes' speed at their power, nothing fitted. Not promoted: the phase and the IVV remain.
 
 - 2026-10-31 (§198, corrects §196): the blade path in the boat measured against the athletes' own (one formula, both
   sides, `research/blade/blade_path_in_boat.py`). The simulated path is right ([CR06]: the review blade's tangential

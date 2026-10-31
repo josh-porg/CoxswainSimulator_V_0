@@ -1,0 +1,26 @@
+# Hofmijster, de Koning & van Soest (2010) J Sports Sci 28(10), read BY EYE from a 400-dpi render of the raster figures
+# (precision ~2 deg for Fig. 8, ~5 N for Fig. 10); the "deformable oar, shear blade forces" case (dark band, their
+# preferred reconstruction). t from the start of the stroke phase (s). blade_angle_deg: blade relative to the boat,
+# 90 = square to the boat (Fig. 8; flat at 30 deg until 0.07 s). lift_N, drag_N: blade force resolved along and across
+# the blade centre's velocity through the water (Fig. 10; dotted = lift, solid = drag).
+t_s,blade_angle_deg,lift_N,drag_N
+0.00,30,-17,3
+0.05,30,-13,3
+0.10,33,-25,-22
+0.15,37,-50,-22
+0.20,41,-72,-26
+0.25,45,-88,-30
+0.30,49,-102,-45
+0.35,54,-108,-56
+0.40,59,-110,-64
+0.45,65,-110,-70
+0.50,72,-95,-78
+0.55,79,-50,-88
+0.60,87,5,-98
+0.65,95,45,-50
+0.70,102,62,-22
+0.75,110,56,-12
+0.80,117,45,-5
+0.85,122,32,0
+0.90,127,15,2
+0.95,130,3,4
