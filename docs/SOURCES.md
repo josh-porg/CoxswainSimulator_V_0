@@ -13564,3 +13564,12 @@ Instrument the simulator through the constructor (a recording blade passed as `l
 private attribute: STRUCTURAL_ISSUES S3) and compare the closed-loop blade's centre angle of attack and sliding fraction
 by fifths with [GTW21]'s 6 / 22 / 45 / 73°. Then find which kinematic input moves it off the measured path. A blade
 law change is not the next step.
+
+**Correction (user, 2026-10-30: "the counting is at the catch always").** The two low-band beats were assigned the
+wrong way round above. With the counts as the catch reference: the counts fall at stroke phase 0.55, just after the
+weaker beat at ~0.45, which is therefore the **catch**; the stronger beat at phase ~0.99, where this CoxBox logs its
+per-stroke record, is near the **finish**. The rhythm words ("cha", "send", "complete", "swing", "press") fall at 0.85,
+in the late drive into the finish, which is where those words belong. The conclusion stands (the calls are timed off
+the boat's own sound and follow it); the beat labels and the CoxBox record's place in the cycle change: on this unit
+the per-stroke record sits about half a cycle from the catch, so stroke-phase analyses of CoxBox data should anchor on
+the catch from the audio, not assume the record is the catch.

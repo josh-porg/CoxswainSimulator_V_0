@@ -4458,6 +4458,12 @@ implementation — a second splash system, a second wind bed, a second
 sky-noise term would *break* the constraints the first one was built
 to.
 
+### A second coxswain in the call study (2026-10-30)
+
+| what | where | pinned by |
+|---|---|---|
+| **race_07: a second coxswain and crew** (HOCR 2026, audio-only, stroke-lock sync). Built as a callmodel session, coded blind under the codebook (addendum: familiarity within her race), added to the experiment with `SET=first|race_07|all`. Supported: power calls raise rate; rate/length calls act on their own channel; the steering confound. Weakened: power-call speed at strokes 3–5 (16 → 11 mm/s) and the arousal contrast. New hypothesis: announced pushes respond 5–12 strokes later (her six: +154 mm/s at strokes 8–12). | `research/coxing/build_audio_session.py`, `research/coxing/experiment/run_experiment.py` (`SET`, `OTHER_COX`), `research/coxing/race_story.py`, `research/coxing/announced_pushes.py` | results in data/local/coxing/experiment (results.json, results_set_race_07.json, *_before_race07.*) |
+
 ### Audio-only coxswain recordings and the race viewer
 
 | what | where | pinned by |

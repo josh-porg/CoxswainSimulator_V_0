@@ -10,7 +10,10 @@ to the CoxBox (sync_audio_coxbox.py), with three measures:
 1. **Phase locking.** Each word's onset is placed in the stroke cycle (0 = a CoxBox stroke record, 1 = the next).
    Rhythm words (counts, "catch", "send", "cha", "press", "swing", ...) that follow the boat land at a consistent
    phase: high resultant length R (Rayleigh test). The boat's own sound is placed the same way: the stroke-triggered
-   average of the 20-150 Hz envelope gives the phase of the thump, so a call's lead or lag on the sound is measured.
+   average of the 20-150 Hz envelope gives the phase of the strongest beat ("thump" below), so a call's lead or lag
+   on the sound is measured. Which beat is the catch is NOT assumed: the counts are said on the catch (user,
+   2026-10-30), so they mark it. On the first recording the counts sit at phase 0.55, just after a weaker beat at ~0.45
+   (the catch); the strongest beat, at the CoxBox's per-stroke record, is near the finish (SOURCES §195, correction).
 2. **Tempo following.** In a count ("one, two, three ..."), the interval between successive numbers against the
    CoxBox stroke period at that moment: a follower's ratio is ~1 and tracks the period as the rate changes.
 3. **Nudges.** Words held long (word duration >= 0.8 s, e.g. a stretched "swing" or "length") and the change in

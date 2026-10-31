@@ -30,13 +30,29 @@ SES = ["race_01", "practice_01", "practice_02", "race_04", "race_05"] + TODAY + 
 ORDER = ["race_01", "practice_01", "practice_02", "control_01", "race_04", "race_05", "control_02"] + TODAY + ["race_06"]
 AUDIO = {"practice_01": "0117", "practice_02": "0119", "race_04": "0132", "race_05": "0134", **{k: "261007" for k in TODAY},
          "race_06": "0149"}
+# race_07 (added 30 Oct 2026): a SECOND coxswain and crew (HOCR 2026), from her own audio recording synced to the
+# crew's CoxBox. Familiarity is computed within race_07 alone (CODEBOOK addendum, 30 Oct). OTHER_COX lists sessions of
+# other coxswains: each is its own familiarity sequence.
+OTHER_COX = ["race_07"]
+for _k in OTHER_COX:                         # the recording's key lives in the private session meta (names stay in data/local)
+    AUDIO[_k] = json.load(open(os.path.join(SDIR, _k, "meta.json")))["source"].split()[-1]
+# SET=first: the first coxswain's sessions only (the analysis as it stood before race_07); SET=race_07: race_07 alone
+# (the out-of-sample test of the first coxswain's conclusions); default: all sessions.
+SET = os.environ.get("SET", "all")
+if SET == "first":
+    pass
+elif SET in OTHER_COX:
+    SES = [SET]
+else:
+    SES = SES + OTHER_COX
 # COURSE=1: the boat's own forecast also carries the course (turn rate; heading where the piece turns),
 # a robustness run written with the suffix _course. Without it the analysis is the pre-registered one.
 COURSE = os.environ.get("COURSE") == "1"
 # ALT_AROUSAL=race_06|all: arousal from the lexical rule coder (rulecoder.py) instead of the hand codes,
 # for those sessions; a sensitivity check on the arousal contrast (race_06 was coded after the first results).
 ALT_AROUSAL = os.environ.get("ALT_AROUSAL", "")
-SUF = ("_course" if COURSE else "") + ("_rulearousal_" + ALT_AROUSAL if ALT_AROUSAL else "")
+SUF = ("_course" if COURSE else "") + ("_rulearousal_" + ALT_AROUSAL if ALT_AROUSAL else "") + \
+    ("" if SET == "all" else "_set_" + SET)
 # drilled cues (CODEBOOK addendum): regex on the lead phrase, piece number from which the drill had been taught
 import re
 sys.path.insert(0, CODE)
@@ -58,7 +74,7 @@ def log(*a):
 
 # ------------------------------------------------------------------ build
 sessions = {}
-for sid in ORDER:
+for sid in ORDER + [k for k in OTHER_COX if k in SES]:
     s = CP.load_session(os.path.join(SDIR, sid))
     s["id"] = sid
     s["episodes"] = []
@@ -73,6 +89,9 @@ for sid in ORDER:
         s["episodes"] = CP.episodes(s["phrases"], codes)
     sessions[sid] = s
 CP.add_familiarity([sessions[k] for k in ORDER])
+for k in OTHER_COX:                          # another coxswain: her own cues only
+    if k in sessions:
+        CP.add_familiarity([sessions[k]])
 S = [sessions[k] for k in SES]
 
 rows = []
@@ -427,38 +446,39 @@ for k_, v in cross.items():
 # ------------------------------------------------------------------ 7 Oct 2026: drills, "hold it", calling density
 T = {}
 tod = sub(calls, calls.session.isin(TODAY))
-tech = tod.target.isin(["catch", "finish", "body", "set", "together", "length", "power"]) & (tod.stage == "dec") & (tod.level == "proc")
-dr = sub(tod, tech)
-m = (dr.drilled == 1).to_numpy()
-T["drilled_vs_other_technical"] = dict(n_drilled=int(m.sum()), n_other=int((~m).sum()), **both(
-    lambda jj: np.array([np.nanmean(outcome(jj, "speed_3_5")[m]) - np.nanmean(outcome(jj, "speed_3_5")[~m])]), js_of(dr), 200))
-pr = sub(tod, (tod.appraisal == "chal") & (tod.stage == "ass") | (tod.hold == 1))
-h = (pr.hold == 1).to_numpy()
-for key in ("speed_3_5", "speed_6_10"):
-    T["hold_vs_plain_praise_" + key] = dict(n_hold=int(h.sum()), n_plain=int((~h).sum()), **both(
-        lambda jj, key=key: np.array([np.nanmean(outcome(jj, key)[h]) - np.nanmean(outcome(jj, key)[~h])]), js_of(pr), 210))
-pwt = sub(tod, (tod.target == "power") & (tod.stage == "dec"))
-T["power_calls_today_3_5"] = dict(n=len(pwt), **both(mean_of(pwt, "speed_3_5"), js_of(pwt), 220))
-pieces = {}
-for k in TODAY:
-    s_ = sessions[k]
-    c_ = calls[calls.session == k]
-    one = s_["R"]["speed"][:, 0]
-    d = s_["meta"]
-    dist = s_["speed"].sum() * 0 + (np.sum(np.diff(s_["t"]) * s_["speed"][1:]))
-    pieces[k] = dict(note=d.get("note", ""), strokes=len(s_["t"]), minutes=float((s_["t"][-1] - s_["t"][0]) / 60),
-                     calls=len(c_), calls_per_min=float(len(c_) / ((s_["t"][-1] - s_["t"][0]) / 60)),
-                     info_share=float((c_.target == "info").mean()) if len(c_) else 0.0,
-                     mean_speed=float(s_["speed"].mean()), avg_split=float(500 / s_["speed"].mean()),
-                     mean_rate=float(s_["rate"].mean()), resid_sd=float(np.nanstd(one)), rate_sd=float(np.std(s_["rate"][5:-5])))
-T["pieces"] = pieces
-OUT["today"] = T
-log("\n7 OCT 2026 PRACTICE (six pieces, a four)")
-for k in ("drilled_vs_other_technical", "hold_vs_plain_praise_speed_3_5", "hold_vs_plain_praise_speed_6_10", "power_calls_today_3_5"):
-    show(k, T[k])
-for k, v in pieces.items():
-    log("  %s %-60s calls/min %4.1f info %3.0f%%  split %.1f s  rate %.1f  resid sd %.0f mm/s  rate sd %.2f" % (
-        k, v["note"][:60], v["calls_per_min"], 100 * v["info_share"], v["avg_split"], v["mean_rate"], 1000 * v["resid_sd"], v["rate_sd"]))
+if len(tod):                                # the 7 Oct pieces are in this set
+    tech = tod.target.isin(["catch", "finish", "body", "set", "together", "length", "power"]) & (tod.stage == "dec") & (tod.level == "proc")
+    dr = sub(tod, tech)
+    m = (dr.drilled == 1).to_numpy()
+    T["drilled_vs_other_technical"] = dict(n_drilled=int(m.sum()), n_other=int((~m).sum()), **both(
+        lambda jj: np.array([np.nanmean(outcome(jj, "speed_3_5")[m]) - np.nanmean(outcome(jj, "speed_3_5")[~m])]), js_of(dr), 200))
+    pr = sub(tod, (tod.appraisal == "chal") & (tod.stage == "ass") | (tod.hold == 1))
+    h = (pr.hold == 1).to_numpy()
+    for key in ("speed_3_5", "speed_6_10"):
+        T["hold_vs_plain_praise_" + key] = dict(n_hold=int(h.sum()), n_plain=int((~h).sum()), **both(
+            lambda jj, key=key: np.array([np.nanmean(outcome(jj, key)[h]) - np.nanmean(outcome(jj, key)[~h])]), js_of(pr), 210))
+    pwt = sub(tod, (tod.target == "power") & (tod.stage == "dec"))
+    T["power_calls_today_3_5"] = dict(n=len(pwt), **both(mean_of(pwt, "speed_3_5"), js_of(pwt), 220))
+    pieces = {}
+    for k in TODAY:
+        s_ = sessions[k]
+        c_ = calls[calls.session == k]
+        one = s_["R"]["speed"][:, 0]
+        d = s_["meta"]
+        dist = s_["speed"].sum() * 0 + (np.sum(np.diff(s_["t"]) * s_["speed"][1:]))
+        pieces[k] = dict(note=d.get("note", ""), strokes=len(s_["t"]), minutes=float((s_["t"][-1] - s_["t"][0]) / 60),
+                         calls=len(c_), calls_per_min=float(len(c_) / ((s_["t"][-1] - s_["t"][0]) / 60)),
+                         info_share=float((c_.target == "info").mean()) if len(c_) else 0.0,
+                         mean_speed=float(s_["speed"].mean()), avg_split=float(500 / s_["speed"].mean()),
+                         mean_rate=float(s_["rate"].mean()), resid_sd=float(np.nanstd(one)), rate_sd=float(np.std(s_["rate"][5:-5])))
+    T["pieces"] = pieces
+    OUT["today"] = T
+    log("\n7 OCT 2026 PRACTICE (six pieces, a four)")
+    for k in ("drilled_vs_other_technical", "hold_vs_plain_praise_speed_3_5", "hold_vs_plain_praise_speed_6_10", "power_calls_today_3_5"):
+        show(k, T[k])
+    for k, v in pieces.items():
+        log("  %s %-60s calls/min %4.1f info %3.0f%%  split %.1f s  rate %.1f  resid sd %.0f mm/s  rate sd %.2f" % (
+            k, v["note"][:60], v["calls_per_min"], 100 * v["info_share"], v["avg_split"], v["mean_rate"], 1000 * v["resid_sd"], v["rate_sd"]))
 
 OUT["course_terms"] = {k: sessions[k].get("course_terms", 0) for k in SES}
 json.dump(OUT, open(os.path.join(HERE, "results%s.json" % SUF), "w"), indent=1)

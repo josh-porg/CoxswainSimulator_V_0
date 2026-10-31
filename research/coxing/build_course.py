@@ -16,10 +16,13 @@ CB = {"practice_01": "20260925 0555AM", "practice_02": "20260925 0620AM", "contr
       "race_04": "20261004 0803AM", "race_05": "20261004 1237PM", "control_02": "20261007 0850AM",
       "practice_03": "20261007 0903AM", "practice_04": "20261007 0920AM", "practice_05": "20261007 0936AM",
       "practice_06": "20261007 0948AM", "practice_07": "20261007 1003AM", "practice_08": "20261007 1014AM",
-      "race_06": "20261017 0737AM"}
+      "race_06": "20261017 0737AM",
+      # another coxswain's boat and CoxBox unit (a full file name): the second crew in the study
+      "race_07": "Sharing file  CoxBox 011007363 20261017 0713AM.csv"}
 
 for sid, cb in CB.items():
-    s = C.load_csv(os.path.join(ROOT, "data", "local", "coxbox", "Sharing file  CoxBox 011009704 %s.csv" % cb))
+    name = cb if cb.endswith(".csv") else "Sharing file  CoxBox 011009704 %s.csv" % cb
+    s = C.load_csv(os.path.join(ROOT, "data", "local", "coxbox", name))
     boat = np.genfromtxt(os.path.join(SDIR, sid, "boat.csv"), delimiter=",", names=True)
     assert len(boat["t"]) == len(s.t) and np.allclose(boat["t"], s.t), sid
     lat0 = np.radians(np.nanmean(s.lat))

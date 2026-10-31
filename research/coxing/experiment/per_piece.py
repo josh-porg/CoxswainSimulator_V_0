@@ -9,7 +9,7 @@ HERE = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), 
 D = pd.read_csv(os.path.join(HERE, "episodes.csv"))
 pw = D[(D.target == "power") & (D.stage == "dec")]
 out = {}
-for sid in ["race_01", "practice_01", "practice_02", "race_04", "race_05", "practice_03", "practice_04", "practice_05", "practice_06", "practice_07", "practice_08", "race_06"]:
+for sid in ["race_01", "practice_01", "practice_02", "race_04", "race_05", "practice_03", "practice_04", "practice_05", "practice_06", "practice_07", "practice_08", "race_06", "race_07"]:
     s = CP.prepare(CP.load_session(os.path.join(ROOT, "data", "local", "coxing", "sessions", sid)))
     js = pw.loc[pw.session == sid, "j"].to_numpy()
     st = lambda jj: np.array([np.nanmean(CP.gather([s], jj, "speed", 3, 5))])
