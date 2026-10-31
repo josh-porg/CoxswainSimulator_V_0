@@ -13524,6 +13524,8 @@ and information role, not for tempo: the crew, like a string quartet, generates 
 
 ## 196. Combining the review blade and the sourced blade: the laws agree where the motion is measured; the boat's blade path is what is wrong (2026-10-30)
 
+*Points 2 and 4 corrected by §198: the simulated path matches the measured scull paths; the law's tangential load is too high on sliding (scull) motion.*
+
 *User, 2026-10-30: "can we combine the review blade and the sourced blade... are there things we can find by
 considering the strengths of both models and combining them?" Review blade: the fins' cross-flow law (§188–193).
 Sourced blade: tier 2, [CG07] lift and drag with the full-size options (§163).*
@@ -13573,3 +13575,110 @@ in the late drive into the finish, which is where those words belong. The conclu
 the boat's own sound and follow it); the beat labels and the CoxBox record's place in the cycle change: on this unit
 the per-stroke record sits about half a cycle from the catch, so stroke-phase analyses of CoxBox data should anchor on
 the catch from the audio, not assume the record is the catch.
+
+## 197. What two coxswains make answerable: calling policy, the push's build-up as the boat's inertia, and gearing (2026-10-31)
+
+With a second coxswain in the call study (race_07, §195 and the paper's "A second coxswain"), three questions open up
+that one coxswain cannot answer. All three are post hoc; the null is the study's shift null (2000 shifts).
+`research/coxing/two_coxswains.py`, `research/coxing/push_response_model.py`; outputs in data/local/coxing/experiment.
+
+### 1. Calling policy: what each coxswain reacts to
+
+The boat's state before each kind of call, against the same state at shifted strokes: the one-step speed surprise
+over the three strokes before, the measured speed change before (2 strokes minus the 4 before), and the turn rate at
+and just after the call.
+
+| | coxswain A (12 pieces, 1379 calls) | coxswain B (1 race, 275 calls) |
+|---|---|---|
+| power (directive) | after a loss: −15 mm/s (p 0.006) | n.s. (+43, p 0.13) |
+| technique (directive) | after a smaller loss: −9 (p 0.02) | slightly fewer on bends (p 0.05) |
+| information | after a gain: +8 (p 0.03) | after a gain: +43 (p 0.04) |
+| praise | n.s. | fewer on bends (−0.18 °/s, p 0.009) |
+| steering | on bends (+0.61 °/s, p < 0.001), after a loss | not tied to the turn: rudder announcements ahead of turns, bridges, buoy lines |
+| arousal raised | n.s. | ahead of bends (+0.20 °/s over the next strokes, p 0.02) |
+
+Both follow the boat (§195), by different rules. A's power calls follow losses, so part of a raw response would be
+recovery; the AR forecast carries it, which is why responses are read against the forecast.
+
+### 2. A push's build-up is the boat's inertia
+
+Announced pushes start on the count (counting is on the catch): the first "one"/"go"/"now" after the announcement
+came a median 2 strokes later (range 0–5, 22 announcements, both coxswains). Timed from that stroke the gain still
+built for about seven strokes (+17 / +50 / +81 mm/s over strokes 1–3 / 4–6 / 7–10; p 0.31 / 0.08 / 0.01).
+
+The simulator's step response (shipped surge physics, 6-DOF, catalogue 4+): steady at each crew's rate with force
+scaled to its measured speed (3.14 m/s at 29.5 spm; 3.67 at 31.5), then every seat's force +5% from one stroke on.
+The per-stroke gain fits the linearised surge balance's shape with **τ = 7.6 s and 6.6 s (3.7 and 3.5 strokes)**:
+τ = m v / 2F_drag, longer for slower boats. Strokes 3–5 hold 59–62% of the plateau, stroke 10 93%. A +5% force gives
++86 / +100 mm/s (+2.7%).
+
+Scaled to the measured curves (one amplitude): A's 16 announced pushes, residual 8 mm/s rms and +1 mm/s over strokes
+1–4 (plateau +58 mm/s); all 22, 10 mm/s rms (plateau +72); B's six, 35 mm/s rms with −48 mm/s early (too few to
+read). **The slow build of a push is the boat, not the crew.** For any call that sets a sustained change in force,
+the study's 3–5-stroke window sees ~60% of the plateau before any announcement delay, so its power-call gains are
+lower bounds by about that factor (the pooled power-call curve indeed rises to +38 mm/s by stroke 11). The paper now
+recommends scoring such calls with the boat's step response as the template, timed from the first count.
+
+### 3. Gearing: how crews trade rate for speed
+
+d ln v / d ln r. Rate calls (A, 69): rate −1.65% (p < 0.001), speed +0.22% (p 0.34): **−0.13 (sd ~0.14)**. The
+simulator at unchanged force per stroke: **0.19–0.21** (rate ±1 spm about each crew's). So when asked to change rate,
+crews hold power, not force, and make up the difference in length and force per stroke (the channel separation of
+the paper in physical terms). B's rate calls were almost all hold-the-rhythm calls or rate readouts and did not move
+the rate: no estimate. Across 10-stroke blocks of whole pieces (fixed effects, turn rate and place in the piece held)
+the elasticity is 0.64 (95% CI 0.10–1.14, pieces resampled): rate and effort rise together over a piece, so neither
+that figure nor the constant-force one describes a rate call.
+
+### What it changes
+
+- The coxing paper: new subsection "What a second coxswain makes answerable"; the announced-push hypothesis is
+  refined (the announcement delay is ~2 strokes; most of the delay is the boat's build-up); the randomised stage
+  scores force-setting calls against the step-response template.
+- The simulator gives the coxing study its response template; nothing in the model changed.
+
+## 198. The blade path in the boat is right; the review blade's tangential load is too high on a scull's motion (corrects §196, 2026-10-31)
+
+§196 read the review blade's closed-loop cost (6–10 % of speed) as a wrong blade path in the simulated boat, because
+the law's tangential share of blade work was right on [GTW21]'s measured sweep path (19.6 % against 15.7 %). That
+reading compared a sweep path with scull runs. Measured here, like for like: `research/blade/blade_path_in_boat.py`,
+one formula on both sides (w = u_lock + l θ̇ n(θ); attack angle atan(|w_n|/|w_a|)). Measured paths from each athlete's
+own oar angle and boat velocity ([CR06] Fig. 3; [BR24]'s file); simulated paths from the last stroke of the same
+athlete's closed-loop run (handle_rung1: hands on the handle, [K05]'s drive law, nothing fitted).
+
+| centre attack angle by fifths of the drive (deg) | [CR06] | [BR24] |
+|---|---|---|
+| measured | 13 / 24 / 55 / 30 / 24 | 7 / 16 / 39 / 34 / 37 |
+| simulated, research slip | 14 / 27 / 44 / 44 / 17 | 15 / 29 / 33 / 50 / 23 |
+| simulated, review blade (C_Dc 2.2, strips) | 14 / 28 / 44 / 45 / 17 | 15 / 33 / 39 / 54 / 23 |
+| [GTW21] measured sweep path (for comparison) | 6 / 22 / 45 / 73 / 25 | |
+
+| review blade's tangential share of blade work, on the path | [CR06] | [BR24] |
+|---|---|---|
+| measured path | 32.3 % | 25.1 % |
+| simulated path (slip / review run) | 33.2 / 33.1 % | 31.4 / 30.5 % |
+| closed-loop speed at the athlete's measured power (slip / review) | −0.4 / **−7.4 %** | +2.8 / **−8.9 %** |
+
+1. **The simulated blade moves like the measured one.** For [CR06] the review blade's tangential share is the same on
+   her measured path and on the simulated path (32 against 33 %); the simulated attack angle is lower in the third
+   fifth and higher in the fourth by 10–14°, and the two cancel in the work. For [BR24] the simulated path gives 6 points
+   more (31 against 25 %): his simulated boat rows at its own lower power (302 W against 432) and so moves slower
+   through the drive (advance ratio lower, the blade more face-on in fifths 2 and 4). The path is not what costs 6–10 %.
+2. **Scull paths slide for most of the drive.** Both athletes' blades peak at 40–55° and keep sliding (|w_a|/|w| 0.55–
+   0.8) through the loaded part of the drive; [GTW21]'s sweep path turns face-on (73°, sliding 0.28) in the fourth
+   fifth. The same law charges 25–32 % of blade work to the tangential load on scull paths and 20 % on the sweep path.
+3. **[H10] measured a world-class sculler on the water:** including the parallel force raised the blade losses by
+   18 %, a tangential share of about 15–18 %. The review blade's 25–32 % on measured scull paths is about twice that,
+   while on [GTW21]'s sweep path it is right. **The quasi-steady drag-like tangential load is right where the blade turns
+   face-on and too high where it slides at moderate incidence for long**, which is where scull blades spend the drive.
+   The closed-loop deficit (−7.4 / −8.9 % at the athletes' power) is that excess; the path is not the cause.
+4. Tier 2's closed-loop speed remains a compensating error (§196 point 3 stands): its thrust-like tangential term
+   offsets the excess the drag-like one carries.
+
+What it does not license: a tangential level fitted to either athlete (no-single-athlete-fits) or to [H10]'s one
+number. What is missing is a measured tangential load on a scull path (§4a of the review: no such dataset in hand;
+[LTW19]'s method cannot recover the parallel force). Next: read [H10] for the parallel force through the drive (if it
+is reported by phase, it tests the law on a scull path directly), then Barré & Kobus (requested), and look for an
+unsteady reason the sliding blade carries less tangential load than the quasi-steady law ([GTW21]: quasi-2-D only to
+t* ≈ 0.5).
+
+§196 points 2 and 4 are corrected by this section; its "Next" is done.
