@@ -1151,6 +1151,21 @@ the boat speeds that go with their drive durations).
   internal model; with an efference copy and 100 ms of perception and feedback delay it wanders 29–39°.
   **Next rower item: a multi-clock body** — legs, trunk and arms each on their own time law and muscles, sensed with
   realistic delays, so that sequencing is an output (then the torque-driven chain).
+- **Literature review before building it (§207, 2026-11-01; docs/NEUROMUSCULAR_CONTROL_REVIEW.md).** The field's
+  model of self-control is layered. At the bottom is the muscle's own zero-delay impedance. Above it are spinal
+  reflexes (20–45 ms; trunk loop 40 ms) with phase-dependent gains, and possibly a pattern generator. On top, an
+  efference-copy estimator corrected by delayed sensing feeds near-optimal feedback. The review accounts for both §206
+  failures: reading τ'' late is a neutral delay loop with acceleration gain ≥ 1, and the trunk wander comes from all
+  stabilising stiffness sitting behind 100 ms, where people have about half at zero delay and the rest at 40 ms. As an
+  independent check, the trunk plant's λ_c² I matches the measured gravity term. **Build order, each step gated
+  (review §12):**
+  1. Hill-type leg, trunk and arm groups;
+  2. activation-scaled intrinsic stiffness;
+  3. spindle and tendon-organ reflexes;
+  4. three excitation modules on one neural phase oscillator entrained to the catch and stretcher loads;
+  5. a delay-aware estimator (rung 5's predictor generalised).
+
+  Optimal feedback control, collocation and fatigue come after.
 
 ## Calibration and validation data from the squad's own boats (noted 2026-10-08)
 
