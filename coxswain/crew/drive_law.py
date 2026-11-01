@@ -181,3 +181,86 @@ class PopulationDriveSweep(OarAngleSweep):
         duration = drive * float(timing.period)
         during_drive = span * speed(np.clip(phase / drive, 0.0, 1.0)) / duration
         return np.where(phase < drive, during_drive, super().rate(t, timing))
+
+
+def _smooth_relu(x, width):
+    """max(0, x), rounded over |x| < width by a quadratic (C1): 0 below -width, x above +width."""
+    x = np.asarray(x, dtype=float)
+    mid = (x + width) ** 2 / (4.0 * width)
+    return np.where(x <= -width, 0.0, np.where(x >= width, x, mid))
+
+
+def _smooth_relu_slope(x, width):
+    x = np.asarray(x, dtype=float)
+    return np.where(x <= -width, 0.0, np.where(x >= width, 1.0, (x + width) / (2.0 * width)))
+
+
+@dataclass(frozen=True)
+class BodyCoupledDriveSweep(PopulationDriveSweep):
+    """The drive with the hands carried by the body while the arms are straight (SOURCES sec. 169a, 208).
+
+    A rower's arms are straight from the catch until the arm draw, so through the leg drive the handle goes wherever
+    the shoulders take it. ``straight`` tabulates, against the drive's time fraction, the oar angle at which the grip
+    is exactly one straight arm from the shoulders the body provides. The hands follow the population law
+    (:class:`PopulationDriveSweep`) except where that would leave the grip beyond a straight arm's reach. There the
+    straight-arm angle binds:
+
+        phi = phi_law - relu(phi_law - phi_straight)      (rounded over +-``blend`` rad, C1)
+
+    So the arm draw begins where the population's hands overtake the straight-arm angle; it is an output of the
+    body's own shoulder path. A table entry of NaN (no straight-arm angle: the grip cannot be a full arm away) leaves
+    the law in force. The recovery is the parent's.
+    """
+
+    #: ``(drive_time_fraction, straight_arm_angle_rad)``, as tuples
+    straight: tuple = field(default=None, repr=False, compare=False)
+    blend: float = float(np.radians(0.5))
+
+    def _straight(self):
+        cached = getattr(self, "_s_cached", None)
+        if cached is None:
+            from scipy.interpolate import CubicSpline
+            x = np.asarray(self.straight[0], float)
+            a = np.asarray(self.straight[1], float)
+            inactive = self.catch_angle + 1.0                     # no constraint where no straight-arm angle exists
+            a = np.where(np.isfinite(a), a, inactive)
+            spline = CubicSpline(x, a)
+            cached = (spline, spline.derivative())
+            object.__setattr__(self, "_s_cached", cached)
+        return cached
+
+    def _drive(self, x):
+        progress, speed, _a = self._law()
+        span = self.finish_angle - self.catch_angle
+        law, law_rate = self.catch_angle + span * progress(x), span * speed(x)
+        s, ds = self._straight()
+        gap = law - s(x)
+        phi = law - _smooth_relu(gap, self.blend)
+        rate = law_rate - _smooth_relu_slope(gap, self.blend) * (law_rate - ds(x))
+        return phi, rate                                          # rate per unit drive fraction
+
+    def __call__(self, t, timing):
+        phase = np.asarray(timing.phase(t), dtype=float)
+        drive = timing.drive_fraction
+        x = np.clip(phase / drive, 0.0, 1.0)
+        return np.where(phase < drive, self._drive(x)[0], OarAngleSweep.__call__(self, t, timing))
+
+    def rate(self, t, timing):
+        phase = np.asarray(timing.phase(t), dtype=float)
+        drive = timing.drive_fraction
+        x = np.clip(phase / drive, 0.0, 1.0)
+        duration = drive * float(timing.period)
+        return np.where(phase < drive, self._drive(x)[1] / duration, OarAngleSweep.rate(self, t, timing))
+
+    def arm_draw_onset(self, n: int = 2001) -> float:
+        """The drive fraction at which the hands leave the straight-arm angle (the arm draw begins)."""
+        x = np.linspace(0.0, 1.0, n)
+        progress, _s, _a = self._law()
+        law = self.catch_angle + (self.finish_angle - self.catch_angle) * progress(x)
+        gap = law - self._straight()[0](x)
+        bound = np.flatnonzero(gap > self.blend)
+        free = np.flatnonzero(gap < -self.blend)
+        if bound.size == 0:
+            return 0.0
+        later = free[free > bound[0]]
+        return float(x[later[0]]) if later.size else 1.0
