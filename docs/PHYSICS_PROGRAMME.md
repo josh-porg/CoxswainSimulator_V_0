@@ -1143,9 +1143,14 @@ the boat speeds that go with their drive durations).
   law's slow catch, 4.3a, now exposed).
 - **The trunk in the loop (§204):** `research/crew/rung2_trunk.py`. Posture-only feedforward drifts 16–21° and fails
   the gate; an internal model of the body's own motion holds the trunk and reproduces rung 2. The remaining 3–4 points
-  of IVV are not the trunk's control. **Next rower items:** the catch's time law through the placement (an unloaded
-  blade lets the legs accelerate the hands; [CR06]'s fast catch), the posture path against the athletes' segment
-  motions, then segment inertias and a delayed internal model in the trunk loop.
+  of IVV are not the trunk's control.
+- **What the remaining IVV gap is (§205–206, 2026-10-31).** The placement made muscle-driven (clock dynamic from
+  entry, immersion on) changes nothing: [CR06]'s fast catch is hers. **With each athlete's own leg and back timing as the
+  posture path, rung 2 reproduces their IVV within 1.3 / 0.8 points** (50.7 / 49.9 % against 49.4 / 49.1) and speed
+  within 2.3 %, nothing fitted: the gap is the body's sequencing. The trunk on the hands' clock needs an instant
+  internal model; with an efference copy and 100 ms of perception and feedback delay it wanders 29–39°.
+  **Next rower item: a multi-clock body** — legs, trunk and arms each on their own time law and muscles, sensed with
+  realistic delays, so that sequencing is an output (then the torque-driven chain).
 
 ## Calibration and validation data from the squad's own boats (noted 2026-10-08)
 

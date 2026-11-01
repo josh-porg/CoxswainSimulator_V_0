@@ -56,6 +56,9 @@ HANDOVER = 0.95
 #: SOURCES sec. 181). The blade's placement is not load-driven anyway: BioRow's target catch slip, catch to fully
 #: buried, is 6 deg (coxswain/crew/blade_immersion.py; SOURCES sec. 173). Until then the clock keeps its entry rate
 #: (tau'' = 0, continuous with the recovery curve); from burial on the muscles and the blade load drive it.
+#: ``"entry"``: the clock turns dynamic when the blade first touches the water ([CR06]'s entry at zero normal velocity,
+#: BioRow's clean catch, ~2 deg past the catch), with the load ramped in by the immersion model (wetted fraction over
+#: 4 deg from entry; rung2_population.py adds it): the placement itself becomes muscle-driven (SOURCES sec. 205).
 TAKEOVER_DEG = None
 BIOROW_CATCH_TO_BURIED_DEG = 6.0
 
@@ -142,8 +145,13 @@ class ClockSim(DynamicOarSimulator):
             # Hand over to the prescribed recovery at the blade's release, or just before the finish's turning point:
             # there the hands and body stop together, the generalised inertia along tau goes to zero, and any
             # residual force drives tau'' without bound (tau' ran to 4-5 there). HANDOVER is a named choice.
-            if self._placing and (sw.catch_angle - float(sw(float(y2[-2]), tm))) >= np.radians(TAKEOVER_DEG):
-                self._placing = False                            # buried: the drive's clock is dynamic from here
+            if self._placing:
+                if TAKEOVER_DEG == "entry":
+                    entered = self._in_air is not None and not bool(self._in_air.any())
+                else:
+                    entered = (sw.catch_angle - float(sw(float(y2[-2]), tm))) >= np.radians(TAKEOVER_DEG)
+                if entered:
+                    self._placing = False                        # the drive's clock is dynamic from here
             if self._rec is None and (done is not None and np.all(done) or progress >= HANDOVER):
                 self._start_recovery(c, float(y2[-2]), float(y2[-1]))
             if self._rec is not None:                            # the recovery follows its curve exactly

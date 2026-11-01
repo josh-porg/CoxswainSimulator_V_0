@@ -13906,3 +13906,73 @@ muscles' hip moment is a feedforward plus rung 5's delayed PD on the coupled pla
 
 Not yet included: segment rotational inertias and the arms on the trunk (rung 5 had both); a delayed or imperfect
 internal model (the realistic case between the two rows above).
+
+## 205. What the remaining IVV gap is: the athletes' own body sequencing closes it in rung 2; the catch's placement does not (2026-10-31)
+
+`research/crew/rung2_population.py --blade crossflow_normal --catch buried|entry [--body model|own]`. Logs:
+`data/local/crew/logs/rung2_population_crossflow_normal_*.log`. Rung 2 (§181) on the research blade (§202), speed at
+the athlete's measured power by the cube law, hands = rms of the oar's progress against the measured.
+
+**1. The placement made muscle-driven.** `--catch entry`: the clock turns dynamic when the blade first touches the
+water ([CR06]'s entry at zero normal velocity, BioRow's clean catch), with the load ramped in by the immersion model
+(wetted fraction over BioRow's 4°, `EntryImmersion`; §173).
+
+| catch | [CR06] IVV / speed / hands | [BR24] IVV / speed / hands | τ' max |
+|---|---|---|---|
+| dynamic once buried (§203) | 52.1 % / −1.2 % / 5.2° | 53.4 % / +2.7 % / 0.016 | 1.21 / 1.52 |
+| dynamic from entry, immersion | 52.8 % / −1.2 % / 5.4° | 53.8 % / +2.6 % / 0.016 | 1.19 / 1.54 |
+
+Clean (no spike even at entry), but [CR06]'s fast catch does not appear: the population's muscle force carried to her
+by drive progress does not accelerate her hands through an unloaded placement the way her own stroke does. Her catch
+rate is hers, not something the blade's entry dynamics supply.
+
+**2. The posture path, as a diagnostic.** `--body own`: each athlete's own measured leg and back time-laws on the
+model's postures ([BR24] `research/biorow/measured_body.py`, seat and trunk channels and his back travel; [CR06]
+`research/cr06/self_consistent_body_cr06.py`, her leg and back channels and back travel). Measured inputs, nothing
+fitted; the hands' time law is still the output of the population's muscles.
+
+| posture path | [CR06] IVV / speed / hands | [BR24] IVV / speed / hands |
+|---|---|---|
+| the model's (ergometer keyframes on the clock) | 52.1 % / −1.2 % / 5.2° | 53.4 % / +2.7 % / 0.016 |
+| **the athlete's own leg and back timing** | **50.7 %** (49.4) / −1.0 % / 3.9° | **49.9 %** (49.1) / +2.3 % / 0.033 |
+| same body at rung 1 (hands imposed) | 51.0 % | 60.6 % |
+
+- **With their own body sequencing, rung 2 reproduces both athletes' IVV within 1.3 and 0.8 points** and their speed
+  within 2.3 %, on a sourced blade with nothing fitted; [CR06]'s clock barely moves (τ' 0.98–1.05).
+- **It needs both pieces**: at rung 1, with the hands imposed, [BR24]'s own body gives 60.6 % (§158–160 found the same:
+  only part of the excess transfers). The gap closes when the hands' time law is an output *and* the body's sequencing
+  is the athlete's.
+- **So the remaining IVV gap is the posture path** — how each athlete sequences legs, trunk and arms against the hands
+  — not the blade (§202), the trunk's control (§204) or the catch's placement (above). A population's timing does not
+  carry an individual's (§175); a body that generates its own sequencing (the torque-driven chain, then tier 3's learned
+  rower) is what closes it without measured channels.
+
+## 206. The trunk on the hands' clock needs an instant internal model; realistic delays point to a body with its own time laws (2026-10-31)
+
+`research/crew/rung2_trunk.py athletes --ff internal [--ff-delay d] [--fb-delay d] [--no-efference]`; logs
+`data/local/crew/logs/rung2_trunk_athletes_*.log`. Two additions to §204's trunk loop: **segment spin** (each upper
+segment's own rotational inertia, de Leva's sagittal value from the rower's anthropometry, spinning with the trunk:
+I(θ_ref'' τ'² + θ_ref' τ'' + δ'')) — the round trip still closes (τ' 1.000–1.002, error 0.01°; effective inertia
+4.8–5.4 kg·m²); and **delayed internal models**. Rung 2 on the research blade, catch at burial, both athletes:
+
+| the trunk's internal model | [CR06] trunk error / IVV / speed | [BR24] trunk error / IVV / speed |
+|---|---|---|
+| perfect (current τ', τ'') — §204 | 0.00° / 52.1 % / −1.2 % | 0.00° / 53.4 % / +2.7 % |
+| perfect, feedback delayed 100 ms | identical (no error to feed back) | identical |
+| τ', τ'' both read 25 / 50 / 100 ms late | stroke collapses: τ' < 0, 48–58 W, ~2 m/s; at 100 ms a singular solve in stroke 1 | same |
+| **efference copy** (τ'' from the current command), τ' read 100 ms late, feedback 100 ms | 39° / 60.0 % / −3.8 % | 29° / 58.3 % / +1.6 % |
+| posture only (§204) | 16° / 56.7 % / −1.6 % | 21° / 55.0 % / +1.9 % |
+
+1. **Reading the clock's acceleration late is a delayed acceleration feedback**: the hip torque then depends on τ''
+   from d seconds ago and itself sets τ'' through the coupled 2×2 balance — a neutral-type delay loop, unstable at any
+   delay tried (25 ms collapses the stroke). A physiological internal model does not do this: it knows its own motor
+   command (an efference copy) and perceives the state late.
+2. **With an efference copy the loop is stable but the trunk wanders 29–39° off its path** at 100 ms of perception and
+   feedback delay, and IVV rises 6–8 points. A trunk defined as a deviation from the hands' clock path is thrown off by
+   any misreading of how fast the stroke is going.
+3. **Together with §205** (the athletes' own body sequencing closes the IVV gap in rung 2) this says the body should
+   not ride one clock: the legs, the trunk and the arms each need their own time law, driven by their own muscles and
+   sensed with realistic delays, so that sequencing is an output. That is the next step of phase 4.3 (a multi-clock,
+   then torque-driven, body), and the shape tier 3's learned rower already has (per-channel delays, PLAN §4).
+
+Not tried here: rung 5's state predictor over the delay (it recovered accuracy at 117 ms on the trunk alone, §182).

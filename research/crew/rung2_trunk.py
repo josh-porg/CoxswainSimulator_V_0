@@ -66,9 +66,17 @@ def _rot(d):
 class TrunkClockSim(C2.ClockSim):
     """Rung 2 with the trunk's rotation about the hip a state."""
 
-    def setup_trunk(self, mode, Q=None, body=None, tau_ff=None, bias=0.0, delay=0.0, wn=WN, zeta=ZETA, lam2=LAM2):
+    def setup_trunk(self, mode, Q=None, body=None, tau_ff=None, bias=0.0, delay=0.0, wn=WN, zeta=ZETA, lam2=LAM2,
+                    spin=True, ff_delay=0.0, efference=True):
+        """``spin``: the upper-body segments' own rotational inertias (de Leva, sagittal axis) in the hip moment.
+        ``ff_delay``: the internal model reads the clock's motion this many seconds old, with no prediction.
+        ``efference``: True -- it knows the clock's acceleration from its own current command (an efference copy, no
+        delay) and only the clock's speed tau' is perceived late; False -- tau'' is read late too (a delayed
+        acceleration feedback, which is unstable by construction: SOURCES sec. 206)."""
         self.setup_clock(mode, Q, body=body)
         self.tau_ff, self.bias, self.delay = tau_ff, float(bias), float(delay)
+        self.spin, self.ff_delay, self.efference = bool(spin), float(ff_delay), bool(efference)
+        self.clock_hist = ([], [], [])                           # t, tau', tau'' (accepted samples)
         self.Kp, self.Kd = wn ** 2 + lam2, 2.0 * zeta * wn
         self._trunk = None                                       # (delta, delta', delta'') while evaluating
         self.mlog = []                                           # reference: (t, c, M)
@@ -81,14 +89,20 @@ class TrunkClockSim(C2.ClockSim):
         rower = self.boat.crew[0].rower
         P = float(self.boat.timing.period)
         grid = np.linspace(0.0, P, 801)
-        R, H = [], []
+        R, H, A = [], [], []
         for c in grid:
             pos, _v, _a, hand = rower.segment_state(float(c % P), with_hand=True)
             hip = rower.joint_positions(float(c % P))["hip"]
             R.append(np.asarray(pos, float)[:8][:, [0, 2]] - hip[[0, 2]])
             H.append(np.asarray(hand, float)[[0, 2]] - hip[[0, 2]])
-        R, H = np.array(R), np.array(H)
-        R[-1], H[-1] = R[0], H[0]
+            sh = rower.joint_positions(float(c % P))["shoulder"] - hip
+            A.append(np.arctan2(sh[2], sh[0]))
+        R, H, A = np.array(R), np.array(H), np.unwrap(np.array(A))
+        R[-1], H[-1], A[-1] = R[0], H[0], A[0]
+        self._aref = CubicSpline(grid, A, bc_type="periodic")     # the trunk's reference angle on the clock
+        from coxswain.crew.kinematics import SEGMENT_ORDER
+        segs = rower._segments
+        self._spin_I = [float(segs[SEGMENT_ORDER[i]].inertia[0]) if SEGMENT_ORDER[i] in segs else 0.0 for i in TRUNK]
         self._r = [[CubicSpline(grid, R[:, i, j], bc_type="periodic") for j in range(2)] for i in range(8)]
         self._hand = [CubicSpline(grid, H[:, j], bc_type="periodic") for j in range(2)]
         self._P = P
@@ -152,6 +166,11 @@ class TrunkClockSim(C2.ClockSim):
         F = self._handle_force(t, base)
         hand_z = hip[1] + float(self._hand[1](float(tau) % self._P))
         M = (hand_z - hip[1]) * F
+        if self.spin:                                            # each segment spins with the trunk: I theta''
+            x = float(tau) % self._P
+            dldd = self._trunk[2] if self._trunk else 0.0
+            th_dd = float(self._aref(x, 2)) * td * td + float(self._aref(x, 1)) * tdd + dldd
+            M -= sum(self._spin_I) * th_dd
         for i in TRUNK + ARMS:
             rx, rz = pos[i, 0] - hip[0], pos[i, 2] - hip[1]
             m = mass[i]
@@ -233,15 +252,30 @@ class TrunkClockSim(C2.ClockSim):
         s = M01 - M00
         fb = self._feedback(t, e, ed, s)
         internal = isinstance(self.tau_ff, str) and self.tau_ff == "internal"
+        if internal and self.ff_delay > 0:
+            ct, ctd, ctdd = self.clock_hist
+            if ct and t - self.ff_delay > ct[0]:
+                td_seen = float(np.interp(t - self.ff_delay, ct, ctd))
+                tdd_seen = float(np.interp(t - self.ff_delay, ct, ctdd))
+            else:
+                td_seen, tdd_seen = td, 0.0
         if clock_given:
             a1 = tdd_given
-            ff = self._path_moment(t, base, d00, tau, td, a1) if internal else self.tau_ff(tau)
+            if internal and self.ff_delay > 0:
+                ff = self._path_moment(t, base, d00, tau, td_seen, a1 if self.efference else tdd_seen)
+            else:
+                ff = self._path_moment(t, base, d00, tau, td, a1) if internal else self.tau_ff(tau)
             T = ff + self.bias + fb
             a2 = (T - M00) / s
             out = d00 + a2 * (d01 - d00)
         else:
             d10, r10, M10 = self._evaluate(t, base, tau, td, 1.0, dl, dld, 0.0)
-            if internal:                                         # feedforward affine in the clock's acceleration
+            if internal and self.ff_delay > 0 and self.efference:   # tau' perceived late, tau'' from the command
+                p0 = self._path_moment(t, base, d00, tau, td_seen, 0.0)
+                p1 = self._path_moment(t, base, d10, tau, td_seen, 1.0)
+            elif internal and self.ff_delay > 0:                 # the clock's motion as perceived, d seconds old
+                p0 = p1 = self._path_moment(t, base, d00, tau, td_seen, tdd_seen)
+            elif internal:                                       # feedforward affine in the clock's acceleration
                 p0 = self._path_moment(t, base, d00, tau, td, 0.0)
                 p1 = self._path_moment(t, base, d10, tau, td, 1.0)
             else:
@@ -256,6 +290,7 @@ class TrunkClockSim(C2.ClockSim):
             ht.append(t); he.append(e); hed.append(ed)
             self.trlog.append((t, tau, td, dl, dld, float(fb), float(s)))
             self.tlog.append((t, tau, td, float(a1)))
+            self.clock_hist[0].append(t); self.clock_hist[1].append(td); self.clock_hist[2].append(float(a1))
         return np.concatenate([out, [dld, a2, td, a1]])
 
     def _integrate_sweep_catch(self, t_span, y0, dt):
@@ -332,7 +367,7 @@ def roundtrip(strokes, bias=0.0, delays=(0.0,)):
     return out
 
 
-def athletes(strokes, ff="reference"):
+def athletes(strokes, ff="reference", ff_delay=0.0, delay=0.0, spin=True, efference=True):
     """§181's test with the trunk free: population muscles on the clock; each athlete's own reference hip moment."""
     RP.BLADE = "crossflow_normal"
     C2.TAKEOVER_DEG = C2.BIOROW_CATCH_TO_BURIED_DEG
@@ -367,9 +402,20 @@ def athletes(strokes, ff="reference"):
                 return k * float(np.interp(float(RP.progress_of(boat, tau)[0]), s_pop, q_drive))
             return k * float(np.interp(np.mod(tau / P, 1.0), ph, q, period=1.0))
         boat2 = C2.R.boat_for(name, m, "on-water", drive_law=True)
-        free = make(boat2, "free", Q=Q, tau_ff=("internal" if ff == "internal" else M))
+        free = make(boat2, "free", Q=Q, tau_ff=("internal" if ff == "internal" else M), ff_delay=ff_delay,
+                    delay=delay, spin=spin, efference=efference)
         free.start_state = np.concatenate([run_r.last_states[:, -1], [0.0, 0.0, P, 1.0]])
-        run_f = free.run_strokes(strokes, surge_speed=4.3)
+        try:
+            run_f = free.run_strokes(strokes, surge_speed=4.3)
+        except (np.linalg.LinAlgError, FloatingPointError, ValueError) as exc:
+            tr = np.array(free.trlog) if free.trlog else np.zeros((1, 7))
+            stroke = int(tr[-1, 0] // P) + 1
+            out[name] = dict(diverged=True, stroke=stroke, delta_last_deg=float(np.degrees(tr[-1, 3])),
+                             delta_max_deg=float(np.degrees(np.nanmax(np.abs(tr[:, 3])))), error=str(exc))
+            print("%s, trunk free (%s feedforward, ff delay %.0f ms, fb delay %.0f ms): DIVERGED in stroke %d (trunk error"
+                  " reached %.1f deg; %s)" % (name, ff, 1000 * ff_delay, 1000 * delay, stroke,
+                                              out[name]["delta_max_deg"], exc), flush=True)
+            continue
         s_f = summary(free, run_f)
         ht, hs, ha = RP.measured_track(name)
         tt, ss, aa = RP.model_track(free, run_f, True)
@@ -377,8 +423,8 @@ def athletes(strokes, ff="reference"):
         at = s_f["speed"] * (m["power"] / s_f["power"]) ** (1 / 3) / m["speed"] - 1
         s_f.update(progress_rms=prog[0], speed_error=at, measured=dict(speed=m["speed"], ivv=m["ivv"], power=m["power"]))
         out[name] = s_f
-        print("%s, trunk free (%s feedforward): %.3f m/s, IVV %.1f%% (measured %.1f%%), %.0f W; at the measured power %+.1f%%; hands rms %.3f;"
-              " trunk error max %.2f deg; tau' %.3f-%.3f" % (name, ff, s_f["speed"], 100 * s_f["ivv"], 100 * m["ivv"],
+        print("%s, trunk free (%s feedforward, ff delay %.0f ms, fb delay %.0f ms): %.3f m/s, IVV %.1f%% (measured %.1f%%), %.0f W; at the measured power %+.1f%%; hands rms %.3f;"
+              " trunk error max %.2f deg; tau' %.3f-%.3f" % (name, ff, 1000 * ff_delay, 1000 * delay, s_f["speed"], 100 * s_f["ivv"], 100 * m["ivv"],
                                                              s_f["power"], 100 * at, prog[0], s_f.get("delta_max_deg", np.nan),
                                                              *s_f.get("tau_dot", [np.nan, np.nan])), flush=True)
     return out
@@ -389,6 +435,11 @@ def main():
     ap.add_argument("check", choices=["roundtrip", "bias", "athletes"])
     ap.add_argument("--strokes", type=int, default=10)
     ap.add_argument("--delay", type=float, nargs="+", default=[0.0, 0.1])
+    ap.add_argument("--ff-delay", type=float, default=0.0, help="the internal model's lag on the clock's motion, s")
+    ap.add_argument("--fb-delay", type=float, default=0.0, help="the PD's sensory delay in the athletes check, s")
+    ap.add_argument("--no-spin", action="store_true", help="leave out the segments' own rotational inertias")
+    ap.add_argument("--no-efference", action="store_true",
+                    help="the internal model reads the clock's acceleration late too (no efference copy)")
     ap.add_argument("--ff", default="reference", choices=["reference", "internal"],
                     help="the trunk's feedforward: the reference run's hip moment on the clock (posture only) or an "
                          "internal model, the moment that holds the path at the current clock motion")
@@ -398,8 +449,10 @@ def main():
     elif a.check == "bias":
         out = roundtrip(a.strokes, bias=10.0, delays=a.delay)
     else:
-        out = athletes(a.strokes, a.ff)
-    json.dump(out, open(os.path.join(OUT, "rung2_trunk_%s%s.json" % (a.check, "" if a.ff == "reference" else "_internal")),
+        out = athletes(a.strokes, a.ff, a.ff_delay, a.fb_delay, not a.no_spin, not a.no_efference)
+    json.dump(out, open(os.path.join(OUT, "rung2_trunk_%s%s.json" % (a.check, ("" if a.ff == "reference" else "_internal") + ("_ffd%.0fms" % (1000 * a.ff_delay) if a.ff_delay else "")
+                        + ("_fbd%.0fms" % (1000 * a.fb_delay) if a.fb_delay else "")
+                        + ("_noeff" if a.no_efference else ""))),
                         "w"), indent=1, default=float)
 
 

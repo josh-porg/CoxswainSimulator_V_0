@@ -68,7 +68,28 @@ def blade_options(boat):
     blade = ScaledTangential(lift_amplitude=cf.lift_amplitude, drag_amplitude=cf.drag_amplitude, area=area, outboard=r,
                              density=rho, normal_from=cf, tangential_from=cf,
                              tangential_scale=H10_TANGENTIAL if BLADE == "crossflow_h10" else 0.0)
-    return dict(blade_law="liftdrag", liftdrag_blade=blade, blade_span=float(oar.blade_length))
+    opts = dict(blade_law="liftdrag", liftdrag_blade=blade, blade_span=float(oar.blade_length))
+    if C2.TAKEOVER_DEG == "entry":                               # the load ramps in over the placement (SOURCES sec. 173)
+        from coxswain.crew.blade_immersion import EntryImmersion
+        opts["blade_immersion"] = EntryImmersion()
+    return opts
+
+
+BODY = "model"
+
+
+def own_body(name, boat):
+    """The athlete's own measured leg and back time-laws on the model's postures (a diagnostic input, not a fit):
+    [BR24] research/biorow/measured_body.py (seat Ls, trunk Lt, his back travel); [CR06]
+    research/cr06/self_consistent_body_cr06.py (leg and back channels, her back travel 0.398 / 0.513)."""
+    if name == "br24":
+        import measured_body as MBd
+        return MBd.body_field(boat, True)[0]
+    path = os.path.join(ROOT, "research", "cr06", "self_consistent_body_cr06.py")
+    src = open(path, encoding="utf-8").read().split("grid = np.linspace")[0]
+    ns = {"__file__": path, "__name__": "cr06_body"}
+    exec(compile(src, path, "exec"), ns)
+    return ns["body_field"](boat, True, ns["K_BACK"])
 
 
 def make(boat, mode, Q=None, body=None):
@@ -145,7 +166,8 @@ def athlete(name, strokes, s_pop, q_drive, ph, q, p_pop):
     ht, hs, ha = measured_track(name)
     out = dict(measured=dict(speed=m["speed"], ivv=m["ivv"], power=m["power"]))
     base_boat = C2.R.boat_for(name, m, "on-water", drive_law=True)
-    base = make(base_boat, "reference")
+    body = own_body(name, base_boat) if BODY == "own" else None
+    base = make(base_boat, "reference", body=body)
     run_b = base.run_strokes(strokes, surge_speed=4.3)
     s_b = C2.summary(run_b)
     tt, ss, aa = model_track(base, run_b, False)
@@ -163,7 +185,7 @@ def athlete(name, strokes, s_pop, q_drive, ph, q, p_pop):
         return k * float(np.interp(np.mod(tau / P, 1.0), ph, q, period=1.0))
 
     free_boat = C2.R.boat_for(name, m, "on-water", drive_law=True)
-    free = make(free_boat, "free", Q=Q)
+    free = make(free_boat, "free", Q=Q, body=own_body(name, free_boat) if BODY == "own" else None)
     free.start_state = np.concatenate([run_b.last_states[:, -1], [P, 1.0]])
     run_f = free.run_strokes(strokes, surge_speed=4.3)
     s_f = C2.summary(run_f)
@@ -190,13 +212,17 @@ def main():
     ap.add_argument("--strokes", type=int, default=10)
     ap.add_argument("--athletes", nargs="+", default=["cr06", "br24"])
     ap.add_argument("--blade", default="slip", choices=["slip", "crossflow_h10", "crossflow_normal"])
-    ap.add_argument("--catch", default="dynamic", choices=["dynamic", "buried"],
+    ap.add_argument("--body", default="model", choices=["model", "own"],
+                    help="the posture path: the model's (ergometer keyframes on the clock) or, as a diagnostic, each "
+                         "athlete's own measured leg and back time-laws")
+    ap.add_argument("--catch", default="dynamic", choices=["dynamic", "buried", "entry"],
                     help="when the drive's clock turns dynamic: at the catch (as first built) or once the blade is "
                          "buried (BioRow's 6 deg catch slip; rung2_clock.TAKEOVER_DEG)")
     a = ap.parse_args()
-    global BLADE
+    global BLADE, BODY
     BLADE = a.blade
-    C2.TAKEOVER_DEG = C2.BIOROW_CATCH_TO_BURIED_DEG if a.catch == "buried" else None
+    BODY = a.body
+    C2.TAKEOVER_DEG = {"buried": C2.BIOROW_CATCH_TO_BURIED_DEG, "entry": "entry"}.get(a.catch)
     print("blade: %s; catch: %s" % (BLADE, a.catch), flush=True)
     out = dict(handover=C2.HANDOVER)
 
@@ -222,7 +248,7 @@ def main():
     for name in a.athletes:
         out[name] = athlete(name, a.strokes, s_pop, q_drive, ph, q, s_p["power"])
     json.dump(out, open(os.path.join(OUT, "rung2_population%s%s.json" % ("" if BLADE == "slip" else "_" + BLADE,
-                                                            "" if a.catch == "dynamic" else "_buried")), "w"), indent=1, default=float)
+                                                            ("" if a.catch == "dynamic" else "_" + a.catch) + ("" if a.body == "model" else "_ownbody"))), "w"), indent=1, default=float)
 
 
 if __name__ == "__main__":
