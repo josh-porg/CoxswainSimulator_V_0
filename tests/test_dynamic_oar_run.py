@@ -76,8 +76,11 @@ def test_the_factory_builds_what_the_boats_physics_needs():
     # matched on a settle rather than the closed form (tests/
     # test_torque_for_power.py).
     assert sim.catch == "sweep"
+    # and since 2026-10-31 its blade is the profile's (the cross-flow normal law, strips), matched on that blade
+    opts = physics.resolve("research").blade_options(research)
+    assert sim.blade_law == opts["blade_law"] and sim.blade_span == opts["blade_span"]
     assert sim.peak_torque == pytest.approx(
-        DynamicOarSimulator.torque_for_power(research, 380.0, catch="sweep"))
+        DynamicOarSimulator.torque_for_power(research, 380.0, catch="sweep", **opts))
 
 
 def test_a_dynamic_boat_without_stated_watts_is_refused():

@@ -294,10 +294,13 @@ class DynamicOarSimulator(RowingSimulator):
         #: ``"crossflow@<face-on>"`` (e.g. ``"crossflow@2.2"``): the fins' cross-flow law on the blade
         #: (:class:`~coxswain.crew.liftdrag.CrossflowBlade`, SOURCES §190-191), its face-on coefficient
         #: in the name so every cache key that carries the coefficients carries it too.
+        #: ``"crossflow-normal@<face-on>"``: the same normal load with no tangential load (SOURCES §201;
+        #: the research profile's blade since 2026-10-31, §202).
         from ..crew.liftdrag import LiftDragBlade as _LD
         if (blade_coefficients != "cg07" and blade_coefficients not in _LD.FULL_SCALE
                 and _crossflow_face_on(blade_coefficients) is None):
-            raise ValueError("unknown blade coefficients %r; this simulator runs cg07, %s, crossflow@<face-on>"
+            raise ValueError("unknown blade coefficients %r; this simulator runs cg07, %s, crossflow@<face-on>, "
+                             "crossflow-normal@<face-on>"
                              % (blade_coefficients, ", ".join(_LD.FULL_SCALE)))
         if blade_coefficients != "cg07" and blade_law != "liftdrag":
             raise ValueError("blade coefficients apply to the tier 2 law only; "
@@ -443,7 +446,8 @@ class DynamicOarSimulator(RowingSimulator):
                         raise ValueError("the cross-flow blade needs the oar's blade_length (its along-shaft extent)")
                     self._liftdrag.append(LiftDragBlade.crossflow(
                         outboard=float(self._oars[slot].outboard), area=float(lock.oar.blade_area),
-                        length=length, face_on=face_on, density=float(boat.water.density)))
+                        length=length, face_on=face_on, density=float(boat.water.density),
+                        tangential=_crossflow_tangential(self.blade_coefficients)))
                     continue
                 make = (LiftDragBlade.big_blade if self.blade_coefficients == "cg07"
                         else lambda **kw: LiftDragBlade.big_blade_full_scale(
@@ -1664,24 +1668,33 @@ def simulator_for(boat, **kwargs):
             "boat is stamped %r, whose oar angle is a dynamic state, and "
             "states no crew power: set boat.handle_watts (W per rower) "
             "first -- there is no default" % (stamp,))
-    # The profile names the catch; an explicit argument overrides it.
-    catch = kwargs.pop("catch", physics.resolve(stamp).catch)
+    # The profile names the catch and the blade; an explicit argument overrides either.
+    profile = physics.resolve(stamp)
+    catch = kwargs.pop("catch", profile.catch)
+    for name, value in profile.blade_options(boat).items():
+        kwargs.setdefault(name, value)
     torque = DynamicOarSimulator.torque_for_power(
-        boat, float(watts), catch=catch,
-        blade_law=kwargs.get("blade_law", "slip"))
+        boat, float(watts), catch=catch, blade_law=kwargs["blade_law"],
+        blade_span=kwargs.get("blade_span"), blade_coefficients=kwargs.get("blade_coefficients", "cg07"))
     return DynamicOarSimulator(boat, peak_torque=torque, catch=catch,
                                **kwargs)
 
 
 def _crossflow_face_on(coefficients):
-    """The face-on coefficient of a ``"crossflow@<value>"`` name, or ``None`` for any other name."""
-    if not isinstance(coefficients, str) or not coefficients.startswith("crossflow@"):
+    """The face-on coefficient of a ``"crossflow@<value>"`` or ``"crossflow-normal@<value>"`` name, or ``None``
+    for any other name."""
+    if not isinstance(coefficients, str) or not coefficients.startswith(("crossflow@", "crossflow-normal@")):
         return None
     try:
         value = float(coefficients.split("@", 1)[1])
     except ValueError:
         return None
     return value if value > 0.0 else None
+
+
+def _crossflow_tangential(coefficients) -> bool:
+    """False for a ``"crossflow-normal@..."`` name: the cross-flow blade without its tangential load."""
+    return not (isinstance(coefficients, str) and coefficients.startswith("crossflow-normal@"))
 
 
 def _match_key(boat, watts, catch, blade_law, added_mass="none",

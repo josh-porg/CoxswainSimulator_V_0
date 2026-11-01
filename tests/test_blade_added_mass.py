@@ -198,7 +198,10 @@ def test_the_fitted_scull_c2_excludes_added_mass_only_under_the_slip_law():
     from coxswain import physics
     from coxswain.boats import catalog
 
-    single = physics.resolve("research").apply(catalog.single_scull(rate=32.0))
+    # the fit is retired from the research profile (2026-10-31, SOURCES sec. 202); a study profile still carries it
+    study = physics.PhysicsProfile(name="slip-fit-study", summary="study", blade_tier=1, rower="prescribed",
+                                   oar="dynamic", catch="sweep", scull_c2=140.88)
+    single = study.apply(catalog.single_scull(rate=32.0))
     assert getattr(single, "scull_c2", None)
     with pytest.raises(ValueError, match="exclusive"):
         DynamicOarSimulator(single, peak_torque=100.0, blade_added_mass="labbe")

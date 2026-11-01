@@ -13844,3 +13844,65 @@ against the measured, over the drive.
 tangential load, as [CG07] and [H10] measure) is sourced, fits two measured blade loads open loop (§184–191), and now
 passes rung 2's gate on both athletes closed loop. Promoting it changes every research-profile number and needs the
 validation scorecard re-run; recorded as a decision for the user, not made here.
+
+## 203. Rung 2's catch: the clock turns dynamic once the blade is buried; the spike at entry was masking the drive law's slow catch (2026-10-31)
+
+`research/crew/rung2_clock.py` (`TAKEOVER_DEG`), `rung2_population.py --catch buried`. **Why the spike.** At the
+catch the hands reverse: the posture path's speed per unit of the clock coordinate is zero, the generalised inertia
+along τ vanishes, and the clock solve, α = (Q − R₀)/(R₁ − R₀), divides by ~0. Any mismatch between the population's
+muscle force carried to the athlete and the athlete's own inertial need then drives τ'' without bound (τ' to 1.9–2.3
+for an instant, §181) — the same degeneracy the finish avoids by its handover at 95 % of the arc.
+
+**The takeover.** The blade's placement is not load-driven: BioRow's target catch slip, catch to fully buried, is 6°
+(§173; `blade_immersion.py`). So until the hands have swept 6° past the catch the clock keeps its entry rate (τ'' = 0,
+continuous with the recovery curve), and from burial the muscles and the blade load drive it. A sourced number, where
+the finish's handover is a chosen one. Rung 2, cross-flow normal blade (§202), nothing fitted:
+
+| catch | [CR06] speed / IVV / hands (angle rms) | [BR24] speed / IVV / hands | τ' range (CR06 / BR24) |
+|---|---|---|---|
+| dynamic from the catch (§202) | −1.2 % / 51.5 % / 0.031 (3.3°) | +2.6 % / 52.4 % / 0.039 | 0.92–1.90 / 0.98–2.29 |
+| **dynamic once buried (6°)** | −1.2 % / 52.1 % / 0.050 (5.2°) | +2.7 % / 53.4 % / **0.016** | **0.92–1.21 / 0.98–1.52** |
+
+1. The artefact is gone: the clock no longer jumps at entry.
+2. **[BR24]'s hands are now the closest to measured of any run (0.016 of his arc, rms)**: [K05]'s drive law reproduces
+   his oar angle unfitted (§169a), and the spike had been over-driving it.
+3. **[CR06]'s hands are worse (5.2° against 3.3°)**: phase 4.3a found the prescribed drive's catch *rate* is 0.65× hers,
+   and the spike had been speeding her clock at entry, partly hiding that. Her fast catch is a difference between her
+   and the population's drive law at the catch, now exposed.
+4. IVV rises by 0.6 and 1.0 points; S2.5's gate still passes (+2.7 / +4.3).
+
+**Rung 2 runs from here with the buried takeover** (`--catch buried`); the dynamic-from-catch variant stays for the
+record. **Next on the catch:** the hands' time law through the placement itself, which the population's drive law
+fixes today and [CR06] contradicts (her catch rate) — an unloaded blade lets the legs accelerate the hands, so the
+placement should come from the body's dynamics with the immersion model's load (wetted fraction over 4° from entry),
+once the trunk is in the loop (the plan's next step).
+
+## 204. Rung 2 with the trunk in the loop: posture-only control drifts, an internal model holds; the IVV gap is not the trunk (2026-10-31)
+
+`research/crew/rung2_trunk.py` (`roundtrip`, `bias`, `athletes [--ff reference|internal]`). Rung 2's clock (§181,
+§203) and rungs 3–5's trunk (§178–182) joined on the research profile's blade (§202): the state gains [δ, δ'], the
+trunk's rotation about the hip away from the posture the clock prescribes (head and three trunk segments rotated, their
+offsets from the hip tabulated from the rower's own chain; the arms stay on the hands' path, as in rung 5). The clock's
+virtual-work residual, the hip moment (rung 5's free-body form, point masses, the handle force at the hands) and the
+simulator's derivative are affine in both τ'' and δ'', so each stage solves a 2×2 system from three evaluations. The
+muscles' hip moment is a feedforward plus rung 5's delayed PD on the coupled plant (ω_n 5 rad/s, ζ 0.7, λ_c² 24.7).
+
+| check | result |
+|---|---|
+| round trip ([CR06]'s boat; the reference run's own Q and hip moment) | τ' 0.999–1.003, trunk error 0.06°, feedback 0.4 N·m: closes |
+| 10 N·m hip bias, no delay / 100 ms | trunk error 6.1° / 7.5° (end −5.5 / −4.5°), feedback 26 / 33 N·m, stable; effective inertia 4.5–5.0 kg·m² (rung 5: 6.4 with segment inertias and the arms on the trunk) |
+| athletes, **posture-only feedforward** (each athlete's reference-run hip moment on the clock) | trunk drifts 16° ([CR06]) / 21° ([BR24]); IVV 56.7 / 55.0 % (+7.3 / +5.9): **the gate fails** |
+| athletes, **internal model** (the moment that holds the path at the current τ, τ', τ'') | trunk error 0.00°; −1.2 % / +2.7 % speed, IVV 52.1 / 53.4 %: rung 2 exactly |
+
+1. **The machinery closes**: the round trip returns, and the delayed controller holds a biased trunk stably at 100 ms.
+2. **A trunk driven by the posture it was given cannot follow a clock that the muscles move.** Once the population's
+   muscles speed or slow the stroke (τ' 0.85–1.29), the inertial moment the trunk needs changes, and a feedforward
+   tabulated on the reference clock leaves the PD to absorb it: 16–21° of drift and 3–4 points more IVV.
+3. **With an internal model of the body's own motion the trunk holds its path**, which is §182's conclusion (the hull's
+   recoil puts the trunk loop at its stability edge, so it needs an internal model) carried into the whole loop.
+4. **So the 3–4 points of IVV still over both athletes are not the trunk's control**: with the trunk free and
+   well-controlled the numbers are rung 2's. What is left is the posture path itself (the model's segment motions against
+   the athletes'), the catch's time law (§203: [CR06]'s fast catch), and the hull.
+
+Not yet included: segment rotational inertias and the arms on the trunk (rung 5 had both); a delayed or imperfect
+internal model (the realistic case between the two rows above).

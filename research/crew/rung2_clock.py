@@ -50,6 +50,14 @@ G = 9.81
 #: the drive progress (fraction of the oar's arc) at which the dynamic clock hands over to the prescribed recovery
 #: curve, before the finish's turning point where the coordinate degenerates. A chosen number; swept in the test.
 HANDOVER = 0.95
+#: Oar travel past the catch angle, degrees, before the drive's clock becomes dynamic; ``None`` keeps it dynamic from
+#: the catch (rung 2 as first built). At the catch the hands reverse, the posture path's speed per unit tau is zero and
+#: the generalised inertia along tau vanishes, so the clock solve divides by ~0 (tau' spiked to 1.9-2.3 at entry,
+#: SOURCES sec. 181). The blade's placement is not load-driven anyway: BioRow's target catch slip, catch to fully
+#: buried, is 6 deg (coxswain/crew/blade_immersion.py; SOURCES sec. 173). Until then the clock keeps its entry rate
+#: (tau'' = 0, continuous with the recovery curve); from burial on the muscles and the blade load drive it.
+TAKEOVER_DEG = None
+BIOROW_CATCH_TO_BURIED_DEG = 6.0
 
 
 class ClockSim(DynamicOarSimulator):
@@ -65,6 +73,7 @@ class ClockSim(DynamicOarSimulator):
         self.rlog = []                                           # free: each release (stroke start, c, tau, tau')
         self._rec = None
         self._last = -np.inf
+        self._placing = False                                    # the blade's placement, before TAKEOVER_DEG
 
     # -- the clock -------------------------------------------------------------------------------------
     def _body(self, t):
@@ -108,6 +117,7 @@ class ClockSim(DynamicOarSimulator):
         if tau > 0.5 * P:
             tau -= P                                             # a new stroke: the clock wraps
         self._rec = None                                         # the drive is dynamic again
+        self._placing = TAKEOVER_DEG is not None                 # ... once the blade is placed
         self._clock = (tau, td, 0.0)
         try:
             after = super()._catch(t0, np.asarray(y[:-2]), index)
@@ -132,6 +142,8 @@ class ClockSim(DynamicOarSimulator):
             # Hand over to the prescribed recovery at the blade's release, or just before the finish's turning point:
             # there the hands and body stop together, the generalised inertia along tau goes to zero, and any
             # residual force drives tau'' without bound (tau' ran to 4-5 there). HANDOVER is a named choice.
+            if self._placing and (sw.catch_angle - float(sw(float(y2[-2]), tm))) >= np.radians(TAKEOVER_DEG):
+                self._placing = False                            # buried: the drive's clock is dynamic from here
             if self._rec is None and (done is not None and np.all(done) or progress >= HANDOVER):
                 self._start_recovery(c, float(y2[-2]), float(y2[-1]))
             if self._rec is not None:                            # the recovery follows its curve exactly
@@ -214,6 +226,15 @@ class ClockSim(DynamicOarSimulator):
                 self._last = t
             return d
         base, tau, td = y[:-2], float(y[-2]), float(y[-1])
+        if self._placing and self._rec is None:                  # placing the blade: the clock keeps its rate
+            self._clock = (tau, td, 0.0)
+            try:
+                d = super().derivative(t, base)
+            finally:
+                self._clock = None
+            if t > self._last:
+                self.tlog.append((t, tau, td, 0.0)); self._last = t
+            return np.concatenate([d, [td, 0.0]])
         if self._rec is not None:                                # the recovery: the clock is prescribed
             tau, td, tdd = self._recovery_clock(t - self._stroke_start)
             self._clock = (tau, td, tdd)

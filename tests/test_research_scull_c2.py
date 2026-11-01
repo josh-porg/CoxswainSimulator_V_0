@@ -21,12 +21,18 @@ from coxswain.crew.oarlock import BladeModel
 from coxswain.sim.dynamic_oar import DynamicOarSimulator
 
 NOMINAL, FITTED = 58.7, 140.88
+#: Retired from the research and learned profiles on 2026-10-31 (SOURCES sec. 202): their blade is now the
+#: cross-flow normal law, sourced and unfitted. The fit stays available to a study profile that rows the slip
+#: law -- the research profile as it stood until then -- which is how these tests reach it.
+FIT_STUDY = physics.PhysicsProfile(
+    name="slip-fit-study", summary="study: the slip law with [CR06]'s fitted scull C2", blade_tier=1,
+    rower="prescribed", oar="dynamic", wave="sretenskii", catch="sweep", scull_mass=1.2, scull_c2=FITTED)
 
 
-def test_shipped_keeps_the_computed_value_and_research_carries_the_fit():
-    assert physics.resolve(physics.SHIPPED).scull_c2 is None
-    assert physics.resolve("research").scull_c2 == FITTED
-    assert physics.resolve("learned").scull_c2 == FITTED
+def test_no_named_profile_carries_the_fit_any_more():
+    """Retired 2026-10-31: no registered profile rows a value fitted to one athlete (CALIBRATION_REGISTER)."""
+    for name in physics.names():
+        assert physics.resolve(name).scull_c2 is None
     assert FITTED == pytest.approx(2.4 * NOMINAL)
 
 
@@ -37,8 +43,8 @@ def test_the_blade_models_own_defaults_are_untouched():
     assert BladeModel.sweep().c2 == 84.5
 
 
-def test_a_research_single_builds_its_dynamic_oar_with_the_fitted_value():
-    boat = physics.resolve("research").apply(catalog.build("1x", rate=30.0))
+def test_a_study_single_builds_its_dynamic_oar_with_the_fitted_value():
+    boat = FIT_STUDY.apply(catalog.build("1x", rate=30.0))
     assert boat.scull_c2 == FITTED
     assert OarDynamics.from_boat(boat).blade.c2 == pytest.approx(FITTED)
 
@@ -70,8 +76,8 @@ def test_an_explicit_blade_still_wins():
 
 
 def test_the_efficiency_wiring_sees_the_same_value():
-    boat = physics.resolve("research").apply(catalog.build("1x", rate=30.0))
-    assert physics.resolve("research").blade_model(boat).c2 == pytest.approx(FITTED)
+    boat = FIT_STUDY.apply(catalog.build("1x", rate=30.0))
+    assert FIT_STUDY.blade_model(boat).c2 == pytest.approx(FITTED)
 
 
 def test_the_fitted_c2_and_patton_added_mass_are_refused_together():
@@ -83,7 +89,7 @@ def test_the_fitted_c2_and_patton_added_mass_are_refused_together():
     with ``C2`` unmoved at 140.3 (TRACKING, 2026-09-18).  So the exclusion
     rests on the measurement, not on their explanation of it.
     """
-    boat = physics.resolve("research").apply(catalog.build("1x", rate=30.0))
+    boat = FIT_STUDY.apply(catalog.build("1x", rate=30.0))
     with pytest.raises(ValueError, match="exclusive"):
         DynamicOarSimulator(boat, peak_torque=120.0, blade_added_mass="patton")
 

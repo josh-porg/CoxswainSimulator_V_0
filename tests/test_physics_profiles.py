@@ -107,7 +107,7 @@ def test_blade_coefficient_follows_the_rig():
     sweep = research.blade_model(catalog.build("4+", rate=30.0))
     scull = research.blade_model(catalog.build("1x", rate=30.0))
     assert sweep.c2 == pytest.approx(84.5)
-    assert scull.c2 == pytest.approx(140.88)
+    assert scull.c2 == pytest.approx(58.7)          # the fitted 140.88 retired from research, 2026-10-31
     assert sweep.c2 != scull.c2
 
 
@@ -282,7 +282,7 @@ def test_the_research_profile_advertises_that_it_is_partial():
     report refuses it -- so it now says PARTIAL, and names what is left.
     """
     research = physics.resolve("research")
-    assert research.blade_tier == 1
+    assert research.blade_tier == 2          # the cross-flow normal blade since 2026-10-31
     assert research.oar == "dynamic"
     assert research.uses_dynamic_oar
     assert research.frozen is False

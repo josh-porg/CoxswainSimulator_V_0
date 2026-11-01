@@ -126,17 +126,19 @@ class LiftDragBlade:
 
     @classmethod
     def crossflow(cls, outboard: float, area: float, length: float, face_on: float,
-                  density: float = 1000.0) -> "CrossflowBlade":
+                  density: float = 1000.0, tangential: bool = True) -> "CrossflowBlade":
         """The fins' cross-flow law on a blade (:class:`CrossflowBlade`; SOURCES §190-191).
 
         ``length`` is the blade's extent along the shaft; its height is ``area / length``, so the
         aspect ratio the along-shaft flow sees is ``area / length**2``. ``face_on`` is the normal
         coefficient face-on, the law's one open number (~2.2 below Froude ~0.9, ~1.3 at 1.0).
+        ``tangential=False``: the normal load only -- what [CG07]'s measured points and [H10] on the water
+        show for a stalled blade (SOURCES §201); the research profile's blade.
         """
         from ..hydro.appendages import polhamus_helmbold_slope
         aspect = float(area) / float(length) ** 2
         return CrossflowBlade(polhamus_helmbold_slope(aspect) / 2.0, 2.07, float(area), float(outboard),
-                              float(density), None, float(face_on))
+                              float(density), None, float(face_on), bool(tangential))
 
     @classmethod
     def macon(cls, outboard: float, area: float = 0.11,
@@ -210,8 +212,13 @@ class CrossflowBlade(LiftDragBlade):
     a research option; nothing ships it.
     """
     face_on: float = 2.2
+    #: The drag-like tangential load, ``(A_d - 2A_l) sin^2 a cos a``. ``False``: none. That term resolves an
+    #: attached-flow lift and a separated-flow drag as one flow state; [CG07]'s measured points resolve to a
+    #: force normal to the blade within ~2 % and [H10] measured ~3 % on the water mid-drive (SOURCES §199-201).
+    tangential: bool = True
 
     def coefficients(self, alpha):
         s, c = np.sin(alpha), np.cos(alpha)
         c_n = 2.0 * self.lift_amplitude * s * c + self.face_on * s * s
-        return float(c_n), LiftDragBlade.coefficients(self, alpha)[1]
+        c_t = LiftDragBlade.coefficients(self, alpha)[1] if self.tangential else 0.0
+        return float(c_n), float(c_t)

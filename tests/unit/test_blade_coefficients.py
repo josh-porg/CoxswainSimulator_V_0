@@ -28,7 +28,10 @@ def test_the_full_scale_corrections_are_the_sourced_ratios():
 
 @pytest.fixture(scope="module")
 def single():
-    return physics.resolve("research").apply(catalog.single_scull(rate=32.0))
+    # the slip law with the fitted scull C2: the research profile until 2026-10-31 (SOURCES sec. 202), now a study
+    study = physics.PhysicsProfile(name="slip-fit-study", summary="study", blade_tier=1, rower="prescribed",
+                                   oar="dynamic", catch="sweep", scull_c2=140.88)
+    return study.apply(catalog.single_scull(rate=32.0))
 
 
 def test_the_simulator_default_is_the_flume(single):

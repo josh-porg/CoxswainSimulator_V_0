@@ -190,10 +190,14 @@ def main():
     ap.add_argument("--strokes", type=int, default=10)
     ap.add_argument("--athletes", nargs="+", default=["cr06", "br24"])
     ap.add_argument("--blade", default="slip", choices=["slip", "crossflow_h10", "crossflow_normal"])
+    ap.add_argument("--catch", default="dynamic", choices=["dynamic", "buried"],
+                    help="when the drive's clock turns dynamic: at the catch (as first built) or once the blade is "
+                         "buried (BioRow's 6 deg catch slip; rung2_clock.TAKEOVER_DEG)")
     a = ap.parse_args()
     global BLADE
     BLADE = a.blade
-    print("blade: %s" % BLADE, flush=True)
+    C2.TAKEOVER_DEG = C2.BIOROW_CATCH_TO_BURIED_DEG if a.catch == "buried" else None
+    print("blade: %s; catch: %s" % (BLADE, a.catch), flush=True)
     out = dict(handover=C2.HANDOVER)
 
     # 1. the population, rung 1 with its own body and drive law
@@ -217,7 +221,8 @@ def main():
     # 2. each athlete
     for name in a.athletes:
         out[name] = athlete(name, a.strokes, s_pop, q_drive, ph, q, s_p["power"])
-    json.dump(out, open(os.path.join(OUT, "rung2_population%s.json" % ("" if BLADE == "slip" else "_" + BLADE)), "w"), indent=1, default=float)
+    json.dump(out, open(os.path.join(OUT, "rung2_population%s%s.json" % ("" if BLADE == "slip" else "_" + BLADE,
+                                                            "" if a.catch == "dynamic" else "_buried")), "w"), indent=1, default=float)
 
 
 if __name__ == "__main__":

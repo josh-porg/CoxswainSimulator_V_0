@@ -368,12 +368,14 @@ def main(argv=None):
     from coxswain import physics as _physics
 
     resolved = _physics.resolve(args.physics)
-    if resolved.blade_tier >= 2 or resolved.rower != "prescribed":
+    # Tier 2 is allowed since 2026-10-31: the research profile's blade is the cross-flow normal law (lift and drag
+    # on the angle of attack), and the report builds it through the profile (PhysicsProfile.blade_options).
+    if resolved.rower != "prescribed" or (resolved.blade_tier >= 2 and not resolved.uses_dynamic_oar):
         parser.error(
             "profile %r needs physics that does not exist yet -- blade tier "
-            "%d, %s rower. This report runs tier 0 and tier 1 blades with "
-            "the prescribed rower." % (args.physics, resolved.blade_tier,
-                                        resolved.rower))
+            "%d, %s rower. This report runs the prescribed rower, with tier 0 "
+            "or the dynamic oar's blade laws." % (args.physics, resolved.blade_tier,
+                                                  resolved.rower))
 
     started = time.time()
     overall = progress(total=6, desc="report", unit="stage")
@@ -668,7 +670,7 @@ def blade_path_figure(four, figures_dir, profile=None, quick=False):
         for fraction in (0.5, 1.0):
             sim = DynamicOarSimulator(
                 four, peak_torque=DynamicOarSimulator.peak_torque_for_power(
-                    four, fraction * watts))
+                    four, fraction * watts), **resolved.blade_options(four))
             run = sim.run_strokes(strokes, surge_speed=2.8 + 0.8 * fraction)
             traces.append(dynamic_trace(
                 sim, run, "this four, %.0f W per rower" % (fraction * watts)))

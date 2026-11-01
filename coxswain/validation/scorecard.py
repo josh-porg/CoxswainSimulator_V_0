@@ -198,7 +198,7 @@ def _drag_at(sim, boat, speed: float) -> float:
 
 def settle_dynamic(boat, watts: float, start: float,
                    strokes: int = SETTLE_STROKES,
-                   blade_law: str = "slip",
+                   blade_law: Optional[str] = None,
                    blade_added_mass: str = "none",
                    blade_span: float = None,
                    blade_coefficients: str = "cg07",
@@ -215,12 +215,20 @@ def settle_dynamic(boat, watts: float, start: float,
     sweep carries in.  Crew power is the measured handle power of the run
     itself, not the stated figure, so a mismatch between the two would show
     in the table rather than be assumed away.
+
+    ``blade_law=None`` (the default): the profile's own blade, law, coefficients and strips together
+    (:meth:`~coxswain.physics.PhysicsProfile.blade_options`); ``blade_span`` and ``blade_coefficients`` are then
+    ignored. An explicit ``blade_law`` is a study and takes them as given.
     """
     from ..sim.control import Coxswain
     from ..sim.dynamic_oar import DynamicOarSimulator
 
     boat.power_scales = np.ones(boat.n_seats)
-    catch = physics.resolve(getattr(boat, "physics_profile", None)).catch
+    profile = physics.resolve(getattr(boat, "physics_profile", None))
+    catch = profile.catch
+    if blade_law is None:
+        own = profile.blade_options(boat)
+        blade_law, blade_span, blade_coefficients = own["blade_law"], own["blade_span"], own["blade_coefficients"]
     torque = DynamicOarSimulator.torque_for_power(
         boat, float(watts), catch=catch, blade_law=blade_law, start=start,
         blade_added_mass=blade_added_mass, blade_span=blade_span,
@@ -253,28 +261,26 @@ def efficiency_at(boat, scale: float, start: float):
     return got.speed, got.efficiency
 
 
-def sweep(boat, points: Optional[Sequence] = None, blade_law: str = "slip"):
+def sweep(boat, points: Optional[Sequence] = None, blade_law: Optional[str] = None):
     """Settle ``boat`` at each operating point, by the physics it carries.
 
     A boat stamped with a dynamic-oar profile is settled at stated
     wattages (``DYNAMIC_POINTS``); anything else at power scales
     (``OPERATING_POINTS``), exactly as before.
 
-    ``blade_law`` selects the dynamic oar's blade -- ``"slip"`` (tier 1) or
-    ``"liftdrag"`` (tier 2).  It is a study parameter, not a profile: tier 2
-    rests on provisional coefficients and is not promoted until their
-    primary source is read.  Anything but tier 1 is refused for a boat
-    without the dynamic oar, because there is no blade law to switch.
+    ``blade_law`` overrides the dynamic oar's blade for a study -- ``"slip"`` or ``"liftdrag"`` (with the
+    default coefficients); ``None`` keeps the profile's own (since 2026-10-31 the research profile's is the
+    cross-flow normal law, SOURCES sec. 202). An override is refused for a boat without the dynamic oar,
+    because there is no blade law to switch.
     """
-    if blade_law != "slip" and not _uses_dynamic_oar(boat):
+    if blade_law is not None and not _uses_dynamic_oar(boat):
         raise ValueError(
             "blade law %r needs the dynamic oar; this boat is stamped %r"
             % (blade_law, getattr(boat, "physics_profile", None)))
     if _uses_dynamic_oar(boat):
         chosen = DYNAMIC_POINTS if points is None else points
-        if blade_law == "slip":
-            return [settle_dynamic(boat, watts, start)
-                    for watts, start in chosen]
+        if blade_law is None:                    # the profile's own blade
+            return [settle_dynamic(boat, watts, start) for watts, start in chosen]
         return [settle_dynamic(boat, watts, start, blade_law=blade_law)
                 for watts, start in chosen]
     chosen = OPERATING_POINTS if points is None else points
@@ -349,7 +355,7 @@ def _blade_efficiency_level(boat, speed: float) -> Optional[float]:
     return float((eff * weight).sum() / total)
 
 
-def measure(boat, name: str, profile, runs=None, blade_law: str = "slip"):
+def measure(boat, name: str, profile, runs=None, blade_law: Optional[str] = None):
     """Score every target that can be run against this boat.
 
     A non-default ``blade_law`` is stamped into every score's profile label
@@ -357,7 +363,7 @@ def measure(boat, name: str, profile, runs=None, blade_law: str = "slip"):
     the profile's own.
     """
     profile = physics.resolve(profile)
-    label = (profile.name if blade_law == "slip"
+    label = (profile.name if blade_law is None
              else "%s+%s" % (profile.name, blade_law))
     if runs is None:
         runs = sweep(boat, blade_law=blade_law)
@@ -427,7 +433,7 @@ def measure(boat, name: str, profile, runs=None, blade_law: str = "slip"):
 
 
 def run(profile=physics.SHIPPED, boats=("8+", "4+"), rate=28.0,
-        blade_law: str = "slip"):
+        blade_law: Optional[str] = None):
     """Score ``profile`` on every boat named, and return a flat list.
 
     This is the whole point of the module: the same call, the same

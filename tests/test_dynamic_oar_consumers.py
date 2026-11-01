@@ -214,8 +214,12 @@ def test_research_passes_the_defect_targets_shipped_fails():
     # blade enters at zero normal velocity instead of parked and loaded), and
     # at matched power the level is 0.714. Still a FAIL, now below the band
     # by less than half as much; re-pinned to that, not loosened.
-    assert level.status == "fail", (level.value, level.detail)
-    assert 0.65 < level.value < 0.754, level.value
+    #
+    # And it moved again on 2026-10-31, the day this tripwire was waiting for: the research profile's blade became
+    # the cross-flow normal law (SOURCES sec. 202), and the level is 0.793 on the eight at 5.90 m/s, inside the band
+    # (0.765 on the four). Re-pinned to a pass, with a window that would catch a slide back out of it.
+    assert level.status == "pass", (level.value, level.detail)
+    assert 0.754 <= level.value <= 0.816, level.value
 
 
 def test_the_steering_caption_transcribes_nothing():

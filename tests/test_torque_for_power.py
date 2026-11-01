@@ -128,8 +128,10 @@ def test_the_factory_passes_the_research_profiles_sweep_catch_through(
     """A planted cache entry stands in for the settle, which is slow; it is
     removed again after the test so no later test can be handed it."""
     boat = _research()
+    opts = physics.resolve("research").blade_options(boat)     # the profile's blade is in the key (2026-10-31)
     monkeypatch.setitem(DynamicOarSimulator._MATCHED,
-                        _match_key(boat, 300.0, "sweep", "slip"), 123.0)
+                        _match_key(boat, 300.0, "sweep", opts["blade_law"], blade_span=opts["blade_span"],
+                                   coefficients=opts["blade_coefficients"]), 123.0)
     sim = simulator_for(boat)
     assert sim.catch == "sweep" and sim.peak_torque == 123.0
 
@@ -166,6 +168,6 @@ def test_a_sweep_catch_profile_builds_its_crew_at_matched_power(monkeypatch):
     sim = simulator_for(boat)
     assert sim.catch == "sweep"
     assert sim.peak_torque == DynamicOarSimulator.torque_for_power(
-        boat, 300.0, catch="sweep")
+        boat, 300.0, catch="sweep", **sweep.blade_options(boat))
     assert sim.peak_torque != DynamicOarSimulator.peak_torque_for_power(
         boat, 300.0)

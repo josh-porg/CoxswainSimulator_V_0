@@ -398,6 +398,21 @@ for the same slip, so the defect targets pass by a little less and the
 efficiency level falls about 0.03 further below the band, on both tiers.
 
 Both defect targets that `shipped` fails, `research` passes, on both boats.
+
+*Re-run 2026-10-31 for the research profile's new blade* (the cross-flow normal law, strips; SOURCES §202,
+`data/local/validation/scorecard_research_2026-10-31.log`). Same battery, rate 28; the slip column is today's
+model with the old blade (`blade_law="slip"`), so the two differ by the blade alone:
+
+| target | band | slip eight | slip four | **cross-flow normal eight** | **cross-flow normal four** |
+|---|---|---|---|---|---|
+| η zero crossing | ≥ 0.15 | 9.30 pass | 9.18 pass | 5.76 pass | 5.61 pass |
+| η/v spread | ≥ 0.08 | 0.514 pass | 0.517 pass | 0.496 pass | 0.494 pass |
+| surge swing | 30–60% | 41.9% pass | 45.1% pass | 40.7% pass | 43.8% pass |
+| speed at 360 W per rower | — | 5.77 m/s | 5.04 m/s | 5.90 m/s | 5.16 m/s |
+| blade efficiency level | 0.754–0.816 | 0.714 **fail** | 0.684 **fail** | **0.793 pass** | **0.765 pass** |
+
+**Every implemented target now passes on both boats**: the blade efficiency level, which the research profile had
+failed on every run since phase 2, lands inside Kleshnev's band on the eight and the four, with nothing fitted to it.
 (The crossing reads 1.46 here against 1.81 from the torque sweep above: the
 operating points differ, and the scorecard's is the canonical number.)
 
@@ -1121,8 +1136,16 @@ the boat speeds that go with their drive durations).
   review blade carried is a construction artefact ([CG07]'s measured points and [H10] on the water put it at ~2–3 % of
   the normal load). The cross-flow normal law with no tangential load, nothing fitted: [CR06] −1.2 %, IVV 51.5 % (49.4);
   [BR24] +2.6 %, IVV 52.4 % (49.1); his muscle scale falls 1.70 → 1.60. [CR06]'s hands are worse than on the slip law
-  fitted to her (3.3° against 1.9° rms). **Open decision:** promote the cross-flow normal blade to the research profile
-  (re-runs the validation scorecard).
+  fitted to her (3.3° against 1.9° rms). **Promoted to the research profile the same day** (Decisions; scorecard: every
+  target passes on both boats).
+- **The catch (§203):** the clock turns dynamic once the blade is buried (BioRow's 6° catch slip), not at the catch,
+  where the clock coordinate degenerates; the entry spike is gone; [BR24]'s hands 0.016 rms, [CR06]'s 5.2° (the drive
+  law's slow catch, 4.3a, now exposed).
+- **The trunk in the loop (§204):** `research/crew/rung2_trunk.py`. Posture-only feedforward drifts 16–21° and fails
+  the gate; an internal model of the body's own motion holds the trunk and reproduces rung 2. The remaining 3–4 points
+  of IVV are not the trunk's control. **Next rower items:** the catch's time law through the placement (an unloaded
+  blade lets the legs accelerate the hands; [CR06]'s fast catch), the posture path against the athletes' segment
+  motions, then segment inertias and a delayed internal model in the trunk loop.
 
 ## Calibration and validation data from the squad's own boats (noted 2026-10-08)
 
@@ -1280,12 +1303,10 @@ research depth term; see TRACKING for the decision and what it needs.
 
 ## Decisions taken
 
-*Open (2026-10-31): replace the research profile's slip blade (C2 fitted to [CR06]) with the cross-flow normal blade
-(sourced; passes rung 2's gate on both athletes, SOURCES §202). Waiting on the user; it changes every research-profile
-number and needs the validation scorecard re-run.*
 
 | date | decision | why |
 |---|---|---|
+| 2026-10-31 | **The research (and learned) profile's blade is the cross-flow normal law, in strips** (`blade_law="liftdrag"`, `"crossflow-normal@2.2"`); the fitted scull C2 is retired from both (user decision) | Sourced and unfitted to any athlete; fits two measured blade loads open loop; [CG07] and [H10] put the tangential load at ~2–3 % of the normal; passes rung 2's gate on both athletes and, for the first time, every scorecard target on both boats (blade efficiency 0.793 / 0.765 in Kleshnev's band). SOURCES §199–202; scorecard above |
 | 2026-09-12 | Torque level, not muscle level | Hill-type muscles buy fidelity we cannot validate without EMG; gross efficiency is known to be 0.20 and rate-independent, so the metabolic layer is a scalar applied afterwards |
 | 2026-09-12 | Tier 1 before tier 2 | Tier 1 fixes the defect; tier 2's value is decided by phase 1's gate |
 | 2026-09-12 | Phase 0 is worth a whole phase | The baseline gets set before anyone has a stake in beating it. It found two bugs on its first run, which settles the argument |

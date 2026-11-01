@@ -177,6 +177,16 @@ class PhysicsProfile:
     #: :data:`~coxswain.hydro.addedmass.DEFAULT_MUNK_FACTOR`.  It sets directional stability
     #: against the fins, so a fin law and its Munk factor move together.
     munk_factor: Optional[float] = None
+    #: The dynamic oar's blade law: ``"slip"`` ([CR06] Model 1, the normal load from slip) or ``"liftdrag"``
+    #: (the load on the angle of attack; :class:`~coxswain.crew.liftdrag.LiftDragBlade` and its subclasses).
+    #: Read by :meth:`blade_options`, which every profile-driven simulator goes through.
+    blade_law: str = "slip"
+    #: Under ``"liftdrag"``: the coefficient set, as :class:`~coxswain.sim.dynamic_oar.DynamicOarSimulator`
+    #: names it (``"cg07"``, a full-scale correction, ``"crossflow@<face-on>"``,
+    #: ``"crossflow-normal@<face-on>"``).
+    blade_coefficients: str = "cg07"
+    #: Integrate the blade load across the blade's own length (strips), the way the laws were tested.
+    blade_strips: bool = False
     #: Frozen profiles may not be altered, and the game may resolve only
     #: a frozen one.
     frozen: bool = False
@@ -206,6 +216,12 @@ class PhysicsProfile:
             raise ValueError(f"munk_factor must be between 0 and 1; got {self.munk_factor!r}")
         if self.catch not in ("rest", "sweep"):
             raise ValueError(f"unknown catch rule {self.catch!r}")
+        if self.blade_law not in ("slip", "liftdrag"):
+            raise ValueError(f"unknown blade law {self.blade_law!r}")
+        if (self.blade_law != "slip" or self.blade_strips) and self.oar != "dynamic":
+            raise ValueError("a blade law and strips belong to the dynamic oar; this profile's oar is %r" % (self.oar,))
+        if self.blade_coefficients != "cg07" and self.blade_law != "liftdrag":
+            raise ValueError("blade coefficients apply to the lift-drag law only; blade_law=%r" % (self.blade_law,))
         if self.scull_mass is not None and not self.scull_mass > 0.0:
             raise ValueError(
                 f"scull_mass must be a positive mass in kg; got "
@@ -237,6 +253,22 @@ class PhysicsProfile:
         return self.oar == "dynamic"
 
     # -- the blade -------------------------------------------------------
+    def blade_options(self, boat=None) -> dict:
+        """The dynamic oar's blade, as :class:`~coxswain.sim.dynamic_oar.DynamicOarSimulator` keyword arguments.
+
+        One path for every profile-driven simulator (``simulator_for``, the validation scorecard), so the
+        blade cannot differ between them (docs/STRUCTURAL_ISSUES.md: one path, one name, one key). Strips use
+        the boat's own blade length; a rig without one is refused rather than read at the centre unannounced.
+        """
+        out = dict(blade_law=self.blade_law, blade_coefficients=self.blade_coefficients, blade_span=None)
+        if self.blade_strips and boat is not None:
+            lengths = {float(lock.oar.blade_length) for seat in boat.rig.seats for lock in seat.oarlocks}
+            if not lengths or min(lengths) <= 0.0 or len(lengths) > 1:
+                raise ValueError("profile %r integrates the blade in strips and needs one positive blade length "
+                                 "on every oar; this rig has %s" % (self.name, sorted(lengths)))
+            out["blade_span"] = lengths.pop()
+        return out
+
     def blade_model(self, boat=None):
         """The :class:`~coxswain.crew.oarlock.BladeModel` for this profile.
 
@@ -417,12 +449,13 @@ PROFILES: Dict[str, PhysicsProfile] = {
     # silently simulate the shipped oar under this name.
     "research": PhysicsProfile(
         name="research",
-        summary="The offline programme: blade force from slip with the oar "
+        summary="The offline programme: the blade's normal load on its angle "
+                "of attack (the fins' cross-flow law, strips) with the oar "
                 "angle a dynamic state, on the full 6-DOF hull. PARTIAL -- "
                 "the crew is still prescribed from ergometer data and does "
                 "not follow the dynamic oar, synchronised crews only, and "
                 "only the validation scorecard runs it; the report refuses.",
-        blade_tier=1,
+        blade_tier=2,
         rower="prescribed",
         oar="dynamic",
         wave="sretenskii",
@@ -434,12 +467,18 @@ PROFILES: Dict[str, PhysicsProfile] = {
         # scull inherits the sweep oar's 2.7 kg.  +0.5% speed on the 1x at
         # equal torque, stable at the default step.
         scull_mass=1.2,
-        # [CR06]'s own best fit, 2.4 x their computed 58.7, since 2026-09-18.
-        # Validated on their athlete (oar-angle rms 8.87 -> 2.26 deg) and on
-        # Holt's singles (speed gap -3.0 to -3.5 points, blade efficiency
-        # 0.69-0.70 -> 0.78-0.79, inside Kleshnev's band).  Exclusive of the
-        # Patton blade added mass.
-        scull_c2=140.88,
+        # The blade since 2026-10-31 (SOURCES sec. 199-202): the fins' cross-flow
+        # law on the blade, normal load only (Helmbold's low-AR lift slope and a
+        # face-on cross-flow coefficient, 2.2 below Froude ~0.9), integrated in
+        # strips. Fits two measured blade loads open loop (sec. 184-191); [CG07]'s
+        # measured points and [H10] put the tangential load at ~2-3 % of the
+        # normal; closed loop it passes rung 2's gate on both athletes, nothing
+        # fitted (sec. 202). Replaces the slip law, whose scull C2 (140.88,
+        # 2.4 x [CR06]'s computed plate) was fitted to one athlete and is retired
+        # from this profile (CALIBRATION_REGISTER).
+        blade_law="liftdrag",
+        blade_coefficients="crossflow-normal@2.2",
+        blade_strips=True,
         # de Leva's leg CMs from the proximal joint, since 2026-09-26: the
         # legacy placement measured both from the distal end and cost the
         # crew 0.9-1.0 cm of centre-of-mass travel (SOURCES sec. 157).
@@ -474,7 +513,9 @@ PROFILES: Dict[str, PhysicsProfile] = {
         wave="sretenskii",
         catch="sweep",
         scull_mass=1.2,
-        scull_c2=140.88,
+        blade_law="liftdrag",
+        blade_coefficients="crossflow-normal@2.2",
+        blade_strips=True,
         segment_com="de_leva",
         roll_friction="kato",
         fin_law="whicker_fehlner",
