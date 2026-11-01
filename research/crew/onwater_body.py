@@ -98,6 +98,21 @@ def free_body(anthro, timing, dataset):
     return t, np.array([j["shoulder"] for j in J]), float(rower.upper_arm_length + rower.forearm_length)
 
 
+def straight_arm_shift(boat):
+    """The footboard shift (m, + toward the bow) at which this boat's own rower reaches the rig's catch angle with
+    straight arms: the rower sets the stretcher where the catch closes (user's direction, 2026-09-30; SOURCES
+    sec. 169a). Derived from the body, the arm length and the rig, not fitted."""
+    rower = boat.crew[0].rower
+    t, sh, arm = free_body(rower.anthropometry, boat.timing, getattr(rower, "dataset", None) or CAPLAN_GARDNER_2010)
+    rig = rig_geometry(boat)
+    lo, hi = -0.6, 0.6
+    for _ in range(40):
+        mid = 0.5 * (lo + hi)
+        a = straight_arm_angle(sh[0], rig, arm, mid)
+        lo, hi = (mid, hi) if (np.isnan(a) or a > rig["catch"]) else (lo, mid)
+    return 0.5 * (lo + hi)
+
+
 def athlete(name):
     import like_for_like as L
     import validate_blade as V

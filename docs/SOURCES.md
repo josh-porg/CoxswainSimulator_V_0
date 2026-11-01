@@ -13976,3 +13976,62 @@ I(θ_ref'' τ'² + θ_ref' τ'' + δ'')) — the round trip still closes (τ' 1.
    then torque-driven, body), and the shape tier 3's learned rower already has (per-channel delays, PLAN §4).
 
 Not tried here: rung 5's state predictor over the delay (it recovered accuracy at 117 ms on the trunk alone, §182).
+
+## 207. Neuromuscular sensing, control and actuation: a literature review before the multi-clock body (2026-11-01)
+
+The full review is [NEUROMUSCULAR_CONTROL_REVIEW.md](NEUROMUSCULAR_CONTROL_REVIEW.md). It covers about 80 sources,
+each marked with how closely it was read (F full text, A abstract or summary, K background, with bibliographic details
+checked). Open papers are in `data/local/literature/neuromuscular/<paper>/`. It covers:
+
+- muscle actuation;
+- the muscle's own zero-delay mechanics;
+- the sensors and their delays;
+- spinal reflexes, pattern generators and synergies;
+- state estimation and the efference copy;
+- the competing controllers: optimal feedback, impedance, intermittent, equilibrium-point and active inference;
+- costs and segment coordination;
+- simulation practice.
+
+**New numbers used:**
+
+| quantity | value | source (read level) |
+|---|---|---|
+| trunk, identified intrinsic and reflex stiffness (11 men, T10, 20–50 % MVE) | k_INT 1280–2116 N/m, gravity 1695 N/m, reflex delay **40 ms**, reflexes ~42 % of stabilising stiffness; intrinsic minus gravity < 0 in 8/11 | Moorhouse & Granata 2007 (F) |
+| trunk admittance and reflex gain, resist vs relax | −61 % / +73 % below 1.1 Hz; spindle position, velocity (and, in a companion study, acceleration) plus tendon-organ force fit 90 % of kinematics | van Drunen et al. 2013 (A) |
+| ankle intrinsic stiffness in quiet stance | 91 ± 23 % of the minimum to balance | Loram & Lakie 2002 (A) |
+| activation / deactivation time constants | 10 / 40 ms (Zajac, Winters); 15 / 50 ms (Thelen) | OpenSim docs (A); Thelen 2003 (A) |
+| electromechanical delay | ~50–56 ms elbow flexors; 8 to >100 ms across studies | Cavanagh & Komi 1979 (A) |
+| Hill-model accuracy | <9 % of F_0 at maximal activation; 54 % of force variance (80 % at low speed, high activation) in cycling | Millard et al. 2013 (A); Dick et al. 2017 (A) |
+| vestibular (GVS) responses | ~60 ms and ~110–120 ms | Britton 1993 (K); Cathers et al. 2005 (A) |
+| visual correction / initiation | ~100–117 ms / ~150 ms | Saunders & Knill 2005 (F); Franklin 2016 (F) |
+| delayed PD plus acceleration feedback | critical delay +~40 %; the loop is a neutral delay equation (needs normalised acceleration gain below 1) | Insperger et al. 2013 (A); Zhang et al. 2018 (F) |
+| controllers in 102 postural simulations | PD 43, PID 17, reflex ("extended P") 14, P 9, LQR 9, MPC 4, other 12 of 108; reflex and PD dominate musculoskeletal models | Shanbhag et al. 2023 (F) |
+| rowing synergies | three, stable from 60 to 120 % of 2000 m power and between experts and novices; output amplitude, not timing, differs | Turpin et al. 2011ab (A); Shaharudin & Agrawal 2016 (A) |
+
+**What it says about §204–206 (review §11):**
+
+1. **The τ'' collapse is a neutral delay loop.** Reading the clock's acceleration late feeds back the whole coupled
+   inertia, a normalised acceleration gain near or above 1. Neutral-equation theory predicts instability at any delay.
+   Physiological acceleration signals (spindle yank) are partial gains, and the field's answer is an efference-copy
+   estimator corrected by delayed sensing (Crevecoeur & Scott 2013 (F); Miall et al. 1993 (A)).
+2. **The 29–39° trunk wander lacks a zero-delay layer.** The model puts all stabilising stiffness behind 100 ms. In
+   people about half acts with no delay (intrinsic, activation-scaled) and the rest at a 40 ms reflex. As a cross-check,
+   at a 0.25–0.30 m lever the measured gravity term is 106–153 N·m/rad; the model's λ_c² I is 110–160 N·m/rad.
+3. **Sequencing is an output.** Proximal-to-distal order emerges from segment dynamics plus cost in leading-joint and
+   optimal-control studies, and rowing's three synergies differ by amplitude, not timing.
+
+**Proposed build (review §12; needs the user's go-ahead), each step with a gate:**
+
+1. three Hill-type groups (legs, trunk, arms);
+2. an activation-scaled intrinsic stiffness and damping;
+3. spindle and tendon-organ reflexes at 20–45 ms (trunk 40 ms) with phase-dependent gains;
+4. three excitation modules on one neural phase oscillator entrained to the catch and stretcher loads;
+5. a delay-aware estimator (rung 5's predictor generalised).
+
+Optimal feedback control (time-varying LQG with signal-dependent noise), collocation and a fatigue model come later.
+Equilibrium-point control and deep RL are not proposed (review §7.4, §10).
+
+**Gaps:**
+
+- no published predictive, muscle-driven, on-water rowing simulation was found;
+- the auditory delay is still unsourced.

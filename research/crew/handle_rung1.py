@@ -31,14 +31,36 @@ from coxswain.sim.control import Coxswain                        # noqa: E402
 from coxswain.sim.dynamic_oar import DynamicOarSimulator         # noqa: E402
 
 
-def boat_for(name, measured, timing_kind, drive_law=False):
+#: The catch posture of the athletes' boats. "as-built": the rig as first built, where the model's arms are 30-35 %
+#: bent at the catch (SOURCES sec. 169a). "straight-arms": the footboard moved to where this boat's own rower reaches
+#: the rig's catch angle with straight arms (research/crew/onwater_body.straight_arm_shift; derived, not fitted).
+CATCH_POSTURE = "as-built"
+
+
+def boat_for(name, measured, timing_kind, drive_law=False, catch_posture=None):
+    posture = catch_posture or CATCH_POSTURE
     if name == "br24":
         import like_for_like as L
         timing = OnWaterTiming(L.RATE) if timing_kind == "on-water" else StrokeTiming(L.RATE)
-        return L.build("arc", timing=timing, drive_law=drive_law)
+        boat = L.build("arc", timing=timing, drive_law=drive_law)
+        if posture == "straight-arms":
+            import onwater_body as OB
+            # like_for_like's footboard_shift is measured from its catalogue work-through; the as-built boat may have
+            # moved the oarlock to reach (``work_through``), so the shift is taken relative to that
+            shift = OB.straight_arm_shift(boat) + (L.WORK_THROUGH - boat.work_through)
+            boat = L.build("arc", timing=timing, drive_law=drive_law, footboard_shift=shift)
+            boat.footboard_shift = shift
+        return boat
     rate = 60.0 / V.CR06_T
     timing = OnWaterTiming(rate) if timing_kind == "on-water" else StrokeTiming(rate)
-    return V.cr06_boat(measured, timing, drive_law=drive_law)
+    boat = V.cr06_boat(measured, timing, drive_law=drive_law)
+    if posture == "straight-arms":
+        import onwater_body as OB
+        shift = OB.straight_arm_shift(boat)
+        stature = float(boat.crew[0].rower.anthropometry.stature)   # her stature as solved from her leg travel
+        boat = V.cr06_boat(measured, timing, drive_law=drive_law, footboard_shift=shift, stature=stature)
+        boat.footboard_shift = shift
+    return boat
 
 
 def predict(boat, strokes, **options):

@@ -1,0 +1,30 @@
+# Frey-Law, Laake, Avin, Heitsman, Marler & Abdel-Malek (2012) J Appl Biomech 28:726-737 (PMC7050840), Tables 4-5:
+# mean peak elbow torque (N.m), 30 men (24.2 y, 1.801 m, 81.5 kg) and 24 women (22.8 y, 1.661 m, 67.3 kg), Biodex,
+# shoulder ~25 deg flexion, forearm supinated. angle_deg: 0 = full extension; velocity deg/s concentric. Blank: >50 % of
+# participants could not reach that velocity (not reported). Read 2026-11-01. (The manuscript's two KNEE tables appear
+# label-swapped; they are not used here.)
+direction,sex,velocity_dps,a15,a40,a65,a90,a110
+flexion,M,0,56.4,62.9,63.0,60.3,56.4
+flexion,M,60,41.2,43.9,44.7,42.3,35.7
+flexion,M,120,36.1,38.0,38.7,36.8,27.9
+flexion,M,180,32.1,33.9,33.1,29.2,18.7
+flexion,M,240,,30.0,27.9,21.5,12.0
+flexion,M,300,,,25.7,18.4,8.4
+flexion,F,0,26.2,30.4,32.0,32.4,30.4
+flexion,F,60,20.4,20.8,21.4,20.8,18.3
+flexion,F,120,18.9,19.4,19.9,19.0,15.2
+flexion,F,180,15.9,18.2,17.9,15.6,11.3
+flexion,F,240,,14.4,15.8,13.2,8.1
+flexion,F,300,,,14.1,13.2,8.7
+extension,M,0,40.2,50.5,52.8,50.7,45.4
+extension,M,60,26.2,37.4,39.6,38.3,36.4
+extension,M,120,21.9,33.6,35.6,35.2,33.7
+extension,M,180,15.3,29.0,31.8,33.0,30.8
+extension,M,240,8.7,20.5,26.1,28.5,
+extension,M,300,5.5,17.1,24.6,26.7,
+extension,F,0,22.1,27.6,29.2,27.7,25.1
+extension,F,60,13.5,19.9,22.1,21.2,20.4
+extension,F,120,10.9,18.2,20.0,20.0,19.0
+extension,F,180,7.6,15.3,18.1,18.3,17.4
+extension,F,240,6.2,12.9,15.9,15.8,
+extension,F,300,3.8,10.2,13.3,12.8,
