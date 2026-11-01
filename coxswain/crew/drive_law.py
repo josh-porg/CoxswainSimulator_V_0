@@ -219,12 +219,12 @@ class BodyCoupledDriveSweep(PopulationDriveSweep):
     def _straight(self):
         cached = getattr(self, "_s_cached", None)
         if cached is None:
-            from scipy.interpolate import CubicSpline
+            from scipy.interpolate import PchipInterpolator     # shape-preserving: no overshoot at the table's jumps
             x = np.asarray(self.straight[0], float)
             a = np.asarray(self.straight[1], float)
             inactive = self.catch_angle + 1.0                     # no constraint where no straight-arm angle exists
             a = np.where(np.isfinite(a), a, inactive)
-            spline = CubicSpline(x, a)
+            spline = PchipInterpolator(x, a)
             cached = (spline, spline.derivative())
             object.__setattr__(self, "_s_cached", cached)
         return cached

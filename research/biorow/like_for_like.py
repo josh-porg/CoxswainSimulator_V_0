@@ -93,10 +93,11 @@ def trunk_dataset(base):
                                trunk=tuple(new.tolist()))
 
 
-def build(variant, timing=None, dataset=None, footboard_shift=None, drive_law=False):
+def build(variant, timing=None, dataset=None, footboard_shift=None, drive_law=False, oar_sweep=None):
     """His boat. ``timing`` (a StrokeTiming) overrides the variant's, e.g. [K05]'s on-water rhythm;
     ``dataset`` the body keyframes; ``footboard_shift`` (m, + toward the bow) fixes the rig instead of
-    searching the nearest reachable oarlock."""
+    searching the nearest reachable oarlock; ``oar_sweep`` replaces the oar sweep outright (e.g. the
+    body-coupled drive, coxswain.crew.drive_law.BodyCoupledDriveSweep)."""
     subs = {"base": set(), "arc": {"arc"}, "trunk": {"trunk"}, "legs": {"legs"},
             "drive": {"drive"}, "all": {"arc", "trunk", "legs", "drive"}}[variant]
     dataset = dataset or CAPLAN_GARDNER_2010
@@ -110,6 +111,8 @@ def build(variant, timing=None, dataset=None, footboard_shift=None, drive_law=Fa
         # the hands' drive from [K05]'s on-water population (coxswain.crew.drive_law)
         from coxswain.crew.drive_law import PopulationDriveSweep
         sweep = PopulationDriveSweep(catch_angle=sweep.catch_angle, finish_angle=sweep.finish_angle)
+    if oar_sweep is not None:
+        sweep = oar_sweep
     anthro = RowerAnthropometry(mass=MASS, stature=STATURE)
 
     def make(ds, work=WORK_THROUGH):

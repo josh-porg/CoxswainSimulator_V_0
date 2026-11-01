@@ -1166,6 +1166,18 @@ the boat speeds that go with their drive durations).
   5. a delay-aware estimator (rung 5's predictor generalised).
 
   Optimal feedback control, collocation and fatigue come after.
+- **The build begun (§208, 2026-11-01).**
+  - *Step 1:* the sourced joint muscles are built, but the capacity check fails at the catch because the knee and
+    trunk angles there lie beyond the strength data (DATA_REQUESTS §13).
+  - *The catch posture (§169a), fixed:* the hands follow the shoulders while the arms are straight
+    (`BodyCoupledDriveSweep`, footboard for a straight-arm catch). This exposed two things, both now open:
+    - the keyframed body moves the shoulders too early;
+    - on the athletes' own timing the grips reach 1.12 arm lengths mid-drive, which needs a shoulder girdle. The
+      hand-over to the arm draw is also too abrupt.
+  - *Steps 2–3 on the trunk:* the sourced lower layers halve §206's wander to 13–17°, with the 100 ms PD on top, but
+    cannot hold the trunk alone.
+  - *Next:* the arms' own clock (a muscle-driven draw, which removes the abrupt hand-over), the shoulder girdle, and
+    the delay-aware estimator for the trunk.
 
 ## Calibration and validation data from the squad's own boats (noted 2026-10-08)
 

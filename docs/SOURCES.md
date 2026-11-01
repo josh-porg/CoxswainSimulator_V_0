@@ -14035,3 +14035,94 @@ Equilibrium-point control and deep RL are not proposed (review §7.4, §10).
 
 - no published predictive, muscle-driven, on-water rowing simulation was found;
 - the auditory delay is still unsourced.
+
+## 208. The body build begins: sourced joint muscles, the catch posture fixed by coupling the hands to the shoulders, and what that exposed (2026-11-01)
+
+The user approved the review's build (§207, review §12), then directed: "if we have a problem that is known, let's try
+to fix it", namely the bent-arm catch of §169a.
+
+**1. Joint muscles and the lower layers** (`coxswain/crew/joint_muscles.py`, `tests/unit/test_joint_muscles.py`).
+
+- **Hip and knee:** Anderson, Madigan & Nussbaum (2007), *J. Biomech.* 40:3105, Table 3, parameters for each exertion
+  by sex and age, transcribed to `data/literature/anderson2007_joint_torque.csv`. The printed table's row labels are
+  shifted by one line; this was checked against the paper's C5/C4 ratios.
+  - The hip's mean passive term was measured with the knee nearly straight and gives ~176 N·m per side at 1 rad. It
+    is dropped for rowing, where the knee is flexed whenever the hip is.
+- **Elbow:** Frey-Law et al. (2012), *J. Appl. Biomech.* 28:726, Tables 4–5 (`data/literature/freylaw2012_elbow_strength.csv`).
+  The manuscript's two knee tables appear label-swapped and are not used.
+- **Activation:** 10 / 40 ms (Zajac; Winters) or 15 / 50 ms (Thelen).
+- **Trunk intrinsic and reflex layers:** Moorhouse & Granata (2007), carried to the model as ratios to their gravity
+  term. The source gives no intrinsic damping, so damping comes from the generator's force-velocity slope. Their
+  reflex transfer function is read as a unity-gain low-pass on G_R × stretch velocity: as printed, its units do not
+  close and its k_REFLEX does not follow from G_R. This is an interpretation, stated in the module.
+- Kukić, Mrdaković, Stanković & Ilić (2022), *Biology* 11:1490, give knee-extension strength at 50–100° flexion: 62 %
+  of peak at 100°. Nothing deeper was found.
+
+**2. Step 1's check: can sourced muscles row the stroke?** (`research/crew/muscle_capacity.py`)
+
+The check takes the model's reference stroke, the hip from the top-down free body, the knee from below ([BU15]
+direction, [VI17] centre of pressure) and the elbow in 3-D. It **fails at the catch on both athletes**:
+
+| | hip | knee | elbow |
+|---|---|---|---|
+| [CR06] peak activation needed | 3.1 | 2.0 | 1.6 (side-view elbow; superseded) |
+| [BR24] | infinite (angle where the extrapolated curve is zero) | infinite | 0.28 |
+
+The cause is the angles, not weakness. The catch flexes the knee 138–145° (data stop at 100–103°). The hip-plus-lumbar
+"trunk" angle reaches 176–180° (hip data stop at 75°). Inside the tested ranges the needed activations are ≤ 0.31.
+Published catches do flex the knee ~135° (§156: [K19]'s catch knee 45.4° interior), so the gap is in the strength data, a data
+request, not something to fit.
+
+**3. The catch posture.** It had been studied (`onwater_body.py`, §169a) but never built into the athletes' boats.
+
+- **Moving the footboard alone fails.** For a straight-arm catch the footboard moves +0.23 m ([CR06]) / +0.22 m
+  ([BR24]). With the hands on the population drive law and the body on the ergometer keyframes, the shoulder is then
+  0.83 / 0.94 m from the handle a quarter of the way into the drive, against arms of 0.63 / 0.70 m.
+- **Fix: the body-coupled drive** (`coxswain/crew/drive_law.BodyCoupledDriveSweep`, `tests/unit/test_body_coupled_sweep.py`;
+  `handle_rung1.CATCH_POSTURE = "straight-arms"`, option `--catch-posture` in rung2_population and muscle_capacity).
+  - While the arms are straight, the oar angle is where a straight arm from the shoulders meets the grip's arc. The
+    0.95 comfortable extension is the elbow solve's own.
+  - The population law applies where it is behind that angle (the arm draw). A shape-preserving table interpolation
+    is used, because a cubic spline overshot at the table's jumps.
+  - Both boats now build with straight arms through 77–82 % of the drive.
+- **Open defect:** the hand-over to the arm draw is blended over 0.5° only, so the oar's acceleration reaches
+  6300 °/s² there (the population law's own peak is 1200). The rung-2 and capacity runs on these boats were stopped
+  until the draw starts smoothly.
+
+**4. What the coupling exposed** (`research/crew/straight_arm_check.py`; nothing fitted).
+
+- **On the keyframed body, straight arms run the oar 15–25° ahead of [BR24]'s measured angle at 0.3–0.5 s** (27°
+  against 46° at 0.3 s). The keyframed legs and trunk move the shoulders too early: §205's sequencing gap, now
+  visible in the hands.
+- **On each athlete's own leg and back timing** (§205's diagnostic, read at the shoulder), the straight-arm oar still
+  runs 10° ahead of the measured angle in mid-drive. The two cross at 0.68 s (the arm draw).
+- Measured from the athlete's own shoulder, the measured grip sits at this fraction of arm length:
+
+| t (s) | 0 | 0.10 | 0.20 | 0.30 | 0.40 | 0.50 | 0.60 | 0.70 |
+|---|---|---|---|---|---|---|---|---|
+| [BR24] | 0.95* | 1.00 | 1.06 | 1.10 | 1.12 | 1.11 | 1.05 | 0.91 |
+| [CR06] | 0.95* | 1.00 | 1.06 | 1.10 | 1.12 | 1.11 | 1.07 | 0.93 |
+
+(*set by the footboard.) The two athletes agree to ~0.01 throughout. A reach of 1.12 arm lengths is 7–8 cm that no
+arm has, peaking with the handle force. The likely mechanism is the **shoulder girdle protracting under the
+handle's load**. The model allows the girdle 6 cm, and only as a last resort for reach. No published rowing
+scapular kinematics with numbers was found; the most promising thesis is behind a bot check (a data request). Other
+contributors are not excluded: the trunk channel's measurement point, and the own-body reconstruction scaling the
+whole shoulder-from-hip vector by K.
+
+**5. Steps 2–3 on the trunk** (`research/crew/rung2_trunk_layers.py`): §206's failing case (efference copy, τ' seen
+100 ms late), with the sourced layers.
+
+| trunk control | [CR06] trunk error / IVV | [BR24] |
+|---|---|---|
+| §206: one PD at 100 ms | 39° / 60.0 % | 29° / 58.3 % |
+| intrinsic + 40 ms reflex only | 75° / 45.9 % | 34° / 55.9 % |
+| intrinsic + reflex + the 100 ms PD | **17° / 54.0 %** | **13° / 62.8 %** |
+
+- The review's prediction (§11b, "a few degrees") **is only half right**. The lower layers halve the wander, but they
+  cannot hold the trunk alone.
+  - The sourced intrinsic stiffness barely exceeds gravity even at 50 % effort (P_INT +421 N/m).
+  - The reflex, as identified, is a velocity reflex: it damps but gives no holding stiffness.
+- Holding the posture is the long-latency layer's job, and with a raw delayed PD it still lets the trunk wander 13–17°.
+- Next for the trunk: the delay-aware estimator (step 5, rung 5's predictor), which the review identifies as the
+  field's answer.

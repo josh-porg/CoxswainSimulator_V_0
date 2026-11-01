@@ -108,7 +108,7 @@ def cr06_measured():
 
 
 def cr06_boat(measured, timing=None, dataset=None, footboard_shift=0.0, stature=None, drive_law=False,
-              mass=None):
+              mass=None, oar_sweep=None):
     """Her rig from [CR06]; her stature is not published, so it is set so the model's leg
     travel equals her measured leg travel (her own measurement, not a blade parameter).
     ``mass``: the rower's mass, kg (default hers); for another crew on her rig."""
@@ -122,6 +122,8 @@ def cr06_boat(measured, timing=None, dataset=None, footboard_shift=0.0, stature=
     if drive_law:
         from coxswain.crew.drive_law import PopulationDriveSweep
         arc = PopulationDriveSweep(catch_angle=arc.catch_angle, finish_angle=arc.finish_angle)
+    if oar_sweep is not None:                                   # e.g. the body-coupled drive (drive_law.py)
+        arc = oar_sweep
 
     def build(stature):
         base = catalog.single_scull(rate=60.0 / CR06_T, rower_mass=mass or CR06_MASS, rower_stature=stature)

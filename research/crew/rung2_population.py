@@ -215,6 +215,9 @@ def main():
     ap.add_argument("--body", default="model", choices=["model", "own"],
                     help="the posture path: the model's (ergometer keyframes on the clock) or, as a diagnostic, each "
                          "athlete's own measured leg and back time-laws")
+    ap.add_argument("--catch-posture", default="as-built", choices=["as-built", "straight-arms"],
+                    help="the athletes' rig: as built (arms bent at the catch) or the footboard for a straight-arm "
+                         "catch with the body-coupled drive (handle_rung1.CATCH_POSTURE; SOURCES sec. 208)")
     ap.add_argument("--catch", default="dynamic", choices=["dynamic", "buried", "entry"],
                     help="when the drive's clock turns dynamic: at the catch (as first built) or once the blade is "
                          "buried (BioRow's 6 deg catch slip; rung2_clock.TAKEOVER_DEG)")
@@ -223,6 +226,7 @@ def main():
     BLADE = a.blade
     BODY = a.body
     C2.TAKEOVER_DEG = {"buried": C2.BIOROW_CATCH_TO_BURIED_DEG, "entry": "entry"}.get(a.catch)
+    C2.R.CATCH_POSTURE = a.catch_posture
     print("blade: %s; catch: %s" % (BLADE, a.catch), flush=True)
     out = dict(handover=C2.HANDOVER)
 
@@ -248,7 +252,8 @@ def main():
     for name in a.athletes:
         out[name] = athlete(name, a.strokes, s_pop, q_drive, ph, q, s_p["power"])
     json.dump(out, open(os.path.join(OUT, "rung2_population%s%s.json" % ("" if BLADE == "slip" else "_" + BLADE,
-                                                            ("" if a.catch == "dynamic" else "_" + a.catch) + ("" if a.body == "model" else "_ownbody"))), "w"), indent=1, default=float)
+                                                            ("" if a.catch == "dynamic" else "_" + a.catch) + ("" if a.body == "model" else "_ownbody")
+                                                            + ("" if a.catch_posture == "as-built" else "_straightarms"))), "w"), indent=1, default=float)
 
 
 if __name__ == "__main__":

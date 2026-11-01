@@ -98,19 +98,46 @@ def free_body(anthro, timing, dataset):
     return t, np.array([j["shoulder"] for j in J]), float(rower.upper_arm_length + rower.forearm_length)
 
 
-def straight_arm_shift(boat):
+def _straight_reach():
+    """What "straight" means in the model's arms: its own comfortable full extension (kinematics.py), the reach the
+    elbow solve accepts without trunk rotation."""
+    from coxswain.crew.kinematics import COMFORTABLE_ARM_EXTENSION
+    return COMFORTABLE_ARM_EXTENSION
+
+
+def _body_of(boat):
+    rower = boat.crew[0].rower
+    ds = getattr(rower, "dataset", None) or CAPLAN_GARDNER_2010
+    return JointDrivenRower(rower.anthropometry, RowerStation(x_ankle=0.0), boat.timing, dataset=ds), rower
+
+
+def straight_arm_shift(boat, reach=None):
     """The footboard shift (m, + toward the bow) at which this boat's own rower reaches the rig's catch angle with
     straight arms: the rower sets the stretcher where the catch closes (user's direction, 2026-09-30; SOURCES
     sec. 169a). Derived from the body, the arm length and the rig, not fitted."""
-    rower = boat.crew[0].rower
-    t, sh, arm = free_body(rower.anthropometry, boat.timing, getattr(rower, "dataset", None) or CAPLAN_GARDNER_2010)
+    free, rower = _body_of(boat)
+    arm = (rower.upper_arm_length + rower.forearm_length) * (reach or _straight_reach())
+    sh0 = free.joint_positions(0.0)["shoulder"]
     rig = rig_geometry(boat)
     lo, hi = -0.6, 0.6
     for _ in range(40):
         mid = 0.5 * (lo + hi)
-        a = straight_arm_angle(sh[0], rig, arm, mid)
+        a = straight_arm_angle(sh0, rig, arm, mid)
         lo, hi = (mid, hi) if (np.isnan(a) or a > rig["catch"]) else (lo, mid)
     return 0.5 * (lo + hi)
+
+
+def straight_arm_table(boat, shift, reach=None, n=241):
+    """``(drive_fraction, straight-arm oar angle)`` through the drive, for the body-coupled drive sweep: the angle
+    at which the grip is one straight arm from the shoulders this boat's body provides, the footboard moved by
+    ``shift``. NaN where no angle puts the grip a full arm away (the arms must already be bent)."""
+    free, rower = _body_of(boat)
+    arm = (rower.upper_arm_length + rower.forearm_length) * (reach or _straight_reach())
+    rig = rig_geometry(boat)
+    D = float(boat.timing.drive_fraction) * float(boat.timing.period)
+    x = np.linspace(0.0, 1.0, n)
+    ang = np.array([straight_arm_angle(free.joint_positions(float(xx * D))["shoulder"], rig, arm, shift) for xx in x])
+    return tuple(x), tuple(ang)
 
 
 def athlete(name):

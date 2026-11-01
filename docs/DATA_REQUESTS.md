@@ -849,6 +849,24 @@ The live corresponding author of [LE26] is **`natalie.legge@acu.edu.au`**
 **`john.warmenhoven@hotmail.com`** (verified). Either is a reasonable route to
 Draper and Smith.
 
+## 13. Strength at a rower's catch angles, and the shoulder girdle through the drive *(added 2026-11-01; no target yet, nothing drafted)*
+
+The muscle-driven body (SOURCES §207–208) needs three things no source found so far gives:
+
+1. **Knee-extension torque at 110–145° of flexion.** A rower's catch flexes the knee about 135°. The population
+   strength surfaces stop at 100–103° (Anderson et al. 2007; Frey-Law et al. 2012; Kukić et al. 2022, 62 % of peak
+   at 100°).
+2. **Hip- and lumbar-extension torque against angle with the knee flexed**, out to the catch's ~120° of hip flexion
+   plus lumbar flexion. Anderson's hip data were taken standing, knee near straight, to 75°. Elite rowers' isometric
+   trunk extension is ~319 N·m, at one angle.
+3. **Scapular / shoulder-girdle protraction through the drive, in centimetres.** From each athlete's own shoulders,
+   the measured grip sits at 1.12 arm lengths in mid-drive on both measured scullers (§208). The candidate mechanism
+   is girdle protraction under load. A rowing-shoulder thesis that may hold it (core.ac.uk/download/235628625.pdf)
+   is behind a bot check and has not been read.
+
+Before writing to anyone, identify the author of that thesis and any lab with deep-flexion isokinetic or isometric
+data (e.g. squat or rowing-specific dynamometry).
+
 ## Notes on sending these
 
 * **Send them individually**, not as a mailing list. Each is written to

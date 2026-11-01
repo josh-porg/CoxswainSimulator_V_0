@@ -92,6 +92,30 @@ def _cross(r, f):
     return r[0] * f[1] - r[1] * f[0]
 
 
+UPPER_ARM_COM = 0.5772           # de Leva: upper-arm centre of mass from the shoulder, fraction of its length
+
+
+def _vec(track, c):
+    return np.array([float(getattr(q, "value", q)) for q in np.atleast_1d(track(float(c)))])
+
+
+def arm3d(rower, c, side=1):
+    """One arm in 3-D at clock ``c``: shoulder, elbow, hand, and the rows of its upper arm and forearm. A sculler's
+    hands sit ~0.4 m out from the centreline at the catch, so the side view's elbow angle is wrong (it read the arms
+    as bent ~100 deg at a straight-arm catch)."""
+    sh, h = _vec(rower._shoulder_tracks[side], c), _vec(rower._hand_tracks[side], c)
+    pos = np.asarray(rower.segment_state(float(c))[0], float)
+    ua = 4 if np.sign(pos[4, 1]) == np.sign(h[1]) else 5
+    fa = 6 if np.sign(pos[6, 1]) == np.sign(h[1]) else 7
+    el = sh + (pos[ua] - sh) / UPPER_ARM_COM
+    return sh, el, h, ua, fa
+
+
+def elbow_flexion(rower, c):
+    sh, el, h, _ua, _fa = arm3d(rower, c)
+    return np.pi - _angle(sh - el, h - el)
+
+
 def geometry(rower, P, n=1200):
     """Joint angles (flexion, rad) and their clock-rates on a periodic grid."""
     grid = np.linspace(0.0, P, n, endpoint=False)
@@ -100,7 +124,7 @@ def geometry(rower, P, n=1200):
         j = {k: v[[0, 2]] for k, v in rower.joint_positions(float(c)).items()}
         th["hip"].append(np.pi - _angle(j["knee"] - j["hip"], j["shoulder"] - j["hip"]))
         th["knee"].append(np.pi - _angle(j["hip"] - j["knee"], j["ankle"] - j["knee"]))
-        th["elbow"].append(np.pi - _angle(j["shoulder"] - j["elbow"], j["hand"] - j["elbow"]))
+        th["elbow"].append(elbow_flexion(rower, c))
     dt = grid[1] - grid[0]
     rates = {k: (np.roll(np.unwrap(v), -1) - np.roll(np.unwrap(v), 1)) / (2 * dt) for k, v in th.items()}
     return grid, {k: np.array(v) for k, v in th.items()}, rates
@@ -141,18 +165,25 @@ def athlete(name, strokes):
         for i in (10, 11):                                       # shank and foot: weight minus inertia
             r = pos[i] - j["knee"]
             knee += _cross(r, (0.0, -masses[i] * G)) - _cross(r, masses[i] * a_abs[i])
-        # elbow flexors: the forearms and hands, the handle's reaction at the hands
-        u, v = j["shoulder"] - j["elbow"], j["hand"] - j["elbow"]
-        flex_sign = np.sign(_cross(v, u))                        # rotating the forearm toward the upper arm
-        ext = _cross(v, (-F, 0.0))
+        # elbow flexors, in 3-D, one arm (the two are symmetric): the handle's reaction on the hand (half the total,
+        # opposing the grip's motion along its path) and the forearm's weight and inertia
+        sh3, el3, h3, ua, fa = arm3d(rower, cc)
+        dc = 1e-3
+        tang = _vec(rower._hand_tracks[1], (cc + dc) % P) - _vec(rower._hand_tracks[1], (cc - dc) % P)
+        tang = tang / max(np.linalg.norm(tang), 1e-12)
+        F_hand = -0.5 * F * tang
+        pos3 = np.asarray(rower.segment_state(cc)[0], float)
+        acc3 = np.asarray(rower.segment_state(cc)[2], float) + np.array([ax, 0.0, az])
+        u3, v3 = sh3 - el3, h3 - el3
+        axis = np.cross(v3, u3)
+        axis = axis / max(np.linalg.norm(axis), 1e-12)          # rotating the forearm toward the upper arm
+        Mext = np.cross(v3, F_hand) + np.cross(pos3[fa] - el3, masses[fa] * (np.array([0, 0, -G]) - acc3[fa]))
+        elbow_flex = 2.0 * float(-np.dot(Mext, axis))             # both arms
+        # the shoulder (reported only, strength unsourced): the side-view moment of both hands' reaction and the arms
         sh_ext = _cross(j["hand"] - j["shoulder"], (-F, 0.0))
-        for i in (6, 7):
-            r = pos[i] - j["elbow"]
-            ext += _cross(r, (0.0, -masses[i] * G)) - _cross(r, masses[i] * a_abs[i])
         for i in (4, 5, 6, 7):
             r = pos[i] - j["shoulder"]
             sh_ext += _cross(r, (0.0, -masses[i] * G)) - _cross(r, masses[i] * a_abs[i])
-        elbow_flex = -ext * flex_sign
         th = {k: float(np.interp(cc, grid, TH[k], period=P)) for k in TH}
         w = {k: float(np.interp(cc, grid, W[k], period=P)) for k in W}
         rows.append(dict(t=t - start, c=cc, F=F, Fh=Fh, hip=hipM.get(round(t, 9), np.nan), knee=knee, elbow=elbow_flex,
@@ -201,11 +232,14 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--strokes", type=int, default=8)
     ap.add_argument("--athletes", nargs="+", default=["cr06", "br24"])
+    ap.add_argument("--catch-posture", default="as-built", choices=["as-built", "straight-arms"])
     a = ap.parse_args()
+    C2.R.CATCH_POSTURE = a.catch_posture
     RP.BLADE = "crossflow_normal"
     C2.TAKEOVER_DEG = C2.BIOROW_CATCH_TO_BURIED_DEG
     out = {n: athlete(n, a.strokes) for n in a.athletes}
-    json.dump(out, open(os.path.join(OUT, "muscle_capacity.json"), "w"), indent=1, default=float)
+    json.dump(out, open(os.path.join(OUT, "muscle_capacity%s.json" % (
+        "" if a.catch_posture == "as-built" else "_straightarms")), "w"), indent=1, default=float)
 
 
 if __name__ == "__main__":

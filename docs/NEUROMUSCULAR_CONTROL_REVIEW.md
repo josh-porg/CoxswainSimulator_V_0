@@ -769,6 +769,10 @@ Read levels as above. Full texts that are openly available are in `data/local/li
 mark is F.
 
 - Adams RA, Shipp S, Friston KJ (2013). Predictions not commands: active inference in the motor system. *Brain Struct Funct* 218:611–643. [F]
+- Anderson DE, Madigan ML, Nussbaum MA (2007). Maximum voluntary joint torque as a function of joint angle and angular velocity: model development and application to the lower limb. *J Biomech* 40:3105–3113. [F]
+- Frey-Law LA, Laake A, Avin KG, Heitsman J, Marler T, Abdel-Malek K (2012). Knee and elbow 3D strength surfaces: peak torque–angle–velocity relationships. *J Appl Biomech* 28:726–737. [F]
+- Kukić F, Mrdaković V, Stanković A, Ilić D (2022). Effects of knee extension joint angle on quadriceps femoris muscle activation and exerted torque in maximal voluntary isometric contraction. *Biology* 11:1490. [F, table]
+- Yeadon MR, King MA, Wilson C (2006). Modelling the maximum voluntary joint torque/angular velocity relationship in human movement. *J Biomech* 39:476–482. [A]
 - Asai Y, Tasaka Y, Nomura K, Nomura T, Casadio M, Morasso P (2009). A model of postural control in quiet standing: robust compensation of delay-induced instability using intermittent activation of feedback control. *PLoS ONE* 4:e6169. [F]
 - Blum KP, Lamotte D'Incamps B, Zytnicki D, Ting LH (2017). Force encoding in muscle spindles during stretch of passive muscle. *PLoS Comput Biol* 13:e1005767. [F]
 - Bobbert MF, van Soest AJ (2001). Why do people jump the way they do? *Exerc Sport Sci Rev* 29:95–102. [A]

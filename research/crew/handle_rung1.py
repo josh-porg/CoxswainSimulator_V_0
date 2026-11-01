@@ -32,34 +32,49 @@ from coxswain.sim.dynamic_oar import DynamicOarSimulator         # noqa: E402
 
 
 #: The catch posture of the athletes' boats. "as-built": the rig as first built, where the model's arms are 30-35 %
-#: bent at the catch (SOURCES sec. 169a). "straight-arms": the footboard moved to where this boat's own rower reaches
-#: the rig's catch angle with straight arms (research/crew/onwater_body.straight_arm_shift; derived, not fitted).
+#: bent at the catch (SOURCES sec. 169a). "straight-arms": the footboard where this boat's own rower reaches the rig's
+#: catch angle with straight arms, and the drive body-coupled (coxswain.crew.drive_law.BodyCoupledDriveSweep): the
+#: hands follow the shoulders while the arms are straight and the population law once the arms draw (SOURCES sec. 208).
+#: Moving the footboard alone over-stretches the arms by ~1/3 a quarter of the way into the drive.
 CATCH_POSTURE = "as-built"
+
+
+def _straight_arm_boat(build, base):
+    """Rebuild ``base`` with the footboard for a straight-arm catch and the body-coupled drive."""
+    import onwater_body as OB
+    from coxswain.crew.drive_law import BodyCoupledDriveSweep
+    shift = OB.straight_arm_shift(base)
+    sw = base.oar_sweep
+    table = OB.straight_arm_table(base, shift)
+    sweep = BodyCoupledDriveSweep(catch_angle=sw.catch_angle, finish_angle=sw.finish_angle, straight=table)
+    boat = build(shift, sweep)
+    boat.footboard_shift = shift
+    boat.arm_draw_onset = sweep.arm_draw_onset()
+    return boat
 
 
 def boat_for(name, measured, timing_kind, drive_law=False, catch_posture=None):
     posture = catch_posture or CATCH_POSTURE
+    if posture == "straight-arms" and not drive_law:
+        raise ValueError("the straight-arm catch couples the population drive law to the body: use drive_law=True")
     if name == "br24":
         import like_for_like as L
         timing = OnWaterTiming(L.RATE) if timing_kind == "on-water" else StrokeTiming(L.RATE)
         boat = L.build("arc", timing=timing, drive_law=drive_law)
         if posture == "straight-arms":
-            import onwater_body as OB
-            # like_for_like's footboard_shift is measured from its catalogue work-through; the as-built boat may have
-            # moved the oarlock to reach (``work_through``), so the shift is taken relative to that
-            shift = OB.straight_arm_shift(boat) + (L.WORK_THROUGH - boat.work_through)
-            boat = L.build("arc", timing=timing, drive_law=drive_law, footboard_shift=shift)
-            boat.footboard_shift = shift
+            # like_for_like's footboard_shift is measured from its catalogue work-through; the as-built boat may
+            # have moved the oarlock to reach (``work_through``), so the shift is taken relative to that
+            offset = L.WORK_THROUGH - boat.work_through
+            boat = _straight_arm_boat(lambda sh, sw: L.build("arc", timing=timing, drive_law=drive_law,
+                                                             footboard_shift=sh + offset, oar_sweep=sw), boat)
         return boat
     rate = 60.0 / V.CR06_T
     timing = OnWaterTiming(rate) if timing_kind == "on-water" else StrokeTiming(rate)
     boat = V.cr06_boat(measured, timing, drive_law=drive_law)
     if posture == "straight-arms":
-        import onwater_body as OB
-        shift = OB.straight_arm_shift(boat)
         stature = float(boat.crew[0].rower.anthropometry.stature)   # her stature as solved from her leg travel
-        boat = V.cr06_boat(measured, timing, drive_law=drive_law, footboard_shift=shift, stature=stature)
-        boat.footboard_shift = shift
+        boat = _straight_arm_boat(lambda sh, sw: V.cr06_boat(measured, timing, drive_law=drive_law, footboard_shift=sh,
+                                                             stature=stature, oar_sweep=sw), boat)
     return boat
 
 
