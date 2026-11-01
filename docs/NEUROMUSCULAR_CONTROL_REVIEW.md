@@ -150,31 +150,6 @@ shortening it stays below (force depression).
     walking. All correlated at r ≥ 0.9, and the Bhargava and Lichtwark–Wilson models were best (r = 0.95).
   - A twice-differentiable Umberger model exists for gradient-based optimisation (Koelewijn et al. 2018) [A].
 
-### 1.5a Joint-level torque generators (added 2026-11-01, for the build)
-
-A whole-body model rarely carries individual muscles. The standard reduction is a **muscle torque generator** at
-each joint, with Hill's relations expressed in joint angle and angular velocity, and with parameters from population
-dynamometry.
-
-- **Lower limb:** Anderson, Madigan & Nussbaum (2007), *J. Biomech.* 40:3105 [F].
-  - T = C1 cos(C2(θ − C3)) f(ω): a Hill hyperbola written through the speeds at 75 % and 50 % of isometric torque,
-    with eccentric torque scaled by (1 + C6|ω|) and exponential passive terms.
-  - Six exertions (hip, knee, ankle, each way); 34 adults by sex and age; C1 normalised by weight × height.
-  - Tested ranges: hip −0.5 to 1.3 rad, knee 0 to 1.8 rad.
-- **Knee and elbow strength surfaces:** Frey-Law et al. (2012), *J. Appl. Biomech.* 28:726 [F], 54 adults:
-  - measured surfaces of peak torque against angle and speed;
-  - the normalised surfaces do not differ by sex;
-  - the knee's torque-velocity decay is nearly linear, unlike Hill's hyperbola;
-  - the median coefficient of variation is ~0.3.
-- **A rival form:** Yeadon, King & Wilson (2006), *J. Biomech.* 39:476 [A], is a 7–9 parameter generator with
-  "differential activation" (voluntary activation falls at eccentric and slow speeds), usually fitted per subject.
-- **Deep knee flexion:** Kukić, Mrdaković, Stanković & Ilić (2022), *Biology* 11:1490 [F, table]. Isometric knee extension at interior
-  angles 80–130° (flexion 100–50°): 62 % of peak at 100° flexion, 97 % at 70°. Nothing deeper was found, though a
-  rower's catch flexes the knee 120–145°.
-- **Rowers vs controls:** elite rowers' isometric trunk extension is ~319 N·m in 20 German elite men [A, abstract].
-  International rowers are stronger than controls in every back-strength measure [A]. No rower-specific joint torque
-  surface was found.
-
 ### 1.6 Rowing-specific muscle-driven work
 
 - **Hase, Kaya, Zavatsky & Halliday (2004)**, *J. Appl. Biomech.* 20:317 [A]: a 3-D whole-body musculoskeletal model
