@@ -29,6 +29,7 @@ nothing, and read the field where it acts.
 from __future__ import annotations
 
 import os
+import dataclasses
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -51,8 +52,13 @@ class SegmentClock:
     #: what the course describes: ``"angle"``, the joint's own angle; ``"seat"``, the hip's fore-and-aft position
     #: (for the shank: the rower converts it to the shank angle's course through its own linkage)
     channel: str = "angle"
+    #: which half-strokes the clock retimes: ``"both"``, or only ``"recovery"`` / ``"drive"`` (the other half keeps
+    #: the joint's own keyframe course)
+    phases: str = "both"
 
     def __post_init__(self):
+        if self.phases not in ("both", "drive", "recovery"):
+            raise ValueError("a clock's phases are 'both', 'drive' or 'recovery'")
         if self.joint not in CLOCKED_JOINTS:
             raise ValueError("a clock drives one of %s, not %r" % (CLOCKED_JOINTS, self.joint))
         if self.channel not in ("angle", "seat") or (self.channel == "seat" and self.joint != "shank"):
@@ -66,7 +72,8 @@ class SegmentClock:
         return np.interp(np.mod(np.asarray(g, float), 1.0), self.clock, self.course, period=1.0)
 
     def signature(self) -> tuple:
-        return (self.joint, self.source, self.channel, tuple(np.round(np.asarray(self.course, float)[::8], 6)))
+        return (self.joint, self.source, self.channel, self.phases,
+                tuple(np.round(np.asarray(self.course, float)[::8], 6)))
 
     @classmethod
     def from_angles(cls, joint, clock, angle, source="", channel="angle"):
@@ -144,7 +151,9 @@ def _k05_half_strokes(segment="legs_velocity"):
 
 
 #: clocks by name, built on demand
-CLOCKS = {"pitto2024_trunk": SegmentClock.pitto2024_trunk, "k05_legs": SegmentClock.kleshnev2005_legs}
+CLOCKS = {"pitto2024_trunk": SegmentClock.pitto2024_trunk, "k05_legs": SegmentClock.kleshnev2005_legs,
+          # the recovery only: every source agrees the seat stays still longer after the finish (SOURCES §215)
+          "k05_legs_recovery": lambda: dataclasses.replace(SegmentClock.kleshnev2005_legs(), phases="recovery")}
 
 
 @dataclass(frozen=True)

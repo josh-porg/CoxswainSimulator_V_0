@@ -1223,6 +1223,12 @@ the boat speeds that go with their drive durations).
   - *Next:* a leg time course measured in time; a per-athlete leg timing or seat travel as an input.
   - §214: no open on-water seat trace against time was found; the published landmarks cannot separate the
     candidates. Keyframe legs stay; BioRow's averaged curves (commercial) or an athlete's seat channel would settle it.
+- **§215 (2026-11-02):** the trunk's long-latency layer on a predicted state (rung 5's predictor) cuts the wander to
+  12.8° / 9.7° (from 16.4 / 16.2); a disturbance observer adds nothing. Recovery-only [K05] legs fit the landmarks but
+  worsen IVV. The straight-arm body over-drives the blade when its hands are imposed (rung 1), so its muscle check and
+  the muscle-driven arm draw need its hands as an output of rung 2 first.
+  - *Next:* the straight-arm body in rung 2 (hands an output, power-matched); then its muscle check against Pitto's
+    EMG timing; the trunk's excitation on a phase oscillator (review §12 step 4).
 
 ## Calibration and validation data from the squad's own boats (noted 2026-10-08)
 

@@ -14485,3 +14485,50 @@ The user: "go get better data" (a leg time course measured in time, §213).
 commercial database (Kleshnev's averages over hundreds of crews), behind a paid membership (DATA_REQUESTS §14). On the
 open evidence the keyframes' legs stay the research default and [K05]'s leg clock stays an option. What would settle the
 legs: BioRow's averaged seat velocity curves by boat type and rate, or an athlete's own seat channel as an input.
+
+## 215. While the leg data are decided: recovery-only legs, the muscle check on the new body, the trunk's predictor (2026-11-02)
+
+The user: "do the other stuff while I think about the data."
+
+**1. The legs' recovery only** (`SegmentClock.phases`, `CLOCKS["k05_legs_recovery"]`: [K05]'s seat course on the
+recovery, the keyframes' own on the drive). Every source agreed the keyframes' seat leaves the finish too soon (§214).
+Against the landmarks it now sits where they put it: Catch Factor **+7 ms** (published +6), legs down 16.3 % (athletes
+10.7 / 15.0 %), Style Factor unchanged (87.1 %). But rung 2's IVV worsens on both athletes: **54.0 / 51.5 %** against the
+trunk-only default's 51.5 / 50.8 % (measured 49.4 / 49.1). Holding the seat longer compresses the leg return, so the
+rower's mass accelerates harder before the catch. Landmarks in position do not carry the accelerations; an option only.
+
+**2. The muscle check on the new body** (`research/crew/muscle_capacity.py`, now with `--clocks` / `--hand-terms`).
+
+- **A bug found and fixed** (STRUCTURAL_ISSUES S11): the 3-D arm picked the upper arm whose side matched the *hand's*
+  sideways position. A sculler's hands cross the centreline mid-drive, so there it took the other arm and read 107° of
+  flexion at a reach of 0.695 m (straight). It now keys on the shoulder's side. With the fix, on the as-built boats
+  (rowed at the athletes' power: 263 / 322 W against 261 / 432 W), the elbow flexors need peak activation **0.93**
+  ([CR06]) and **0.65** ([BR24]), both feasible; §208's 3-D elbow numbers came from the bugged arm.
+- **The straight-arm boats cannot be checked yet.** In the check the hands are imposed (rung 1), and the body-generated
+  hand drives the blade too hard: power 365 / 560 W (measured 261 / 432), a 2.4 kN handle spike at 0.15 s that is gone
+  by 0.37 s, stretcher 3.1–3.9 kN; with the stretch, 363 / 487 W. The hip and knee remain outside the strength data
+  at the catch, as before. A capacity check on the straight-arm body needs that body's stroke at the athlete's power:
+  its hands an output of rung 2's muscles, not imposed.
+- **The muscle-driven arm draw** (the elbow generator against the handle force, the arm clock as its target) waits on
+  the same thing: on an over-driven rung-1 stroke the elbow demand's timing is not a test of the clock against
+  Pitto et al.'s EMG (biceps and brachioradialis peak at 55 % of the drive).
+
+**3. The trunk's predictor** (`research/crew/rung2_trunk_layers.py --predict [--observer K]`). Rung 5's finite-horizon
+state predictor (§182) on the long-latency layer, its internal model the trunk's toppling (λ_c² 24.7 s⁻², rung 5's
+coupled-plant value) less the zero-delay layer's own stiffness and damping at the current effort, driven by the layer's
+past commands; optionally rung 5's slow disturbance observer (K 2 /s). No gain tuned. Rung 2, both athletes, efference
+copy, τ' perceived 100 ms late, feedback at 100 ms, the research trunk clock:
+
+| trunk control | [CR06] wander / IVV | [BR24] wander / IVV |
+|---|---|---|
+| muscle stiffness + reflex + 100 ms PD (§208's, re-run on the trunk clock) | 16.4° / 51.2 % | 16.2° / 56.6 % |
+| **+ predictor over the delay** | **12.8° / 51.7 %** | **9.7° / 56.2 %** |
+| + predictor + disturbance observer | 12.7° / 51.6 % | 11.1° / 56.9 % |
+| (trunk held on its path, §213) | 0° / 51.5 % | 0° / 50.8 % |
+
+- The predictor cuts the wander by 22 % and 40 %; the observer adds nothing here (it helped rung 5, whose disturbance
+  was a constant bias; here the misfit varies through the stroke).
+- The wander is still 10–13°, not a few degrees, and the free trunk still costs [BR24] ~5–6 IVV points. The review's
+  remaining pieces are the shape of the long-latency layer's model (constant coefficients; the plant's toppling and
+  slope vary through the stroke) and the excitation modules on a phase oscillator (review §12 step 4): the trunk's
+  feedforward is still read off the hands' clock.

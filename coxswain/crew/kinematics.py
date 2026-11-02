@@ -415,6 +415,10 @@ def _retime_to_course(profile: FourierProfile, drive_fraction: float, clock,
         c = 1.0 - c
     g = np.where(u < f, 0.5 * u / f, 0.5 + 0.5 * (u - f) / (1.0 - f))
     target = np.asarray(clock.target(g), dtype=float)
+    phases = getattr(clock, "phases", "both")
+    if phases != "both":                            # the other half keeps its own course
+        keep = (u < f) if phases == "recovery" else (u >= f)
+        target = np.where(keep, c, target)
 
     def branches(course):
         """Indices rolled to start at the minimum; the maximum's position in that roll."""

@@ -124,3 +124,16 @@ def test_the_research_profile_builds_and_applies_the_trunk_clock_and_shipped_doe
     assert [c.joint for c in boat.crew[0].rower.body.clocks] == ["trunk"]
     physics.resolve("research").apply(boat)                    # idempotent
     assert len(boat.crew[0].rower.body.clocks) == 1
+
+
+def test_a_recovery_only_clock_leaves_the_drive_alone():
+    n, P, f = 2000, float(TIMING.period), float(TIMING.drive_fraction)
+    u = np.arange(n) / n
+    plain = _rower()
+    rec = _rower(body_options(["k05_legs_recovery"]))
+    full = _rower(body_options(["k05_legs"]))
+    x0, xr, xf = (np.asarray(r._chain(u * P)["hip"][0].value) for r in (plain, rec, full))
+    drive = (u > 0.05 * f) & (u < 0.95 * f)                     # away from the ends, where the time map is smoothed
+    rest = (u > f + 0.1 * (1 - f)) & (u < 1 - 0.1 * (1 - f))
+    assert np.max(np.abs(xr[drive] - x0[drive])) < 0.004 < np.max(np.abs(xf[drive] - x0[drive]))
+    assert np.max(np.abs(xr[rest] - x0[rest])) > 0.01           # the recovery is retimed

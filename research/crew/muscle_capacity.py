@@ -105,8 +105,10 @@ def arm3d(rower, c, side=1):
     as bent ~100 deg at a straight-arm catch)."""
     sh, h = _vec(rower._shoulder_tracks[side], c), _vec(rower._hand_tracks[side], c)
     pos = np.asarray(rower.segment_state(float(c))[0], float)
-    ua = 4 if np.sign(pos[4, 1]) == np.sign(h[1]) else 5
-    fa = 6 if np.sign(pos[6, 1]) == np.sign(h[1]) else 7
+    # the arm on the shoulder's side: a sculler's hands cross the centreline mid-drive, the shoulders never do
+    # (keying on the hand's side picked the other arm there; found 2026-11-02, SOURCES §215)
+    ua = 4 if np.sign(pos[4, 1]) == np.sign(sh[1]) else 5
+    fa = 6 if np.sign(pos[6, 1]) == np.sign(sh[1]) else 7
     el = sh + (pos[ua] - sh) / UPPER_ARM_COM
     return sh, el, h, ua, fa
 
@@ -233,13 +235,18 @@ def main():
     ap.add_argument("--strokes", type=int, default=8)
     ap.add_argument("--athletes", nargs="+", default=["cr06", "br24"])
     ap.add_argument("--catch-posture", default="as-built", choices=["as-built", "straight-arms"])
+    ap.add_argument("--clocks", nargs="*", default=[], help="extra segment clocks (coxswain.crew.body_options.CLOCKS)")
+    ap.add_argument("--hand-terms", nargs="*", default=[], help="hand-chain reach terms, e.g. stretch")
     a = ap.parse_args()
     C2.R.CATCH_POSTURE = a.catch_posture
+    C2.R.BODY_CLOCKS = tuple(a.clocks)
+    C2.R.HAND_TERMS = tuple(a.hand_terms)
     RP.BLADE = "crossflow_normal"
     C2.TAKEOVER_DEG = C2.BIOROW_CATCH_TO_BURIED_DEG
     out = {n: athlete(n, a.strokes) for n in a.athletes}
     json.dump(out, open(os.path.join(OUT, "muscle_capacity%s.json" % (
-        "" if a.catch_posture == "as-built" else "_straightarms")), "w"), indent=1, default=float)
+        ("" if a.catch_posture == "as-built" else "_straightarms") + "".join("_" + c for c in a.clocks)
+        + "".join("_" + t for t in a.hand_terms))), "w"), indent=1, default=float)
 
 
 if __name__ == "__main__":
