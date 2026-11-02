@@ -849,7 +849,7 @@ The live corresponding author of [LE26] is **`natalie.legge@acu.edu.au`**
 **`john.warmenhoven@hotmail.com`** (verified). Either is a reasonable route to
 Draper and Smith.
 
-## 13. Strength at a rower's catch angles, and the shoulder girdle through the drive *(added 2026-11-01; no target yet, nothing drafted)*
+## 13. Strength at a rower's catch angles, and the upper-back-to-hand compliance under load *(added 2026-11-01, revised 11-02; no target yet, nothing drafted)*
 
 The muscle-driven body (SOURCES §207–208) needs three things no source found so far gives:
 
@@ -859,13 +859,18 @@ The muscle-driven body (SOURCES §207–208) needs three things no source found 
 2. **Hip- and lumbar-extension torque against angle with the knee flexed**, out to the catch's ~120° of hip flexion
    plus lumbar flexion. Anderson's hip data were taken standing, knee near straight, to 75°. Elite rowers' isometric
    trunk extension is ~319 N·m, at one angle.
-3. **Scapular / shoulder-girdle protraction through the drive, in centimetres.** From each athlete's own shoulders,
-   the measured grip sits at 1.12 arm lengths in mid-drive on both measured scullers (§208). The candidate mechanism
-   is girdle protraction under load. A rowing-shoulder thesis that may hold it (core.ac.uk/download/235628625.pdf)
-   is behind a bot check and has not been read.
+3. **The compliance of the chain from the upper back to the hands under a pull** *(revised 2026-11-02, §210).* The
+   thesis (Urbanczyk 2021, Imperial; read from Spiral) shows the scapula's *kinematics* retracting through the drive,
+   so the "1.12 arm lengths" is not posture. It is a stretch proportional to the handle force, 11–14 cm at each
+   rower's peak force, measured on our two athletes only. Wanted, in order of use:
+   - a published force–displacement relation of the shoulder complex (scapular glide on the thorax, glenohumeral
+     translation) or the upper thorax under a forward pull of 200–500 N per arm;
+   - rowing motion capture with the acromion, an upper-back trunk marker and the handle together (Urbanczyk's Vicon
+     set may hold this: the author or A. McGregor / A. Bull at Imperial are the people to ask);
+   - a third athlete with handle force and seat/trunk channels (BioRow format) to test the 0.124 m out of sample.
 
-Before writing to anyone, identify the author of that thesis and any lab with deep-flexion isokinetic or isometric
-data (e.g. squat or rowing-specific dynamometry).
+Before writing to anyone, identify any lab with deep-flexion isokinetic or isometric data (e.g. squat or
+rowing-specific dynamometry). For item 3, Imperial's rowing-shoulder group (above) is the first contact.
 
 ## Notes on sending these
 

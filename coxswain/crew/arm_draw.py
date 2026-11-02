@@ -52,6 +52,19 @@ DRAW_ONSET = 0.465                          # drive fraction at which the draw s
 POPULATION_FINISH_FLEXION = float(np.radians(100.5))   # the fit's finish flexion: a check, not an input
 RETURN_END = 0.751                          # recovery fraction by which the arms are back at the held flexion
 
+#: The chain from the upper back to the hands stretches under the handle load (SOURCES §210): on both test athletes,
+#: in proportion to the handle force while the arms are held, with a stiffness that scales with the rower's own peak
+#: force, so the stretch at the stroke's peak force is about the same: 0.110 m ([BR24]) and 0.138 m ([CR06]); each
+#: predicts the other's whole-drive oar angle to 2.5° / 1.5° rms. **Measured on the two test athletes, not sourced**
+#: (CALIBRATION_REGISTER; DATA_REQUESTS §13): an option, off by default, so the athletes are not both its source and
+#: its test. Where in the chain it sits (shoulder girdle, upper thorax above the trunk sensor) is not resolved.
+PEAK_CHAIN_STRETCH = 0.124                  # m, the two athletes' mean stretch at their peak handle force
+
+
+def chain_stretch(force_fraction, peak=PEAK_CHAIN_STRETCH):
+    """The upper-back-to-hand chain's stretch (m) at ``force_fraction`` of the stroke's peak handle force."""
+    return float(peak) * np.clip(np.asarray(force_fraction, dtype=float), 0.0, None)
+
 
 def minimum_jerk(s):
     """``(m, dm/ds, d2m/ds2)`` of the minimum-jerk profile, clamped to 0 before and 1 after."""

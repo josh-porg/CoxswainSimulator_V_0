@@ -37,6 +37,9 @@ from coxswain.sim.dynamic_oar import DynamicOarSimulator         # noqa: E402
 #: the grip at the arm's reach from the shoulders, the reach following the elbow's own clock (arm_draw; SOURCES 209).
 #: Moving the footboard alone over-stretches the arms by ~1/3 a quarter of the way into the drive.
 CATCH_POSTURE = "as-built"
+#: With "straight-arms": the upper-back-to-hand chain's stretch at peak handle force (m), or None. Off by default:
+#: the measured value (coxswain.crew.arm_draw.PEAK_CHAIN_STRETCH, SOURCES §210) comes from the test athletes.
+CHAIN_STRETCH = None
 
 
 def _straight_arm_boat(build, base):
@@ -45,7 +48,7 @@ def _straight_arm_boat(build, base):
     from coxswain.crew.drive_law import BodyCoupledDriveSweep
     shift = OB.straight_arm_shift(base)
     sw = base.oar_sweep
-    table, draw = OB.body_drive_table(base, shift)
+    table, draw = OB.body_drive_table(base, shift, stretch=CHAIN_STRETCH)
     sweep = BodyCoupledDriveSweep(catch_angle=sw.catch_angle, finish_angle=sw.finish_angle, drive=table,
                                   recovery=OB.body_recovery_table(base, shift, draw), onset=draw.onset)
     boat = build(shift, sweep)

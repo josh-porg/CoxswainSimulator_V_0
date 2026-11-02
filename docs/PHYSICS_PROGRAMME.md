@@ -1190,6 +1190,15 @@ the boat speeds that go with their drive durations).
     this clock is its target.
   - *Next:* the shoulder girdle (sourced range and stiffness, DATA_REQUESTS §13), the legs' and trunk's own clocks
     (§205's sequencing, the dominant mid-drive error on the keyframed body), the trunk's delay-aware estimator.
+- **The mid-drive reach is a stretch (§210, 2026-11-02).** The scapula's measured kinematics retract through the drive
+  (Urbanczyk 2021, 36 rowers), so the girdle's posture is not the missing reach. Rebuilt from their own channels, both
+  athletes' upper-back-to-hand chains stretch in proportion to handle force (spring 0.7° rms against a lag's 2°),
+  11–14 cm at each rower's peak force; that form transfers across the two (2.5° / 1.5° whole-drive rms), a fixed
+  stiffness does not.
+  - Built as an option, off (`arm_draw.chain_stretch`): the value is the test athletes'. On the keyframed body it halves
+    the error; the rest is sequencing.
+  - *Next:* the legs' and trunk's own clocks (now the largest error); a source or third athlete for the stretch;
+    the kinematic rower's elbow solve to accept it.
 
 ## Calibration and validation data from the squad's own boats (noted 2026-10-08)
 

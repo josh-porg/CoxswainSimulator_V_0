@@ -47,3 +47,9 @@ def test_the_return_is_the_population_fit_and_starts_at_rest_at_the_finish():
     h = 1e-6
     assert abs((d.recovery_flexion(h) - d.recovery_flexion(0.0)) / h) < 1e-3   # at rest there, as the draw ended
     np.testing.assert_allclose(d.recovery_flexion(np.array([d.return_end, 0.9, 1.0])), d.hold)
+
+
+def test_the_chain_stretch_is_proportional_to_force_and_never_negative():
+    np.testing.assert_allclose(A.chain_stretch([0.0, 0.5, 1.0]), [0.0, 0.5 * A.PEAK_CHAIN_STRETCH, A.PEAK_CHAIN_STRETCH])
+    assert A.chain_stretch(-0.2) == 0.0                       # a pushing handle does not compress the chain here
+    assert abs(A.chain_stretch(1.0, peak=0.1) - 0.1) < 1e-12

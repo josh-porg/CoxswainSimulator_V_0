@@ -14194,3 +14194,64 @@ The population handle law is no longer an input to the drive, only its check.
     (measured grip at 1.12 L), now the only mid-drive defect left: the shoulder girdle (DATA_REQUESTS §13).
 - `handle_rung1.CATCH_POSTURE` stays "as-built" by default. With the keyframed body the body-generated drive is
   further from the measured oar than the population law, so rung runs keep the law until the body's own clocks land.
+
+## 210. The "1.12 arm lengths" is a force-proportional stretch of the chain from the upper back to the hands, not the shoulder girdle's kinematics (2026-11-02)
+
+The open item after §209: on the athletes' own timing the oar ran ~10° ahead at 0.3–0.5 s, the measured grip ~1.12 arm
+lengths from the shoulder. §208 proposed shoulder-girdle protraction.
+
+**The girdle's kinematics say no.** Urbanczyk (2021), PhD thesis, Imperial College London, *Using biomechanics to
+define the role of the upper extremity in rowing performance* (open on Spiral, the copy core.ac.uk bot-blocked;
+`data/local/literature/urbanczyk2021_thesis/`). 36 rowers on an instrumented ergometer, Vicon, the UK National Shoulder
+Model. Fig. 6.7: scapulothoracic internal rotation falls monotonically from about −9° at the catch to about −21° at the
+finish at every rate, and the review chapter describes the scapula moving "from a protracted … position at the catch to
+a retracted position into the finish". That is 2–4 cm of *retraction* through the drive, the wrong sign for extra
+reach. (The thesis notes that its ST rotation does not exactly reproduce protraction; a translation under load is not
+excluded by it.) The elbow is held at 7–13° (§209), so the arm adds nothing either.
+
+**The excess is robust to the reconstruction** (`research/crew/measured_reach.py`). Rebuilt from the athletes' own
+channels with the trunk at its true length, rotated about the hip to match the trunk channel ([BR24]'s Lt at the
+0.583 m tracked point, §156; [CR06]'s x_S/B, the shoulder itself), instead of §208's K-scaled vector: the grip still
+sits 0.996 → 1.13–1.18 arm lengths from the shoulder by 0.4 s, at either catch lean (the model's or [K19]'s 24.5°).
+Split by component it is all fore-aft: by 0.3 s [BR24]'s seat has moved 0.31 m toward the bow with the trunk channel
+flat, while the grip has moved 0.18 m fore and aft (and 0.28 m inward along its arc).
+
+**What it is: a spring.** While the arms are held (to 0.45 of the drive), the excess against the measured handle force
+per arm:
+
+| | peak excess | force per arm there | stiffness per arm (through zero) | R² | offset of a free fit |
+|---|---|---|---|---|---|
+| [BR24] | 0.09–0.10 m | 400 N | 3.8–4.2 kN/m | 0.95 | −0.016 m |
+| [CR06] | 0.11–0.12 m | 270 N | 2.0–2.3 kN/m | 0.97 | +0.001–0.003 m |
+
+Fitted to the oar angle over 0–0.45 s, a spring (stretch F/k) leaves **0.65–0.75° rms** on both athletes and both catch
+leans; a constant time lag between hands and shoulders, its rival, leaves 1.7–2.3° (best lags 60–80 ms); nothing,
+6.5–8.5°. Oar bending is excluded: the scull stiffness in hand ([LNA15], EI ≈ 2×10⁴ N·m²) bends the inboard by ~6 mm
+at 500 N.
+
+**Whole drive** (own shoulders, the arm clock of §209 with the finish flexion solved at the measured finish):
+
+| | no stretch | own k | the other athlete's k | the other athlete's stretch at peak force |
+|---|---|---|---|---|
+| [BR24] | 5.8° rms | **1.3°** | 6.5° | **2.5°** (s₀ 0.138 m) |
+| [CR06] | 7.1° | **1.3°** | 3.2° | **1.5°** (s₀ 0.110 m) |
+
+- The finish elbow solves to **98° / 101°** on the direct reconstruction: the population's 100° (§209's 104.6° / 116.3°
+  were on the K-scaled shoulders).
+- **A fixed stiffness does not transfer between the athletes; a stretch proportional to force at each rower's own
+  peak force does.** The stiffness scales with the rower's peak pull, as intrinsic muscle stiffness scales with
+  activation (§208's trunk data). The stretch at peak force is 0.110 m and 0.138 m; each predicts the other's whole
+  drive to 2.5° / 1.5° rms. This is an out-of-sample test across the two athletes, not a validation on new data.
+- **Where it sits is not resolved.** Both data sets come from Kleshnev's instrumentation, which tracks the trunk on the
+  upper back, so the chain is "sensor to hands": a load-driven glide of the scapula around the ribs, rounding of the
+  upper thorax above the sensor, and soft tissue are the candidates. No published compliance for the shoulder complex
+  under a pulling load was found (DATA_REQUESTS §13).
+
+**In the model** (`coxswain/crew/arm_draw.chain_stretch`, `PEAK_CHAIN_STRETCH = 0.124 m`, the two athletes' mean;
+`onwater_body.body_drive_table(stretch=)`; `handle_rung1.CHAIN_STRETCH`, **off by default**: the value comes from the
+test athletes). The reach becomes r(θ_e) + s₀·f(x), with f the boat's own sourced drive force shape (zero at catch and
+finish, so neither closure moves). On the model's keyframed body it halves the error: [BR24] 13.2 → 6.8° rms, [CR06]
+9.7 → 4.2°. What remains is the legs' and trunk's sequencing (§205). Turning it on in simulation needs the kinematic
+rower's elbow solve to accept the stretch: it allows 6 cm (`MAX_SHOULDER_PROTRACTION`, a module constant shared with the
+shipped game) and refuses the stretched hand at 21 % of the cycle. That is a field to plumb through `Boat` and
+`JointDrivenRower`, and into the kinematics cache signature, with the shipped default unchanged.

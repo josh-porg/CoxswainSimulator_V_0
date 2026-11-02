@@ -128,13 +128,17 @@ def straight_arm_shift(boat, reach=None):
     return 0.5 * (lo + hi)
 
 
-def body_drive_table(boat, shift, n=241):
+def body_drive_table(boat, shift, n=241, stretch=None):
     """The drive the body generates (SOURCES sec. 209): ``((drive_fraction, oar_angle), draw)``.
 
     At each drive fraction the grip lies on its arc at the arm's reach from the shoulders this boat's body provides
     (footboard moved by ``shift``); the reach follows the elbow's clock (coxswain.crew.arm_draw.ElbowDraw). The finish
     flexion is solved so the hand arrives at the rig's finish angle; it is returned in ``draw`` and checked against
-    the population's 100 deg, never set to it."""
+    the population's 100 deg, never set to it.
+
+    ``stretch`` (m, or None): the upper-back-to-hand chain's stretch at the stroke's peak handle force (SOURCES §210;
+    ``arm_draw.PEAK_CHAIN_STRETCH`` is the athletes' measured value), added to the reach in proportion to the boat's
+    own drive force shape (``force_profile.magnitude``, zero at the catch and the finish, so neither closure moves)."""
     from coxswain.crew import arm_draw as A
     free, rower = _body_of(boat)
     u, f = rower.upper_arm_length, rower.forearm_length
@@ -142,6 +146,8 @@ def body_drive_table(boat, shift, n=241):
     D = float(boat.timing.drive_fraction) * float(boat.timing.period)
     x = np.linspace(0.0, 1.0, n)
     sh = [free.joint_positions(float(xx * D))["shoulder"] for xx in x]
+    extra = (np.zeros_like(x) if stretch is None
+             else A.chain_stretch(boat.force_profile.magnitude(x * D, boat.timing), stretch))
 
     def end_angle(finish):
         return straight_arm_angle(sh[-1], rig, float(A.reach(u, f, finish)), shift)
@@ -158,8 +164,10 @@ def body_drive_table(boat, shift, n=241):
         mid = 0.5 * (lo + hi)
         lo, hi = (mid, hi) if end_angle(mid) > rig["finish"] else (lo, mid)
     draw = A.ElbowDraw(finish=0.5 * (lo + hi))
-    r = A.reach(u, f, draw.flexion(x))
+    r = A.reach(u, f, draw.flexion(x)) + extra
     ang = np.array([straight_arm_angle(s, rig, float(rr), shift) for s, rr in zip(sh, r)])
+    if not np.all(np.isfinite(ang)):
+        raise ValueError("the stretched arm cannot meet the grip's arc somewhere in the drive")
     ang[0], ang[-1] = rig["catch"], rig["finish"]             # the closures, exact to the bisections' tolerance
     return (tuple(x), tuple(ang)), draw
 
