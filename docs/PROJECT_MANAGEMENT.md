@@ -92,6 +92,8 @@ Two carriers exist so that a new body or hand mechanism is one small class, not 
 | **how far the legs and trunk travel** (a population or an athlete) | `body_options.py`: a `SegmentTravel` in `TRAVELS` | legs and trunk travel at a reference stature | `BodyOptions.travel`; research: `handle_rung1.BODY_TRAVEL`, `--travel` |
 | any other body option | a field on `BodyOptions` with a default that changes nothing, included in `signature()` | read it where it acts | the same carrier |
 
+**Making a body option a profile default** (as the trunk clock in `research` and `learned`, 2026-11-02): `PhysicsProfile.body_clocks` names the clocks; `apply(boat)` rebuilds each rower with them (`JointDrivenRower.with_body`), and a builder that checks the rower against a hand law while building passes `profile.body(body)` to `Boat(body=...)` so the check sees the body the profile will run. The shipped profile sets none.
+
 The carrier is in the rower's `kinematics_signature` (and so in every cache keyed on it, the matched torque
 among them) only when not default, so existing caches stay valid. No catalogue boat or physics profile sets a
 body option: they are research options until promoted like any other physics (memory: accuracy fixes go to

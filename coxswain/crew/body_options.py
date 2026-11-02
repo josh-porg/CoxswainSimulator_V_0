@@ -13,7 +13,9 @@ What it carries now:
   length). The rower keeps the joint's keyframe amplitudes and redistributes its motion in time so its normalised
   course follows the clock (``kinematics._retime_to_course``). Registered: ``"pitto2024_trunk"``, the upper trunk's
   inclination of 12 national-level scullers on water (Pitto et al. 2024 Fig. 2), which matches both test athletes'
-  measured trunk channels better than the ergometer keyframes do (§211).
+  measured trunk channels better than the ergometer keyframes do (§211); ``"k05_legs"``, the seat on Kleshnev
+  2005's on-water women (Fig. 1), a course of the seat's position that the rower converts to its shank angle through
+  its own linkage (§213).
 * **Segment travel** (:class:`SegmentTravel`). How far the legs and trunk travel, from a population, scaled by the
   rower's stature; the keyframes' excursions are scaled to it (``kinematics._fit_travel``). Registered:
   ``"k05_racing"``, Kleshnev 2005's on-water women at racing rate (SOURCES §212).
@@ -46,10 +48,15 @@ class SegmentClock:
     clock: tuple = field(repr=False)     # split-clock grid in [0, 1]
     course: tuple = field(repr=False)    # 0 at the course's catch-side extreme, 1 at its finish-side extreme
     source: str = ""
+    #: what the course describes: ``"angle"``, the joint's own angle; ``"seat"``, the hip's fore-and-aft position
+    #: (for the shank: the rower converts it to the shank angle's course through its own linkage)
+    channel: str = "angle"
 
     def __post_init__(self):
         if self.joint not in CLOCKED_JOINTS:
             raise ValueError("a clock drives one of %s, not %r" % (CLOCKED_JOINTS, self.joint))
+        if self.channel not in ("angle", "seat") or (self.channel == "seat" and self.joint != "shank"):
+            raise ValueError("a clock's channel is 'angle', or 'seat' for the shank")
         c = np.asarray(self.course, float)
         if len(self.clock) != len(c) or len(c) < 8 or abs(c.min()) > 1e-9 or abs(c.max() - 1.0) > 1e-9:
             raise ValueError("a clock's course must be normalised to 0-1 on at least 8 points")
@@ -59,18 +66,36 @@ class SegmentClock:
         return np.interp(np.mod(np.asarray(g, float), 1.0), self.clock, self.course, period=1.0)
 
     def signature(self) -> tuple:
-        return (self.joint, self.source, tuple(np.round(np.asarray(self.course, float)[::8], 6)))
+        return (self.joint, self.source, self.channel, tuple(np.round(np.asarray(self.course, float)[::8], 6)))
 
     @classmethod
-    def from_angles(cls, joint, clock, angle, source=""):
-        """From an angle against the split clock (any units): normalised by its own range."""
+    def from_angles(cls, joint, clock, angle, source="", channel="angle"):
+        """From an angle (or position) against the split clock (any units): normalised by its own range."""
         g = np.asarray(clock, float)
         a = np.asarray(angle, float)
         o = np.argsort(g)
         g, a = g[o], a[o]
         keep = np.concatenate([[True], np.diff(g) > 1e-9])
         g, a = g[keep], a[keep]
-        return cls(joint, tuple(g), tuple((a - a.min()) / np.ptp(a)), source)
+        return cls(joint, tuple(g), tuple((a - a.min()) / np.ptp(a)), source, channel)
+
+    @classmethod
+    def kleshnev2005_legs(cls, n: int = 801) -> "SegmentClock":
+        """The seat on [K05]'s on-water population (Fig. 1: five women, racing rate). The legs' velocity over the
+        handle's, integrated along the handle's path, gives the seat against path fraction on the drive and the
+        recovery; each half is placed in time by ``dt = ds / v_handle`` with physical turning points
+        (:func:`coxswain.crew.drive_law.turning_progress`), as ``research/crew/k05_body.py`` does. On the split
+        clock, so the boat's own rhythm sets the drive's share. Course of the seat's position (``channel="seat"``)."""
+        from .drive_law import turning_progress
+        halves = _k05_half_strokes()
+        x = np.linspace(0.0, 1.0, n)
+        sd, hd, pd = halves["drive"]
+        sr, hr, pr = halves["recovery"]
+        drive = np.interp(turning_progress(sd, hd)[0](x), sd, pd) / pd[-1]
+        recovery = 1.0 - np.interp(turning_progress(sr, hr)[0](x), sr, pr) / pr[-1]
+        g = np.concatenate([0.5 * x, 0.5 + 0.5 * x[1:]])
+        c = np.concatenate([drive, recovery[1:]])
+        return cls.from_angles("shank", g, c, "Kleshnev 2005 Fig. 1, on water, racing rate", channel="seat")
 
     @classmethod
     def pitto2024_trunk(cls) -> "SegmentClock":
@@ -81,8 +106,45 @@ class SegmentClock:
         return cls.from_angles("trunk", pts[:, 0], pts[:, 1], "Pitto et al. 2024 Fig. 2, T6 inclination")
 
 
+K05_DRIVE_FILE = os.path.join(ROOT, "data", "literature", "k05_fig1_onwater.csv")
+K05_RECOVERY_FILE = os.path.join(ROOT, "data", "literature", "k05_fig1_recovery.csv")
+K05_DRIVE_LENGTH = 1.59           # m, [K05] Table 1
+
+
+def _k05_read(path):
+    import csv
+    rows = list(csv.DictReader(l for l in open(path, encoding="utf-8") if not l.startswith("#")))
+    return {k: np.array([float(r[k]) for r in rows]) for k in rows[0]}
+
+
+def _k05_ratio(seg, handle):
+    """Segment velocity over the handle's where the handle moves; held flat into the ends, which the scan does not
+    resolve (research/crew/k05_body._ratio)."""
+    ok = np.abs(handle) > 0.2
+    idx = np.flatnonzero(ok)
+    r = np.zeros_like(seg)
+    r[ok] = seg[ok] / handle[ok]
+    return np.interp(np.arange(seg.size), idx, r[idx])
+
+
+def _k05_half_strokes(segment="legs_velocity"):
+    """Per half-stroke: (handle path fraction, increasing in time; handle speed >= 0; segment position, m)."""
+    d, r = _k05_read(K05_DRIVE_FILE), _k05_read(K05_RECOVERY_FILE)
+    s = d["length_pct"] / 100.0
+    hd = d["handle_speed"].copy()
+    hd[0] = hd[-1] = 0.0
+    ratio = _k05_ratio(d[segment], hd)
+    pos_d = np.concatenate([[0.0], np.cumsum(0.5 * (ratio[1:] + ratio[:-1]) * np.diff(s) * K05_DRIVE_LENGTH)])
+    sr = (1.0 - r["length_pct"] / 100.0)[::-1]
+    hr = -r["handle_speed"][::-1]
+    hr[0] = hr[-1] = 0.0
+    ratio = _k05_ratio(-r[segment][::-1], hr)
+    pos_r = np.concatenate([[0.0], np.cumsum(0.5 * (ratio[1:] + ratio[:-1]) * np.diff(sr) * K05_DRIVE_LENGTH)])
+    return {"drive": (s, hd, pos_d), "recovery": (sr, hr, pos_r)}
+
+
 #: clocks by name, built on demand
-CLOCKS = {"pitto2024_trunk": SegmentClock.pitto2024_trunk}
+CLOCKS = {"pitto2024_trunk": SegmentClock.pitto2024_trunk, "k05_legs": SegmentClock.kleshnev2005_legs}
 
 
 @dataclass(frozen=True)

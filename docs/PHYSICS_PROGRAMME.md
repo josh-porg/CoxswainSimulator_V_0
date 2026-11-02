@@ -1215,6 +1215,12 @@ the boat speeds that go with their drive durations).
   - Diagnostic: the trunk clock with [CR06]'s own travel gives 50.5 % (measured 49.4 %); [BR24] needs his own leg
     timing as well (46.5 % on his travel, 49.9 % with his timing).
   - *Next:* a population leg clock that holds the seat back early, if published; a per-athlete seat-travel input.
+- **The trunk clock is the research default (§213, 2026-11-02).** `PhysicsProfile.body_clocks` on `research` and
+  `learned`. Scorecard re-run: every target passes (eight 6.00 m/s at 360 W, surge swing 37.1 %, blade efficiency 0.806;
+  four 5.25 m/s, 39.7 %, 0.777).
+  - A population leg clock ([K05] Fig. 1, the seat course carried to the shank through the linkage) fits the athletes'
+    seats better than the keyframes, but rung 2's IVV moves 53.2 / 50.1 % against 51.5 / 50.8 %: not a default.
+  - *Next:* a leg time course measured in time; a per-athlete leg timing or seat travel as an input.
 
 ## Calibration and validation data from the squad's own boats (noted 2026-10-08)
 

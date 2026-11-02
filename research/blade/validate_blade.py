@@ -142,7 +142,7 @@ def cr06_boat(measured, timing=None, dataset=None, footboard_shift=0.0, stature=
                     water=base.water, force_profile=base.force_profile, oar_sweep=arc,
                     default_anthropometry=catalog.RowerAnthropometry(mass=mass or CR06_MASS, stature=stature,
                                                                      sex="female"),
-                    stroke_dataset=dataset, body=body)
+                    stroke_dataset=dataset, body=physics.resolve("research").body(body))
 
     def leg_travel(b):
         r = b.crew[0].rower

@@ -94,3 +94,33 @@ def test_a_population_travel_scales_the_keyframes_to_the_stature_scaled_targets(
     assert rower.kinematics_signature() != _rower().kinematics_signature()
     with pytest.raises(ValueError):
         SegmentTravel(0.5, -0.1, 1.8)
+
+
+def test_a_seat_clock_is_carried_to_the_shank_through_the_linkage():
+    n, P, f = 2000, float(TIMING.period), float(TIMING.drive_fraction)
+    u = np.arange(n) / n
+    g = np.where(u < f, 0.5 * u / f, 0.5 + 0.5 * (u - f) / (1.0 - f))
+    target = SegmentClock.kleshnev2005_legs().target(g)
+
+    def seat(rower):
+        x = np.asarray(rower._chain(u * P)["hip"][0].value)
+        return _course(x, f, n), float(np.ptp(x))
+    plain, clocked = _rower(), _rower(body_options(["k05_legs"]))
+    (c0, travel0), (c1, travel1) = seat(plain), seat(clocked)
+    assert np.sqrt(np.mean((c1 - target) ** 2)) < 0.005 < np.sqrt(np.mean((c0 - target) ** 2))
+    assert abs(travel1 - travel0) < 1e-3                         # the seat travels as far, only later or earlier
+    with pytest.raises(ValueError, match="channel"):
+        SegmentClock("trunk", target[:50:5], target[:50:5] / max(target[:50:5].max(), 1e-9), channel="seat")
+
+
+def test_the_research_profile_builds_and_applies_the_trunk_clock_and_shipped_does_not():
+    from coxswain import physics
+    from coxswain.boats import catalog
+    assert physics.resolve("shipped").body() is None
+    built = physics.resolve("research").body()
+    assert [c.joint for c in built.clocks] == ["trunk"]
+    boat = catalog.single_scull(rate=32.0, rower_mass=85.0, rower_stature=1.90)
+    physics.resolve("research").apply(boat)
+    assert [c.joint for c in boat.crew[0].rower.body.clocks] == ["trunk"]
+    physics.resolve("research").apply(boat)                    # idempotent
+    assert len(boat.crew[0].rower.body.clocks) == 1

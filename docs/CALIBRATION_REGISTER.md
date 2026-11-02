@@ -60,3 +60,8 @@ above.
   them); the face-on C_Dc enters the physics table above, with its tank-data provenance. Re-check triggers met: the
   matched torque (the blade law, coefficients and span are in `_match_key`), and the validation scorecard re-run
   (PHYSICS_PROGRAMME).
+- 2026-11-02: the research and learned profiles' body changed: the trunk link on Pitto et al. 2024's on-water timing
+  (`PhysicsProfile.body_clocks`, SOURCES §211, §213; user decision). Re-check triggers met: the matched torque (the
+  clock is in `kinematics_signature`, so in `_match_key`), the validation scorecard (re-run, PHYSICS_PROGRAMME), and the
+  arm-draw clock's finish-flexion check (the shoulders move later; it is solved per boat, not fitted). No fitted value
+  in the physics table depends on the trunk's timing.

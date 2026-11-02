@@ -14389,3 +14389,58 @@ delays the shoulders in mid-drive as the athletes' stretch does, so stretch and 
 - **Defaults unchanged** (travel off). The trunk clock (§211) remains the one sourced improvement on these athletes'
   IVV; the next is a population **leg clock** that holds the seat back early as [BR24] does, if one is published, and
   a seat-travel input per athlete (a measurement, like stature) for crews whose travel is known.
+
+## 213. The trunk clock becomes the research default; a population leg clock found and tested (2026-11-02)
+
+The user: "yes make it the research default and find a leg clock."
+
+**1. The research default.** `PhysicsProfile.body_clocks = ("pitto2024_trunk",)` on `research` and `learned`; `shipped`
+sets none (memory: accuracy fixes go to the research profile). `apply(boat)` rebuilds each rower with the clock
+(`JointDrivenRower.with_body`, from its own constructor arguments; `physics._set_body_clocks`, idempotent); a clock the
+boat already sets for a joint is kept. **Found while wiring it:** the held-arm boats failed to build, because the
+profile is applied after construction while the rower checks its reach against the hand table *during* construction,
+on the unclocked trunk. Fixed by `PhysicsProfile.body(base)`, the options a boat should be *built* with; the research
+builders (`like_for_like.build`, `validate_blade.cr06_boat`) pass it, and `apply` then has nothing to rebuild
+(docs/PROJECT_MANAGEMENT.md, "Making a body option a profile default").
+
+**Scorecard re-run** (`coxswain.validation.scorecard`, rate 28; `data/local/validation/scorecard_research_2026-11-02_trunkclock.log`),
+against §202's (2026-10-31):
+
+| target | band | eight 10-31 → now | four 10-31 → now |
+|---|---|---|---|
+| η zero crossing | ≥ 0.15 | 5.76 → 10.47 pass | 5.61 → 8.28 pass |
+| η/v spread | ≥ 0.08 | 0.496 → 0.513 pass | 0.494 → 0.506 pass |
+| surge swing | 30–60 % | 40.7 → 37.1 % pass | 43.8 → 39.7 % pass |
+| speed at 360 W per rower | — | 5.90 → 6.00 m/s | 5.16 → 5.25 m/s |
+| blade efficiency level | 0.754–0.816 | 0.793 → 0.806 pass | 0.765 → 0.777 pass |
+
+Every implemented target still passes. The later trunk lowers the crew's surge (−3.6 / −4.1 points) and so the hull's
+speed swing, and the boat goes 1.7 % faster at the same power.
+
+**2. The leg clock.** The keyframes' legs were already within 0.046 / 0.027 of the athletes' seat timing. The
+population source in hand is [K05] Fig. 1 (five women on water, racing rate): the legs' velocity over the handle's,
+integrated along the handle path and placed in time by dt = ds / v_handle (as `research/crew/k05_body.py`). Against the
+athletes on the split clock it is closer than the keyframes: **0.038 / 0.017** (mostly early in the recovery, where the
+keyframes' legs return early). It does not carry [BR24]'s own early seat (0.34 of travel at 0.1 of the cycle against
+the population's 0.25).
+
+Built as `SegmentClock.kleshnev2005_legs` (`CLOCKS["k05_legs"]`) with `channel="seat"`: its course is the seat's
+position, so the rower turns it into the shank angle's course through its own linkage first
+(`kinematics._seat_clock_as_angle`, from a bare probe's angle-to-seat map). The seat then follows the population course
+to 0.0002 rms (keyframes 0.039) with its travel unchanged (`tests/unit/test_body_options.py`).
+
+| | hand vs measured, held arm (rms) [BR24] / [CR06] | rung 2 IVV [CR06] / [BR24] |
+|---|---|---|
+| measured | — | 49.4 / 49.1 % |
+| trunk clock (the research default) | 8.0° / 4.6° | 51.5 / 50.8 % |
+| trunk + [K05] leg clock | 9.5° / 5.6° | **53.2 / 50.1 %** |
+| trunk + stretch | 2.1° / 3.3° | — |
+| trunk + legs + stretch | 2.9° / 2.2° | — |
+
+- **The population leg clock does not improve the athletes consistently**: [BR24]'s IVV improves 0.7 points, [CR06]'s
+  worsens 1.7, though her seat's *course* is the one it fits best. The hull's swing follows the seat's acceleration, and
+  a course integrated from digitised velocity ratios and timed through the handle speed is reliable in position, less so
+  in its second derivative.
+- **Not made a default**; available as `--clocks k05_legs`. What would close the legs: a population seat time course
+  measured directly in time (a position or velocity trace against time, not against handle length), or the athlete's
+  own leg timing as an input.

@@ -163,6 +163,10 @@ class PhysicsProfile:
     #: ``"legacy"`` ships; ``"kato"`` is Kato's printed formula with Schmitke's speed
     #: factor (SOURCES sec. 166).
     roll_friction: str = "legacy"
+    #: The body's segment clocks by name (:data:`coxswain.crew.body_options.CLOCKS`): each rower is rebuilt with
+    #: these joints on their sourced time course. Empty ships (the ergometer keyframes' own timing);
+    #: ``("pitto2024_trunk",)`` is the trunk on 12 on-water scullers' timing (SOURCES sec. 211, 213).
+    body_clocks: tuple = ()
     #: Lift law of the skeg and rudder; see
     #: :func:`~coxswain.hydro.appendages.lift_coefficient_at`.  ``"legacy"`` ships;
     #: ``"whicker_fehlner"`` is [WF58] eq. [1] as printed (SOURCES sec. 168-169).
@@ -343,6 +347,8 @@ class PhysicsProfile:
             _set_segment_com(boat, self.segment_com)
         if self.roll_friction != "legacy":
             boat.roll_friction = self.roll_friction
+        if self.body_clocks:
+            _set_body_clocks(boat, tuple(self.body_clocks))
         if self.fin_law != "legacy":
             _set_fin_law(boat, self.fin_law, float(self.fin_reflection),
                          float(self.fin_crossflow))
@@ -351,6 +357,14 @@ class PhysicsProfile:
             boat.munk_factor = float(self.munk_factor)
         boat.physics_profile = self.name
         return boat
+
+    def body(self, base=None):
+        """The body options a boat should be *built* with under this profile: ``base`` plus the profile's clocks
+        (``None`` when there are none). Builders that check the rower against a hand law at construction pass
+        this, so the check sees the body the profile will run (``apply`` then has nothing to rebuild)."""
+        if not self.body_clocks:
+            return base
+        return merged_body(base, tuple(self.body_clocks))
 
     def is_shipped(self) -> bool:
         return self.name == SHIPPED
@@ -391,6 +405,34 @@ def _set_segment_com(boat, mode):
     """
     for member in getattr(boat, "crew", ()):
         member.rower.segment_com = mode
+    boat._crew_group_cache = None
+    boat.__dict__.pop("_stroke_tables", None)
+
+
+def merged_body(body, names):
+    """``body`` (BodyOptions or None) with the named clocks added for joints it does not already clock."""
+    import dataclasses
+    from .crew.body_options import CLOCKS, DEFAULT_BODY
+    body = body or DEFAULT_BODY
+    have = {c.joint for c in body.clocks}
+    extra = tuple(c for c in (CLOCKS[n]() for n in names) if c.joint not in have)
+    return body if not extra else dataclasses.replace(body, clocks=body.clocks + extra)
+
+
+def _set_body_clocks(boat, names):
+    """Rebuild every rower on ``boat`` with these segment clocks added to its own body options.
+
+    Unlike ``_set_segment_com`` this cannot switch in place: a clock changes the joint drivers, the seat
+    height is unaffected but the arms' solve follows the shoulders, so each rower is rebuilt from its own
+    constructor arguments (``JointDrivenRower.with_body``). A clock the boat already sets for the same joint
+    is kept (an explicit study choice outranks the profile). The boat's own ``body`` is updated so a crew
+    rebuilt later carries them too, and every cache keyed on the old crew is dropped.
+    """
+    for member in getattr(boat, "crew", ()):
+        body = member.rower.body
+        if merged_body(body, names) is not body:                # nothing to do if the boat was built with them
+            member.rower = member.rower.with_body(merged_body(body, names))
+    boat.body = merged_body(getattr(boat, "body", None), names)
     boat._crew_group_cache = None
     boat.__dict__.pop("_stroke_tables", None)
 
@@ -486,6 +528,8 @@ PROFILES: Dict[str, PhysicsProfile] = {
         # Kato's roll friction as printed, with Schmitke's speed factor, since
         # 2026-09-29 (SOURCES sec. 166); the shipped form differed from the printed one.
         roll_friction="kato",
+        # the trunk on the on-water population's timing (SOURCES sec. 211, 213; user decision 2026-11-02)
+        body_clocks=("pitto2024_trunk",),
         # Whicker & Fehlner's eq. [1] for the fins, since 2026-09-29 (SOURCES sec. 169).
         # Reflection 2 is their definition (the ground board); the hull as a full image
         # plane is a named choice, swept 1-2 in the study. Refitting the Munk factor by
@@ -518,6 +562,8 @@ PROFILES: Dict[str, PhysicsProfile] = {
         blade_strips=True,
         segment_com="de_leva",
         roll_friction="kato",
+        # the trunk on the on-water population's timing (SOURCES sec. 211, 213; user decision 2026-11-02)
+        body_clocks=("pitto2024_trunk",),
         fin_law="whicker_fehlner",
         fin_reflection=2.0,
         fin_crossflow=0.80,

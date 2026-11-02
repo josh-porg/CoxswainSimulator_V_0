@@ -447,6 +447,41 @@ def _retime_to_course(profile: FourierProfile, drive_fraction: float, clock,
     return FourierProfile(cos_c, sin_c, profile.period)
 
 
+def _seat_clock_as_angle(rower, clock, n: int = 4096):
+    """``rower.body`` with its seat-position shank clock replaced by the shank angle's course that gives it.
+
+    Under the level seat the hip's fore-and-aft position is a function of the shank angle alone, so the two
+    normalised courses are related by one monotone map, read off a bare probe of this rower (same anthropometry,
+    timing, dataset and seat height; no body options, no hand targets): pairs of (angle course, seat course)
+    over the cycle, sorted by angle and made monotone. The target seat course is carried through its inverse."""
+    import dataclasses
+    probe = JointDrivenRower(rower.anthropometry,
+                             RowerStation(x_ankle=0.0, seat_height=rower.station.seat_height),
+                             rower.timing, dataset=rower.dataset,
+                             thigh_mode=rower.thigh_mode)
+    P = float(rower.timing.period)
+    u = np.arange(n) / n
+    theta = np.asarray(probe.joint_angles.shank(u * P).value, dtype=float)
+    hip = np.asarray(probe._chain(u * P)["hip"][0].value, dtype=float)
+    f = float(rower.timing.drive_fraction)
+    k_fin = int(round(f * n)) % n
+    xn = (hip - hip.min()) / np.ptp(hip)
+    if xn[k_fin] < xn[0]:
+        xn = 1.0 - xn
+    tn = (theta - theta.min()) / np.ptp(theta)
+    if np.corrcoef(tn, xn)[0, 1] < 0:
+        tn = 1.0 - tn
+    order = np.argsort(tn)
+    t_sorted = tn[order]
+    x_sorted = np.maximum.accumulate(xn[order]) + np.arange(n) * 1e-12
+    angle_course = np.interp(np.asarray(clock.course, float), x_sorted, t_sorted)
+    angle_course = (angle_course - angle_course.min()) / np.ptp(angle_course)
+    angle_clock = dataclasses.replace(clock, course=tuple(angle_course), channel="angle",
+                                      source=clock.source + " (as shank angle)")
+    clocks = tuple(angle_clock if c is clock else c for c in rower.body.clocks)
+    return dataclasses.replace(rower.body, clocks=clocks)
+
+
 _TRAVEL_CACHE = {}
 
 
@@ -549,6 +584,15 @@ class JointDrivenRower:
             )
 
         from .body_options import DEFAULT_BODY
+        #: every constructor argument as given, so :meth:`with_body` can
+        #: rebuild this rower with new body options and nothing else changed
+        self._init_args = dict(
+            anthropometry=anthropometry, station=station, timing=timing,
+            dataset=dataset, thigh_mode=thigh_mode, arm_posture=arm_posture,
+            hand_targets=hand_targets, phase_offset=phase_offset,
+            n_harmonics=n_harmonics, recovery_arrival=recovery_arrival,
+            phase_warp=phase_warp, sequencing=sequencing, flatness=flatness,
+            segment_com=segment_com, body=body)
         self.anthropometry = anthropometry
         self.timing = timing
         self.segment_com = segment_com
@@ -614,6 +658,12 @@ class JointDrivenRower:
             )
         self.station = station
 
+        # a clock given on the seat's position is turned into the shank
+        # angle's course through this rower's own linkage first
+        angle_body = self.body
+        shank_clock = self.body.clock_for("shank")
+        if shank_clock is not None and shank_clock.channel == "seat":
+            angle_body = _seat_clock_as_angle(self, shank_clock)
         self.joint_angles = JointAngles.from_dataset(
             self.dataset, timing, n_harmonics=n_harmonics,
             phase_offset=phase_offset,
@@ -622,7 +672,7 @@ class JointDrivenRower:
             phase_warp=self.phase_warp,
             sequencing=self.sequencing,
             flatness=self.flatness,
-            body=self.body,
+            body=angle_body,
         )
 
         self.hand_targets = hand_targets
@@ -638,6 +688,12 @@ class JointDrivenRower:
         else:
             self._attach_constrained_arms(hand_targets, phase_offset)
         self._validate_leg_reach()
+
+    def with_body(self, body) -> "JointDrivenRower":
+        """This rower rebuilt with ``body`` (BodyOptions); every other argument as first given, and the current
+        ``segment_com`` (a physics profile may have switched it in place)."""
+        args = dict(self._init_args, body=body, segment_com=self.segment_com)
+        return JointDrivenRower(**args)
 
     # -- calibration ------------------------------------------------------
     def _calibrate_seat_height(self) -> float:

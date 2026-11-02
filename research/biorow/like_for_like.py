@@ -126,7 +126,8 @@ def build(variant, timing=None, dataset=None, footboard_shift=None, drive_law=Fa
                          hull_inertia=ref.hull_inertia, timing=timing,
                          appendages=ref.appendages, water=ref.water,
                          force_profile=ref.force_profile, oar_sweep=sweep,
-                         default_anthropometry=anthro, stroke_dataset=ds, body=body)
+                         default_anthropometry=anthro, stroke_dataset=ds,
+                         body=physics.resolve("research").body(body))
         physics.resolve("research").apply(boat)
         return boat
 
