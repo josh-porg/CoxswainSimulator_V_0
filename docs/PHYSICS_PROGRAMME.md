@@ -1221,6 +1221,8 @@ the boat speeds that go with their drive durations).
   - A population leg clock ([K05] Fig. 1, the seat course carried to the shank through the linkage) fits the athletes'
     seats better than the keyframes, but rung 2's IVV moves 53.2 / 50.1 % against 51.5 / 50.8 %: not a default.
   - *Next:* a leg time course measured in time; a per-athlete leg timing or seat travel as an input.
+  - §214: no open on-water seat trace against time was found; the published landmarks cannot separate the
+    candidates. Keyframe legs stay; BioRow's averaged curves (commercial) or an athlete's seat channel would settle it.
 
 ## Calibration and validation data from the squad's own boats (noted 2026-10-08)
 

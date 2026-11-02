@@ -14444,3 +14444,44 @@ to 0.0002 rms (keyframes 0.039) with its travel unchanged (`tests/unit/test_body
 - **Not made a default**; available as `--clocks k05_legs`. What would close the legs: a population seat time course
   measured directly in time (a position or velocity trace against time, not against handle length), or the athlete's
   own leg timing as an input.
+
+## 214. Better leg data: no open on-water seat trace against time exists; the published landmarks do not separate the candidates (2026-11-02)
+
+The user: "go get better data" (a leg time course measured in time, §213).
+
+**Searched** (web; standing permission to download papers; `data/local/literature/seat_timecourse/`):
+
+- McBride & Elliott, ISBS (open, Konstanz): Hall-effect seat velocity on water, 16 male sweep rowers in pairs at
+  28 spm, cycles normalised to 100 points. The group results are landmarks (Table 1); one crew's trace is shown. Seat
+  still after the finish ("legs down") for 28.6 ± 5.6 % of the cycle.
+- Kleshnev 2007, ISBS "Temporal analysis of stroke cycle in rowing" (open): 294 crews, seat potentiometer; the drive's
+  micro-phases (sculling D1 10.4, D2 9.8, D3 18.0, D4 24.5, D5 21.8, D6 15.5 % of drive time), the peak leg velocity in
+  D3 (20–38 % of the drive). No curve.
+- BioRow Rowing Biomechanics Newsletter 2026/03 (summary open; full text and figures for members): elite single
+  scullers on water against machines, n = 30 rower-rates. Rowing Style Factor (seat over handle displacement in the
+  first 20 % of the drive length) 80–82 %; Catch Factor (seat's minus the handle's change of direction at the catch)
+  +6 ms; peak seat velocity earlier on water ("bouncing" legs).
+- Smith & Loschner 2002 (two individual scullers), a Sensors 2023 monitoring system (one rower, seat against hip angle),
+  Holt 2020 and Legge 2026 (no seat channel): no population curve.
+
+**The landmarks against the candidates** (`research/crew/leg_landmarks.py`; "still" = within 2 % of the seat's travel):
+
+| | Style Factor % | Catch Factor | legs down, % cycle | peak seat velocity, % drive |
+|---|---|---|---|---|
+| published | 80–82 | +6 ms | 23.0–34.2 (sweep pairs, 28 spm) | 20.2–38.2 |
+| ergometer keyframes (research trunk) | 86.7 | +16 ms | 8.6 | 26.4 |
+| [K05] leg clock | 91.4 | +1 ms | 16.3 | 25.4 |
+| [BR24] measured | 95.7 | −37 ms | 10.7 | 25.0 |
+| [CR06] measured | 73.4 | −2 ms | 15.0 | 31.5 |
+
+- The two athletes span every published landmark more widely than the candidates differ from it: the population
+  numbers are means over a large spread and **cannot separate** the keyframes' legs from [K05]'s.
+- McBride & Elliott's "legs down" (sweep pairs at 28 spm) misses both scullers at 31–32 spm by as much as it misses the
+  models: it does not transfer across boat type and rate.
+- The one consistent pattern: the keyframes' legs leave the finish sooner (8.6 % of the cycle) than either athlete
+  (10.7 / 15.0 %) or [K05] (16.3 %).
+
+**Conclusion.** No openly published on-water seat trace against time was found; the full curves exist in BioRow's
+commercial database (Kleshnev's averages over hundreds of crews), behind a paid membership (DATA_REQUESTS §14). On the
+open evidence the keyframes' legs stay the research default and [K05]'s leg clock stays an option. What would settle the
+legs: BioRow's averaged seat velocity curves by boat type and rate, or an athlete's own seat channel as an input.

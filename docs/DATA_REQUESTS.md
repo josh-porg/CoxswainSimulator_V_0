@@ -886,3 +886,14 @@ rowing-specific dynamometry). For item 3, Imperial's rowing-shoulder group (abov
   one: a coxswain trying to test steering strategies computationally,
   building in the open, with the validation and the failures both
   published in the repository.
+
+## 14. An on-water seat (legs) time course against time *(added 2026-11-02; no target yet, nothing drafted; a cost decision for the user)*
+
+SOURCES §213–214. The research body's legs are the ergometer keyframes'; the only population on-water leg course in hand
+([K05] Fig. 1) is timed through the handle speed and moves rung 2's IVV the wrong way for one athlete. Open papers give
+landmarks only (McBride & Elliott; Kleshnev 2007; BioRow RBN 2026/03's summary), and the athletes span them widely.
+
+Wanted: an averaged seat position or velocity trace against normalised time, on water, by boat type and stroke rate
+(sculling at 30–34 spm first). The source that has it is BioRow's database (Kleshnev); the newsletter's full text and
+figures are for paying members (biorow.com/membership). Options: a membership (cost: the user's decision), or a request
+to Dr Kleshnev for the averaged curves for research use (his data are commercial; he may decline or ask for a fee).
