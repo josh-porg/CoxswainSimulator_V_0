@@ -108,7 +108,7 @@ def cr06_measured():
 
 
 def cr06_boat(measured, timing=None, dataset=None, footboard_shift=0.0, stature=None, drive_law=False,
-              mass=None, oar_sweep=None):
+              mass=None, oar_sweep=None, body=None):
     """Her rig from [CR06]; her stature is not published, so it is set so the model's leg
     travel equals her measured leg travel (her own measurement, not a blade parameter).
     ``mass``: the rower's mass, kg (default hers); for another crew on her rig."""
@@ -142,7 +142,7 @@ def cr06_boat(measured, timing=None, dataset=None, footboard_shift=0.0, stature=
                     water=base.water, force_profile=base.force_profile, oar_sweep=arc,
                     default_anthropometry=catalog.RowerAnthropometry(mass=mass or CR06_MASS, stature=stature,
                                                                      sex="female"),
-                    stroke_dataset=dataset)
+                    stroke_dataset=dataset, body=body)
 
     def leg_travel(b):
         r = b.crew[0].rower

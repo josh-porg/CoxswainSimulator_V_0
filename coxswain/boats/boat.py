@@ -239,12 +239,17 @@ class Boat:
                  recovery_arrival: float = 1.0,
                  uniform_traverse: float = 0.0,
                  drive_lag: float = 0.0,
-                 sequencing=None):
+                 sequencing=None,
+                 body=None):
         self.name = name
         #: Per-segment timing warp (:class:`~coxswain.crew.kinematics.SegmentSequencing`)
         #: handed to every rower; ``None`` is synchronous, exactly as before. A research
         #: option (sprint 1 #3): no catalogue boat or profile sets it.
         self.sequencing = sequencing
+        #: Research options for every rower's body (segment clocks, reach allowance;
+        #: :class:`~coxswain.crew.body_options.BodyOptions`). ``None`` changes nothing; no
+        #: catalogue boat or profile sets it (SOURCES sec. 211).
+        self.body = body
         self.offsets = offsets
         self.mesh = HullMesh(offsets, n_girth=n_girth)
         self.rig = rig
@@ -341,7 +346,7 @@ class Boat:
         def centre_of_mass(warp):
             probe = JointDrivenRower(
                 template, RowerStation(x_ankle=0.0), self.timing,
-                dataset=self.stroke_dataset, phase_warp=warp)
+                dataset=self.stroke_dataset, phase_warp=warp, body=self.body)
             mass = probe.segment_masses
             return np.array([
                 float((mass * probe.segment_state(t)[0][:, 0]).sum()
@@ -433,6 +438,7 @@ class Boat:
                     recovery_arrival=self.recovery_arrival,
                     phase_warp=self.phase_warp,
                     sequencing=self.sequencing,
+                    body=self.body,
                 ),
                 seat_index=index,
             ))

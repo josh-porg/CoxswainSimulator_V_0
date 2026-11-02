@@ -311,18 +311,21 @@ class JointAngles:
                      recovery_arrival: float = 1.0,
                      phase_warp=None,
                      sequencing: "SegmentSequencing" = None,
-                     flatness: float = None) -> "JointAngles":
+                     flatness: float = None,
+                     body=None) -> "JointAngles":
         """Build the leg and trunk drivers from a measured dataset.
 
         ``phase_offset`` shifts this rower's stroke in normalised phase.  It
         is zero for a perfectly synchronised crew; a small non-zero value
-        models imperfect timing.
+        models imperfect timing.  ``body``
+        (:class:`~coxswain.crew.body_options.BodyOptions`) may put a joint
+        on a sourced segment clock (:func:`_retime_to_course`).
         """
         phases = dataset.keyframe_phases(timing.drive_fraction)
         order = (SYNCHRONOUS if sequencing is None
                  else sequencing.validate())
 
-        def build(values_deg, lead=0.0):
+        def build(values_deg, lead=0.0, joint=None):
             profile = FourierProfile.from_keyframes(
                 phases, np.radians(np.asarray(values_deg, dtype=float)),
                 timing, n_harmonics,
@@ -337,12 +340,16 @@ class JointAngles:
             # catch.  Different quantities, different operations.
             profile = _warp_within_phase(profile, timing.drive_fraction,
                                          lead)
+            clock = None if body is None else body.clock_for(joint)
+            if clock is not None:
+                profile = _retime_to_course(profile, timing.drive_fraction,
+                                            clock)
             return _shift_phase(profile, phase_offset)
 
-        built = {"shank": build(dataset.shank, order.shank),
-                 "trunk": build(dataset.trunk_link, order.trunk)}
+        built = {"shank": build(dataset.shank, order.shank, "shank"),
+                 "trunk": build(dataset.trunk_link, order.trunk, "trunk")}
         if include_thigh:
-            built["thigh"] = build(dataset.thigh, order.thigh)
+            built["thigh"] = build(dataset.thigh, order.thigh, "thigh")
         return cls(**built)
 
 
@@ -388,6 +395,58 @@ def _warp_within_phase(profile: FourierProfile, drive_fraction: float,
     return FourierProfile(cos_c, sin_c, profile.period)
 
 
+def _retime_to_course(profile: FourierProfile, drive_fraction: float, clock,
+                      n_harmonics: int = 24, n: int = 4096) -> FourierProfile:
+    """Redistribute a joint's motion in time so its normalised course follows a sourced clock.
+
+    ``clock`` (:class:`coxswain.crew.body_options.SegmentClock`) gives the course on the split clock (0 the catch,
+    0.5 the finish, 1 the next catch). The joint keeps its keyframe range: only *when* it moves changes. Each instant
+    is mapped, by value, to the instant on the same branch (rising or falling) of the original profile where the
+    original reaches the course's value, the original's branches made monotone by their running envelopes, as the
+    own-body warp does (``research/biorow/measured_body.warp``). The time map is smoothed (its periodic part
+    truncated at ``n_harmonics``) and the joint resampled and refitted at ``n_harmonics``: a representation change,
+    as for :func:`_warp_within_phase`.
+    """
+    f = float(drive_fraction)
+    u = np.arange(n) / n
+    p = np.asarray(profile(u * profile.period).value, dtype=float)
+    c = (p - p.min()) / np.ptp(p)
+    if c[int(round(f * n)) % n] < c[0]:            # orient: 1 toward the finish
+        c = 1.0 - c
+    g = np.where(u < f, 0.5 * u / f, 0.5 + 0.5 * (u - f) / (1.0 - f))
+    target = np.asarray(clock.target(g), dtype=float)
+
+    def branches(course):
+        """Indices rolled to start at the minimum; the maximum's position in that roll."""
+        k0 = int(np.argmin(course))
+        rolled = np.roll(course, -k0)
+        return k0, rolled, int(np.argmax(rolled))
+    k0m, cm, j1m = branches(c)
+    tm = (k0m + np.arange(n + 1)) / n                     # model time, unwrapped, closing the cycle
+    cm = np.append(cm, cm[0])
+    rise_c = np.maximum.accumulate(cm[: j1m + 1]) + np.arange(j1m + 1) * 1e-12
+    fall_c = np.minimum.accumulate(cm[j1m:]) - np.arange(n + 1 - j1m) * 1e-12
+    k0t, ct, j1t = branches(target)
+    w = np.empty(n)
+    w[: j1t + 1] = np.interp(ct[: j1t + 1], rise_c, tm[: j1m + 1])
+    w[j1t:] = np.interp(ct[j1t:], fall_c[::-1], tm[j1m:][::-1])
+    w = np.maximum.accumulate(w)
+    ut = (k0t + np.arange(n)) / n                         # the target's instants, in the same roll
+    order = np.argsort(ut % 1.0)
+    shift = (w - ut)[order]                               # periodic: the map minus identity
+    spec = np.fft.rfft(shift)
+    spec[n_harmonics + 1:] = 0.0
+    shift = np.fft.irfft(spec, n)
+    sampled = np.asarray(profile((u + shift) * profile.period).value, dtype=float)
+    spectrum = np.fft.rfft(sampled) / n
+    cos_c = np.zeros(n_harmonics + 1)
+    sin_c = np.zeros(n_harmonics + 1)
+    cos_c[0] = spectrum[0].real
+    cos_c[1:] = 2.0 * spectrum[1:n_harmonics + 1].real
+    sin_c[1:] = -2.0 * spectrum[1:n_harmonics + 1].imag
+    return FourierProfile(cos_c, sin_c, profile.period)
+
+
 def _shift_phase(profile: FourierProfile, phase_offset: float) -> FourierProfile:
     """Rotate a Fourier profile by a fraction of a period."""
     if phase_offset == 0.0:
@@ -428,15 +487,21 @@ class JointDrivenRower:
                  phase_warp=None,
                  sequencing: SegmentSequencing = None,
                  flatness: float = None,
-                 segment_com: str = "legacy"):
+                 segment_com: str = "legacy",
+                 body=None):
         if thigh_mode not in THIGH_MODES:
             raise ValueError(
                 f"thigh_mode must be one of {THIGH_MODES}, got {thigh_mode!r}"
             )
 
+        from .body_options import DEFAULT_BODY
         self.anthropometry = anthropometry
         self.timing = timing
         self.segment_com = segment_com
+        #: Research options for the body's motion (segment clocks, reach
+        #: allowance); the default changes nothing.  See
+        #: :mod:`coxswain.crew.body_options`.
+        self.body = DEFAULT_BODY if body is None else body
         #: Retiming of the recovery traverse; see
         #: :func:`coxswain.crew.stroke.recovery_warp`.  Applied to every
         #: joint driver -- legs, trunk and arms share one clock.
@@ -498,6 +563,7 @@ class JointDrivenRower:
             phase_warp=self.phase_warp,
             sequencing=self.sequencing,
             flatness=self.flatness,
+            body=self.body,
         )
 
         self.hand_targets = hand_targets
@@ -775,10 +841,14 @@ class JointDrivenRower:
 
         # Where the arm alone is not long enough, let the shoulder girdle
         # protract towards the handle -- the mechanism a real rower uses.
+        # A research hand model that lengthens the chain under load sets its
+        # own allowance (BodyOptions.reach_allowance; SOURCES sec. 210).
+        allowance = (MAX_SHOULDER_PROTRACTION
+                     if self.body.reach_allowance is None
+                     else float(self.body.reach_allowance))
         unit = reach_vector / np.maximum(reach, 1e-12)[:, None]
         protraction = np.clip(
-            reach - MAX_ARM_EXTENSION * arm_length, 0.0,
-            MAX_SHOULDER_PROTRACTION)
+            reach - MAX_ARM_EXTENSION * arm_length, 0.0, allowance)
         shoulders = shoulders + protraction[:, None] * unit
         reach_vector = hands - shoulders
         reach = np.linalg.norm(reach_vector, axis=1)
@@ -790,7 +860,7 @@ class JointDrivenRower:
                 f"the rower cannot reach the oar handle: at stroke phase "
                 f"{index / len(reach):.2f} the shoulder is {reach[index]:.3f} m "
                 f"from the handle but the arm is only {arm_length:.3f} m "
-                f"long, even with {MAX_SHOULDER_PROTRACTION * 100:.0f} cm of "
+                f"long, even with {allowance * 100:.0f} cm of "
                 f"shoulder protraction and up to "
                 f"{np.degrees(MAX_TRUNK_ROTATION):.0f} deg of trunk rotation. "
                 f"Check the rig span, the oar inboard, or the seat station "
@@ -1110,6 +1180,9 @@ class JointDrivenRower:
             station.hip_half_span, station.shoulder_half_span,
             arms, sequencing, self.flatness, self.segment_com,
         )
+        if not self.body.is_default:
+            # appended only when set, so every existing key (and cache) is unchanged
+            signature = signature + (("body",) + self.body.signature(),)
         self.__dict__["_signature_cache"] = signature
         return signature
 

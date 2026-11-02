@@ -14255,3 +14255,79 @@ finish, so neither closure moves). On the model's keyframed body it halves the e
 rower's elbow solve to accept the stretch: it allows 6 cm (`MAX_SHOULDER_PROTRACTION`, a module constant shared with the
 shipped game) and refuses the stretched hand at 21 % of the cycle. That is a field to plumb through `Boat` and
 `JointDrivenRower`, and into the kinematics cache signature, with the shipped default unchanged.
+
+## 211. The trunk on the population's on-water clock, and a modular body: segment clocks and hand-chain terms (2026-11-02)
+
+The user: "continue with the legs and trunk timing; also make the model adaptable and modular so things like the
+stretch can be added easily if they are needed."
+
+**Which segment is mistimed.** On the split clock (drive and recovery each scaled to their own length;
+`research/biorow/timelaw_compare.py`), the ergometer keyframes' **legs** are within 0.027–0.046 of both athletes'
+seat channels (fraction of travel, rms): close enough to keep. The **trunk** is not: it opens early in the drive (38 %
+of its travel at 0.2 of the cycle, against the athletes' 15 % and 29 %) and returns early in the recovery.
+
+**The population's trunk clock.** Pitto et al. (2024), Fig. 2 middle column (the same 12 national-level scullers on
+water as §209): the T6 ("trunk"), L2 ("lumbar") and pelvis inclinations through the stroke, digitised to
+`data/literature/pitto2024_trunk_inclination.csv`. Against the athletes' measured back channels (normalised sine of
+the inclination, rms fraction of travel):
+
+| course | vs [BR24] | vs [CR06] |
+|---|---|---|
+| Pitto T6 (upper trunk) | **0.051** | **0.074** |
+| Pitto L2 / pelvis / mean | 0.052 / 0.108 / 0.065 | 0.063 / 0.043 / 0.048 |
+| the model's keyframes | 0.122 | 0.089 |
+| (the two athletes against each other) | 0.102 | |
+
+The population's upper-trunk timing is closer to each athlete than the athletes are to each other, and than the
+ergometer body is. It is used as the trunk link's clock (the shoulder sits on the upper trunk).
+
+**The modular body** (STRUCTURAL_ISSUES S10; docs/PROJECT_MANAGEMENT.md, "Plugging a new mechanism"):
+
+- `coxswain/crew/body_options.py`: `BodyOptions` (segment clocks, reach allowance) travels `Boat(body=)` → every
+  `JointDrivenRower` → `JointAngles.from_dataset` and the elbow solve, and into `kinematics_signature` (so the
+  matched-torque cache) only when not default. `SegmentClock` is a sourced normalised course on the split clock;
+  `CLOCKS = {"pitto2024_trunk": ...}`.
+- `kinematics._retime_to_course`: the joint keeps its keyframe range; each instant is mapped by value to the
+  original profile's same branch (the own-body warp's construction, now in the package), the time map smoothed and
+  the joint refitted at 24 harmonics. On a test rower the clocked trunk follows Pitto's course to 0.003 rms (the
+  keyframes 0.096) with its range unchanged (54.86°).
+- `coxswain/crew/hand_chain.py`: `HandChain` of named reach terms (`TERMS = {"stretch": StretchTerm}`), each with
+  `extra(ctx)`, `max_extra()`, `signature()`; the chain's `max_extra` becomes the rower's reach allowance, so the
+  boat's own elbow solve accepts the hand. The stretch of §210 now runs in a built boat.
+- Switches by name: `handle_rung1.BODY_CLOCKS`, `HAND_TERMS`; `rung2_population.py --clocks ... --hand-terms ...`.
+- Defaults change nothing (signature and positions identical; `tests/unit/test_body_options.py`).
+
+**Results, the body-generated hand** (held-arm catch, oar vs measured over the drive, rms):
+
+| body | [BR24] | [CR06] |
+|---|---|---|
+| ergometer keyframes (§209) | 13.2° | 9.7° |
+| + stretch (athlete-measured) | 6.8° | 4.2° |
+| + Pitto trunk clock (sourced) | 8.0° | 4.6° |
+| + trunk clock + stretch | **2.1°** | **3.3°** |
+| (the population hand law, for reference) | 2.9° | 3.6° |
+
+With both, the hand generated from the body matches the measured oar as well as the population law, or better.
+
+**Results, rung 2** (cross-flow normal blade, clock dynamic once buried; `rung2_population.py`; logs
+`data/local/crew/logs/rung2_population_crossflow_buried_*`):
+
+| | [CR06] IVV / speed / hands | [BR24] IVV / speed / hands |
+|---|---|---|
+| measured | 49.4 % | 49.1 % |
+| keyframe body (§203) | 52.1 % / −1.2 % / 5.2° | 53.4 % / +2.7 % / 0.016 |
+| **trunk on Pitto's clock (sourced throughout)** | **51.5 % / −1.7 % / 4.3°** | **50.8 % / +1.9 % / 0.019** |
+| the athlete's own leg and back timing (§205, diagnostic) | 50.7 % / −1.0 % / 3.9° | 49.9 % / +2.3 % / 0.033 |
+| held-arm hand + trunk clock + stretch (athlete-measured) | 51.7 % / −1.4 % / 8.0° | 49.0 % / +0.3 % / 0.031 |
+
+- **The sourced trunk clock closes most of [BR24]'s gap** (53.4 → 50.8 %, against his own timing's 49.9 %) and a
+  quarter of [CR06]'s (52.1 → 51.5 %, against her own timing's 50.7 %); [CR06]'s hands improve 5.2° → 4.3°. Nothing
+  fitted.
+- The full held-arm configuration puts [BR24] on his measured IVV and speed, but [CR06]'s hands worsen to 8.0°
+  (rung 2's clock τ' falls to 0.77): the body-generated hand table is a stiffer constraint on rung 2's
+  population-muscle clock than the population law. And it carries the athlete-measured stretch, so it is reported,
+  not counted as validation.
+- What is left: [CR06]'s trunk amplitude (the keyframes' range is kept; her trunk travels less) and her legs; the
+  finish elbow on the keyframed amplitudes (75° / 86°) against 98° / 101° on the athletes' own channels points the
+  same way. Next: the trunk's and legs' travel as a body option from [K05]'s population (`onwater_body.onwater_dataset`
+  already scales it; it should become a `BodyOptions` field), and a population leg clock if one is found.

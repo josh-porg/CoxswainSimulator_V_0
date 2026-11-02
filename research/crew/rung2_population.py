@@ -221,12 +221,20 @@ def main():
     ap.add_argument("--catch", default="dynamic", choices=["dynamic", "buried", "entry"],
                     help="when the drive's clock turns dynamic: at the catch (as first built) or once the blade is "
                          "buried (BioRow's 6 deg catch slip; rung2_clock.TAKEOVER_DEG)")
+    ap.add_argument("--clocks", nargs="*", default=[],
+                    help="the body's segment clocks by name (coxswain.crew.body_options.CLOCKS), e.g. pitto2024_trunk "
+                         "(SOURCES sec. 211)")
+    ap.add_argument("--hand-terms", nargs="*", default=[],
+                    help="with --catch-posture straight-arms: the hand chain's reach terms by name "
+                         "(coxswain.crew.hand_chain.TERMS), e.g. stretch (SOURCES sec. 210; athlete-measured)")
     a = ap.parse_args()
     global BLADE, BODY
     BLADE = a.blade
     BODY = a.body
     C2.TAKEOVER_DEG = {"buried": C2.BIOROW_CATCH_TO_BURIED_DEG, "entry": "entry"}.get(a.catch)
     C2.R.CATCH_POSTURE = a.catch_posture
+    C2.R.BODY_CLOCKS = tuple(a.clocks)
+    C2.R.HAND_TERMS = tuple(a.hand_terms)
     print("blade: %s; catch: %s" % (BLADE, a.catch), flush=True)
     out = dict(handover=C2.HANDOVER)
 
@@ -253,7 +261,9 @@ def main():
         out[name] = athlete(name, a.strokes, s_pop, q_drive, ph, q, s_p["power"])
     json.dump(out, open(os.path.join(OUT, "rung2_population%s%s.json" % ("" if BLADE == "slip" else "_" + BLADE,
                                                             ("" if a.catch == "dynamic" else "_" + a.catch) + ("" if a.body == "model" else "_ownbody")
-                                                            + ("" if a.catch_posture == "as-built" else "_straightarms"))), "w"), indent=1, default=float)
+                                                            + ("" if a.catch_posture == "as-built" else "_straightarms")
+                                                            + "".join("_" + c for c in a.clocks)
+                                                            + "".join("_" + t for t in a.hand_terms))), "w"), indent=1, default=float)
 
 
 if __name__ == "__main__":

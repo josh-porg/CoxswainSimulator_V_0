@@ -17,6 +17,7 @@ accuracy. Where a value was read off a figure rather than a table, the file says
 | `robert2019_immersion.csv` | the same paper, Fig. 8 — measured M_z against sweep angle at immersion angles 9.5, 10.5, 11.5° (the first published force-against-immersion data for a rowing blade found here) | §187 |
 | `leroyer_jh12_flat_blade.csv` | Leroyer, Barré, Wackers, Kobus & Queutey, 12th Journées de l'Hydrodynamique (open), Figs 8–11 — the LMF towing tank's measured C_l, C_d (against incidence at the blade centre) and F_x, F_y (against θ) for a flat 0.7-scale scull blade on a rigid shaft (the Barré & Kobus 2010 benchmark); extracted by `research/blade/extract_leroyer_jh12.py`, axes from the printed ticks | §191 |
 | `pitto2024_elbow_drive.csv` | Pitto, Ertel, Simon, Gauchard & Mornieux 2024, *Appl. Sci.* 14:9055 (CC BY), Fig. 2 — mean elbow flexion through the drive of 12 national-level male scullers on water; digitised from the published figure. Builds the arm draw's clock (`coxswain/crew/arm_draw.py`); `pitto2024_elbow_recovery.csv`, the same figure through the recovery, builds the arms' return | §209 |
+| `pitto2024_trunk_inclination.csv` | the same paper, Fig. 2 middle column — mean T6, L2 and pelvis inclination from vertical through the stroke, on the split clock; digitised. The T6 course is the trunk's segment clock (`coxswain/crew/body_options.SegmentClock.pitto2024_trunk`) | §211 |
 
 Not here, deliberately:
 - **Commercial or private data** — [BR24] (BioRow), the coxing race recordings, cox-box

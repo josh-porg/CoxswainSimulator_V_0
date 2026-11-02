@@ -93,11 +93,12 @@ def trunk_dataset(base):
                                trunk=tuple(new.tolist()))
 
 
-def build(variant, timing=None, dataset=None, footboard_shift=None, drive_law=False, oar_sweep=None):
+def build(variant, timing=None, dataset=None, footboard_shift=None, drive_law=False, oar_sweep=None, body=None):
     """His boat. ``timing`` (a StrokeTiming) overrides the variant's, e.g. [K05]'s on-water rhythm;
     ``dataset`` the body keyframes; ``footboard_shift`` (m, + toward the bow) fixes the rig instead of
     searching the nearest reachable oarlock; ``oar_sweep`` replaces the oar sweep outright (e.g. the
-    body-coupled drive, coxswain.crew.drive_law.BodyCoupledDriveSweep)."""
+    body-coupled drive, coxswain.crew.drive_law.BodyCoupledDriveSweep); ``body`` the rower's body options
+    (coxswain.crew.body_options.BodyOptions: segment clocks, reach allowance)."""
     subs = {"base": set(), "arc": {"arc"}, "trunk": {"trunk"}, "legs": {"legs"},
             "drive": {"drive"}, "all": {"arc", "trunk", "legs", "drive"}}[variant]
     dataset = dataset or CAPLAN_GARDNER_2010
@@ -125,7 +126,7 @@ def build(variant, timing=None, dataset=None, footboard_shift=None, drive_law=Fa
                          hull_inertia=ref.hull_inertia, timing=timing,
                          appendages=ref.appendages, water=ref.water,
                          force_profile=ref.force_profile, oar_sweep=sweep,
-                         default_anthropometry=anthro, stroke_dataset=ds)
+                         default_anthropometry=anthro, stroke_dataset=ds, body=body)
         physics.resolve("research").apply(boat)
         return boat
 

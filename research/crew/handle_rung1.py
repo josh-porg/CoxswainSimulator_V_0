@@ -37,49 +37,69 @@ from coxswain.sim.dynamic_oar import DynamicOarSimulator         # noqa: E402
 #: the grip at the arm's reach from the shoulders, the reach following the elbow's own clock (arm_draw; SOURCES 209).
 #: Moving the footboard alone over-stretches the arms by ~1/3 a quarter of the way into the drive.
 CATCH_POSTURE = "as-built"
-#: With "straight-arms": the upper-back-to-hand chain's stretch at peak handle force (m), or None. Off by default:
-#: the measured value (coxswain.crew.arm_draw.PEAK_CHAIN_STRETCH, SOURCES §210) comes from the test athletes.
-CHAIN_STRETCH = None
+#: The body's segment clocks, by name (coxswain.crew.body_options.CLOCKS), e.g. ("pitto2024_trunk",): the trunk on
+#: the population's on-water timing (SOURCES §211). Empty: the ergometer keyframes' own timing.
+BODY_CLOCKS = ()
+#: With "straight-arms": the hand chain's optional reach terms, by name (coxswain.crew.hand_chain.TERMS), e.g.
+#: ("stretch",). Empty by default: the stretch's value (SOURCES §210) comes from the test athletes.
+HAND_TERMS = ()
 
 
-def _straight_arm_boat(build, base):
+def body_for(posture=None, clocks=None, terms=None):
+    """``(BodyOptions or None, HandChain)`` for these switches: the clocks move the body; the chain's terms set the
+    kinematic rower's reach allowance so the boat's own elbow solve accepts the hand."""
+    from coxswain.crew.body_options import body_options
+    from coxswain.crew.hand_chain import hand_chain
+    clocks = BODY_CLOCKS if clocks is None else clocks
+    chain = hand_chain(HAND_TERMS if terms is None else terms)
+    allowance = chain.reach_allowance() if (posture or CATCH_POSTURE) == "straight-arms" else None
+    if not clocks and allowance is None:
+        return None, chain
+    return body_options(clocks, allowance), chain
+
+
+def _straight_arm_boat(build, base, chain):
     """Rebuild ``base`` with the footboard for a held-arm catch and the drive the body generates (SOURCES 209)."""
     import onwater_body as OB
     from coxswain.crew.drive_law import BodyCoupledDriveSweep
     shift = OB.straight_arm_shift(base)
     sw = base.oar_sweep
-    table, draw = OB.body_drive_table(base, shift, stretch=CHAIN_STRETCH)
+    table, draw = OB.body_drive_table(base, shift, chain=chain)
     sweep = BodyCoupledDriveSweep(catch_angle=sw.catch_angle, finish_angle=sw.finish_angle, drive=table,
-                                  recovery=OB.body_recovery_table(base, shift, draw), onset=draw.onset)
+                                  recovery=OB.body_recovery_table(base, shift, draw, chain=chain), onset=draw.onset)
     boat = build(shift, sweep)
     boat.footboard_shift = shift
     boat.arm_draw_onset = draw.onset
     boat.finish_elbow = float(np.degrees(draw.finish))
+    boat.hand_chain = chain
     return boat
 
 
-def boat_for(name, measured, timing_kind, drive_law=False, catch_posture=None):
+def boat_for(name, measured, timing_kind, drive_law=False, catch_posture=None, clocks=None, terms=None):
+    """An athlete's boat. ``clocks`` / ``terms`` override BODY_CLOCKS / HAND_TERMS (names)."""
     posture = catch_posture or CATCH_POSTURE
     if posture == "straight-arms" and not drive_law:
         raise ValueError("the straight-arm catch couples the population drive law to the body: use drive_law=True")
+    body, chain = body_for(posture, clocks, terms)
     if name == "br24":
         import like_for_like as L
         timing = OnWaterTiming(L.RATE) if timing_kind == "on-water" else StrokeTiming(L.RATE)
-        boat = L.build("arc", timing=timing, drive_law=drive_law)
+        boat = L.build("arc", timing=timing, drive_law=drive_law, body=body)
         if posture == "straight-arms":
             # like_for_like's footboard_shift is measured from its catalogue work-through; the as-built boat may
             # have moved the oarlock to reach (``work_through``), so the shift is taken relative to that
             offset = L.WORK_THROUGH - boat.work_through
             boat = _straight_arm_boat(lambda sh, sw: L.build("arc", timing=timing, drive_law=drive_law,
-                                                             footboard_shift=sh + offset, oar_sweep=sw), boat)
+                                                             footboard_shift=sh + offset, oar_sweep=sw, body=body),
+                                      boat, chain)
         return boat
     rate = 60.0 / V.CR06_T
     timing = OnWaterTiming(rate) if timing_kind == "on-water" else StrokeTiming(rate)
-    boat = V.cr06_boat(measured, timing, drive_law=drive_law)
+    boat = V.cr06_boat(measured, timing, drive_law=drive_law, body=body)
     if posture == "straight-arms":
         stature = float(boat.crew[0].rower.anthropometry.stature)   # her stature as solved from her leg travel
         boat = _straight_arm_boat(lambda sh, sw: V.cr06_boat(measured, timing, drive_law=drive_law, footboard_shift=sh,
-                                                             stature=stature, oar_sweep=sw), boat)
+                                                             stature=stature, oar_sweep=sw, body=body), boat, chain)
     return boat
 
 

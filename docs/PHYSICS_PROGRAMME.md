@@ -1199,6 +1199,16 @@ the boat speeds that go with their drive durations).
     the error; the rest is sequencing.
   - *Next:* the legs' and trunk's own clocks (now the largest error); a source or third athlete for the stretch;
     the kinematic rower's elbow solve to accept it.
+- **The trunk on the population's clock; a modular body (§211, 2026-11-02).** The keyframes' legs are within 3–5 % of
+  both athletes' timing; their trunk opens and returns early. Pitto et al. 2024's upper-trunk (T6) timing fits both
+  athletes better than the keyframes or each other, and becomes the trunk's segment clock.
+  - Rung 2, sourced throughout: IVV 50.8 % ([BR24]) / 51.5 % ([CR06]) against 53.4 / 52.1 % on the keyframes
+    (measured 49.1 / 49.4; own timing 49.9 / 50.7). The body-generated hand with the stretch: 2.1° / 3.3° from the
+    measured oar.
+  - Modular: `BodyOptions` (segment clocks, reach allowance) from `Boat(body=)` to every rower and its cache key;
+    `HandChain` of named reach terms; the elbow solve takes the chain's allowance, so the stretch runs in a boat.
+  - *Next:* the trunk's and legs' travel as a body option from [K05]'s population; a population leg clock; a source
+    or third athlete for the stretch.
 
 ## Calibration and validation data from the squad's own boats (noted 2026-10-08)
 
