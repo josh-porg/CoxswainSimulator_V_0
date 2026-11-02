@@ -1209,6 +1209,12 @@ the boat speeds that go with their drive durations).
     `HandChain` of named reach terms; the elbow solve takes the chain's allowance, so the stretch runs in a boat.
   - *Next:* the trunk's and legs' travel as a body option from [K05]'s population; a population leg clock; a source
     or third athlete for the stretch.
+- **Population travel (§212, 2026-11-02).** `BodyOptions.travel` ([K05] racing, stature-scaled) improves the hand
+  (1.9° / 4.3° from the measured oar; finish elbow 101° / 94°) but rung 2's IVV falls 3.5–4.3 points below measured:
+  both athletes' legs travel 8–16 % more than the population's. Travel is individual; off by default.
+  - Diagnostic: the trunk clock with [CR06]'s own travel gives 50.5 % (measured 49.4 %); [BR24] needs his own leg
+    timing as well (46.5 % on his travel, 49.9 % with his timing).
+  - *Next:* a population leg clock that holds the seat back early, if published; a per-athlete seat-travel input.
 
 ## Calibration and validation data from the squad's own boats (noted 2026-10-08)
 

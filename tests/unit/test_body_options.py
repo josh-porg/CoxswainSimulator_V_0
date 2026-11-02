@@ -80,3 +80,17 @@ def test_the_hand_chain_adds_its_terms_and_sets_its_allowance():
     np.testing.assert_allclose(two.extra(ctx), 0.07 * ctx.force_fraction)
     with pytest.raises(KeyError):
         hand_chain(["no such term"])
+
+
+def test_a_population_travel_scales_the_keyframes_to_the_stature_scaled_targets():
+    from coxswain.crew.body_options import SegmentTravel
+    from coxswain.crew.kinematics import segment_travels
+    travel = SegmentTravel.kleshnev2005_racing()
+    rower = _rower(body_options(travel="k05_racing"))
+    legs, trunk = segment_travels(rower)
+    want_legs, want_trunk = travel.targets(ANTHRO.stature)
+    assert abs(legs - want_legs) < 1e-3 and abs(trunk - want_trunk) < 1e-3
+    assert segment_travels(_rower())[0] > want_legs + 0.03          # the keyframes travel further
+    assert rower.kinematics_signature() != _rower().kinematics_signature()
+    with pytest.raises(ValueError):
+        SegmentTravel(0.5, -0.1, 1.8)

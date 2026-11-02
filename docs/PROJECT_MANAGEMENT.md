@@ -89,6 +89,7 @@ Two carriers exist so that a new body or hand mechanism is one small class, not 
 |---|---|---|---|
 | **when a joint moves** (a sourced time course) | `coxswain/crew/body_options.py`: a `SegmentClock` in `CLOCKS` | a constructor that reads the source's curve (normalised on the split clock) | `BodyOptions.clocks`, passed `Boat(body=...)` → every `JointDrivenRower`; research: `handle_rung1.BODY_CLOCKS`, `rung2_population.py --clocks` |
 | **how far the hand is from the shoulder** (a reach term) | `coxswain/crew/hand_chain.py`: a class with `extra(ctx)`, `max_extra()`, `signature()` in `TERMS` | the term's extra reach from the `HandContext` (phase, time fraction, force fraction) | `hand_chain([...])`; research: `handle_rung1.HAND_TERMS`, `--hand-terms`. Its `max_extra` sets the rower's reach allowance automatically |
+| **how far the legs and trunk travel** (a population or an athlete) | `body_options.py`: a `SegmentTravel` in `TRAVELS` | legs and trunk travel at a reference stature | `BodyOptions.travel`; research: `handle_rung1.BODY_TRAVEL`, `--travel` |
 | any other body option | a field on `BodyOptions` with a default that changes nothing, included in `signature()` | read it where it acts | the same carrier |
 
 The carrier is in the rower's `kinematics_signature` (and so in every cache keyed on it, the matched torque

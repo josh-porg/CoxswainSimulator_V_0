@@ -14331,3 +14331,61 @@ With both, the hand generated from the body matches the measured oar as well as 
   finish elbow on the keyframed amplitudes (75° / 86°) against 98° / 101° on the athletes' own channels points the
   same way. Next: the trunk's and legs' travel as a body option from [K05]'s population (`onwater_body.onwater_dataset`
   already scales it; it should become a `BodyOptions` field), and a population leg clock if one is found.
+
+## 212. The legs' and trunk's travel from the population: better hands, worse boat; travel is individual (2026-11-02)
+
+The user: "continue with the travel from the population."
+
+**Built** (`coxswain/crew/body_options.SegmentTravel`, `TRAVELS = {"k05_racing": ...}`; `BodyOptions.travel`;
+`kinematics._fit_travel`, `segment_travels`; tests in `tests/unit/test_body_options.py`). [K05] Table 1 at racing rate
+(five women, 1.80 m, on water): legs 0.51 m, trunk 0.48 m, scaled by stature. The rower scales its keyframes' shank and
+trunk excursions about their means (legs, then trunk) until it travels that far, before seat height, clocks and arms
+are built; cached per athlete. Probes the linkage cannot build count as overshooting (found on [CR06]: her own legs
+need a range the level seat refuses at 1.27×). Research switches: `handle_rung1.BODY_TRAVEL`, `rung2_population.py
+--travel k05_racing | own` (``own``: the athlete's measured travel, a diagnostic, [BR24]'s trunk point carried to the
+shoulder). [CR06]'s stature is not published: under a population travel the leg-travel solve would read her as 2.05 m,
+so [LE26]'s women's mean, 1.787 m, is stated instead.
+
+The keyframes travel further than the population (legs 0.62 / 0.58 m against 0.54 / 0.51 m; trunk 0.55 / 0.52 against
+0.51 / 0.48). The athletes do not follow the population either: their legs travel **more** (0.586 / 0.581 m) and their
+trunks **less** (0.45 / 0.40 m at the shoulder). Their total shoulder travel matches the population's (1.04 / 0.98 m
+against 1.05 / 0.98); the split differs.
+
+**The body-generated hand** (held-arm catch, Pitto trunk clock; oar vs measured rms, finish elbow):
+
+| | [BR24] | [CR06] |
+|---|---|---|
+| clock | 8.0°, 75° | 4.6°, 86° |
+| clock + population travel (sourced) | **4.3°, 94°** | **1.9°, 101°** |
+| clock + stretch | 2.1°, 75° | 3.3°, 86° |
+| clock + travel + stretch | 3.8°, 94° | 7.2°, 101° |
+
+Sourced throughout, the hand matches the oar to 1.9–4.3° and the finish elbow lands on the population's 100°. But it
+does so partly by offsetting differences: the population's split puts more of the travel in the late-moving trunk, which
+delays the shoulders in mid-drive as the athletes' stretch does, so stretch and population travel together double-count.
+
+**Rung 2** (cross-flow normal blade, clock dynamic once buried):
+
+| IVV | [CR06] | [BR24] |
+|---|---|---|
+| measured | 49.4 % | 49.1 % |
+| keyframes (§203) | 52.1 % | 53.4 % |
+| clock (§211) | 51.5 % | 50.8 % |
+| clock + population travel | **45.1 %** (hands 3.4°) | **45.6 %** |
+| clock + the athlete's own travel (diagnostic) | **50.5 %** | 46.5 % |
+| own timing and travel (§205, diagnostic) | 50.7 % | 49.9 % |
+| held-arm hand + clock + population travel | 38.5 % (τ' 0.50–1.56) | 41.2 % |
+| held-arm hand + clock + travel + stretch | 48.3 % (hands 9.3°) | 46.4 % |
+
+- **The population's travel under-predicts both athletes' IVV by 3.5–4.3 points**: their legs, which carry most of the
+  moving mass, travel 8–16 % more than the population's scaled by stature. Travel is individual (as §175 found for the
+  legs): a population's is not a stand-in for an athlete's, and the hand angle alone is the wrong objective.
+- **With her own travel, [CR06] lands within 1.1 points on the sourced trunk clock** — as close as her own full timing.
+  Her remaining gap was travel.
+- **[BR24] needs his own leg timing too** (46.5 % on his travel alone, 49.9 % with his timing): his seat holds back early
+  in the drive ("legs first, trunk waits": research/biorow/shape_br24.py), which the keyframes' legs do not.
+- The held-arm body-generated hand over-constrains rung 2's population-muscle clock (τ' swings 0.5–1.6): reported, not
+  pursued.
+- **Defaults unchanged** (travel off). The trunk clock (§211) remains the one sourced improvement on these athletes'
+  IVV; the next is a population **leg clock** that holds the seat back early as [BR24] does, if one is published, and
+  a seat-travel input per athlete (a measurement, like stature) for crews whose travel is known.

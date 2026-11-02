@@ -14,6 +14,9 @@ What it carries now:
   course follows the clock (``kinematics._retime_to_course``). Registered: ``"pitto2024_trunk"``, the upper trunk's
   inclination of 12 national-level scullers on water (Pitto et al. 2024 Fig. 2), which matches both test athletes'
   measured trunk channels better than the ergometer keyframes do (§211).
+* **Segment travel** (:class:`SegmentTravel`). How far the legs and trunk travel, from a population, scaled by the
+  rower's stature; the keyframes' excursions are scaled to it (``kinematics._fit_travel``). Registered:
+  ``"k05_racing"``, Kleshnev 2005's on-water women at racing rate (SOURCES §212).
 * **Reach allowance** (m). How far the hand may lie beyond a fully straight arm before the elbow solve refuses the
   rig. ``None`` keeps the shipped value (``kinematics.MAX_SHOULDER_PROTRACTION``, 6 cm). A hand model that lengthens
   the chain under load (``coxswain.crew.hand_chain``) sets it from its own largest extra reach.
@@ -83,11 +86,50 @@ CLOCKS = {"pitto2024_trunk": SegmentClock.pitto2024_trunk}
 
 
 @dataclass(frozen=True)
+class SegmentTravel:
+    """How far the legs and the trunk travel, from a population, scaled to the rower's stature.
+
+    ``legs``: the hip's fore-and-aft travel (the seat's); ``trunk``: the shoulder's travel relative to the hip; both
+    in metres for rowers of ``stature``. The rower scales its keyframes' shank and trunk excursions about their means
+    (``stroke_data.scale_leg_amplitude`` / ``scale_trunk_amplitude``) until it travels ``stature_rower / stature``
+    times as far (``kinematics._fit_travel``). The postures' means are kept; only the range changes.
+    """
+
+    legs: float
+    trunk: float
+    stature: float
+    source: str = ""
+
+    def __post_init__(self):
+        if not (self.legs > 0 and self.trunk > 0 and self.stature > 0):
+            raise ValueError("travels and stature are positive lengths")
+
+    def targets(self, stature: float):
+        k = float(stature) / self.stature
+        return self.legs * k, self.trunk * k
+
+    def signature(self) -> tuple:
+        return (round(self.legs, 9), round(self.trunk, 9), round(self.stature, 9), self.source)
+
+    @classmethod
+    def kleshnev2005_racing(cls) -> "SegmentTravel":
+        """[K05] Table 1 (``data/literature/kleshnev2005_onwater_vs_machines.csv``): five women, 1.80 m, single scull
+        on water at racing rate (32.3 spm): legs 0.51 m, trunk 0.48 m. Their trunk line was fixed between L1 and C7;
+        the model reads its trunk at the shoulder (the caveat of SOURCES §169a)."""
+        return cls(0.51, 0.48, 1.80, "Kleshnev 2005 Table 1, on water, racing rate")
+
+
+#: travels by name
+TRAVELS = {"k05_racing": SegmentTravel.kleshnev2005_racing}
+
+
+@dataclass(frozen=True)
 class BodyOptions:
-    """Segment clocks and the reach allowance; the default changes nothing."""
+    """Segment clocks, segment travel and the reach allowance; the default changes nothing."""
 
     clocks: tuple = ()
     reach_allowance: float = None
+    travel: SegmentTravel = None
 
     def __post_init__(self):
         joints = [c.joint for c in self.clocks]
@@ -98,19 +140,22 @@ class BodyOptions:
 
     @property
     def is_default(self) -> bool:
-        return not self.clocks and self.reach_allowance is None
+        return not self.clocks and self.reach_allowance is None and self.travel is None
 
     def clock_for(self, joint):
         return next((c for c in self.clocks if c.joint == joint), None)
 
     def signature(self) -> tuple:
-        return (tuple(c.signature() for c in self.clocks), self.reach_allowance)
+        return (tuple(c.signature() for c in self.clocks), self.reach_allowance,
+                None if self.travel is None else self.travel.signature())
 
 
 DEFAULT_BODY = BodyOptions()
 
 
-def body_options(clocks=(), reach_allowance=None) -> BodyOptions:
-    """``BodyOptions`` from clock names (``CLOCKS``) or clock objects."""
+def body_options(clocks=(), reach_allowance=None, travel=None) -> BodyOptions:
+    """``BodyOptions`` from clock and travel names (``CLOCKS``, ``TRAVELS``) or objects."""
     built = tuple(CLOCKS[c]() if isinstance(c, str) else c for c in clocks)
-    return BodyOptions(clocks=built, reach_allowance=reach_allowance)
+    if isinstance(travel, str):
+        travel = TRAVELS[travel]()
+    return BodyOptions(clocks=built, reach_allowance=reach_allowance, travel=travel)

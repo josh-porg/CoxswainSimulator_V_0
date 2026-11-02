@@ -227,6 +227,9 @@ def main():
     ap.add_argument("--hand-terms", nargs="*", default=[],
                     help="with --catch-posture straight-arms: the hand chain's reach terms by name "
                          "(coxswain.crew.hand_chain.TERMS), e.g. stretch (SOURCES sec. 210; athlete-measured)")
+    ap.add_argument("--travel", default=None,
+                    help="the legs' and trunk's travel from a population by name (coxswain.crew.body_options.TRAVELS), "
+                         "e.g. k05_racing (SOURCES sec. 212)")
     a = ap.parse_args()
     global BLADE, BODY
     BLADE = a.blade
@@ -235,6 +238,7 @@ def main():
     C2.R.CATCH_POSTURE = a.catch_posture
     C2.R.BODY_CLOCKS = tuple(a.clocks)
     C2.R.HAND_TERMS = tuple(a.hand_terms)
+    C2.R.BODY_TRAVEL = a.travel
     print("blade: %s; catch: %s" % (BLADE, a.catch), flush=True)
     out = dict(handover=C2.HANDOVER)
 
@@ -263,7 +267,8 @@ def main():
                                                             ("" if a.catch == "dynamic" else "_" + a.catch) + ("" if a.body == "model" else "_ownbody")
                                                             + ("" if a.catch_posture == "as-built" else "_straightarms")
                                                             + "".join("_" + c for c in a.clocks)
-                                                            + "".join("_" + t for t in a.hand_terms))), "w"), indent=1, default=float)
+                                                            + "".join("_" + t for t in a.hand_terms)
+                                                            + ("_" + a.travel if a.travel else ""))), "w"), indent=1, default=float)
 
 
 if __name__ == "__main__":

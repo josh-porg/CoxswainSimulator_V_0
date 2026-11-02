@@ -447,6 +447,60 @@ def _retime_to_course(profile: FourierProfile, drive_fraction: float, clock,
     return FourierProfile(cos_c, sin_c, profile.period)
 
 
+_TRAVEL_CACHE = {}
+
+
+def segment_travels(rower, n: int = 600):
+    """``(legs, trunk)`` m: the hip's fore-and-aft travel, and the shoulder's relative to the hip."""
+    t = np.linspace(0.0, float(rower.timing.period), n, endpoint=False)
+    chain = rower._chain(t)
+    hip = np.asarray(chain["hip"][0].value, dtype=float)
+    shoulder = np.asarray(chain["shoulder"][0].value, dtype=float)
+    return float(np.ptp(hip)), float(np.ptp(shoulder - hip))
+
+
+def _fit_travel(anthropometry, timing, dataset, travel):
+    """``dataset`` with its shank and trunk excursions scaled about their means until a rower of this stature
+    travels ``travel.targets(stature)`` (legs, then trunk: each travel belongs to its own joint).  Probed on bare
+    rowers (no body options, no hand targets); cached per athlete, timing, dataset and travel."""
+    from .stroke_data import scale_leg_amplitude, scale_trunk_amplitude
+    key = (anthropometry.mass, anthropometry.stature, anthropometry.sex,
+           float(timing.period), round(float(timing.drive_fraction), 12),
+           dataset.name, travel.signature())
+    cached = _TRAVEL_CACHE.get(key)
+    if cached is not None:
+        return cached
+    target_legs, target_trunk = travel.targets(anthropometry.stature)
+    station = RowerStation(x_ankle=0.0)
+
+    def solve(make, which, target):
+        lo, hi = 0.3, 1.6
+        for _ in range(30):
+            factor = 0.5 * (lo + hi)
+            try:
+                probe = JointDrivenRower(anthropometry, station, timing,
+                                         dataset=make(factor))
+                too_far = segment_travels(probe)[which] > target
+            except ValueError:
+                # a range the linkage cannot reach (e.g. the level seat)
+                # is beyond any reachable travel: search below it
+                too_far = True
+            if too_far:
+                hi = factor
+            else:
+                lo = factor
+        factor = 0.5 * (lo + hi)
+        if not 0.31 < factor < 1.59:
+            raise ValueError("the keyframes cannot be scaled to travel %.3f m" % target)
+        return factor
+    f_legs = solve(lambda f: scale_leg_amplitude(dataset, f), 0, target_legs)
+    legs = scale_leg_amplitude(dataset, f_legs)
+    f_trunk = solve(lambda f: scale_trunk_amplitude(legs, f), 1, target_trunk)
+    fitted = scale_trunk_amplitude(legs, f_trunk)
+    _TRAVEL_CACHE[key] = fitted
+    return fitted
+
+
 def _shift_phase(profile: FourierProfile, phase_offset: float) -> FourierProfile:
     """Rotate a Fourier profile by a fraction of a period."""
     if phase_offset == 0.0:
@@ -510,6 +564,11 @@ class JointDrivenRower:
         #: :func:`coxswain.crew.stroke.uniform_traverse_warp`.
         self.phase_warp = phase_warp
         self.dataset = default_dataset() if dataset is None else dataset
+        if self.body.travel is not None:
+            # a population's segment travel: the keyframes' excursions scaled
+            # before anything (seat height, clocks, arms) is built from them
+            self.dataset = _fit_travel(anthropometry, timing, self.dataset,
+                                       self.body.travel)
         self.thigh_mode = thigh_mode
         self.phase_offset = float(phase_offset)
         #: Relative timing of legs, trunk and arms within the stroke.
