@@ -1178,6 +1178,18 @@ the boat speeds that go with their drive durations).
     cannot hold the trunk alone.
   - *Next:* the arms' own clock (a muscle-driven draw, which removes the abrupt hand-over), the shoulder girdle, and
     the delay-aware estimator for the trunk.
+- **The arms on their own clock (§209, 2026-11-01).** The elbow's time law comes from population data: Pitto et al.
+  2024, 12 scullers on water, fitted by a held 10.4° and a minimum-jerk draw from 0.465 of the drive (1.3° rms), the
+  return to 0.751 of the recovery (`coxswain/crew/arm_draw.py`). The hand is the shoulder plus an arm of that reach
+  around the whole cycle (`BodyCoupledDriveSweep` drive and recovery tables). The finish flexion is solved from body
+  and rig and checked against the population's 100°.
+  - The hand-over spike is gone: peak 1174 / 1039 °/s² against the law's 1220 / 1164 (was 6300).
+  - On the athletes' own leg and back timing the finish elbow is 104.6° / 116.3° (in band) and the late drive
+    matches to 2°. The ~10° mid-drive lead that remains is the shoulder girdle.
+  - The draw is kinematic; a muscle-driven draw (elbow generator against the handle force) is its refinement, and
+    this clock is its target.
+  - *Next:* the shoulder girdle (sourced range and stiffness, DATA_REQUESTS §13), the legs' and trunk's own clocks
+    (§205's sequencing, the dominant mid-drive error on the keyframed body), the trunk's delay-aware estimator.
 
 ## Calibration and validation data from the squad's own boats (noted 2026-10-08)
 

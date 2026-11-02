@@ -98,11 +98,12 @@ def free_body(anthro, timing, dataset):
     return t, np.array([j["shoulder"] for j in J]), float(rower.upper_arm_length + rower.forearm_length)
 
 
-def _straight_reach():
-    """What "straight" means in the model's arms: its own comfortable full extension (kinematics.py), the reach the
-    elbow solve accepts without trunk rotation."""
-    from coxswain.crew.kinematics import COMFORTABLE_ARM_EXTENSION
-    return COMFORTABLE_ARM_EXTENSION
+def _hold_reach(rower):
+    """The arm's reach while it is held through the leg drive: the population's held elbow flexion (arm_draw, Pitto
+    et al. 2024), not the elbow solve's 0.95 numerical margin (kinematics.COMFORTABLE_ARM_EXTENSION), which stood in
+    for it until SOURCES sec. 209."""
+    from coxswain.crew import arm_draw as A
+    return float(A.reach(rower.upper_arm_length, rower.forearm_length, A.HOLD_FLEXION))
 
 
 def _body_of(boat):
@@ -113,10 +114,10 @@ def _body_of(boat):
 
 def straight_arm_shift(boat, reach=None):
     """The footboard shift (m, + toward the bow) at which this boat's own rower reaches the rig's catch angle with
-    straight arms: the rower sets the stretcher where the catch closes (user's direction, 2026-09-30; SOURCES
-    sec. 169a). Derived from the body, the arm length and the rig, not fitted."""
+    the arms held (``reach`` m; the held reach by default): the rower sets the stretcher where the catch closes
+    (user's direction, 2026-09-30; SOURCES sec. 169a). Derived from the body, the arm and the rig, not fitted."""
     free, rower = _body_of(boat)
-    arm = (rower.upper_arm_length + rower.forearm_length) * (reach or _straight_reach())
+    arm = reach or _hold_reach(rower)
     sh0 = free.joint_positions(0.0)["shoulder"]
     rig = rig_geometry(boat)
     lo, hi = -0.6, 0.6
@@ -127,17 +128,62 @@ def straight_arm_shift(boat, reach=None):
     return 0.5 * (lo + hi)
 
 
-def straight_arm_table(boat, shift, reach=None, n=241):
-    """``(drive_fraction, straight-arm oar angle)`` through the drive, for the body-coupled drive sweep: the angle
-    at which the grip is one straight arm from the shoulders this boat's body provides, the footboard moved by
-    ``shift``. NaN where no angle puts the grip a full arm away (the arms must already be bent)."""
+def body_drive_table(boat, shift, n=241):
+    """The drive the body generates (SOURCES sec. 209): ``((drive_fraction, oar_angle), draw)``.
+
+    At each drive fraction the grip lies on its arc at the arm's reach from the shoulders this boat's body provides
+    (footboard moved by ``shift``); the reach follows the elbow's clock (coxswain.crew.arm_draw.ElbowDraw). The finish
+    flexion is solved so the hand arrives at the rig's finish angle; it is returned in ``draw`` and checked against
+    the population's 100 deg, never set to it."""
+    from coxswain.crew import arm_draw as A
     free, rower = _body_of(boat)
-    arm = (rower.upper_arm_length + rower.forearm_length) * (reach or _straight_reach())
+    u, f = rower.upper_arm_length, rower.forearm_length
     rig = rig_geometry(boat)
     D = float(boat.timing.drive_fraction) * float(boat.timing.period)
     x = np.linspace(0.0, 1.0, n)
-    ang = np.array([straight_arm_angle(free.joint_positions(float(xx * D))["shoulder"], rig, arm, shift) for xx in x])
-    return tuple(x), tuple(ang)
+    sh = [free.joint_positions(float(xx * D))["shoulder"] for xx in x]
+
+    def end_angle(finish):
+        return straight_arm_angle(sh[-1], rig, float(A.reach(u, f, finish)), shift)
+    # the shortest arm that still meets the grip's arc: the arc's closest approach to the finish shoulder
+    phi = np.radians(np.linspace(-80.0, 89.9, 3400))
+    grip = np.stack([rig["x"] - rig["r"] * np.sin(phi), rig["y"] - rig["r"] * np.cos(phi),
+                     np.full_like(phi, rig["z"])], axis=1)
+    closest = float(np.min(np.linalg.norm(grip - np.array([sh[-1][0] + shift, 0.20, sh[-1][2]]), axis=1)))
+    cos_max = np.clip((closest**2 - u**2 - f**2) / (2 * u * f), -1.0, 1.0)
+    lo, hi = A.HOLD_FLEXION, float(np.arccos(cos_max)) - 1e-6
+    if not end_angle(hi) <= rig["finish"] <= end_angle(lo):
+        raise ValueError("no elbow flexion puts the hand at the finish angle from these shoulders")
+    for _ in range(50):                       # more flexion, shorter reach, the grip further toward the finish
+        mid = 0.5 * (lo + hi)
+        lo, hi = (mid, hi) if end_angle(mid) > rig["finish"] else (lo, mid)
+    draw = A.ElbowDraw(finish=0.5 * (lo + hi))
+    r = A.reach(u, f, draw.flexion(x))
+    ang = np.array([straight_arm_angle(s, rig, float(rr), shift) for s, rr in zip(sh, r)])
+    ang[0], ang[-1] = rig["catch"], rig["finish"]             # the closures, exact to the bisections' tolerance
+    return (tuple(x), tuple(ang)), draw
+
+
+def body_recovery_table(boat, shift, draw, n=241):
+    """The recovery the body generates: ``(recovery_fraction, oar_angle)``, the grip at the reach of the arms' return
+    (``draw.recovery_flexion``) from the shoulders as the body comes forward. Starts at the finish angle (the same
+    shoulders and flexion that closed the drive) and ends at the catch (the held reach that placed the footboard)."""
+    from coxswain.crew import arm_draw as A
+    free, rower = _body_of(boat)
+    u, f = rower.upper_arm_length, rower.forearm_length
+    rig = rig_geometry(boat)
+    P, df = float(boat.timing.period), float(boat.timing.drive_fraction)
+    y = np.linspace(0.0, 1.0, n)
+    sh = [free.joint_positions(float((df + yy * (1.0 - df)) * P) % P)["shoulder"] for yy in y]
+    r = A.reach(u, f, draw.recovery_flexion(y))
+    ang = np.array([straight_arm_angle(s, rig, float(rr), shift) for s, rr in zip(sh, r)])
+    if not np.all(np.isfinite(ang)):
+        raise ValueError("the arm cannot meet the grip's arc somewhere in the recovery")
+    for end, want, name in ((ang[0], rig["finish"], "finish"), (ang[-1], rig["catch"], "catch")):
+        if abs(end - want) > np.radians(0.2):
+            raise ValueError("the body's recovery starts or ends %.2f deg from the %s" % (np.degrees(end - want), name))
+    ang[0], ang[-1] = rig["finish"], rig["catch"]
+    return tuple(y), tuple(ang)
 
 
 def athlete(name):

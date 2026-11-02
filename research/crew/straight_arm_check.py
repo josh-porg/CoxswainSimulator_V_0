@@ -11,8 +11,8 @@ channels, the §205 own-body diagnostic:
 * the legs on the seat channel;
 * the back on the trunk channel, scaled to the athlete's travel.
 
-The footboard is placed for a straight-arm catch from those shoulders. "Straight" is the model's own comfortable
-extension (0.95 of arm length). The straight-arm angle is then printed against the measured angle through the drive.
+The footboard is placed for a straight-arm catch from those shoulders. "Straight" is the population's held elbow
+flexion, 10.4 deg (coxswain.crew.arm_draw; until SOURCES 209 it was the elbow solve's 0.95 margin). The straight-arm angle is then printed against the measured angle through the drive.
 Where the two agree, the arms are straight and the coupling holds; where the measured angle runs ahead, the arms
 are drawing.
 
@@ -82,7 +82,7 @@ def check(name):
     m = C2.R.V.ATHLETES[name][0]()
     boat = C2.R.boat_for(name, m, "on-water", drive_law=True, catch_posture="as-built")
     rower = boat.crew[0].rower
-    arm = (rower.upper_arm_length + rower.forearm_length) * OB._straight_reach()
+    arm = OB._hold_reach(rower)
     rig = OB.rig_geometry(boat)
     sh, K = own_shoulder(name, boat)
     lo, hi = -0.6, 0.6
