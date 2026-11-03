@@ -14532,3 +14532,48 @@ copy, τ' perceived 100 ms late, feedback at 100 ms, the research trunk clock:
   remaining pieces are the shape of the long-latency layer's model (constant coefficients; the plant's toppling and
   slope vary through the stroke) and the excitation modules on a phase oscillator (review §12 step 4): the trunk's
   feedforward is still read off the hands' clock.
+
+## 216. The muscle check on rung 2's power-matched stroke; oar bending in rung 2 (2026-11-03)
+
+The user: "keep going on the research."
+
+**1. Checking the muscles on the stroke rung 2 rows** (`research/crew/muscle_capacity.py --rung2`). §215 found the
+straight-arm body over-driving the blade when its hands are imposed (rung 1). Rung 2 rows that body at the athlete's
+measured power with the hands an output, so the check now reads its demands *inside* rung 2's own run: a free
+trunk-in-the-loop run (`rung2_trunk.TrunkClockSim`) with a perfect internal model, which reproduces rung 2 exactly
+(§206), logging at each accepted step the handle force, the hull's acceleration, the clock (τ, τ', τ'') and the hip
+moment; postures are read at τ and every rate and acceleration carries the chain rule through the clock.
+
+- **Tried first and dropped:** replaying rung 2's solved clock τ(t) open-loop in a rung-1 run. The hull's state differs,
+  so the blade answers differently: [CR06]'s as-built control came out near (284 W against 253 W), [BR24]'s diverged
+  (672 W) and the straight-arm replays blew up. A clock is not a stroke without the boat it was solved on.
+
+| peak activation needed (rung 2, at the athletes' power: 253 / 416 W; 259 / — W) | hip | knee | elbow |
+|---|---|---|---|
+| [CR06], as built | 2.09 | 1.77 | **0.85** |
+| [BR24], as built | off the data | off the data | **0.64** |
+| [CR06], straight arms + stretch | 3.92 | 3.30 | angle off the data |
+| [BR24], straight arms + stretch | off the data | 8.77 | 0.39 |
+
+- **The hip and knee fail only near the catch**, where the angles (knee ~135–145°, the hip-and-lumbar "trunk" ~180°) lie
+  beyond every published strength surface (DATA_REQUESTS §13); inside the tested ranges they are feasible. This is the
+  same gap §208 found; it is the data, not the body.
+- **The elbow is feasible wherever it is inside the data.** With the arms held, its angle (0–10°) lies below
+  Frey-Law et al.'s tested 15°.
+- **Against Pitto et al.'s EMG, the elbow's timing is not reproduced by a flexor-only check**: the elbow-flexor demand
+  peaks at 17–22 % of the drive (with the handle force), but Pitto's flexors (biceps, brachioradialis) peak at 55 % and
+  the **triceps** peak early (34 %), holding the arm straight. The handle's pull early in the drive is resisted by
+  co-contraction, which a single net elbow moment cannot express. A muscle-driven arm draw needs both elbow groups and
+  the shoulder (its strength unsourced; DATA_REQUESTS §13).
+
+**2. Oar bending in rung 2** (`rung2_population.py --bending`: [LNA15]'s scull stiffness as a quasi-static hinge on each
+athlete's own oar, `coxswain.crew.oar_bending`; research trunk clock):
+
+| | IVV | speed vs measured | hands |
+|---|---|---|---|
+| [CR06] without / with bending | 51.5 / 51.9 % | −1.7 / **−0.7 %** | 4.3° / 4.1° |
+| [BR24] without / with bending | 50.8 / 50.5 % | +1.9 / +3.3 % | — |
+
+Small (IVV within 0.4 points, speed +1.0–1.4 %), and mixed between the athletes: closer for [CR06], further for [BR24].
+It is sourced physics that improved every blade law against [RLBQV19]'s measured trial (§185–186); making it a research
+default is a decision for the user, the scorecard to be re-run if so.

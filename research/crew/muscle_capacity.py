@@ -58,20 +58,33 @@ TESTED = {"hip": (-0.5, 1.3), "knee": (0.0, 1.8), "elbow": (np.radians(15), np.r
 
 
 class CapSim(RT.TrunkClockSim):
-    """The reference run, logging the handle force and the hull's acceleration at accepted times."""
+    """The stroke under test, logging the handle force, the hull's acceleration, the clock and the hip moment at
+    accepted times. Reference mode: rung 1 (the clock is time, the hands imposed). Free mode (``--rung2``): rung 2,
+    the clock solved from the population muscles scaled to the athlete's power, with the trunk's internal model
+    perfect so the trunk stays on its path (§206: that reproduces rung 2 exactly); the hands are an output (§216)."""
 
     def derivative(self, t, y):
         out = super().derivative(t, y)
         log = self.__dict__.setdefault("caplog", [])
-        if self.mode != "free" and (not log or t > log[-1][0]):
+        if not log or t > log[-1][0]:
             c = t - self._stroke_start
-            self._clock, self._trunk = (c, 1.0, 0.0), (0.0, 0.0, 0.0)
+            if self.mode != "free":
+                clock, trunk, base = (c, 1.0, 0.0), (0.0, 0.0, 0.0), y
+            else:
+                yy = np.asarray(y, float)
+                base, dl, dld, tau, td = yy[:-4], float(yy[-4]), float(yy[-3]), float(yy[-2]), float(yy[-1])
+                if self._rec is not None:
+                    tau, td, _ = self._recovery_clock(c)
+                clock, trunk = (tau, td, float(out[-1])), (dl, dld, float(out[-3]))
+            self._clock, self._trunk = clock, trunk
             try:
-                d = DynamicOarSimulator.derivative(self, t, y)
-                F = self._handle_force(t, y)
+                d = DynamicOarSimulator.derivative(self, t, base)
+                F = self._handle_force(t, base)
+                if self.mode == "free":
+                    self.mlog.append((t, clock[0], self._equations(t, base, d, *clock)[1]))
             finally:
                 self._clock, self._trunk = None, None
-            log.append((t, c, F, d[6], d[8]))
+            log.append((t, clock[0], F, d[6], d[8], clock[1], clock[2]))
         return out
 
 
@@ -132,12 +145,46 @@ def geometry(rower, P, n=1200):
     return grid, {k: np.array(v) for k, v in th.items()}, rates
 
 
+RUNG2 = False
+_TABLES = {}
+
+
+def rung2_sim(name, boat, strokes):
+    """Rung 2 on ``boat`` (§216): the population muscles, scaled to the athlete's measured power, drive the clock
+    from a settled rung-1 run; the trunk's internal model is perfect, so the trunk stays on its path."""
+    if "pop" not in _TABLES:
+        _TABLES["pop"] = RP.population_tables(strokes)
+    s_p, (s_pop, q_drive, ph, q) = _TABLES["pop"]
+    m = C2.R.V.ATHLETES[name][0]()
+    ref = make(boat)
+    run_r = ref.run_strokes(strokes, surge_speed=4.3)
+    P = float(boat.timing.period)
+    D = float(boat.timing.drive_fraction) * P
+    k = m["power"] / s_p["power"]
+
+    def Q(tau):
+        if tau <= D:
+            return k * float(np.interp(float(RP.progress_of(boat, tau)[0]), s_pop, q_drive))
+        return k * float(np.interp(np.mod(tau / P, 1.0), ph, q, period=1.0))
+    boat.power_scales = np.ones(boat.n_seats)
+    from coxswain.sim.control import Coxswain
+    sim = CapSim(boat, peak_torque=0.0, catch="sweep", crew="handle",
+                 coxswain=Coxswain(rudder_override=lambda t, s: 0.0), fast=True, **RP.blade_options(boat))
+    sim.setup_trunk("free", Q=Q, tau_ff="internal", ff_delay=0.0, delay=0.0, spin=True, efference=True)
+    sim.start_state = np.concatenate([run_r.last_states[:, -1], [0.0, 0.0, P, 1.0]])
+    return sim, k
+
+
 def athlete(name, strokes):
     m = C2.R.V.ATHLETES[name][0]()
     boat = C2.R.boat_for(name, m, "on-water", drive_law=True)
     rower = boat.crew[0].rower
     mass, stature = float(rower.total_mass), float(rower.anthropometry.stature)
-    sim = make(boat)
+    if RUNG2:                                         # rung 2's power-matched stroke, the hands an output
+        sim, k = rung2_sim(name, boat, strokes)
+        print("%s: rung 2, population muscles x %.3f" % (name, k), flush=True)
+    else:
+        sim = make(boat)
     run = sim.run_strokes(strokes, surge_speed=4.3)
     P = float(boat.timing.period)
     start = float(run.last_time[0])
@@ -153,10 +200,13 @@ def athlete(name, strokes):
     KE = J.anderson("KE", GROUP[name], mass, stature)
     EF = J.elbow("flexion", SEX[name])
     rows = []
-    for t, c, F, ax, az in log:
+    for rec in log:
+        t, c, F, ax, az = rec[:5]
+        td, tdd = (rec[5], rec[6]) if len(rec) > 5 else (1.0, 0.0)   # the clock's rate (1 on time)
         cc = float(c) % P
-        pos, _v, acc = rower.segment_state(cc)[:3]
-        pos, acc = np.asarray(pos, float)[:, [0, 2]], np.asarray(acc, float)[:, [0, 2]]
+        pos, vel, acc = rower.segment_state(cc)[:3]
+        acc = np.asarray(acc, float) * td * td + np.asarray(vel, float) * tdd   # the chain rule through the clock
+        pos, acc = np.asarray(pos, float)[:, [0, 2]], acc[:, [0, 2]]
         a_abs = acc + np.array([ax, az])
         j = {k: v[[0, 2]] for k, v in rower.joint_positions(cc).items()}
         # stretcher: the whole body's horizontal momentum, the handle's reaction (-F) on the hands
@@ -175,7 +225,8 @@ def athlete(name, strokes):
         tang = tang / max(np.linalg.norm(tang), 1e-12)
         F_hand = -0.5 * F * tang
         pos3 = np.asarray(rower.segment_state(cc)[0], float)
-        acc3 = np.asarray(rower.segment_state(cc)[2], float) + np.array([ax, 0.0, az])
+        st3 = rower.segment_state(cc)
+        acc3 = (np.asarray(st3[2], float) * td * td + np.asarray(st3[1], float) * tdd) + np.array([ax, 0.0, az])
         u3, v3 = sh3 - el3, h3 - el3
         axis = np.cross(v3, u3)
         axis = axis / max(np.linalg.norm(axis), 1e-12)          # rotating the forearm toward the upper arm
@@ -187,7 +238,7 @@ def athlete(name, strokes):
             r = pos[i] - j["shoulder"]
             sh_ext += _cross(r, (0.0, -masses[i] * G)) - _cross(r, masses[i] * a_abs[i])
         th = {k: float(np.interp(cc, grid, TH[k], period=P)) for k in TH}
-        w = {k: float(np.interp(cc, grid, W[k], period=P)) for k in W}
+        w = {k: td * float(np.interp(cc, grid, W[k], period=P)) for k in W}
         rows.append(dict(t=t - start, c=cc, F=F, Fh=Fh, hip=hipM.get(round(t, 9), np.nan), knee=knee, elbow=elbow_flex,
                          shoulder=sh_ext, th_hip=th["hip"], th_knee=th["knee"], th_elbow=th["elbow"],
                          w_hip=-w["hip"], w_knee=-w["knee"], w_elbow=w["elbow"]))
@@ -237,7 +288,11 @@ def main():
     ap.add_argument("--catch-posture", default="as-built", choices=["as-built", "straight-arms"])
     ap.add_argument("--clocks", nargs="*", default=[], help="extra segment clocks (coxswain.crew.body_options.CLOCKS)")
     ap.add_argument("--hand-terms", nargs="*", default=[], help="hand-chain reach terms, e.g. stretch")
+    ap.add_argument("--rung2", action="store_true",
+                    help="check rung 2's power-matched stroke (hands an output) instead of rung 1's (§216)")
     a = ap.parse_args()
+    global RUNG2
+    RUNG2 = bool(a.rung2)
     C2.R.CATCH_POSTURE = a.catch_posture
     C2.R.BODY_CLOCKS = tuple(a.clocks)
     C2.R.HAND_TERMS = tuple(a.hand_terms)
@@ -246,7 +301,7 @@ def main():
     out = {n: athlete(n, a.strokes) for n in a.athletes}
     json.dump(out, open(os.path.join(OUT, "muscle_capacity%s.json" % (
         ("" if a.catch_posture == "as-built" else "_straightarms") + "".join("_" + c for c in a.clocks)
-        + "".join("_" + t for t in a.hand_terms))), "w"), indent=1, default=float)
+        + "".join("_" + t for t in a.hand_terms) + ("_rung2" if a.rung2 else ""))), "w"), indent=1, default=float)
 
 
 if __name__ == "__main__":

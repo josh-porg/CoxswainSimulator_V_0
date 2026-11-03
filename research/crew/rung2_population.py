@@ -55,8 +55,21 @@ BLADE = "slip"
 H10_TANGENTIAL = 0.25                                            # SOURCES §200: [H10]'s share needs x 0.22-0.29
 
 
+#: the oar shaft bends as a quasi-static hinge ([LNA15]'s scull stiffness, coxswain.crew.oar_bending; SOURCES §193, §216)
+BENDING = False
+
+
 def blade_options(boat):
-    """Simulator options for the blade under test (``BLADE``)."""
+    """Simulator options for the blade under test (``BLADE``), and the shaft's bending if ``BENDING``."""
+    opts = _blade_law_options(boat)
+    if BENDING:
+        from coxswain.crew.oar_bending import OarBending
+        oar = boat.rig.seats[0].oarlocks[0].oar
+        opts["oar_bending"] = OarBending.laschowski2015_scull(float(oar.blade_centre_outboard), float(oar.blade_length))
+    return opts
+
+
+def _blade_law_options(boat):
     if BLADE == "slip":
         return {}
     sys.path.insert(0, os.path.join(ROOT, "research", "blade"))
@@ -207,6 +220,54 @@ def athlete(name, strokes, s_pop, q_drive, ph, q, p_pop):
     return out
 
 
+def population_tables(strokes):
+    """[K05]'s population at rung 1 with its own body and drive law: ``(summary, (s_pop, q_drive, phase, q))``, the
+    muscles' generalised force against drive progress and against cycle phase, as rung 2 carries them to an athlete."""
+    pop_boat = V.cr06_boat(dict(leg_travel=None), timing=OnWaterTiming(KP.K05_RATE), stature=KP.K05_STATURE,
+                           drive_law=True, mass=KP.K05_MASS)
+    body, _k = k05_body.body_field(pop_boat, leg_travel=0.51)
+    pop = make(pop_boat, "reference", body=body)
+    run_p = pop.run_strokes(strokes, surge_speed=4.3)
+    s_p = C2.summary(run_p)
+    ph, q = q_table(pop, run_p)
+    P_pop = float(pop_boat.timing.period)
+    on = ph * P_pop <= float(pop_boat.timing.drive_fraction) * P_pop
+    s_pop = np.maximum.accumulate(progress_of(pop_boat, ph[on] * P_pop))
+    q_drive = q[on]
+    keep = np.concatenate([[True], np.diff(s_pop) > 1e-9])
+    return s_p, (s_pop[keep], q_drive[keep], ph, q)
+
+
+def solved_clock(name, strokes, tables, p_pop):
+    """Rung 2 for one athlete (population muscles scaled to the athlete's measured power, hands an output): its
+    last stroke's clock, ``(P, c, tau, tau', tau'')`` against time since the stroke's start, and its summary."""
+    s_pop, q_drive, ph, q = tables
+    m = V.ATHLETES[name][0]()
+    base_boat = C2.R.boat_for(name, m, "on-water", drive_law=True)
+    base = make(base_boat, "reference")
+    run_b = base.run_strokes(strokes, surge_speed=4.3)
+    P = float(base_boat.timing.period)
+    D = float(base_boat.timing.drive_fraction) * P
+    k = m["power"] / p_pop
+
+    def Q(tau):
+        if tau <= D:
+            return k * float(np.interp(float(progress_of(base_boat, tau)[0]), s_pop, q_drive))
+        return k * float(np.interp(np.mod(tau / P, 1.0), ph, q, period=1.0))
+    free_boat = C2.R.boat_for(name, m, "on-water", drive_law=True)
+    free = make(free_boat, "free", Q=Q)
+    free.start_state = np.concatenate([run_b.last_states[:, -1], [P, 1.0]])
+    run_f = free.run_strokes(strokes, surge_speed=4.3)
+    t0 = float(run_f.last_time[0])
+    tl = np.array([r for r in free.tlog if r[0] >= t0])
+    o = np.argsort(tl[:, 0])
+    tl = tl[o]
+    keep = np.concatenate([[True], np.diff(tl[:, 0]) > 1e-9])
+    tl = tl[keep]
+    tau = np.unwrap(np.mod(tl[:, 1], P) * 2 * np.pi / P) * P / (2 * np.pi)
+    return (P, tl[:, 0] - t0, tau - tau[0], tl[:, 2], tl[:, 3]), C2.summary(run_f), k
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--strokes", type=int, default=10)
@@ -230,8 +291,11 @@ def main():
     ap.add_argument("--travel", default=None,
                     help="the legs' and trunk's travel from a population by name (coxswain.crew.body_options.TRAVELS), "
                          "e.g. k05_racing (SOURCES sec. 212)")
+    ap.add_argument("--bending", action="store_true",
+                    help="the oar shaft bends ([LNA15]'s scull stiffness as a quasi-static hinge; SOURCES sec. 216)")
     a = ap.parse_args()
-    global BLADE, BODY
+    global BLADE, BODY, BENDING
+    BENDING = bool(a.bending)
     BLADE = a.blade
     BODY = a.body
     C2.TAKEOVER_DEG = {"buried": C2.BIOROW_CATCH_TO_BURIED_DEG, "entry": "entry"}.get(a.catch)
@@ -243,19 +307,7 @@ def main():
     out = dict(handover=C2.HANDOVER)
 
     # 1. the population, rung 1 with its own body and drive law
-    pop_boat = V.cr06_boat(dict(leg_travel=None), timing=OnWaterTiming(KP.K05_RATE), stature=KP.K05_STATURE,
-                           drive_law=True, mass=KP.K05_MASS)
-    body, _k = k05_body.body_field(pop_boat, leg_travel=0.51)
-    pop = make(pop_boat, "reference", body=body)
-    run_p = pop.run_strokes(a.strokes, surge_speed=4.3)
-    s_p = C2.summary(run_p)
-    ph, q = q_table(pop, run_p)
-    P_pop = float(pop_boat.timing.period)
-    on = ph * P_pop <= float(pop_boat.timing.drive_fraction) * P_pop
-    s_pop = np.maximum.accumulate(progress_of(pop_boat, ph[on] * P_pop))
-    q_drive = q[on]
-    keep = np.concatenate([[True], np.diff(s_pop) > 1e-9])
-    s_pop, q_drive = s_pop[keep], q_drive[keep]
+    s_p, (s_pop, q_drive, ph, q) = population_tables(a.strokes)
     print("population (rung 1, [K05] body and law): %.3f m/s, IVV %.1f%%, %.0f W; Q_pop %.0f to %.0f"
           % (s_p["speed"], 100 * s_p["ivv"], s_p["power"], q.min(), q.max()), flush=True)
     out["population"] = s_p
@@ -268,7 +320,8 @@ def main():
                                                             + ("" if a.catch_posture == "as-built" else "_straightarms")
                                                             + "".join("_" + c for c in a.clocks)
                                                             + "".join("_" + t for t in a.hand_terms)
-                                                            + ("_" + a.travel if a.travel else ""))), "w"), indent=1, default=float)
+                                                            + ("_" + a.travel if a.travel else "")
+                                                            + ("_bending" if a.bending else ""))), "w"), indent=1, default=float)
 
 
 if __name__ == "__main__":

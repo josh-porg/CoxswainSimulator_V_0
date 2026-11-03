@@ -1229,6 +1229,10 @@ the boat speeds that go with their drive durations).
   the muscle-driven arm draw need its hands as an output of rung 2 first.
   - *Next:* the straight-arm body in rung 2 (hands an output, power-matched); then its muscle check against Pitto's
     EMG timing; the trunk's excitation on a phase oscillator (review §12 step 4).
+- **§216 (2026-11-03):** the muscle check runs inside rung 2 (power-matched). Hip and knee fail only at the catch angles
+  (strength data stop short; DATA_REQUESTS §13); the elbow is feasible where in the data. Pitto's EMG (triceps early,
+  flexors at 55 %) needs both elbow groups and the shoulder: a co-contracting arm, whose shoulder strength is unsourced.
+  Oar bending in rung 2: speed +1.0–1.4 %, IVV ±0.4; a research default is the user's call.
 
 ## Calibration and validation data from the squad's own boats (noted 2026-10-08)
 
