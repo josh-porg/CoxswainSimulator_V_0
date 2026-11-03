@@ -869,6 +869,13 @@ The muscle-driven body (SOURCES §207–208) needs three things no source found 
      set may hold this: the author or A. McGregor / A. Bull at Imperial are the people to ask);
    - a third athlete with handle force and seat/trunk channels (BioRow format) to test the 0.124 m out of sample.
 
+4. **Shoulder extension torque against angle and speed, from ~50° of flexion to ~40° of extension** *(added
+   2026-11-03, §216)*. The muscle-driven arm draw needs both elbow groups and the shoulder: Pitto et al.'s EMG has the
+   triceps holding the arm straight early in the drive and the flexors and posterior deltoid drawing at 55 %. The
+   only shoulder torque generator found (Bell, Nasr & McPhee 2024; Bell's open thesis) covers elevation 60–160° in the
+   lifting direction, not a rower's extension. Wanted: isokinetic shoulder extension (latissimus, posterior deltoid)
+   over the rowing range, ideally with the elbow flexed.
+
 Before writing to anyone, identify any lab with deep-flexion isokinetic or isometric data (e.g. squat or
 rowing-specific dynamometry). For item 3, Imperial's rowing-shoulder group (above) is the first contact.
 

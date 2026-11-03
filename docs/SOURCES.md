@@ -14577,3 +14577,11 @@ athlete's own oar, `coxswain.crew.oar_bending`; research trunk clock):
 Small (IVV within 0.4 points, speed +1.0–1.4 %), and mixed between the athletes: closer for [CR06], further for [BR24].
 It is sourced physics that improved every blade law against [RLBQV19]'s measured trial (§185–186); making it a research
 default is a decision for the user, the scorecard to be re-run if so.
+
+**Addendum (2026-11-03): shoulder strength searched for the co-contracting arm.** The nearest sourced shoulder torque
+generator is Bell, Nasr & McPhee (2024), *J. Biomech. Eng.* 146, doi:10.1115/1.4065044 (paywalled), from Bell's open
+MASc thesis (Waterloo 2023, UWSpace 10012/19153; `data/local/literature/bell2024_shoulder_mtg/`): 20 adults, Biodex
+isometric, isokinetic and passive tests, polynomial torque-angle, torque-velocity and passive surfaces with parameters
+for general, female and male models (Appendix B). It covers **elevation 60–160°** in the **elevating** (lifting)
+direction; a rower's shoulder works at about +46° flexion to −41° extension (Pitto et al. 2024) **in extension**
+(pulling down and back). Not applicable; the shoulder stays unsourced (DATA_REQUESTS §13 item 4).
