@@ -20,9 +20,15 @@ def test_robert_bench_constants_and_the_beam_check():
     assert beam_hinge_ratio(1.558, 2.078) == pytest.approx(b.hinge_inboard_of_root, rel=0.10)
 
 
-def test_scull_from_laschowski_bends_about_a_degree_at_four_hundred_newton_metres():
-    s = OarBending.laschowski2015_scull(1.805, 0.43)
-    assert np.degrees(400.0 / s.k_ang) == pytest.approx(1.1, abs=0.2)
+def test_scull_from_laschowskis_measured_shaft():
+    """[L14] Table 3's medium shaft slope (4.63 deg at 201 N, 1.299 m out) gives an EI that matches the thesis's own
+    Table 2 near the blade (1992-2169 N m^2); on a 1.805 m scull it bends ~10 deg at 400 N m at the pin. The old law
+    read the abstract's 1.18 deg (a difference between shafts) as the slope and bent ~1 deg (SOURCES sec. 217)."""
+    from coxswain.crew.oar_bending import L14_EXTRA_SOFT_EI, L14_MEDIUM_EI
+    assert 1992.0 * 0.95 < L14_MEDIUM_EI < 2169.0 * 1.05
+    assert L14_EXTRA_SOFT_EI < L14_MEDIUM_EI
+    s = OarBending.laschowski2014_scull(1.805, 0.43)
+    assert np.degrees(400.0 / s.k_ang) == pytest.approx(9.7, abs=0.3)
 
 
 def _single(bending, strokes=4):
@@ -44,6 +50,7 @@ def test_a_soft_shaft_bends_and_changes_the_stroke():
     sim, soft = _single(OarBending.robert2019_sweep())
     _rigid_sim, rigid = _single(None)
     assert np.isfinite(soft.settled_speed())
+    assert sim.bend_solve_failures == 0          # every step's bend balanced (STRUCTURAL_ISSUES S13)
     assert abs(soft.settled_speed() - rigid.settled_speed()) > 1e-4
 
 
@@ -86,3 +93,59 @@ def test_tip_outboard_is_the_tip_and_the_centre_is_named():
     oar = catalog.single_scull(rate=30.0).rig.seats[0].oarlocks[0].oar
     assert oar.tip_outboard == oar.outboard
     assert oar.blade_centre_outboard == pytest.approx(oar.tip_outboard - 0.5 * oar.blade_length)
+
+
+def test_a_bending_profile_bends_sculls_and_the_simulator_uses_the_boats_own():
+    """SOURCES §217: a profile with ``oar_bending="sourced"`` bends sculls by [L14] and leaves sweep oars rigid; no
+    shipped or research profile sets it (withdrawn the day it was made a default); False forces the rigid oar."""
+    import dataclasses
+    import pytest
+    from coxswain import physics
+    from coxswain.boats import catalog
+    from coxswain.sim.dynamic_oar import _resolve_bending
+    assert physics.resolve("research").oar_bending is None
+    bending = dataclasses.replace(physics.resolve("research"), oar_bending="sourced")
+    scull = catalog.single_scull(rate=32.0, rower_mass=85.0, rower_stature=1.90)
+    bending.apply(scull)
+    assert "L14" in scull.oar_bending.source
+    sweep = catalog.eight(rate=32.0)
+    bending.apply(sweep)
+    assert getattr(sweep, "oar_bending", None) is None
+    plain = catalog.single_scull(rate=32.0, rower_mass=85.0, rower_stature=1.90)
+    physics.resolve("shipped").apply(plain)
+    assert getattr(plain, "oar_bending", None) is None
+    assert _resolve_bending(scull, None, "sweep") is scull.oar_bending
+    assert _resolve_bending(scull, False, "sweep") is None            # a study's rigid oar
+    assert _resolve_bending(scull, None, "rest") is None              # only stepped under the sweep catch
+    with pytest.raises(ValueError):
+        _resolve_bending(scull, scull.oar_bending, "rest")
+
+
+def test_kleshnevs_energy_efficiency_barely_sees_the_bend():
+    """Kleshnev's eb = (Ph - Pwb) / Ph is an energy ratio on the gate-angle track. A quasi-static shaft returns what it
+    stores by the release, so the gate track and the bent blade's own track give nearly the same figure, which is why
+    it can be measured on bending oars; the load-weighted slip ratio is a different quantity (SOURCES §217)."""
+    _sim, rigid = _single(None)
+    for record in rigid.strokes:
+        assert record.blade_efficiency_k07 == pytest.approx(record.blade_efficiency_k07_blade, abs=1e-12)
+    _sim, soft = _single(OarBending.robert2019_sweep())
+    gate = soft.settled_blade_efficiency(track="k07")
+    own = soft.settled_blade_efficiency(track="k07_blade")
+    assert 0.0 < gate < 1.0
+    assert gate == pytest.approx(own, abs=0.02)
+    with pytest.raises(ValueError):
+        soft.settled_blade_efficiency(track="tip")
+
+
+def test_the_blade_added_mass_is_refused_on_a_bending_oar():
+    """The coupled added-mass solve takes the blade's acceleration from the shaft alone; until it carries the bend it
+    runs rigid only (SOURCES §217). The boat's own bending is refused too, with the way out named."""
+    import dataclasses
+    from coxswain import physics
+    bending = dataclasses.replace(physics.resolve("research"), oar_bending="sourced")
+    boat = bending.apply(catalog.single_scull(rate=30.0))
+    assert boat.oar_bending is not None
+    kw = dict(peak_torque=0.0, catch="sweep", crew="handle", blade_law="liftdrag", blade_added_mass="patton")
+    with pytest.raises(ValueError, match="oar_bending=False"):
+        DynamicOarSimulator(boat, **kw)
+    assert DynamicOarSimulator(boat, oar_bending=False, **kw).oar_bending is None

@@ -9,19 +9,34 @@ shaft were rigid and hinged ``K_ang / K_lin`` inboard of the blade root, with a 
 Tested against their measured trial (SOURCES §185-186, ``research/blade/oar_bending.py``): bending from the measured
 moment improves every blade law 10-30%; solved from the law's own load it is stable.
 
-**Scull.** No bench law of this form is published for a scull. Laschowski, Nolte, Adamovsky & Alexander (2015) [LNA15]
-give a sculling oar's deflection angle at the blade end, 1.18 deg at 201 N there. With the shaft as a cantilever from
-the oarlock (Euler-Bernoulli, uniform EI, end load F at the tip L_t): ``theta_tip = F L_t^2 / (2 EI)`` gives EI; the
-slope and deflection at the blade root ``x`` follow, so ``K_ang = 2 EI L_t / (x (2 L_t - x))`` and
-``f / phi = x (3 L_t - x) / (3 (2 L_t - x))``. The same beam formula on [RLBQV19]'s oar gives f/phi = 0.935 m against
-their bench's 0.861 m, so the hinge picture holds to 8%. **Derived, not measured**, and the shafts are not uniform
-([LNA15]: up to 80% stiffer toward the blade).
+**Scull.** No bench law of this form is published for a scull. Laschowski's thesis (Western Ontario 2014) [L14],
+Chapter 2, clamped Concept2 Skinny sculls at the handle and the sleeve and hung up to 201.04 N on the blade end of
+the shaft, L_b = 1.279-1.319 m from the sleeve: the medium shafts' blade-end slope was 4.42-4.86 deg at 201.04 N
+(Table 3; extra-soft 5.85-6.26 deg), so as a uniform cantilever ``EI = W L_b^2 / (2 theta)``, 2099 N m^2 for the
+medium shaft at 2.68 m (Table 2's measured EI near the blade, 1992-2169 N m^2, agrees). On the boat's own scull, with
+the load at the blade centre ``c`` and the blade rigid beyond its root ``x``: ``K_ang = 2 EI c / (x (2 c - x))`` and
+``f / phi = x (3 c - x) / (3 (2 c - x))``. The same beam formula on [RLBQV19]'s oar gives f/phi = 0.935 m against
+their bench's 0.861 m, so the hinge picture holds to 8%. **Derived from measured deflections**, and the shafts are not
+uniform (most compliant near the sleeve). Until 2026-11-03 this law was built from "1.18 deg at 201 N", which is the
+largest DIFFERENCE stiffness or length made to that slope (the published abstract, Laschowski et al. 2017, Sports
+Biomech. 16(1)), not the slope itself: it was about nine times too stiff (SOURCES sec. 217).
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 import numpy as np
+
+
+def _l14_ei(theta_deg: float, beam: float, load: float = 201.04) -> float:
+    """``EI = W L_b^2 / (2 theta)``: a uniform end-loaded cantilever's flexural rigidity from its end slope."""
+    return load * beam ** 2 / (2.0 * np.radians(theta_deg))
+
+
+#: [L14] Table 3 at 2.68 m (L_b 1.299 m), mean of the port and starboard shafts: medium 4.77 / 4.49 deg, extra-soft
+#: 5.98 / 6.13 deg at 201.04 N.
+L14_MEDIUM_EI = _l14_ei(0.5 * (4.77 + 4.49), 1.299)
+L14_EXTRA_SOFT_EI = _l14_ei(0.5 * (5.98 + 6.13), 1.299)
 
 
 @dataclass(frozen=True)
@@ -46,15 +61,16 @@ class OarBending:
         return cls(2948.0, 2948.0 / 3424.1, "[RLBQV19] eq. 1, sweep oar on the rotating arm")
 
     @classmethod
-    def laschowski2015_scull(cls, outboard_centre: float, blade_length: float,
-                             tip_load: float = 201.0, tip_angle_deg: float = 1.18) -> "OarBending":
-        """[LNA15]'s scull deflection through a uniform cantilever from the oarlock (derived; see the module notes)."""
-        x = float(outboard_centre) - 0.5 * float(blade_length)          # blade root from the pin
-        tip = float(outboard_centre) + 0.5 * float(blade_length)        # blade end from the pin
-        ei = tip_load * tip ** 2 / (2.0 * np.radians(tip_angle_deg))
-        k_ang = 2.0 * ei * tip / (x * (2.0 * tip - x))
-        ratio = x * (3.0 * tip - x) / (3.0 * (2.0 * tip - x))
-        return cls(float(k_ang), float(ratio), "[LNA15] 1.18 deg at 201 N, uniform cantilever (derived)")
+    def laschowski2014_scull(cls, outboard_centre: float, blade_length: float,
+                             ei: float = None) -> "OarBending":
+        """[L14]'s measured medium scull shaft as a uniform cantilever on this scull (derived; see the module notes).
+        ``ei`` overrides the flexural rigidity, N m^2 (``L14_EXTRA_SOFT_EI`` for the extra-soft shaft)."""
+        ei = L14_MEDIUM_EI if ei is None else float(ei)
+        c = float(outboard_centre)                                      # the load: the blade centre
+        x = c - 0.5 * float(blade_length)                               # blade root from the pin
+        k_ang = 2.0 * ei * c / (x * (2.0 * c - x))
+        ratio = x * (3.0 * c - x) / (3.0 * (2.0 * c - x))
+        return cls(float(k_ang), float(ratio), "[L14] EI %.0f N m^2, uniform cantilever (derived)" % ei)
 
 
 def beam_hinge_ratio(root: float, tip: float) -> float:

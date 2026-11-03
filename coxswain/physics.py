@@ -167,6 +167,11 @@ class PhysicsProfile:
     #: these joints on their sourced time course. Empty ships (the ergometer keyframes' own timing);
     #: ``("pitto2024_trunk",)`` is the trunk on 12 on-water scullers' timing (SOURCES sec. 211, 213).
     body_clocks: tuple = ()
+    #: The oar shaft's bending (:mod:`coxswain.crew.oar_bending`): ``None`` ships (the rigid oar); ``"sourced"``
+    #: bends sculls by [L14]'s measured shaft as a quasi-static hinge under the sweep catch; sweep oars stay rigid
+    #: (their bench law lags into the finish). No profile sets it: a default for part of 2026-11-03, withdrawn the same
+    #: day on the evidence in SOURCES sec. 217.
+    oar_bending: Optional[str] = None
     #: Lift law of the skeg and rudder; see
     #: :func:`~coxswain.hydro.appendages.lift_coefficient_at`.  ``"legacy"`` ships;
     #: ``"whicker_fehlner"`` is [WF58] eq. [1] as printed (SOURCES sec. 168-169).
@@ -349,6 +354,10 @@ class PhysicsProfile:
             boat.roll_friction = self.roll_friction
         if self.body_clocks:
             _set_body_clocks(boat, tuple(self.body_clocks))
+        if self.oar_bending == "sourced":
+            boat.oar_bending = _sourced_bending(boat)
+        elif self.oar_bending is not None:
+            raise ValueError("oar_bending is None or 'sourced', not %r" % (self.oar_bending,))
         if self.fin_law != "legacy":
             _set_fin_law(boat, self.fin_law, float(self.fin_reflection),
                          float(self.fin_crossflow))
@@ -407,6 +416,21 @@ def _set_segment_com(boat, mode):
         member.rower.segment_com = mode
     boat._crew_group_cache = None
     boat.__dict__.pop("_stroke_tables", None)
+
+
+def _sourced_bending(boat):
+    """The sourced bending law for ``boat``'s oars: [L14]'s measured scull shaft through a uniform cantilever on the
+    rig's own scull (``coxswain.crew.oar_bending``). Sweep oars stay rigid by default: under [RLBQV19]'s bench law the
+    eight's blades build a 20-38 deg lag into the finish and its energy efficiency falls from 0.805 to 0.392 (SOURCES
+    sec. 217); ``OarBending.robert2019_sweep()`` remains an explicit study option until that is understood."""
+    from .crew.oar_bending import OarBending
+    rig = getattr(boat, "rig", None)
+    if rig is None:
+        return None
+    if bool(getattr(rig, "is_sweep", True)):
+        return None
+    oar = rig.seats[0].oarlocks[0].oar
+    return OarBending.laschowski2014_scull(float(oar.blade_centre_outboard), float(oar.blade_length))
 
 
 def merged_body(body, names):
@@ -530,6 +554,9 @@ PROFILES: Dict[str, PhysicsProfile] = {
         roll_friction="kato",
         # the trunk on the on-water population's timing (SOURCES sec. 211, 213; user decision 2026-11-02)
         body_clocks=("pitto2024_trunk",),
+        # oar bending ("sourced") was a default for a few hours on 2026-11-03 and was withdrawn the same day: with
+        # the scull's measured stiffness rung 2 moves away from both athletes and the sweep law lags into the finish
+        # (SOURCES sec. 217). Rigid until the bending model is fixed; the option stays.
         # Whicker & Fehlner's eq. [1] for the fins, since 2026-09-29 (SOURCES sec. 169).
         # Reflection 2 is their definition (the ground board); the hull as a full image
         # plane is a named choice, swept 1-2 in the study. Refitting the Munk factor by
@@ -564,6 +591,9 @@ PROFILES: Dict[str, PhysicsProfile] = {
         roll_friction="kato",
         # the trunk on the on-water population's timing (SOURCES sec. 211, 213; user decision 2026-11-02)
         body_clocks=("pitto2024_trunk",),
+        # oar bending ("sourced") was a default for a few hours on 2026-11-03 and was withdrawn the same day: with
+        # the scull's measured stiffness rung 2 moves away from both athletes and the sweep law lags into the finish
+        # (SOURCES sec. 217). Rigid until the bending model is fixed; the option stays.
         fin_law="whicker_fehlner",
         fin_reflection=2.0,
         fin_crossflow=0.80,

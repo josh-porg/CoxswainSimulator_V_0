@@ -1398,7 +1398,21 @@ oarlock and stretcher forces: the angle rounds smoothly through the finish.
 Figure 6 (Nolte, 1984) is an *idealised* pull falling to zero at the finish.
 Both qualitative; no deceleration law is given.
 
-### [LNA15] Laschowski, Nolte, Adamovsky & Alexander (2015) — oar-shaft stiffness
+### [L14] Laschowski (2014), MSc thesis, Western Ontario — oar-shaft stiffness, measured (added 2026-11-03)
+*The effects of oar-shaft stiffness and length on rowing biomechanics* (UWO etd 2270; open;
+`data/local/literature/laschowski2015_thesis/`). Chapter 2: Concept2 Skinny sculls, medium and extra-soft, port and
+starboard, 2.66–2.70 m, clamped at the handle and the sleeve (0.715 m apart), loads up to 201.04 N hung at the blade end
+of the shaft, L_b 1.279–1.319 m from the sleeve; deflection at six stations. **Blade-end slope at 201.04 N: medium
+4.42–4.86°, extra-soft 5.85–6.26°** (Table 3); EI by station 1247–2169 N·m² (medium), 920–1658 (extra-soft) (Table 2),
+most compliant near the sleeve. Used: the scull bending law (`OarBending.laschowski2014_scull`, SOURCES §217). The
+journal version is Laschowski, Hopkins, de Bruyn & Nolte (2017), *Sports Biomech.* 16(1), 76–86.
+
+### [LNA15] (superseded 2026-11-03 — misread; see [L14] and §217) Laschowski et al. — oar-shaft stiffness
+
+**Correction (§217):** the "1.18° at 201 N" below is the abstract's *largest effect of stiffness and length* on the
+blade-end slope (a difference between shafts), not the slope; the shafts bend 4.4–6.3° at that load ([L14] Table 3).
+The author list and journal given here were also wrong (see [L14]). Everything derived from the 1.18° — the scull
+bending law until 2026-11-03, §183's 17 ms, §193's scull bending, §210's exclusion of oar bending — is listed in §217.
 *The effects of oar-shaft stiffness and length on rowing biomechanics*, Proc.
 IMechE Part P. Two sets of **sculling** oars of different design stiffness, at
 three lengths from 2.66 to 2.70 m, statically loaded to **201 N at the blade
@@ -14585,3 +14599,123 @@ isometric, isokinetic and passive tests, polynomial torque-angle, torque-velocit
 for general, female and male models (Appendix B). It covers **elevation 60–160°** in the **elevating** (lifting)
 direction; a rower's shoulder works at about +46° flexion to −41° extension (Pitto et al. 2024) **in extension**
 (pulling down and back). Not applicable; the shoulder stays unsourced (DATA_REQUESTS §13 item 4).
+
+## 217. Oar bending made a research default and withdrawn the same day: the scull's stiffness was misread, the sweep law lags into the finish, and the blade efficiency is now scored as Kleshnev measured it (2026-11-03)
+
+The user: "oar bending yes, continue progress."
+
+**1. The default, and what the scorecard said.** `PhysicsProfile.oar_bending = "sourced"` in research and learned sets
+`boat.oar_bending`; `DynamicOarSimulator` reads the boat's own law unless one is passed (`_resolve_bending`: `None` the
+boat's, `False` rigid; an explicit law outside the sweep catch is refused, a boat's own is dropped there; with the blade
+added mass it is refused, since the coupled added-mass solve takes the blade's acceleration from the shaft alone, 12 %
+off on the handle-mode derivative check). The matched torque already carries bending in `_match_key`. Shipped is
+rigid. With sweep oars on [RLBQV19]'s bench law the scorecard
+(`data/local/validation/scorecard_research_2026-11-03_bending.log`) failed the four's blade efficiency, 0.728 against
+0.754–0.816, and passed the eight's at 0.760.
+
+**2. What the band measures, read before anything was adjusted** (Kleshnev, *Propulsive efficiency of rowing*, ISBS;
+`data/local/literature/kleshnev_propulsive/`). Three differences from what the scorecard computed (STRUCTURAL_ISSUES S12):
+- **Energy, not an average of ratios.** eb = (Ph − Pwb)/Ph, eq. 3, with Pwb = Fb·vb (eq. 2): blade force from the
+  measured handle force × gearing, normal to the shaft at the blade centre; the blade's track from the **gate** angle and
+  boat velocity. The scorecard took a load-weighted mean of 1 − |slip|/|blade speed| per sample. Now
+  `StrokeRecord.blade_efficiency_k07` is his: per sample handle power Fn·u and waste Fn·w on the gate track,
+  e = 1 − ΣFn·w/ΣFn·u. On a quasi-static shaft the stored bend energy ∫M dφ is returned by the release, so his figure
+  hardly sees the bend — a soft shaft's gate-track and blade-track energy efficiencies agree to 0.02 (test) — which is
+  why it can be measured on bending oars. (A first attempt scored the slip ratio on the gate track, 0.634 / 0.620 for the
+  eight and four: a ratio average does not cancel the bend's motion. Withdrawn.)
+- **By boat type.** His Table 2: single 78.5 ± 3.1 %, pair/double 81.9 ± 4.7, four/quad 83.5 ± 6.7, eight 85.3 ± 5.5.
+  Each boat is now scored on its own band (`Target.boat_bands`); the eight and four had been held to the single's.
+- On a rigid oar the two measures nearly coincide: the rigid eight gives 0.8055 (slip ratio) and 0.8050 (energy).
+
+| research profile, 360 W per rower, rate 28 | speed | slip ratio | **Kleshnev energy (gate)** | band | |
+|---|---|---|---|---|---|
+| eight, rigid | 6.00 m/s | 0.806 | **0.805** | 0.798–0.908 | pass |
+| eight, [RLBQV19] bending | 5.91 m/s | 0.760 | **0.392** | 0.798–0.908 | **fail** |
+| four, rigid | 5.25 m/s | 0.777 | **0.777** | 0.768–0.902 | pass |
+| four, [RLBQV19] bending | 5.22 m/s | 0.728 | **0.379** | 0.768–0.902 | **fail** |
+
+**3. Why the sweep law fails: the blade lags into the finish** (`research/blade/bending_solve_check.py`,
+`efficiency_definition.py --bend`). On the eight the bend is 9° mid-drive, as the load would give, but it **grows toward
+the finish**: 20.5° at the finish angle and up to 33–48° (K φ up to 1705 N·m against a peak handle torque of 849 N·m),
+lagging in the driving sense, carried into the next catch. Every step's balance is solved (no bracket fallback; the
+solver now counts and warns when one occurs, S13). The oar's angle is the crew's clock, which cannot give way to the
+blade, and with the soft hinge at race speed the water holds the blade back as the shaft stops. Its energy efficiency
+falls to 0.39. Whether this is the quasi-static hinge without the shaft's inertia and damping, the angle release
+holding the blade in after it stops driving, or the sweep law's hinge (0.861 m inboard of the root) is open.
+(`data/local/validation/efficiency_definition_k07_2026-11-03.log`, `efficiency_definition_bend_2026-11-03.log`.)
+
+**4. The scull's stiffness was misread** (`data/local/literature/laschowski2015_thesis/`). The "[LNA15]" entry's 1.18° at
+201 N is, in the published abstract (Laschowski, Hopkins, de Bruyn & Nolte, *Sports Biomech.* 16(1), 2017; the entry's
+author list and journal were also wrong), "the effect of oar shaft stiffness and length on the deflection angle" — the
+largest **difference** between shafts, not the deflection. The open thesis (Laschowski, Western Ontario 2014, Chapter 2)
+has the measurement: Concept2 Skinny sculls clamped at the handle and sleeve, 201.04 N hung on the blade end of the
+shaft 1.279–1.319 m out; the medium shafts' end slope is **4.42–4.86°** (Table 3; extra-soft 5.85–6.26°), EI 2099 N·m²
+as a uniform cantilever, matching the thesis's own Table 2 near the blade (1992–2169 N·m²). The law was ~9× too stiff.
+Rebuilt as `OarBending.laschowski2014_scull` ([L14]): K_ang 2386 N·m/rad on the catalogue single (was 20465); ~9.7° at
+400 N·m. In a single at 450 N·m peak torque the bend peaks at 13.4° mid-drive, where the load does, and is back to 1° at
+the finish: no finish lag (`data/local/validation/bending_solve_check_1x_2026-11-03.log`). Concept2's own spec agrees in
+size (scull medium 4.5 cm at 98.1 N, 1.50 m from the support: EI ≈ 2450 N·m²).
+
+Results that used the misread stiffness and are re-check triggers (CALIBRATION_REGISTER):
+- §183: "shaft bend delays the blade about 17 ms" against [BR24]'s back-half gap — about ten times that now.
+- §193: scull bending "+1 to +3 % at equal power" — superseded by rung 2 below.
+- §210: bending was excluded from the chain stretch because the inboard bent ~6 mm at 500 N; with the thesis's outboard
+  EI a uniform inboard would bend ~5 cm. The thesis did not measure the inboard (handle sections are thicker), so this
+  is open, but part of the 11–14 cm "stretch" (an athlete-measured value) may be the oar.
+- §216: rung 2's bending rows — re-run below.
+
+**5. Rung 2 with the corrected scull** (`rung2_population.py --blade crossflow_normal --catch buried --bending`,
+`data/local/crew/logs/rung2_population_crossflow_buried_as-built_bending_l14.log`):
+
+| | measured | rigid (§213) | misread scull (§216) | **[L14] scull** |
+|---|---|---|---|---|
+| [CR06] rung 2 | 4.191 m/s, IVV 49.4 %, 261 W | IVV 51.5 % | 4.163 m/s, 51.9 %, 262 W | **4.159 m/s, 53.4 %, 290 W** |
+| [BR24] rung 2 | 4.641 m/s, IVV 49.1 %, 432 W | IVV 50.8 % | 4.794 m/s, 50.5 %, 423 W | **4.116 m/s, 60.7 %, 341 W** |
+| [CR06] rung 1 (law imposed) | | | 51.6 % | 53.5 % |
+| [BR24] rung 1 | | | 56.3 % | 57.5 % |
+
+With the shaft as soft as a measured one, both athletes move away from their measurements, [BR24] by 11.6 points of
+IVV, and the power matching fails (290 W against 261; 341 against 432). The trunk-free run collapses ([CR06] 1.34 m/s,
+IVV 150 %, 60 W). Real oars bend this much and real crews row at 49 %, so it is the bending model — the quasi-static
+hinge driven by a crew whose oar angle cannot yield, the bend updated after each step rather than inside it, or the
+angle release — not the stiffness, that is wrong.
+
+**Decision (2026-11-03): the default is withdrawn**; research and learned row the rigid oar again, as before today.
+The user approved bending on §216's evidence, which rested on the misread stiffness; on the measured stiffness the model
+moves away from every check it was tested against. `PhysicsProfile.oar_bending = "sourced"` remains (sculls by [L14],
+sweep oars rigid), and both laws remain study options. The scorecard of the research profile is §213's (rigid), now
+scored on Kleshnev's measure and bands: eight 0.805 in 0.798–0.908, four 0.777 in 0.768–0.902, both pass. Next for
+bending: the shaft's own dynamics (inertia and damping, not quasi-static), the bend solved inside the step, and a
+release that takes the blade out when it stops driving; tested first on [RLBQV19]'s trial and the single.
+
+**6. Bending with the trunk free, on the misread (stiff) scull** (`rung2_trunk_layers.py`, intrinsic + reflex +
+long-latency PD with the predictor, 100 ms feedforward and feedback delays, efference-copy internal model):
+
+| | trunk error max | IVV (measured 49.4 / 49.1 %) | power | speed at measured power |
+|---|---|---|---|---|
+| [CR06] rigid / bending | 12.8° / 11.4° | 51.7 / **59.4 %** | 257 / 241 W | −0.5 / −5.2 % |
+| [BR24] rigid / bending | 9.7° / 5.6° | 56.2 / **58.7 %** | 411 / 334 W | +3.1 / −0.4 % |
+
+The trunk is held better with the bending oar, but the stroke is weaker and swings more: with the trunk on its path
+(§216) bending moved IVV by 0.4 points; with the trunk free it moves it 2.5–7.7 points. The trunk-free stroke is not
+power-matched (the clock is solved from the virtual work at each instant, and the bent shaft stores and returns some of
+it), so the comparison mixes a power change with the swing. A shaft bending ~1° at 400 N·m should not move IVV by 8
+points; the trunk-free stroke is that sensitive to the blade's timing, and the cause is not isolated. With the
+corrected scull it collapses (section 5). The trunk-free results stand on the rigid oar.
+
+**7. The trunk's internal model learning the clock** (`rung2_trunk.TrunkClockSim(ff_model="learned")`, `--ff-model
+learned`). §215's feedforward knows the clock's acceleration τ'' from the hands' own command (an efference copy). A
+model that does not need it: the previous stroke's clock speed against stroke position, τ'_L(τ), corrected by the
+delayed perception of the current stroke's departure,
+τ̂' = τ'_L(τ) + [τ'(t − d) − τ'_L(τ(t − d))], τ̂'' = dτ'_L/dτ · τ̂'. It collapses the stroke (both runs with the
+bending oar, the same build as section 3's):
+
+| | speed | IVV | power | trunk error max |
+|---|---|---|---|---|
+| [CR06] efference / learned | 3.87 / 2.36 m/s | 59.4 / **90.1 %** | 241 / 103 W | 11.4° / 22.3° |
+| [BR24] efference / learned | 4.24 / 3.01 m/s | 58.7 / **80.0 %** | 334 / 139 W | 5.6° / 19.3° |
+
+The hands' clock is itself solved from the hip moment, so a trunk feedforward that rides the clock needs its
+*instantaneous* acceleration; the learned profile errs exactly where the clock departs from the last stroke, and the
+error feeds back into the clock through the hip moment (§206's neutral-delay coupling). The efference copy stays the
+model; the result says the internal model must share the hands' command, not merely remember the stroke.

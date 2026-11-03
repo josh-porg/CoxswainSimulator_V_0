@@ -67,6 +67,7 @@ def _handle_sim(mass):
     boat.power_scales = np.ones(boat.n_seats)
     return DynamicOarSimulator(boat, peak_torque=0.0, catch="sweep", crew="handle",
                                blade_law="liftdrag", blade_added_mass=mass,
+                               oar_bending=False,   # the added mass is solved on a rigid oar (SOURCES sec. 217)
                                coxswain=Coxswain(rudder_override=lambda t, s: 0.0), fast=True)
 
 

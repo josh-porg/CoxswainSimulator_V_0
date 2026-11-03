@@ -55,17 +55,21 @@ BLADE = "slip"
 H10_TANGENTIAL = 0.25                                            # SOURCES §200: [H10]'s share needs x 0.22-0.29
 
 
-#: the oar shaft bends as a quasi-static hinge ([LNA15]'s scull stiffness, coxswain.crew.oar_bending; SOURCES §193, §216)
+#: the oar shaft bends as a quasi-static hinge ([L14]'s measured scull shaft, SOURCES sec. 217, coxswain.crew.oar_bending; SOURCES §193, §216)
 BENDING = False
+#: force the rigid oar even where the physics profile bends it (research default since 2026-11-03, SOURCES §217)
+RIGID = False
 
 
 def blade_options(boat):
     """Simulator options for the blade under test (``BLADE``), and the shaft's bending if ``BENDING``."""
     opts = _blade_law_options(boat)
-    if BENDING:
+    if RIGID:
+        opts["oar_bending"] = False
+    elif BENDING:
         from coxswain.crew.oar_bending import OarBending
         oar = boat.rig.seats[0].oarlocks[0].oar
-        opts["oar_bending"] = OarBending.laschowski2015_scull(float(oar.blade_centre_outboard), float(oar.blade_length))
+        opts["oar_bending"] = OarBending.laschowski2014_scull(float(oar.blade_centre_outboard), float(oar.blade_length))
     return opts
 
 
@@ -292,7 +296,7 @@ def main():
                     help="the legs' and trunk's travel from a population by name (coxswain.crew.body_options.TRAVELS), "
                          "e.g. k05_racing (SOURCES sec. 212)")
     ap.add_argument("--bending", action="store_true",
-                    help="the oar shaft bends ([LNA15]'s scull stiffness as a quasi-static hinge; SOURCES sec. 216)")
+                    help="the oar shaft bends ([L14]'s measured scull shaft as a quasi-static hinge; SOURCES sec. 216-217)")
     a = ap.parse_args()
     global BLADE, BODY, BENDING
     BENDING = bool(a.bending)

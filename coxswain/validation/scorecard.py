@@ -91,6 +91,10 @@ class Settled:
     #: Force-weighted blade efficiency MEASURED on a dynamic-oar run; ``None``
     #: for a prescribed-oar run, whose level is computed from the schedule.
     blade_efficiency: Optional[float] = None
+    #: Kleshnev's blade efficiency on a dynamic-oar run: energy over the
+    #: drive on the gate-angle track, the published band's own definition
+    #: (``StrokeRecord.blade_efficiency_k07``).
+    blade_efficiency_k07: Optional[float] = None
 
     @property
     def efficiency(self) -> float:
@@ -247,7 +251,8 @@ def settle_dynamic(boat, watts: float, start: float,
     drag = _drag_at(sim, boat, mean_speed)
     return Settled(scale=float(watts), speed=mean_speed, surge_swing=swing,
                    crew_power=crew, drag_power=drag * mean_speed,
-                   blade_efficiency=run.settled_blade_efficiency())
+                   blade_efficiency=run.settled_blade_efficiency(),
+                   blade_efficiency_k07=run.settled_blade_efficiency(track="k07"))
 
 
 def efficiency_at(boat, scale: float, start: float):
@@ -355,6 +360,27 @@ def _blade_efficiency_level(boat, speed: float) -> Optional[float]:
     return float((eff * weight).sum() / total)
 
 
+def _k07_or_own(settled) -> Optional[float]:
+    """Kleshnev's energy efficiency, or the run's own slip ratio where no
+    K07 figure was kept (a record built by hand)."""
+    if settled.blade_efficiency_k07 is not None:
+        return settled.blade_efficiency_k07
+    return settled.blade_efficiency
+
+
+def _level_detail(boat, middle) -> str:
+    if not _uses_dynamic_oar(boat):
+        return "force-weighted, at %.2f m/s" % middle.speed
+    if middle.blade_efficiency_k07 is None:
+        return ("force-weighted over the drive, measured on the run, at %.2f m/s"
+                % middle.speed)
+    text = ("Kleshnev's energy efficiency over the drive on the gate-angle "
+            "track, measured on the run, at %.2f m/s" % middle.speed)
+    if middle.blade_efficiency is not None:
+        text += "; load-weighted slip ratio %.3f" % middle.blade_efficiency
+    return text
+
+
 def measure(boat, name: str, profile, runs=None, blade_law: Optional[str] = None):
     """Score every target that can be run against this boat.
 
@@ -383,9 +409,13 @@ def measure(boat, name: str, profile, runs=None, blade_law: Optional[str] = None
         # A dynamic-oar boat carries no ``blade_model`` to read the level
         # from, and should not: its efficiency is a property of the run, not
         # of a schedule.  So it is MEASURED there, on the states the boat
-        # actually had, and scored against the same band.
+        # actually had, and scored against the same band -- on the band's own
+        # definition (STRUCTURAL_ISSUES S12): Kleshnev's eb = (Ph - Pwb) / Ph
+        # in energy over the drive, the blade track from the gate angle.  The
+        # project's load-weighted slip ratio is a different quantity, kept in
+        # the detail.
         "blade_efficiency_level": (
-            middle.blade_efficiency if _uses_dynamic_oar(boat)
+            _k07_or_own(middle) if _uses_dynamic_oar(boat)
             else _blade_efficiency_level(boat, middle.speed)),
     }
     details = {
@@ -402,10 +432,7 @@ def measure(boat, name: str, profile, runs=None, blade_law: Optional[str] = None
             % (middle.speed, middle.crew_power / boat.n_seats),
         "surge_swing": "at %.2f m/s, rate %.1f" % (middle.speed,
                                                    boat.timing.rate),
-        "blade_efficiency_level": (
-            "force-weighted over the drive, measured on the run, at %.2f m/s"
-            if _uses_dynamic_oar(boat)
-            else "force-weighted, at %.2f m/s") % middle.speed,
+        "blade_efficiency_level": _level_detail(boat, middle),
     }
 
     scores = []
@@ -425,7 +452,7 @@ def measure(boat, name: str, profile, runs=None, blade_law: Optional[str] = None
             scores.append(Score(target, label, name, None, "n/a",
                                 "no measurement on this profile"))
             continue
-        low, high = target.band
+        low, high = target.band_for(name)
         status = "pass" if low <= value <= high else "fail"
         scores.append(Score(target, label, name, float(value),
                             status, details.get(target.key, "")))
@@ -454,8 +481,8 @@ def table(scores) -> str:
     """The scorecard as plain text, widest column first."""
     rows = [("", "boat", "target", "measured", "band", "note")]
     for score in scores:
-        band = ("%.3g - %.3g" % score.target.band
-                if score.target.band else "-")
+        own = score.target.band_for(score.boat)
+        band = "%.3g - %.3g" % own if own else "-"
         value = "-" if score.value is None else "%.4g" % score.value
         rows.append((score.mark, score.boat, score.target.key, value,
                      band, score.detail))

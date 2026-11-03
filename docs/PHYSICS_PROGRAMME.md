@@ -1233,6 +1233,16 @@ the boat speeds that go with their drive durations).
   (strength data stop short; DATA_REQUESTS §13); the elbow is feasible where in the data. Pitto's EMG (triceps early,
   flexors at 55 %) needs both elbow groups and the shoulder: a co-contracting arm, whose shoulder strength is unsourced.
   Oar bending in rung 2: speed +1.0–1.4 %, IVV ±0.4; a research default is the user's call.
+- **§217 (2026-11-03): oar bending made a research default and withdrawn the same day.** The scull's stiffness had been
+  misread (the abstract's 1.18° is a difference between shafts; the thesis measures 4.4–4.9° at 201 N, ~9× softer);
+  with the measured shaft rung 2 moves away from both athletes (IVV 53.4 / 60.7 %, power unmatched) and the trunk-free
+  stroke collapses; [RLBQV19]'s sweep law lags 20–38° into the finish. The research profile rows rigid again. The
+  scorecard's blade efficiency is now Kleshnev's energy measure, eb = (Ph − Pwb)/Ph on the gate track, on each boat
+  type's band (Table 2): eight 0.805 (0.798–0.908), four 0.777 (0.768–0.902), pass. Blade added mass with bending is
+  refused; the trunk's learned clock model collapses the stroke (the efference copy stays).
+  - *Next for bending:* the shaft's own dynamics instead of the quasi-static hinge, the bend solved inside the step, a
+    release when the blade stops driving; tested on [RLBQV19]'s trial and the single before any boat. The inboard's
+    stiffness, which may be part of the fitted chain stretch (DATA_REQUESTS §15).
 
 ## Calibration and validation data from the squad's own boats (noted 2026-10-08)
 

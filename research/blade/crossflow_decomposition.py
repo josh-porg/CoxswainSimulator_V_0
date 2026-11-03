@@ -11,8 +11,8 @@ measures; thrust-like in [CG07]). Each is swapped on its own here, by blade obje
 - cross-flow normal, [CG07]'s tangential;
 - [CG07] normal, the cross-flow law's (drag-like) tangential.
 
-And each configuration with the scull's derived bending (coxswain/crew/oar_bending.py: [LNA15] through a uniform
-cantilever; ~1 deg at 400 N m). Rung 1 as research/crew/handle_rung1.py (hands on the handle, [K05]'s drive law on each
+And each configuration with the scull's derived bending (coxswain/crew/oar_bending.py: [L14]'s measured shaft through a
+uniform cantilever; ~10 deg at 400 N m since SOURCES sec. 217, ~1 deg before it). Rung 1 as research/crew/handle_rung1.py (hands on the handle, [K05]'s drive law on each
 athlete's own arc and rate), strips across the blade; speed at the athlete's measured power by the cube law.
 
 Outputs: data/local/blade/crossflow_decomposition.json.
@@ -72,7 +72,7 @@ def run(boat, blade, strokes, bending):
     boat.power_scales = np.ones(boat.n_seats)
     lock = boat.rig.seats[0].oarlocks[0]
     sim = DynamicOarSimulator(boat, peak_torque=0.0, catch="sweep", crew="handle", blade_law="liftdrag",
-                              blade_span=float(lock.oar.blade_length), oar_bending=bending, liftdrag_blade=blade,
+                              blade_span=float(lock.oar.blade_length), oar_bending=bending or False, liftdrag_blade=blade,
                               coxswain=Coxswain(rudder_override=lambda t, s: 0.0), fast=True)
     r = sim.run_strokes(int(strokes), surge_speed=4.3)
     last = r.strokes[-3:]
@@ -91,7 +91,7 @@ def main():
         print("\n%s measured: %.3f m/s, IVV %.1f%%, %.0f W" % (name, m["speed"], 100 * m["ivv"], m["power"]), flush=True)
         probe = R.boat_for(name, m, "on-water", drive_law=True)
         oar = probe.rig.seats[0].oarlocks[0].oar
-        bend = OarBending.laschowski2015_scull(float(oar.blade_centre_outboard), float(oar.blade_length))
+        bend = OarBending.laschowski2014_scull(float(oar.blade_centre_outboard), float(oar.blade_length))
         for label, blade in blades(oar, float(oar.blade_area), float(probe.water.density)).items():
             for bending in (None, bend):
                 boat = R.boat_for(name, m, "on-water", drive_law=True)

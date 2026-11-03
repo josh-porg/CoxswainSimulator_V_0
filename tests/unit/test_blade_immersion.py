@@ -43,6 +43,7 @@ def immersed():
     sim = DynamicOarSimulator(boat, peak_torque=0.0, catch="sweep", crew="handle",
                               blade_law="liftdrag", blade_added_mass="patton",
                               blade_immersion=EntryImmersion(4.0, 1.0),
+                              oar_bending=False,   # the added mass is solved on a rigid oar (SOURCES sec. 217)
                               coxswain=Coxswain(rudder_override=lambda t, s: 0.0), fast=True)
     return sim, sim.run_strokes(3, surge_speed=4.2)
 

@@ -13,7 +13,7 @@ adding a source is an edit to a data structure rather than to control flow.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 __all__ = ["Target", "TARGETS", "ready", "pending", "by_key"]
 
@@ -44,6 +44,16 @@ class Target:
     #: Minimum blade tier for the target to mean anything. A slip-based
     #: expectation is vacuous against a model with no slip in it.
     min_blade_tier: int = 0
+    #: Bands by boat type, where the source reports them separately: a boat
+    #: named here is scored on its own band, any other on ``band``
+    #: (STRUCTURAL_ISSUES S12: a single's figure is not an eight's).
+    #: Pairs ``(boat, (low, high))``, a tuple so the target stays hashable.
+    boat_bands: Optional[Tuple[Tuple[str, Tuple[float, float]], ...]] = None
+
+    def band_for(self, boat: str) -> Optional[Tuple[float, float]]:
+        """The band ``boat`` is scored against."""
+        own: Dict[str, Tuple[float, float]] = dict(self.boat_bands or ())
+        return own.get(boat, self.band)
 
 
 #: The battery.  Ordered roughly by how much each would change a result.
@@ -128,8 +138,21 @@ TARGETS = (
         source="Kleshnev, Propulsive efficiency of rowing",
         units="fraction",
         band=(0.754, 0.816),
+        # Table 2, mean +/- SD by boat type: pair and double 81.9 +/- 4.7,
+        # four and quad 83.5 +/- 6.7, eight 85.3 +/- 5.5.
+        boat_bands=(("1x", (0.754, 0.816)),
+                    ("2x", (0.772, 0.866)), ("2-", (0.772, 0.866)),
+                    ("4x", (0.768, 0.902)), ("4-", (0.768, 0.902)),
+                    ("4+", (0.768, 0.902)),
+                    ("8+", (0.798, 0.908))),
         min_blade_tier=1,
-        note="78.5% +/- 3.1% for a single. Vacuous below blade tier 1: "
+        note="78.5% +/- 3.1% for a single; by boat type in Table 2 "
+             "(pair/double 81.9 +/- 4.7, four/quad 83.5 +/- 6.7, eight "
+             "85.3 +/- 5.5), each boat scored on its own. Measured with the blade track "
+             "from the gate angle and boat velocity and the blade force "
+             "from handle force x gearing, i.e. a rigid oar's track; a "
+             "bending model is scored on its gate track the same way "
+             "(STRUCTURAL_ISSUES S12). Vacuous below blade tier 1: "
              "with no slip model the efficiency IS the lumped constant, so "
              "the target would be testing the constant against itself.",
     ),

@@ -180,19 +180,25 @@ def main():
     ap.add_argument("--fb-delay", type=float, default=0.1, help="the long-latency PD's delay ('ll' layer), s")
     ap.add_argument("--predict", action="store_true",
                     help="the 'll' layer acts on the state predicted over its delay (rung 5's predictor)")
+    ap.add_argument("--ff-model", default="efference", choices=["efference", "learned"],
+                    help="how the trunk's internal model knows the clock: the efference copy of tau'' (as before) or "
+                         "the previous stroke's clock, corrected by delayed perception (SOURCES sec. 217)")
     ap.add_argument("--observer", type=float, default=0.0,
                     help="with the predictor, a disturbance observer of this gain, /s (rung 5's: 2)")
+    ap.add_argument("--rigid", action="store_true", help="the rigid oar (the research profile bends it since §217)")
     a = ap.parse_args()
+    RT.RP.RIGID = bool(a.rigid)
     LayersSim.LAYERS = tuple(a.layers)
     LayersSim.PREDICT = bool(a.predict or a.observer)
     LayersSim.OBSERVER = float(a.observer)
     RT.TrunkClockSim = LayersSim                                 # rung2_trunk.make builds this class
     try:
-        out = RT.athletes(a.strokes, ff="internal", ff_delay=a.ff_delay, delay=a.fb_delay, spin=True, efference=True)
+        out = RT.athletes(a.strokes, ff="internal", ff_delay=a.ff_delay, delay=a.fb_delay, spin=True, efference=True,
+                          ff_model=a.ff_model)
     finally:
         RT.TrunkClockSim = _Base
     out["layers"] = list(a.layers)
-    tag = "_".join(a.layers) + ("_pred" if a.predict or a.observer else "") + ("_obs%g" % a.observer if a.observer else "") + ("_ffd%.0fms" % (1000 * a.ff_delay))
+    tag = "_".join(a.layers) + ("_pred" if a.predict or a.observer else "") + ("_obs%g" % a.observer if a.observer else "") + ("_learned" if a.ff_model == "learned" else "") + ("_rigid" if a.rigid else "") + ("_ffd%.0fms" % (1000 * a.ff_delay))
     json.dump(out, open(os.path.join(RT.OUT, "rung2_trunk_layers_%s.json" % tag), "w"), indent=1, default=float)
 
 

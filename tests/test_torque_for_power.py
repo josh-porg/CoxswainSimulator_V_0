@@ -131,7 +131,8 @@ def test_the_factory_passes_the_research_profiles_sweep_catch_through(
     opts = physics.resolve("research").blade_options(boat)     # the profile's blade is in the key (2026-10-31)
     monkeypatch.setitem(DynamicOarSimulator._MATCHED,
                         _match_key(boat, 300.0, "sweep", opts["blade_law"], blade_span=opts["blade_span"],
-                                   coefficients=opts["blade_coefficients"]), 123.0)
+                                   coefficients=opts["blade_coefficients"],
+                                   bending=getattr(boat, "oar_bending", None)), 123.0)   # a profile may bend the oars (sec. 217)
     sim = simulator_for(boat)
     assert sim.catch == "sweep" and sim.peak_torque == 123.0
 

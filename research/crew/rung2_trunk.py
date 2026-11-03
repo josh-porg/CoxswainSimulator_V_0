@@ -67,7 +67,7 @@ class TrunkClockSim(C2.ClockSim):
     """Rung 2 with the trunk's rotation about the hip a state."""
 
     def setup_trunk(self, mode, Q=None, body=None, tau_ff=None, bias=0.0, delay=0.0, wn=WN, zeta=ZETA, lam2=LAM2,
-                    spin=True, ff_delay=0.0, efference=True):
+                    spin=True, ff_delay=0.0, efference=True, ff_model="efference"):
         """``spin``: the upper-body segments' own rotational inertias (de Leva, sagittal axis) in the hip moment.
         ``ff_delay``: the internal model reads the clock's motion this many seconds old, with no prediction.
         ``efference``: True -- it knows the clock's acceleration from its own current command (an efference copy, no
@@ -76,6 +76,14 @@ class TrunkClockSim(C2.ClockSim):
         self.setup_clock(mode, Q, body=body)
         self.tau_ff, self.bias, self.delay = tau_ff, float(bias), float(delay)
         self.spin, self.ff_delay, self.efference = bool(spin), float(ff_delay), bool(efference)
+        #: ``ff_model``: how the internal model knows the clock (SOURCES sec. 217). ``"efference"``: as before (tau''
+        #: from the current command when ``efference``). ``"learned"``: the previous stroke's clock speed against stroke
+        #: position, tau'_L(tau), corrected by the delayed perception of the current stroke's departure from it:
+        #:     tau'_hat = tau'_L(tau) + [tau'(t - d) - tau'_L(tau(t - d))],   tau''_hat = dtau'_L/dtau (tau) tau'_hat
+        #: no knowledge of the true tau''. Until a stroke has been rowed it falls back to the delayed reading.
+        self.ff_model = str(ff_model)
+        self._learned, self._stroke_clock, self._stroke_mark = None, ([], []), None
+        self.tau_hist = []
         self.clock_hist = ([], [], [])                           # t, tau', tau'' (accepted samples)
         self.Kp, self.Kd = wn ** 2 + lam2, 2.0 * zeta * wn
         self._trunk = None                                       # (delta, delta', delta'') while evaluating
@@ -259,10 +267,17 @@ class TrunkClockSim(C2.ClockSim):
                 tdd_seen = float(np.interp(t - self.ff_delay, ct, ctdd))
             else:
                 td_seen, tdd_seen = td, 0.0
+            if self.ff_model == "learned" and self._learned is not None and ct and t - self.ff_delay > ct[0]:
+                lt, ltd, ldd = self._learned
+                tau_d = float(np.interp(t - self.ff_delay, ct, self.tau_hist))
+                x, xd = float(tau) % self._P, tau_d % self._P
+                td_seen = float(np.interp(x, lt, ltd)) + (td_seen - float(np.interp(xd, lt, ltd)))
+                tdd_seen = float(np.interp(x, lt, ldd)) * td_seen
         if clock_given:
             a1 = tdd_given
             if internal and self.ff_delay > 0:
-                ff = self._path_moment(t, base, d00, tau, td_seen, a1 if self.efference else tdd_seen)
+                ff = self._path_moment(t, base, d00, tau, td_seen,
+                                       a1 if (self.efference and self.ff_model != "learned") else tdd_seen)
             else:
                 ff = self._path_moment(t, base, d00, tau, td, a1) if internal else self.tau_ff(tau)
             T = ff + self.bias + fb
@@ -270,7 +285,7 @@ class TrunkClockSim(C2.ClockSim):
             out = d00 + a2 * (d01 - d00)
         else:
             d10, r10, M10 = self._evaluate(t, base, tau, td, 1.0, dl, dld, 0.0)
-            if internal and self.ff_delay > 0 and self.efference:   # tau' perceived late, tau'' from the command
+            if internal and self.ff_delay > 0 and self.efference and self.ff_model != "learned":   # tau'' from the command
                 p0 = self._path_moment(t, base, d00, tau, td_seen, 0.0)
                 p1 = self._path_moment(t, base, d10, tau, td_seen, 1.0)
             elif internal and self.ff_delay > 0:                 # the clock's motion as perceived, d seconds old
@@ -291,7 +306,28 @@ class TrunkClockSim(C2.ClockSim):
             self.trlog.append((t, tau, td, dl, dld, float(fb), float(s)))
             self.tlog.append((t, tau, td, float(a1)))
             self.clock_hist[0].append(t); self.clock_hist[1].append(td); self.clock_hist[2].append(float(a1))
+            self.tau_hist.append(float(tau))
+            if self.ff_model == "learned":
+                self._learn(tau, td)
         return np.concatenate([out, [dld, a2, td, a1]])
+
+    def _learn(self, tau, td):
+        """Collect this stroke's clock speed against stroke position; at the next stroke it becomes the model."""
+        if self._stroke_mark != self._stroke_start:
+            st, sd = self._stroke_clock
+            if len(st) > 50:
+                x = np.mod(np.asarray(st), self._P)
+                o = np.argsort(x)
+                x, v = x[o], np.asarray(sd)[o]
+                keep = np.concatenate([[True], np.diff(x) > 1e-6])
+                x, v = x[keep], v[keep]
+                grid = np.linspace(0.0, self._P, 400, endpoint=False)
+                vg = np.interp(grid, x, v, period=self._P)
+                dv = np.gradient(np.concatenate([vg[-2:], vg, vg[:2]]), grid[1] - grid[0])[2:-2]
+                self._learned = (grid, vg, dv)
+            self._stroke_clock, self._stroke_mark = ([], []), self._stroke_start
+        self._stroke_clock[0].append(float(tau))
+        self._stroke_clock[1].append(float(td))
 
     def _integrate_sweep_catch(self, t_span, y0, dt):
         # rung2_clock's step hook reads tau, tau' from the last two entries, which they still are
@@ -367,7 +403,7 @@ def roundtrip(strokes, bias=0.0, delays=(0.0,)):
     return out
 
 
-def athletes(strokes, ff="reference", ff_delay=0.0, delay=0.0, spin=True, efference=True):
+def athletes(strokes, ff="reference", ff_delay=0.0, delay=0.0, spin=True, efference=True, ff_model="efference"):
     """§181's test with the trunk free: population muscles on the clock; each athlete's own reference hip moment."""
     RP.BLADE = "crossflow_normal"
     C2.TAKEOVER_DEG = C2.BIOROW_CATCH_TO_BURIED_DEG
@@ -403,7 +439,7 @@ def athletes(strokes, ff="reference", ff_delay=0.0, delay=0.0, spin=True, effere
             return k * float(np.interp(np.mod(tau / P, 1.0), ph, q, period=1.0))
         boat2 = C2.R.boat_for(name, m, "on-water", drive_law=True)
         free = make(boat2, "free", Q=Q, tau_ff=("internal" if ff == "internal" else M), ff_delay=ff_delay,
-                    delay=delay, spin=spin, efference=efference)
+                    delay=delay, spin=spin, efference=efference, ff_model=ff_model)
         free.start_state = np.concatenate([run_r.last_states[:, -1], [0.0, 0.0, P, 1.0]])
         try:
             run_f = free.run_strokes(strokes, surge_speed=4.3)

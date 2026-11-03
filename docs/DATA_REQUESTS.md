@@ -904,3 +904,17 @@ Wanted: an averaged seat position or velocity trace against normalised time, on 
 (sculling at 30–34 spm first). The source that has it is BioRow's database (Kleshnev); the newsletter's full text and
 figures are for paying members (biorow.com/membership). Options: a membership (cost: the user's decision), or a request
 to Dr Kleshnev for the averaged curves for research use (his data are commercial; he may decline or ask for a fee).
+
+## 15. Oar stiffness: the inboard of a scull, and a sweep oar's on-water bend *(added 2026-11-03; no target yet, nothing drafted)*
+
+SOURCES §217. The scull's outboard stiffness is now measured ([L14], EI ≈ 2100 N·m² medium), but:
+
+1. **The inboard (handle to pin) is unmeasured.** At the outboard's EI a uniform inboard bends ~5 cm at 500 N, which
+   would be part of the athletes' fitted 11–14 cm "chain stretch" (§210, CALIBRATION_REGISTER). Wanted: a scull's
+   inboard deflection under a handle load with the oar held at the pin, or EI along the whole shaft. Candidates:
+   Concept2's engineering data (they test at the neck only in their spec), or a bench measurement on one of the
+   club's sculls (a weight, a clamp at the button, a ruler: cheap).
+2. **A sweep oar's bend on water at race load**, to test the sweep law that fails at the finish (§217: the model's blade
+   lags 20–38° into the finish). The FlexOmega system measures on-water bending moments (Ungricht et al. 2023,
+   validated); Sliasas's model reports the blade lagging the oarlock for ~45 % of the drive and then leading. Wanted:
+   blade (or tip) deflection against oar angle through the drive for a sweep oar at racing rate.

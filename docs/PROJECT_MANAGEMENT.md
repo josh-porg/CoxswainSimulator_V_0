@@ -94,6 +94,8 @@ Two carriers exist so that a new body or hand mechanism is one small class, not 
 
 **Making a body option a profile default** (as the trunk clock in `research` and `learned`, 2026-11-02): `PhysicsProfile.body_clocks` names the clocks; `apply(boat)` rebuilds each rower with them (`JointDrivenRower.with_body`), and a builder that checks the rower against a hand law while building passes `profile.body(body)` to `Boat(body=...)` so the check sees the body the profile will run. The shipped profile sets none.
 
+**Making a simulator option a profile default** (as oar bending, 2026-11-03): the profile writes the option onto the boat in `apply()` (`boat.oar_bending`), and the simulator reads the boat's own value when its argument is left `None` (`dynamic_oar._resolve_bending`; `False` forces it off). The option must already be in `_match_key` (STRUCTURAL_ISSUES S4). Re-score the scorecard, and check every target is computed the way its source measured it (S12): a new mechanism can move a score by changing what is counted.
+
 The carrier is in the rower's `kinematics_signature` (and so in every cache keyed on it, the matched torque
 among them) only when not default, so existing caches stay valid. No catalogue boat or physics profile sets a
 body option: they are research options until promoted like any other physics (memory: accuracy fixes go to

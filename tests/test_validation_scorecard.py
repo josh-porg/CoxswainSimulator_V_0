@@ -207,3 +207,13 @@ def test_the_scorecard_runs_end_to_end():
     assert rows
     assert all(row.profile == physics.SHIPPED for row in rows)
     assert validation.table(rows).count("\n") >= len(validation.TARGETS)
+
+
+def test_blade_efficiency_is_scored_on_each_boat_types_own_band():
+    """Kleshnev's Table 2 reports the blade efficiency by boat type; an eight is not scored on a single's band
+    (STRUCTURAL_ISSUES S12)."""
+    target = targets.by_key("blade_efficiency_level")
+    assert target.band_for("1x") == target.band
+    assert target.band_for("8+") == pytest.approx((0.798, 0.908))
+    assert target.band_for("4+") == pytest.approx((0.768, 0.902))
+    assert target.band_for("unknown boat") == target.band

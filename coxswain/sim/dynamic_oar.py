@@ -100,6 +100,15 @@ __all__ = ["DynamicOarSimulator", "StrokeRecord", "DynamicRun",
            "simulator_for"]
 
 
+def _slip_efficiency(normal_slip, blade_speed) -> float:
+    """``1 - |normal slip| / |blade speed|``, clipped to [0, 1]; 0 when the
+    blade is not sweeping."""
+    sweep = abs(float(blade_speed))
+    if sweep <= 1e-9:
+        return 0.0
+    return float(np.clip(1.0 - abs(float(normal_slip)) / sweep, 0.0, 1.0))
+
+
 @dataclass(frozen=True)
 class StrokeRecord:
     """What one stroke of the dynamic model did."""
@@ -114,6 +123,14 @@ class StrokeRecord:
     #: see :meth:`DynamicOarSimulator._stroke_blade_efficiency`.  ``None``
     #: when no blade carried load in the stroke.
     blade_efficiency: Optional[float] = None
+    #: Kleshnev's blade efficiency, the published band's own definition:
+    #: energy over the drive on the gate-angle track (see
+    #: :meth:`DynamicOarSimulator._stroke_blade_efficiencies`).
+    blade_efficiency_k07: Optional[float] = None
+    #: The same energy efficiency on the bent blade's own track; equal to
+    #: ``blade_efficiency_k07`` on a rigid oar, and close to it on a bending
+    #: one (the shaft returns what it stores).
+    blade_efficiency_k07_blade: Optional[float] = None
     #: J per rower, sweep catch only: the kinetic energy the prescribed sweep
     #: handed the oars and the rower's reflected inertia by the moment each
     #: blade entered.  The rower's work, as [CR06]'s body supplies it, and
@@ -141,10 +158,22 @@ class DynamicRun:
     def settled_power(self, last: int = 4) -> float:
         return float(np.mean([s.handle_power for s in self.strokes[-last:]]))
 
-    def settled_blade_efficiency(self, last: int = 4) -> Optional[float]:
-        """Mean measured blade efficiency over the last strokes, or ``None``."""
-        values = [s.blade_efficiency for s in self.strokes[-last:]
-                  if s.blade_efficiency is not None]
+    def settled_blade_efficiency(self, last: int = 4,
+                                 track: str = "blade") -> Optional[float]:
+        """Mean measured blade efficiency over the last strokes, or ``None``.
+
+        ``track``: ``"blade"`` the load-weighted slip ratio; ``"k07"``
+        Kleshnev's energy efficiency on the gate-angle track, the published
+        band's definition; ``"k07_blade"`` that on the bent blade's track
+        (see ``StrokeRecord``).
+        """
+        fields = {"blade": "blade_efficiency", "k07": "blade_efficiency_k07",
+                  "k07_blade": "blade_efficiency_k07_blade"}
+        if track not in fields:
+            raise ValueError("track is one of %s, got %r" % (", ".join(fields), track))
+        field = fields[track]
+        values = [getattr(s, field) for s in self.strokes[-last:]
+                  if getattr(s, field) is not None]
         return float(np.mean(values)) if values else None
 
     def drift(self, last: int = 4) -> float:
@@ -374,9 +403,10 @@ class DynamicOarSimulator(RowingSimulator):
         #: Per oar, the blade's rotation about the hinge ``phi`` (positive lagging toward the catch while it
         #: drives) and its rate, updated after every step of the sweep catch's stepping. The loads on the oar
         #: and the hull see it; the post-run blade-efficiency tally reads the stored states and stays rigid.
-        if oar_bending is not None and catch != "sweep":
-            raise ValueError("oar bending is updated step by step under the sweep catch only; catch=%r" % (catch,))
+        oar_bending = _resolve_bending(boat, oar_bending, catch, blade_added_mass)
         self.oar_bending = oar_bending
+        #: Steps at which the bending solve found no balance and took a bracket end (STRUCTURAL_ISSUES S13).
+        self.bend_solve_failures = 0
         self._bend_history = None
         self._bend = np.zeros(self.n_oar_states)
         self._bend_rate = np.zeros(self.n_oar_states)
@@ -518,6 +548,7 @@ class DynamicOarSimulator(RowingSimulator):
                              % (catch, ", ".join(cls.CATCH_RULES)))
         if catch == "rest":
             return closed
+        oar_bending = _resolve_bending(boat, oar_bending, catch, blade_added_mass)   # the boat's own, so the key sees it
         key = _match_key(boat, watts, catch, blade_law, blade_added_mass,
                          blade_span, blade_coefficients, blade_depth, oar_bending, liftdrag_blade)
         if key in cls._MATCHED:
@@ -637,7 +668,12 @@ class DynamicOarSimulator(RowingSimulator):
 
             lo, hi = -phi / step - 60.0, 60.0
             glo, ghi = g(lo), g(hi)
-            pd = brentq(g, lo, hi, xtol=1e-7) if glo * ghi < 0.0 else (lo if abs(glo) < abs(ghi) else hi)
+            if glo * ghi < 0.0:
+                pd = brentq(g, lo, hi, xtol=1e-7)
+            else:
+                # no balance in the bracket: the nearer end is taken, and counted, never hidden (STRUCTURAL_ISSUES S13)
+                pd = lo if abs(glo) < abs(ghi) else hi
+                self.bend_solve_failures += 1
             self._bend_rate[slot] = pd
             self._bend[slot] = phi + step * pd
 
@@ -1430,26 +1466,44 @@ class DynamicOarSimulator(RowingSimulator):
                                accel[6:6 + n]])
 
     # -- measurement ---------------------------------------------------------
-    def _stroke_blade_efficiency(self, times, states) -> Optional[float]:
-        """Force-weighted blade efficiency over one stroke, from the run.
+    def _stroke_blade_efficiency(self, times, states,
+                                 track: str = "blade") -> Optional[float]:
+        """One figure of :meth:`_stroke_blade_efficiencies`: ``"blade"`` the
+        load-weighted slip ratio (the project's own measure), ``"k07"`` the
+        energy efficiency on the gate-angle track (Kleshnev's measurement),
+        ``"k07_blade"`` the same energy efficiency on the bent blade's own
+        track."""
+        got = self._stroke_blade_efficiencies(times, states)
+        if track not in got:
+            raise ValueError("track is one of %s, got %r" % (", ".join(sorted(got)), track))
+        return got[track]
 
-        The same quantity the scorecard's level target has always scored
-        -- ``1 - |slip| / |blade speed|``, weighted by blade load, from
-        :meth:`~coxswain.crew.oarlock.BladeModel.efficiency` -- but fed the
-        states the boat actually had, not a schedule.
+    def _stroke_blade_efficiencies(self, times, states) -> dict:
+        """Blade efficiency over one stroke, from the run, three ways.
 
-        The prescribed version evaluates a PRESCRIBED sweep at ONE speed and
-        weights by the prescribed force curve.  Every one of those three is
-        replaced here: the oar angle and rate are the integrated states, the
-        water speed is the oarlock's instantaneous water-relative speed on
-        the blade normal -- so the crew's surge swing is inside it -- and
-        the weight is the blade force the water actually put on the blade.
-        That is what makes it a measurement of this physics and not a
-        restatement of the old one.
+        ``"blade"``: ``1 - |slip| / |blade speed|`` per sample, weighted by
+        blade load -- :meth:`~coxswain.crew.oarlock.BladeModel.efficiency`
+        fed the states the boat actually had (the oar angle and rate are the
+        integrated states, the water speed is the oarlock's instantaneous
+        water-relative speed on the blade normal, the weight the blade force
+        the water put on the blade).  The bent blade's own angle and rate.
+
+        ``"k07"``: Kleshnev's definition (Propulsive efficiency of rowing,
+        eq. 2-3): ``e_b = (P_h - P_wb) / P_h`` in energy over the drive, with
+        the blade track taken from the GATE angle and the oarlock's velocity
+        (a rigid oar's track) and the blade force normal to the shaft.  Per
+        sample the handle power is ``F_n u`` (``u`` the blade's sweep speed
+        about the pin on that track) and the waste ``F_n w`` (``w`` its
+        water-relative normal speed), so ``e = 1 - sum(F_n w) / sum(F_n u)``.
+        An energy ratio, not an average of ratios: a quasi-static shaft
+        stores ``int M dphi`` and returns it by the release, so a bending
+        oar's gate-track figure is its blade-track one (``"k07_blade"``) to
+        within what the shaft still holds at the release.  That is why the
+        published figure can be measured on bending oars.
 
         Uniform weights in time, which is what a fixed-step run gives.  An
         oar past its finish angle has its blade out and is excluded, as it
-        is from the loads.
+        is from the loads.  A value is ``None`` when no blade carried load.
         """
         n = self.n_oar_states
         angles = states[STATE_SIZE:STATE_SIZE + n]
@@ -1460,6 +1514,7 @@ class DynamicOarSimulator(RowingSimulator):
             history = None
         saved = (self._bend.copy(), self._bend_rate.copy())
         weighted, total = 0.0, 0.0
+        energy = {"k07": [0.0, 0.0], "k07_blade": [0.0, 0.0]}   # [waste, handle]
         for k in range(np.asarray(times).size):
             state = State.from_vector(states[:STATE_SIZE, k])
             if history is not None:                # the bending this sample had (STRUCTURAL_ISSUES S1)
@@ -1497,14 +1552,22 @@ class DynamicOarSimulator(RowingSimulator):
                             continue
                         w_n, _w_a = blade.relative_velocity(
                             b_angle, b_rate, velocity, int(lock.side))
-                        sweep = abs(oar.outboard * b_rate)
-                        efficiency = (float(np.clip(1.0 - abs(w_n) / sweep,
-                                                    0.0, 1.0))
-                                      if sweep > 1e-9 else 0.0)
+                        efficiency = _slip_efficiency(w_n, oar.outboard * b_rate)
                     weighted += load * efficiency
                     total += load
+                    for key, (a, r) in (("k07", (angle, rate)), ("k07_blade", (b_angle, b_rate))):
+                        u = abs(float(oar.outboard) * r)
+                        # the oarlock's water-relative velocity on the blade normal, positive toward the bow
+                        v_n = self._lock_speed_on_normal(state, lock, a) * float(np.cos(a))
+                        slip = u - v_n                      # the blade's water-relative speed on its normal
+                        f = load if slip >= 0.0 else -load  # a drag law pushes along the slip
+                        energy[key][0] += f * slip
+                        energy[key][1] += f * u
         self._bend[:], self._bend_rate[:] = saved
-        return weighted / total if total > 0.0 else None
+        out = {"blade": weighted / total if total > 0.0 else None}
+        for key, (waste, handle) in energy.items():
+            out[key] = 1.0 - waste / handle if handle > 0.0 else None
+        return out
 
     # -- running ---------------------------------------------------------------
     def run(self, duration: float, initial_state: np.ndarray = None,
@@ -1627,16 +1690,22 @@ class DynamicOarSimulator(RowingSimulator):
             per_rower += entry_work / period
 
             mean = float(speed.mean())
+            effs = self._stroke_blade_efficiencies(times, states)
             records.append(StrokeRecord(
                 index=index, mean_speed=mean, drive_duration=drive,
                 finished=finished, handle_power=per_rower,
                 surge_swing=float(np.ptp(speed)) / max(mean, 1e-9),
-                blade_efficiency=self._stroke_blade_efficiency(times,
-                                                               states),
+                blade_efficiency=effs["blade"],
+                blade_efficiency_k07=effs["k07"],
+                blade_efficiency_k07_blade=effs["k07_blade"],
                 entry_work=entry_work))
             t0 = float(times[-1])
             y = states[:, -1]
 
+        if self.bend_solve_failures:
+            import warnings
+            warnings.warn("oar bending: %d steps found no balance and took a bracket end; the bend is not "
+                          "solved there (STRUCTURAL_ISSUES S13)" % self.bend_solve_failures, RuntimeWarning)
         return DynamicRun(strokes=records, period=period,
                           last_time=np.asarray(times, dtype=float).copy(),
                           last_speed=np.asarray(speed, dtype=float).copy(),
@@ -1695,6 +1764,31 @@ def _crossflow_face_on(coefficients):
 def _crossflow_tangential(coefficients) -> bool:
     """False for a ``"crossflow-normal@..."`` name: the cross-flow blade without its tangential load."""
     return not (isinstance(coefficients, str) and coefficients.startswith("crossflow-normal@"))
+
+
+def _resolve_bending(boat, oar_bending, catch, added_mass="none"):
+    """The shaft's bending a simulator runs with: the one passed; ``None`` -- the boat's own, if a physics profile
+    gave it one (``boat.oar_bending``; SOURCES sec. 217); ``False`` -- the rigid oar. A bending passed explicitly
+    under any catch but the sweep is an error; the boat's own is simply not used there (it is updated step by step
+    under the sweep catch only).
+
+    Refused with the blade's added mass: the coupled added-mass solve takes the blade's normal acceleration from the
+    shaft alone, so on a bending oar it leaves out the bend's own motion (12% of the scale on the handle-mode
+    derivative check, 2026-11-03). Pass ``oar_bending=False`` to run the added mass on a rigid oar."""
+    explicit = oar_bending is not None and oar_bending is not False
+    if oar_bending is None:
+        oar_bending = getattr(boat, "oar_bending", None)
+    if oar_bending is False or oar_bending is None:
+        return None
+    if catch != "sweep":
+        if explicit:
+            raise ValueError("oar bending is updated step by step under the sweep catch only; catch=%r" % (catch,))
+        return None
+    if added_mass != "none":
+        raise ValueError("the blade added mass (%r) is solved for a rigid oar and this one bends (%s); pass "
+                         "oar_bending=False to run the added mass rigid" % (
+                             added_mass, "passed" if explicit else "the boat's own, from its physics profile"))
+    return oar_bending
 
 
 def _match_key(boat, watts, catch, blade_law, added_mass="none",
