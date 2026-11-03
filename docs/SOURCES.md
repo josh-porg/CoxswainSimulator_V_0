@@ -14675,8 +14675,8 @@ Results that used the misread stiffness and are re-check triggers (CALIBRATION_R
 | [BR24] rung 1 | | | 56.3 % | 57.5 % |
 
 With the shaft as soft as a measured one, both athletes move away from their measurements, [BR24] by 11.6 points of
-IVV, and the power matching fails (290 W against 261; 341 against 432). The trunk-free run collapses ([CR06] 1.34 m/s,
-IVV 150 %, 60 W). Real oars bend this much and real crews row at 49 %, so it is the bending model — the quasi-static
+IVV, and the power matching fails (290 W against 261; 341 against 432). The trunk-free run collapses for both ([CR06] 1.34 m/s,
+IVV 150 %, 60 W; [BR24] 1.54 m/s, IVV 155 %, 63 W). Real oars bend this much and real crews row at 49 %, so it is the bending model — the quasi-static
 hinge driven by a crew whose oar angle cannot yield, the bend updated after each step rather than inside it, or the
 angle release — not the stiffness, that is wrong.
 
