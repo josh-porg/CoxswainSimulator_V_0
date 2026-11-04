@@ -80,7 +80,7 @@ var Cycle = (function(){
              [["", "None"], ["mild", "Mild"], ["bad", "Bad"]].map(function(o){ return '<button data-sym="' + o[0] + '" aria-pressed="' + ((sym || "") === o[0]) + '">' + o[1] + '</button>'; }).join("") + '</div></div>' +
              '<button id="cyc-wipe" class="linkish">Delete all cycle data from this device</button>';
       }
-      h += '</div><div style="display:grid;gap:10px;align-content:start">';
+      h += '</div><div style="display:grid;gap:10px;align-content:start">' + (S.on ? RP.storageWarning() : "");
       if (S.on && p) h += '<div class="stat"><div class="eyebrow">Today</div><div class="big" style="font-size:24px">' + RP.esc(p.name.charAt(0).toUpperCase() + p.name.slice(1)) + (p.predicted ? " (est.)" : "") + '</div><div class="sub">Day ' + p.day + ' of about ' + avgLen() + '</div></div>';
       al.forEach(function(a){ h += '<div class="alert ' + a[0] + '">' + RP.esc(a[1]) + '</div>'; });
       h += '<p class="quiet" style="font-size:13px">Your plan doesn’t change with your cycle phase: research finds it makes little or no difference to performance or to what you gain from training. How you feel does matter. On a bad day, the symptom check turns your own session into an easy one. Logging your cycle also works as a quiet health check. <a href="textbook.html#ch8">More in the textbook</a>.</p>' +
@@ -92,7 +92,10 @@ var Cycle = (function(){
       if (!S.on) return;
       q("cyc-hc").onchange = function(){ S.hc = this.checked; save(); render(); onChange(); };
       q("cyc-add").onclick = function(){ var v = q("cyc-date").value; if (v && S.starts.indexOf(v) < 0) { S.starts.push(v); save(); render(); onChange(); } };
-      if (q("cyc-len")) q("cyc-len").onchange = function(){ var v = Math.max(18, Math.min(60, +this.value || 28)); S.len = v; save(); render(); onChange(); };
+      if (q("cyc-len")) {
+        q("cyc-len").oninput = function(){ var v = +this.value; if (v >= 18 && v <= 60) { S.len = v; save(); } };
+        q("cyc-len").onchange = function(){ var v = Math.max(18, Math.min(60, +this.value || 28)); S.len = v; save(); render(); onChange(); };
+      }
       container.querySelectorAll("[data-del]").forEach(function(b){ b.onclick = function(){ S.starts = S.starts.filter(function(x){ return x !== b.dataset.del; }); save(); render(); onChange(); }; });
       container.querySelectorAll("[data-sym]").forEach(function(b){ b.onclick = function(){ setSymptom(RP.iso(RP.today()), b.dataset.sym); render(); onChange(); }; });
       q("cyc-wipe").onclick = function(){ if (confirm("Delete all cycle data stored on this device?")) { wipe(); render(); onChange(); } };

@@ -70,11 +70,17 @@ var Log = (function(){
         '<div class="when-grid">' + DAYS.map(function(d){ return '<label class="when"><span>' + d + '</span><input data-when="' + d + '" value="' + RP.esc(S.when[d] || "") + '" placeholder="e.g. 7 am, gym" maxlength="40"></label>'; }).join("") + '</div>' +
         '<div style="display:grid;gap:6px"><div class="eyebrow">If–then backup plans</div>' +
         [0, 1].map(function(k){ return '<input class="ifthen" data-if="' + k + '" value="' + RP.esc(S.ifthen[k] || "") + '" placeholder="' + (k ? "If I miss the morning lift, then I lift after work on Sunday" : "If it’s raining, then I do the long row on the erg") + '" maxlength="120">'; }).join("") + '</div>' +
-        '<p class="quiet" style="font-size:13px;margin:0">Saved only in this browser. <button class="linkish" id="log-export">Save a backup file</button> · <label class="linkish" style="cursor:pointer">Restore from a backup<input type="file" id="log-import" accept="application/json" hidden></label></p>' +
+        RP.storageWarning() +
+        '<p class="quiet" style="font-size:13px;margin:0">Everything you enter on this page is saved as you type, only in this browser on this device. ' +
+        'Safari can clear it if you don’t open the page for a week or so; adding the page to your Home Screen avoids that. <button class="linkish" id="log-export">Save a backup file</button> · <label class="linkish" style="cursor:pointer">Restore from a backup<input type="file" id="log-import" accept="application/json" hidden></label></p>' +
         '</div>';
       container.innerHTML = h;
-      container.querySelectorAll("[data-when]").forEach(function(el){ el.onchange = function(){ var v = el.value.trim(); if (v) S.when[el.dataset.when] = v; else delete S.when[el.dataset.when]; save(); if (Log.onChange) Log.onChange(); }; });
-      container.querySelectorAll("[data-if]").forEach(function(el){ el.onchange = function(){ S.ifthen[+el.dataset.if] = el.value.trim(); save(); }; });
+      // save on every keystroke (a phone tab closed mid-typing never fires "change"); redraw the calendar on change
+      container.querySelectorAll("[data-when]").forEach(function(el){
+        el.oninput = function(){ var v = el.value.trim(); if (v) S.when[el.dataset.when] = v; else delete S.when[el.dataset.when]; save(); };
+        el.onchange = function(){ if (Log.onChange) Log.onChange(); };
+      });
+      container.querySelectorAll("[data-if]").forEach(function(el){ el.oninput = function(){ S.ifthen[+el.dataset.if] = el.value.trim(); save(); }; });
       document.getElementById("log-export").onclick = function(){
         var data = {log: S, cycle: JSON.parse(RP.get("cycle-v1") || "null")};
         var a = document.createElement("a");

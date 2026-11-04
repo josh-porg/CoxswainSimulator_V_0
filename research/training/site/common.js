@@ -7,7 +7,24 @@ var RP = (function(){
   var b64 = function(s){ return Uint8Array.from(atob(s), function(c){ return c.charCodeAt(0); }); };
   var esc = function(s){ return String(s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); };
   function get(k){ try { return localStorage.getItem(NS + k); } catch (e) { return null; } }
-  function set(k, v){ try { if (v === null) localStorage.removeItem(NS + k); else localStorage.setItem(NS + k, v); } catch (e) {} }
+  var asked = false, ok = true;
+  function set(k, v){
+    try { if (v === null) localStorage.removeItem(NS + k); else localStorage.setItem(NS + k, v); ok = true; }
+    catch (e) { ok = false; }
+    // On the first thing she saves, ask the browser to keep this site's data rather than clear it when space runs
+    // low or the site goes unvisited (granted silently by Chrome and Safari for sites in use; Firefox may ask).
+    if (!asked && v !== null && k !== "pass") {
+      asked = true;
+      try { if (navigator.storage && navigator.storage.persist) navigator.storage.persisted().then(function(p){ if (!p) navigator.storage.persist(); }); } catch (e) {}
+    }
+  }
+  // Can this browser save at all? Private windows and blocked site data cannot (or forget on close).
+  function canStore(){
+    try { localStorage.setItem(NS + "probe", "1"); localStorage.removeItem(NS + "probe"); return ok; } catch (e) { return false; }
+  }
+  function storageWarning(){
+    return canStore() ? "" : '<div class="alert warn">This browser isn’t saving what you enter here (a private window, or site data blocked). Open the page in a normal window to keep your entries.</div>';
+  }
   async function decrypt(pass){
     var enc = await (await fetch("data.enc", {cache: "no-cache"})).json();
     var km = await crypto.subtle.importKey("raw", new TextEncoder().encode(pass), "PBKDF2", false, ["deriveKey"]);
@@ -50,6 +67,6 @@ var RP = (function(){
   function today(){ var n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()); }
   function days(a, b){ return Math.round((b - a) / 864e5); }
   function forget(){ set("pass", null); location.reload(); }
-  return {esc: esc, get: get, set: set, unlock: unlock, mmss: mmss, split: split, d: d, iso: iso, MON: MON,
+  return {esc: esc, get: get, set: set, canStore: canStore, storageWarning: storageWarning, unlock: unlock, mmss: mmss, split: split, d: d, iso: iso, MON: MON,
           nice: nice, short: short, today: today, days: days, forget: forget};
 })();
