@@ -14719,3 +14719,59 @@ The hands' clock is itself solved from the hip moment, so a trunk feedforward th
 *instantaneous* acceleration; the learned profile errs exactly where the clock departs from the last stroke, and the
 error feeds back into the clock through the hip moment (§206's neutral-delay coupling). The efference copy stays the
 model; the result says the internal model must share the hands' command, not merely remember the stroke.
+
+## 218. Why bending breaks the boat: an undamped rower–shaft mode; the UW foot-stretcher dataset (2026-11-05)
+
+The user: "rework the bending until validated and continue with the research"; and, while a trace ran, "there is a UW
+paper on foot position and its impact on ergometer power generation".
+
+**1. The finish lag is not the release or the solver** (`research/blade/bending_solve_check.py --dt`,
+`bending_finish_trace.py`; `data/local/validation/bending_solve_check_8_dt*.log`, `bending_finish_trace_8_2026-11-05.log`).
+The eight's peak bend at the release grows as the step shrinks (37.6° at 6.25 ms, 46.9° at 3 ms; peak bend rate 95 →
+251 rad/s): not converged, so the release peak itself is not a result. Every step's balance is still solved. The trace
+of one oar through the drive at the same peak handle torque (849 N·m) shows what bending does:
+
+| progress | rigid: oar rate, I·θ̈, handle, blade moment | bending: oar rate, I·θ̈, handle, blade moment, bend |
+|---|---|---|
+| 0.24 | −2.06 rad/s, −231, 658, 574 N·m | −2.73, −529, 705, 423, 8.2° |
+| 0.39 | −2.49, −139, 839, 774 | −3.49, +158, 834, **1098**, 21.3° |
+| 0.49 | −2.71, 0, 822, 742 | −2.59, +439, 684, **1288**, 25.0° |
+| 0.63 | −2.81, +28, 592, 549 | −1.32, +276, 452, 749, 14.6° |
+| 0.83 | −2.69, +58, 161, 446 | −1.85, −425, 223, −134, −2.6° |
+| 0.97 | −2.57, +121, 26, 388 | −3.53, −154, 14, 123, 2.4° |
+
+With bending the shaft (and the rower's reflected inertia I ≈ 26–35 kg·m², the seat's whole balance) runs ahead while
+the blade lags, the bend winds up to 25° mid-drive, the spring stops the shaft (rate −3.49 → −1.17 rad/s) with the
+blade's moment at nearly twice the handle torque, and the cycle repeats: an **oscillation of the crew's reflected
+inertia on the shaft's spring**, √(K/I) = √(2948/31) = 9.8 rad/s, period 0.64 s — the drive's own length, as the
+trace's swing shows. Nothing damps it. The clock crew's handle torque is a function of the oar angle only, so the crew
+has inertia but no force–velocity; and the water holds the blade nearly still, so the spring rings against a nearly
+fixed end (a spring in series with a stiff damper is barely damped). On the rigid oar there is no spring and the mode
+does not exist. This is why real oars bend this much without it: a rower's force falls as the handle speeds up.
+
+**The damping a rower would give** — rowing's handle force–velocity relation is linear: Sprague et al. (2007, *Med. Sci.
+Sports Exerc.*; 11 collegiate men, inertial ergometer, pull force–velocity r² 0.99); a Concept2 study of 59 rowers, F0
+1322 ± 258 N, V0 3.50 ± 0.33 m/s; on water the relation is also linear (median R² 0.96) with F0 23 % lower and V0 31 %
+higher than on the ergometer (abstracts read; full texts not yet). Slope F0/V0 ≈ 380 N·s/m at the handle, ×1.14² ≈
+490 N·m·s/rad at the pin, against 2√(KI) ≈ 600 for critical damping: a sourced force–velocity crew would damp the mode
+to ζ ≈ 0.8 at full activation, less below it. That is the next step: the crew's handle torque with its force–velocity
+(an option of the dynamic oar, off by default, checked rigid first so it does not move today's validated results),
+then bending back up the ladder — [RLBQV19]'s trial (passes), the shaft's energy return (passes), the single (passes),
+rung 1 and rung 2 on both athletes, the scorecard on Kleshnev's measure.
+
+**2. The UW foot-stretcher paper** — Engstrom, Anderson, Bez, Agresta & Telfer (2023), *The effect of foot-stretcher
+position and stroke rate on ergometer rowing kinematics*, PLOS ONE 18(5): e0285676 (already used for the drive fraction,
+§49). 11 college rowers on a modified ergometer, seven foot-stretcher positions (neutral, ±20 and ±40 mm in height, 5°
+toe-up and toe-down), each at 22, 26 and 32 spm, at a **self-selected power held constant** per rate; 100 Hz motion
+capture. Foot position changed only the ankle and the hip, not the timing; stroke rate changed every joint and the
+timing. **Power was held, not measured as an outcome**, so the paper does not show foot position changing power; for
+that it cites Caplan & Gardner (2005, *J. Appl. Biomech.*: raising the stretcher 50–100 mm held mean power better over a
+3.5 min maximal piece, less wasted downward force) and a stretcher angle of 46° raising 2000 m power, against Bull et al.
+(2016, *Sports Biomech.*: higher stretchers did not raise horizontal foot force and shortened the stroke).
+
+**Its data are open** (github.com/Telfer/Rowing_Biomechanics, MIT; `data/local/literature/telfer2023_data/`, 46 MB):
+per rower, sagittal angles of the ankle, knee, hip, lower and upper back, shoulder and elbow, both sides, each stroke
+time-normalised to 101 points, with catch and finish events, all 21 conditions. That is an open **population ergometer
+time course of every segment against time, by rate** — the thing §214 found missing on water. It is ergometer data
+(Ritchie 2008: the ergometer cannot reproduce the boat's motion in the recovery), so it is a candidate for the body's
+ergometer reference and a leg clock to test against the athletes as §213 tested [K05], not an on-water source.

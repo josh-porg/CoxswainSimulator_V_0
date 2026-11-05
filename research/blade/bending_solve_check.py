@@ -4,7 +4,7 @@
 the hinge rate ``phi'`` by bracketing in [-phi/dt - 60, 60] rad/s; with no sign change it takes the nearer end. This
 counts those fallbacks per stroke and where in the drive they happen, for a boat under the research profile.
 
-    python research/blade/bending_solve_check.py [--boat 8+] [--torque 500] [--strokes 6] [--scull-law l14]
+    python research/blade/bending_solve_check.py [--boat 8+] [--torque 500] [--strokes 6] [--dt 0.001]
 """
 import argparse
 
@@ -22,13 +22,22 @@ def main():
     ap.add_argument("--boat", default="8+")
     ap.add_argument("--torque", type=float, default=500.0, help="peak handle torque, N m")
     ap.add_argument("--strokes", type=int, default=6)
+    ap.add_argument("--bending", default="auto", choices=["auto", "sweep", "scull"],
+                    help="the law: auto = [RLBQV19] on a sweep rig, [L14] on a scull (no profile bends by default)")
+    ap.add_argument("--dt", type=float, default=None, help="integration step, s (default: the simulator's own)")
     args = ap.parse_args()
 
     profile = physics.resolve("research")
     boat = profile.apply(catalog.build(args.boat, rate=28.0))
     boat.power_scales = np.ones(boat.n_seats)
     own = profile.blade_options(boat)
+    from coxswain.crew.oar_bending import OarBending
+    oar = boat.rig.seats[0].oarlocks[0].oar
+    law = args.bending if args.bending != "auto" else ("sweep" if boat.rig.is_sweep else "scull")
+    bending = (OarBending.robert2019_sweep() if law == "sweep"
+               else OarBending.laschowski2014_scull(float(oar.blade_centre_outboard), float(oar.blade_length)))
     sim = DynamicOarSimulator(boat, peak_torque=args.torque, catch=profile.catch, blade_law=own["blade_law"],
+                              oar_bending=bending,
                               blade_span=own["blade_span"], blade_coefficients=own["blade_coefficients"],
                               coxswain=Coxswain(rudder_override=lambda t, s: 0.0), fast=True)
 
@@ -52,7 +61,7 @@ def main():
             calls["where"].append(float(np.degrees(y[STATE_SIZE])))
 
     sim._update_bending = watched
-    run = sim.run_strokes(args.strokes, surge_speed=5.0)
+    run = sim.run_strokes(args.strokes, surge_speed=5.0, dt=args.dt)
     optimize.brentq = real
     print("%s, peak torque %.0f N m, K_ang %.0f: %.2f m/s; bend solves %d, fallbacks to a bracket end %d"
           % (args.boat, args.torque, sim.oar_bending.k_ang, run.settled_speed(), calls["solved"], calls["fallback"]))

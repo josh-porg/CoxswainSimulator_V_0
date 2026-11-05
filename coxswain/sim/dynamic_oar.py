@@ -270,7 +270,7 @@ class DynamicOarSimulator(RowingSimulator):
                  blade_added_mass: str = "none", catch: str = "rest",
                  blade_span: float = None, blade_coefficients: str = "cg07",
                  blade_depth=None, blade_immersion=None, oar_bending=None,
-                 liftdrag_blade=None, **kwargs):
+                 liftdrag_blade=None, handle_fv=None, **kwargs):
         if blade_law not in self.BLADE_LAWS:
             raise ValueError("unknown blade law %r; this simulator runs %s"
                              % (blade_law, ", ".join(self.BLADE_LAWS)))
@@ -462,6 +462,15 @@ class DynamicOarSimulator(RowingSimulator):
             raise ValueError("liftdrag_blade replaces the coefficients name: use it with blade_law='liftdrag' and "
                              "the default blade_coefficients")
         self.liftdrag_blade = liftdrag_blade
+        #: The crew's handle force-velocity relation (:mod:`coxswain.crew.handle_fv`), clock crew only; ``None`` is the
+        #: angle-only pull, as before (SOURCES sec. 218).
+        if handle_fv is not None and crew != "clock":
+            raise ValueError("the handle force-velocity relation scales the clock crew's pull; crew=%r" % (crew,))
+        self.handle_fv = handle_fv
+        self._planned = None
+        if handle_fv is not None:
+            from ..crew.handle_fv import PlannedSpeed
+            self._planned = PlannedSpeed(boat)
         if self.blade_law == "liftdrag" and liftdrag_blade is not None:
             self._liftdrag = [liftdrag_blade for _ in self._seats]
         elif self.blade_law == "liftdrag":
@@ -525,7 +534,8 @@ class DynamicOarSimulator(RowingSimulator):
                          blade_added_mass: str = "none",
                          blade_span: float = None,
                          blade_coefficients: str = "cg07",
-                         blade_depth=None, oar_bending=None, liftdrag_blade=None) -> float:
+                         blade_depth=None, oar_bending=None, liftdrag_blade=None,
+                         handle_fv=None) -> float:
         """The peak handle torque at which each rower does ``watts``.
 
         Under the rest catch this is :meth:`peak_torque_for_power`, exactly:
@@ -550,7 +560,8 @@ class DynamicOarSimulator(RowingSimulator):
             return closed
         oar_bending = _resolve_bending(boat, oar_bending, catch, blade_added_mass)   # the boat's own, so the key sees it
         key = _match_key(boat, watts, catch, blade_law, blade_added_mass,
-                         blade_span, blade_coefficients, blade_depth, oar_bending, liftdrag_blade)
+                         blade_span, blade_coefficients, blade_depth, oar_bending, liftdrag_blade,
+                         handle_fv)
         if key in cls._MATCHED:
             return cls._MATCHED[key]
         from .control import Coxswain
@@ -563,7 +574,7 @@ class DynamicOarSimulator(RowingSimulator):
                       blade_span=blade_span,
                       blade_coefficients=blade_coefficients,
                       blade_depth=blade_depth, oar_bending=oar_bending, liftdrag_blade=liftdrag_blade,
-                      coxswain=Coxswain(rudder_override=lambda t, s: 0.0),
+                      handle_fv=handle_fv, coxswain=Coxswain(rudder_override=lambda t, s: 0.0),
                       fast=True)
             run = sim.run_strokes(int(strokes), surge_speed=speed)
             speed = run.settled_speed()
@@ -816,7 +827,7 @@ class DynamicOarSimulator(RowingSimulator):
         return float(self.blade_depth.factor(min(max(u, 0.0), 1.0)))
 
     def _torque(self, seat_slot: int, angle: float, state: State,
-                t: float) -> float:
+                t: float, rate: Optional[float] = None) -> float:
         """Handle torque for one seat at time ``t``.
 
         ``t`` is required.  It used to be absent and the coxswain's split
@@ -831,7 +842,12 @@ class DynamicOarSimulator(RowingSimulator):
         if split != 0.0:
             gain *= float(np.mean([self.coxswain.side_gain(split, int(k.side))
                                    for k in locks]))
-        return self.peak_torque * gain * self._shape(angle)
+        torque = self.peak_torque * gain * self._shape(angle)
+        if self.handle_fv is not None and rate is not None:
+            inboard = float(self.boat.rig.seats[seat].oarlocks[0].oar.inboard)
+            torque *= self.handle_fv.factor(abs(float(rate)) * inboard,
+                                            self._planned.rate(angle) * inboard)
+        return torque
 
     # -- the seam ------------------------------------------------------------
     def _oar_loads(self, t: float, state: State):
@@ -927,7 +943,7 @@ class DynamicOarSimulator(RowingSimulator):
                 angle_rate[slot], rate_rate[slot] = self._sweep_motion(
                     t - self._stroke_start)
                 continue
-            torque = self._torque(slot, angle, state, t)
+            torque = self._torque(slot, angle, state, t, rate)
             locks = self.boat.rig.seats[seat].oarlocks
             angle_rate[slot] = rate
             if (len(locks) == 1 and self.blade_law == "slip"
@@ -1346,7 +1362,7 @@ class DynamicOarSimulator(RowingSimulator):
                 system[row, row] = 1.0
                 rhs[row] = self._sweep_motion(t - self._stroke_start)[1]
                 continue
-            torque = self._torque(slot, angle, state, t)
+            torque = self._torque(slot, angle, state, t, rate)
             locks = self.boat.rig.seats[seat].oarlocks
             inertia, balance = self._seat_balance(oar, angle, rate, torque,
                                                   state, locks, slot)
@@ -1678,7 +1694,7 @@ class DynamicOarSimulator(RowingSimulator):
                     torque = self._torque(slot, angle,
                                           State.from_vector(
                                               states[:STATE_SIZE, k]),
-                                          float(times[k]))
+                                          float(times[k]), float(rates[slot, k]))
                     power[k] += n_locks * abs(torque * float(rates[slot, k]))
             per_rower = float(np.trapezoid(power, times)) / period / rowers
             # Sweep catch: the energy the sweep carried into the water is
@@ -1792,7 +1808,8 @@ def _resolve_bending(boat, oar_bending, catch, added_mass="none"):
 
 
 def _match_key(boat, watts, catch, blade_law, added_mass="none",
-               blade_span=None, coefficients="cg07", depth=None, bending=None, blade=None) -> tuple:
+               blade_span=None, coefficients="cg07", depth=None, bending=None, blade=None,
+               handle_fv=None) -> tuple:
     """Everything a matched sweep-catch torque depends on, as a cache key.
 
     Two boats share a torque only if they would row the same stroke: same
@@ -1861,4 +1878,6 @@ def _match_key(boat, watts, catch, blade_law, added_mass="none",
             None if depth is None else depth.key(), fins, munk, roll,
             # the shaft's bending changes the stroke, so it changes the matched torque (2026-10-27)
             None if bending is None else (float(bending.k_ang), float(bending.hinge_inboard_of_root)),
-            None if blade is None else repr(blade))
+            None if blade is None else repr(blade),
+            # the crew's force-velocity changes the pull, so the matched torque (2026-11-05)
+            None if handle_fv is None else handle_fv.key())
