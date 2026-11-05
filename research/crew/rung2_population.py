@@ -57,8 +57,10 @@ H10_TANGENTIAL = 0.25                                            # SOURCES §200
 
 #: the oar shaft bends as a quasi-static hinge ([L14]'s measured scull shaft, SOURCES sec. 217, coxswain.crew.oar_bending; SOURCES §193, §216)
 BENDING = False
-#: force the rigid oar even where the physics profile bends it (research default since 2026-11-03, SOURCES §217)
+#: force the rigid oar even where a physics profile bends it (SOURCES §217)
 RIGID = False
+#: the crew's handle force-velocity on rung 2's muscles (coxswain.crew.handle_fv.HandleForceVelocity; SOURCES §218)
+FV = None
 
 
 def blade_options(boat):
@@ -113,7 +115,7 @@ def make(boat, mode, Q=None, body=None):
     boat.power_scales = np.ones(boat.n_seats)
     sim = C2.ClockSim(boat, peak_torque=0.0, catch="sweep", crew="handle",
                       coxswain=Coxswain(rudder_override=lambda t, s: 0.0), fast=True, **blade_options(boat))
-    sim.setup_clock(mode, Q, body=body)
+    sim.setup_clock(mode, Q, body=body, fv=FV if mode == "free" else None)
     return sim
 
 
@@ -297,7 +299,13 @@ def main():
                          "e.g. k05_racing (SOURCES sec. 212)")
     ap.add_argument("--bending", action="store_true",
                     help="the oar shaft bends ([L14]'s measured scull shaft as a quasi-static hinge; SOURCES sec. 216-217)")
+    ap.add_argument("--fv", type=float, default=None,
+                    help="the muscles' handle force-velocity with this V0, m/s (SOURCES sec. 218)")
     a = ap.parse_args()
+    global FV
+    if a.fv is not None:
+        from coxswain.crew.handle_fv import HandleForceVelocity
+        FV = HandleForceVelocity(a.fv, "--fv")
     global BLADE, BODY, BENDING
     BENDING = bool(a.bending)
     BLADE = a.blade

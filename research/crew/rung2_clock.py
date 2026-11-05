@@ -66,9 +66,14 @@ BIOROW_CATCH_TO_BURIED_DEG = 6.0
 class ClockSim(DynamicOarSimulator):
     """Rung 1 with the stroke clock a state (mode 'free') or the clock itself (mode 'reference')."""
 
-    def setup_clock(self, mode, Q=None, body=None):
-        """``body``: a crew field f(t) -> (mass, pos, vel, acc) on the clock (default the boat's own)."""
+    def setup_clock(self, mode, Q=None, body=None, fv=None):
+        """``body``: a crew field f(t) -> (mass, pos, vel, acc) on the clock (default the boat's own).
+        ``fv``: the crew's handle force-velocity (:class:`coxswain.crew.handle_fv.HandleForceVelocity`; SOURCES §218).
+        The muscles' generalised force Q(tau) is the population's at the planned speed tau' = 1; with ``fv`` it is
+        scaled through the drive by ``(V0 - tau' v_p(tau)) / (V0 - v_p(tau))``, ``v_p`` the handle speed of the sweep
+        at tau, so a clock that runs ahead pulls less and one held back pulls more."""
         self.mode, self.Q = mode, Q
+        self.fv = fv
         self.body = body
         self._clock = None
         self.qlog = []                                           # reference: (c, Q) at accepted times
@@ -260,10 +265,24 @@ class ClockSim(DynamicOarSimulator):
             finally:
                 self._clock = None
             D.append(d)
-        alpha = (self.Q(tau) - Rs[0]) / (Rs[1] - Rs[0])
+        alpha = (self._muscle(tau, td) - Rs[0]) / (Rs[1] - Rs[0])
         if t > self._last:
             self.tlog.append((t, tau, td, alpha)); self._last = t
         return np.concatenate([D[0] + alpha * (D[1] - D[0]), [td, alpha]])
+
+
+    def _muscle(self, tau, td):
+        """The muscles' generalised force at the clock's position and speed (the force-velocity if ``fv``)."""
+        q = self.Q(tau)
+        fv = getattr(self, "fv", None)
+        timing = self.boat.timing
+        if fv is None or float(tau) % float(timing.period) > float(timing.drive_fraction) * float(timing.period):
+            return q
+        inboard = float(self.boat.rig.seats[self._seats[0]].oarlocks[0].oar.inboard)
+        planned = abs(float(self.boat.oar_sweep.rate(float(tau) % float(timing.period), timing))) * inboard
+        if planned <= 1e-9:
+            return q
+        return q * fv.factor(abs(float(td)) * planned, planned)
 
 
 def build(mode, Q=None):

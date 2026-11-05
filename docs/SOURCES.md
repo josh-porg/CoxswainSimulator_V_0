@@ -14775,3 +14775,56 @@ time-normalised to 101 points, with catch and finish events, all 21 conditions. 
 time course of every segment against time, by rate** — the thing §214 found missing on water. It is ergometer data
 (Ritchie 2008: the ergometer cannot reproduce the boat's motion in the recovery), so it is a candidate for the body's
 ergometer reference and a leg clock to test against the athletes as §213 tested [K05], not an on-water source.
+
+**3. The crew's force–velocity, and bending back up the ladder** (`coxswain/crew/handle_fv.py`,
+`DynamicOarSimulator(handle_fv=)`; rung 2: `ClockSim.setup_clock(fv=)`, `rung2_population.py --fv`). The clock crew's
+pull is scaled by T_shape(θ)·(V0 − v)/(V0 − v_ref(θ)), v = |θ̇|·inboard, v_ref the handle speed the boat's own sweep
+plans at θ: unchanged when the oar moves as planned, less when it runs ahead, along the published slope. Rung 2's
+muscles likewise: Q(τ)·(V0 − τ′v_p(τ))/(V0 − v_p(τ)) through the drive. V0 swept: 3.50 m/s (ergometer) and 5.07 m/s
+(on-water by the abstract's ratio).
+
+- **It damps the mode** (`bending_finish_trace_8_fv*.log`). The eight with bending at V0 3.5: the oar's rate is smooth
+  (−2.70 rad/s plateau, no −3.49 → −1.17 swing), the bend peaks at 16.6° mid-drive with the load and is 2–3° at the
+  finish, and the blade's moment stays at the handle torque (854 against 880 N·m). At V0 5.07 (a shallower slope) it
+  is only partly damped (19.7°; the rate still swings −3.0 → −1.9).
+- **It leaves the rigid results where they were.** Rigid eight 5.94 m/s, Kleshnev 0.799 (was 6.00, 0.805; band
+  0.798–0.908), rigid four 5.26 m/s, 0.769 (was 5.25, 0.777; band 0.768–0.902): both still pass, at the band's edge.
+  Rung 2 rigid: [CR06] IVV 51.6 % (51.5), [BR24] 50.5 % (50.8) with his oar progress far closer (rms 0.008 against
+  0.019) but his power 384 W against his 432 (the muscles' scale is set once at the planned speed; his clock runs fast,
+  τ′ to 1.48, and pulls less: to be power-matched).
+- **Rung 2 with bending and force–velocity**, IVV (measured 49.4 / 49.1 %): [CR06] 53.8 % (bending alone 53.4), 4.196 m/s
+  against her 4.191, 269 W against 261 (was 290); [BR24] **54.4 %** (bending alone 60.7), 4.739 m/s, 359 W. The
+  force–velocity removes most of [BR24]'s collapse; bending still costs both athletes IVV against the rigid oar.
+
+**4. The direct test: her handle force** (`research/blade/bending_handle_force.py`,
+`data/local/validation/bending_handle_force_cr06_2026-11-05.log`). Rung 1 imposes [CR06]'s oar motion, so the handle
+force is an output; she measured it, and force against oar angle needs no timing alignment. Per hand, catch to finish:
+
+| oar angle | 57° | 53° | 49° | 44° | 35° | 22° | 13° | 0° | −13° | −22° | −27° | −31° |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| measured | 49 | 106 | 140 | 160 | 213 | 261 | 279 | 228 | 156 | 113 | 91 | 65 |
+| rigid | 38 | 199 | 263 | 269 | 232 | 203 | 236 | 218 | 201 | 131 | 91 | 28 |
+| [L14] bending | 11 | 53 | 109 | 158 | 225 | 265 | 271 | 266 | 227 | 184 | 155 | 118 |
+
+**Bending improves the force curve** — rms 55 → 42 N (19.7 → 15.1 % of her 279 N peak), the peak from 44° (the rigid
+oar's catch spike) to 8.8° (hers 13.2°); the early drive's overshoot is gone. The first validation bending has passed
+in a boat. It **holds too much load late**: 155 / 118 N at −27 / −31° against her 91 / 65, where the rigid oar was
+close; that late load is the likely reason IVV rises (51.2 → 53.5 % in rung 1). Open: why the bent blade keeps its load
+to the finish — the shaft's unbending speeding the blade (blade-lead in the late drive), the angle release holding it
+in, or a quasi-static hinge without the shaft's own damping.
+
+**5. The scorecard boats with bending and force–velocity** (Kleshnev's energy measure, 360 W, rate 28;
+`data/local/validation/efficiency_definition_k07_*fv*.log`):
+
+| | rigid + F–v (V0 3.5) | bending + F–v, V0 3.5 | bending + F–v, V0 5.07 | bending, no F–v | band |
+|---|---|---|---|---|---|
+| eight | 5.94 m/s, **0.799** | 5.99 m/s, 0.702 | 6.03 m/s, 0.543 | 5.91 m/s, 0.392 | 0.798–0.908 |
+| four | 5.26 m/s, **0.769** | 5.33 m/s, 0.646 | 5.31 m/s, 0.519 | 5.22 m/s, 0.379 | 0.768–0.902 |
+
+Damping the mode recovers most of the loss, and the bending boats are slightly faster, but the sweep boats still fail.
+The waste is the same thing as her late-drive load (section 4): a bent blade that keeps its load to the finish slips
+there. **Where bending stands:** [RLBQV19]'s trial passes (open loop); the shaft returns its energy (test); the single
+bends with the load and unbends by the finish; her handle force is closer with bending (the first in-boat pass); the
+athletes' IVV and the sweep boats' blade efficiency fail, both through the late drive. Bending stays off by default.
+Next: the late drive — the hinge's unbending speed in the blade's slip (the blade leading the shaft), the release, and
+the shaft's own damping — tested first on her handle force, which now discriminates.

@@ -1243,6 +1243,16 @@ the boat speeds that go with their drive durations).
   - *Next for bending:* the shaft's own dynamics instead of the quasi-static hinge, the bend solved inside the step, a
     release when the blade stops driving; tested on [RLBQV19]'s trial and the single before any boat. The inboard's
     stiffness, which may be part of the fitted chain stretch (DATA_REQUESTS §15).
+- **§218 (2026-11-05): why bending broke the boat, and the first in-boat pass.** The bending shaft rang on the crew's
+  reflected inertia at the drive's own period (√(K/I) ≈ 9.8 rad/s), because the crew's pull depended on position only
+  (STRUCTURAL_ISSUES S14). A sourced handle force–velocity (linear F–v, V0 3.5–5.1 m/s, an option) damps it and leaves
+  the rigid results in place (eight 0.799, four 0.769, rung 2 IVV ±0.3). With the oar's motion imposed, bending brings
+  [CR06]'s handle force closer to her measured curve (rms 19.7 → 15.1 % of her peak, peak 44° → 8.8° against her 13.2°)
+  but holds too much load in the late drive, which raises IVV ([CR06] 53.8 %, [BR24] 54.4 % against 49.4 / 49.1) and
+  wastes energy (eight 0.702, four 0.646 against 0.798 / 0.768). Bending stays off. The UW foot-stretcher dataset
+  (Engstrom et al. 2023, open, 11 rowers, all joints by rate) is in hand as an ergometer population time course.
+  - *Next for bending:* the late drive, tested on her handle force (it now discriminates): the hinge's unbending speed
+    in the blade's slip, the release, the shaft's own damping. Then rung 2 power-matched with the force–velocity.
 
 ## Calibration and validation data from the squad's own boats (noted 2026-10-08)
 

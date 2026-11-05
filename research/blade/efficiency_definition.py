@@ -19,6 +19,16 @@ from coxswain.validation import scorecard
 from coxswain.validation.targets import by_key
 
 
+def bending_law(boat):
+    """The bending law under test: [RLBQV19]'s bench law on a sweep rig, [L14]'s measured scull shaft on a scull. No
+    profile bends the oars (withdrawn, SOURCES §217), so the study sets it on the boat itself."""
+    from coxswain.crew.oar_bending import OarBending
+    if boat.rig.is_sweep:
+        return OarBending.robert2019_sweep()
+    oar = boat.rig.seats[0].oarlocks[0].oar
+    return OarBending.laschowski2014_scull(float(oar.blade_centre_outboard), float(oar.blade_length))
+
+
 def bend_report(name, watts, rate):
     """Settle the bending boat as the scorecard does, keep the simulator, and print the last stroke's peak blade
     rotation and oarlock moment (K_ang * phi, the bench law's own quantity)."""
@@ -26,6 +36,7 @@ def bend_report(name, watts, rate):
     from coxswain.sim.dynamic_oar import DynamicOarSimulator
     profile = physics.resolve("research")
     boat = profile.apply(catalog.build(name, rate=rate))
+    boat.oar_bending = bending_law(boat)
     boat.power_scales = np.ones(boat.n_seats)
     own = profile.blade_options(boat)
     kw = dict(catch=profile.catch, blade_law=own["blade_law"], blade_span=own["blade_span"],
@@ -47,6 +58,9 @@ def main():
     ap.add_argument("--watts", type=float, default=360.0)
     ap.add_argument("--rate", type=float, default=28.0)
     ap.add_argument("--bend", action="store_true", help="report the bent oar's peak bend instead")
+    ap.add_argument("--modes", nargs="+", default=["bending", "rigid"], choices=["bending", "rigid"])
+    ap.add_argument("--fv", type=float, default=None,
+                    help="the crew's handle force-velocity with this V0, m/s (coxswain.crew.handle_fv; SOURCES §218)")
     args = ap.parse_args()
     if args.bend:
         for name in args.boats:
@@ -54,14 +68,18 @@ def main():
         return
     profile = physics.resolve("research")
     target = by_key("blade_efficiency_level")
+    fv = None
+    if args.fv is not None:
+        from coxswain.crew.handle_fv import HandleForceVelocity
+        fv = HandleForceVelocity(args.fv, "--fv")
     for name in args.boats:
-        print("%s band %.3f-%.3f (Kleshnev Table 2, gate-angle track)" % ((name,) + target.band_for(name)))
-        for bend in ("sourced", "rigid"):
+        print("%s band %.3f-%.3f (Kleshnev Table 2, gate-angle track)%s" % (
+            (name,) + target.band_for(name) + ("" if fv is None else "; crew force-velocity V0 %.2f m/s" % fv.v0,)))
+        for bend in args.modes:
             boat = profile.apply(catalog.build(name, rate=args.rate))
-            if bend == "rigid":
-                boat.oar_bending = None
+            boat.oar_bending = bending_law(boat) if bend == "bending" else None
             t0 = time.time()
-            got = scorecard.settle_dynamic(boat, args.watts, start=5.0)
+            got = scorecard.settle_dynamic(boat, args.watts, start=5.0, handle_fv=fv)
             print("%-3s %-7s %.2f m/s  slip ratio %.4f  K07 energy (gate track) %.4f  swing %.1f%%  (%.0f s)" % (
                 name, bend, got.speed, got.blade_efficiency, got.blade_efficiency_k07,
                 100.0 * got.surge_swing, time.time() - t0), flush=True)

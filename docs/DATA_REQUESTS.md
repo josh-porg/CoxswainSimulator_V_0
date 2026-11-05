@@ -918,3 +918,8 @@ SOURCES §217. The scull's outboard stiffness is now measured ([L14], EI ≈ 210
    lags 20–38° into the finish). The FlexOmega system measures on-water bending moments (Ungricht et al. 2023,
    validated); Sliasas's model reports the blade lagging the oarlock for ~45 % of the drive and then leading. Wanted:
    blade (or tip) deflection against oar angle through the drive for a sweep oar at racing rate.
+3. **Rowing's handle force–velocity, full texts** (§218: the crew's force–velocity option uses abstract-level numbers).
+   Sprague et al. (2007), *Med. Sci. Sports Exerc.* (11 collegiate men, inertial ergometer); the Concept2 study of 59
+   rowers (F0 1322 ± 258 N, V0 3.50 ± 0.33 m/s); the on-water force–velocity study (linear, median R² 0.96, V0 31 %
+   higher than on the ergometer). Wanted: whether "velocity" is the drive's mean handle speed or instantaneous, the
+   slope at submaximal effort, and V0 on water. Open copies first (standing permission); a request only if none exist.
