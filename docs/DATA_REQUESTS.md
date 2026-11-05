@@ -13,7 +13,7 @@
 | 7 | Sliasas & Tullis | blade force and boat velocity coupling | 2026-09-19 | none | — |
 | 8 | Knarr & Kwoun | IMU series, ergometer vs water | 2026-09-19 | none | — |
 | 9 | Grift, Tummers & Westerweel | digitised force and drag curves | 2026-09-19 | none; his open thesis supplies the figures (SOURCES §159); **2026-10-27: the 2021 paper's motion and F_n, F_t traces extracted from its vector figures** (SOURCES §184) | the tabulated immersion and entrainment numbers only |
-| 12 | Barré & Kobus | their 2010 paper (paywalled) | not sent | — | draft below; the closest prior work for the blade-law paper (review §4a) |
+| 12 | Barré & Kobus | their 2010 paper (paywalled) | **2026-11-05** (Gmail, to Barré) | waiting | draft below; the closest prior work for the blade-law paper (review §4a) |
 | 10 | Hill & Fahrig | boat speeds with their drive durations | 2026-09-19 | none | — |
 | 11a, 11b, 11d | Sinclair; Baca; Smith & Loschner | foot-stretcher force components | 2026-09-19 | none | Draper route (below) not yet tried |
 | 11c | Buckeridge → McGregor | foot-force direction | 2026-09-19; McGregor 2026-10-21 | Buckeridge referred on 2026-09-25; **McGregor declined 2026-10-21** | direction now sourced from [BU15] (SOURCES §177) |
@@ -923,3 +923,11 @@ SOURCES §217. The scull's outboard stiffness is now measured ([L14], EI ≈ 210
    rowers (F0 1322 ± 258 N, V0 3.50 ± 0.33 m/s); the on-water force–velocity study (linear, median R² 0.96, V0 31 %
    higher than on the ergometer). Wanted: whether "velocity" is the drive's mean handle speed or instantaneous, the
    slope at submaximal effort, and V0 on water. Open copies first (standing permission); a request only if none exist.
+   *2026-11-05:* Sprague et al. 2007 found open and downloaded; the on-water study identified (Nordez, Delhaye,
+   Teissier, Colloud, Peyrot & Samozino 2025, Sports Biomech. 24(9) 2750–2765) and requested from Nordez; Tullis &
+   Galipeau 2020 (ISEA, open: a Hill force–velocity–length athlete coupled to the ergometer) read.
+
+**Paper-copy requests sent 2026-11-05** (from the project Gmail, user approved; watched in
+`data/local/outreach/gmail_threads.json`): Nordez (on-water F–v, 2025); Tullis (Sliasas & Tullis 2011, shaft bending);
+Barré (Barré & Kobus 2010, §12); McGregor (Buckeridge, Bull & McGregor 2015; Buckeridge et al. 2016 stretcher height);
+Lintmeijer (2017 power, 2018 centre of mass); Caplan (Caplan & Gardner 2005 stretcher height).

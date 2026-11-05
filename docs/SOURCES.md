@@ -14828,3 +14828,34 @@ bends with the load and unbends by the finish; her handle force is closer with b
 athletes' IVV and the sweep boats' blade efficiency fail, both through the late drive. Bending stays off by default.
 Next: the late drive — the hinge's unbending speed in the blade's slip (the blade leading the shaft), the release, and
 the shaft's own damping — tested first on her handle force, which now discriminates.
+
+**6. The full texts that turned up, and a correction** (2026-11-05, while paper copies were requested by email).
+
+- **Sprague et al. (2007), full text** (open copy; `data/local/literature/sprague2007_fv/`): 11 collegiate men, maximal
+  5-stroke trials on an inertial ergometer at several loads; pull force against **pull-averaged** handle velocity is
+  linear, F = 1214 − 197·V N (r² 0.993; a Hill fit is as good), so **V0 = 6.16 m/s, slope ≈ 197 N·s/m** — about half
+  the 3.5 m/s figure's slope, which came from an abstract ("59 rowers on a Concept2") whose source could not be
+  identified. At V0 6.16 the eight's bending trace is **only partly damped** (rate −3.13 → −1.74 → −3.05 rad/s, bend
+  20.8°, blade moment 1073 against 754 N·m; `bending_finish_trace_8_fv6.16.log`), much as at 5.07. **Correction to
+  section 3:** "it damps the mode" held only for the unsourced V0 3.5; on the sourced slope the crew's force–velocity
+  is not enough. `HandleForceVelocity.sprague2007()` is the sourced value; 3.5 stays the low end of a sweep.
+- **Tullis & Galipeau (2020), ISEA, open** (`data/local/literature/tullis2020_isea/notes.md`): a Hill
+  force–velocity–length athlete coupled to the ergometer's fan and flywheel. Its measured loop (Kleshnev 2005, five
+  women on a Concept2) has the handle force rising and falling **at a nearly constant handle speed** through the drive:
+  within a stroke a rower does not ride a force–velocity line, the load and the planned motion set the path. Two
+  consequences here: a maximal across-trial F–v slope is not a within-stroke impedance (the option's stated caveat),
+  and a crew that holds a planned motion — rung 1, where bending *passed* her handle-force test — is the closer model of
+  a rower than a torque that depends on the oar angle alone. **Next for bending:** a crew that follows its planned oar
+  motion with an impedance about it (position and velocity feedback, as the trunk's layers do, §207–215), sourced from
+  limb-impedance data, in place of the open-loop pull.
+- **The UW dataset** (`research/crew/telfer2023_population.py`, `data/local/crew/telfer2023/`): read back, the catch
+  falls at 59.4 / 56.0 / 51.6 % of the cycle against the paper's 60.6 / 57.0 / 53.2 % at 22 / 26 / 32 spm (catch taken as
+  the knee's peak flexion). Drive progress (catch 0 → finish 1) at which each joint covers 10 / 50 / 90 % of its drive
+  excursion, neutral stretcher, 32 spm: knee 0.20 / 0.48 / 0.70, hip 0.24 / 0.50 / 0.70, lower back 0.18 / 0.54 / 0.78,
+  upper back 0.22 / 0.60 / 0.88, shoulder 0.36 / 0.82 / 0.96, elbow 0.58 / 0.80 / 0.94; nearly the same at 22 and 26 spm
+  (50 % points within 0.02–0.04). Between rowers the legs and arms agree closely (sd of the 50 % point 0.03–0.05), the
+  back less (0.10–0.15). The research body scored the same way: knee 0.18 / 0.44 / **0.80**, trunk 0.18 / 0.60 / 0.76;
+  with [K05]'s leg clock the knee is 0.16 / 0.44 / **0.70** — the population's own end of the leg drive. So the
+  keyframed legs finish late, and the ergometer population independently supports [K05]'s leg timing (§213). (The
+  elbow cannot be compared this way yet: the rower's chain holds the arm; the research arm draw is generated
+  separately, §209.)
