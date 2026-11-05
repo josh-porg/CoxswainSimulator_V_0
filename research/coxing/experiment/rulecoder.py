@@ -17,7 +17,8 @@ import call_properties as CP  # noqa: E402
 CODE = os.path.dirname(os.path.abspath(__file__))   # this script (committed, research/)
 HERE = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "data", "local", "coxing", "experiment"))   # its data and outputs (gitignored)
 SDIR = os.path.join(ROOT, "data", "local", "coxing", "sessions")
-SES = ["race_01", "practice_01", "practice_02", "race_04", "race_05", "practice_03", "practice_04", "practice_05", "practice_06", "practice_07", "practice_08", "race_06"]
+SES = ["race_01", "practice_01", "practice_02", "race_04", "race_05", "practice_03", "practice_04", "practice_05", "practice_06", "practice_07", "practice_08", "race_06",
+       "race_08", "race_09"]   # the first coxswain's pieces
 
 TARGET_RULES = [  # first match wins; order follows the codebook's specificity
     ("steer", r"\b(starboards?|starbuds|starving|ports?|porties|rudder|turn|turning|corner|yield|line)\b"),

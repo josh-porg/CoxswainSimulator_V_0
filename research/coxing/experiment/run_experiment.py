@@ -62,8 +62,16 @@ COURSE = os.environ.get("COURSE") == "1"
 # ALT_AROUSAL=race_06|all: arousal from the lexical rule coder (rulecoder.py) instead of the hand codes,
 # for those sessions; a sensitivity check on the arousal contrast (race_06 was coded after the first results).
 ALT_AROUSAL = os.environ.get("ALT_AROUSAL", "")
-SUF = ("_course" if COURSE else "") + ("_rulearousal_" + ALT_AROUSAL if ALT_AROUSAL else "") + \
-    ("" if SET == "all" else "_set_" + SET)
+# ALT_SRC=blind: with ALT_AROUSAL, arousal from the hypothesis-blind coder (blind_arousal.py) instead of the rule coder.
+ALT_SRC = os.environ.get("ALT_SRC", "rule")
+# SYNC=counts: every session's words moved by the shift (under half a stroke) that puts its counts, said on the
+# catch, at stroke phase COUNT_PHASE (default 0.55) of the CoxBox record (count_anchor.py); a sensitivity check on
+# the within-stroke sync. The audio offset moves with the words, so delivery measures read the same audio.
+SYNC = os.environ.get("SYNC", "")
+COUNT_PHASE = os.environ.get("COUNT_PHASE", "0.55")
+SUF = ("_course" if COURSE else "") + (("_%sarousal_" % ALT_SRC) + ALT_AROUSAL if ALT_AROUSAL else "") + \
+    ("_countsync" + COUNT_PHASE.replace(".", "") if SYNC == "counts" else "") + ("" if SET == "all" else "_set_" + SET)
+ANCHOR = json.load(open(os.path.join(SDIR, "..", "sync", "count_anchor.json")))[COUNT_PHASE] if SYNC == "counts" else {}
 # drilled cues (CODEBOOK addendum): regex on the lead phrase, piece number from which the drill had been taught
 import re
 sys.path.insert(0, CODE)
@@ -89,14 +97,24 @@ for sid in ORDER + [k for k in OTHER_COX if k in SES]:
     s = CP.load_session(os.path.join(SDIR, sid))
     s["id"] = sid
     s["episodes"] = []
+    if sid in ANCHOR:
+        d_ = ANCHOR[sid]["shift_s"]
+        for p in s["phrases"]:
+            p["t"] += d_
+            if p.get("t_end") is not None:
+                p["t_end"] += d_
+        if "sync_offset_s" in s["meta"]:
+            s["meta"]["sync_offset_s"] -= d_
     if sid in SES:
         CP.prepare(s, course=COURSE)
         codes = CP.load_codes(os.path.join(HERE, "codes_%s.txt" % sid))
         if ALT_AROUSAL in (sid, "all"):
             import rulecoder
+            import blind_arousal
+            blind = blind_arousal.load_blind(sid) if ALT_SRC == "blind" else None
             for p in s["phrases"]:
                 if p["i"] in codes and codes[p["i"]]["target"] not in ("other", "count"):
-                    codes[p["i"]]["arousal"] = rulecoder.code(p["text"])["arousal"]
+                    codes[p["i"]]["arousal"] = blind[p["i"]] if blind is not None else rulecoder.code(p["text"])["arousal"]
         s["episodes"] = CP.episodes(s["phrases"], codes)
     sessions[sid] = s
 CP.add_familiarity([sessions[k] for k in ORDER])
@@ -372,6 +390,30 @@ ix = [na.index(c) for c in ("loud_z", "loud_x_time", "f0_z", "srate")]
 H["H20_delivery"] = dict(n=len(aud), terms=["loud_z", "loud_x_time", "f0_z", "srate"],
                          **both(lambda jj: (Pa @ outcome(jj, "speed_3_5"))[ix], js_of(aud), 70))
 
+# Vocal arousal (CODEBOOK addendum of 5 Nov 2026, post hoc): louder, higher and faster speech marks higher arousal.
+# Index = mean of loudness, F0 and speech rate, each z-scored within the piece (F0 missing: the other two), then
+# standardised. Tests: (a) the index per sd, (b) top third of the index within the piece, (c) index x directive power
+# call; in the joint model, Holm over the three. Validity: the index by coded arousal, no boat data.
+srate_z = aud.groupby("session")["srate"].transform(lambda x: (x - x.mean()) / x.std()).to_numpy()
+voc = np.nanmean(np.column_stack([aud.loud_z.to_numpy(), aud.f0_z.to_numpy(), srate_z]), 1)
+voc = (voc - np.nanmean(voc)) / np.nanstd(voc)
+voc_top = (pd.Series(voc).groupby(aud.session.to_numpy()).transform(lambda x: x >= x.quantile(2 / 3))).to_numpy().astype(float)
+pw_dec = ((aud.target == "power") & (aud.stage == "dec")).to_numpy().astype(float)
+VX = [design(aud, [("vocal", voc)]), design(aud, [("vocal_top", voc_top)]),
+      design(aud, [("vocal", voc), ("vocal_x_power", voc * pw_dec)])]
+VP = [(np.linalg.pinv(X_), n_.index(t)) for (X_, n_), t in zip(VX, ("vocal", "vocal_top", "vocal_x_power"))]
+H["vocal_arousal"] = dict(n=len(aud), terms=["index per sd", "top third", "index x power call"],
+                          **both(lambda jj: np.array([(P_ @ outcome(jj, "speed_3_5"))[q] for P_, q in VP]), js_of(aud), 72))
+H["vocal_arousal"]["p_holm"] = CP.holm(H["vocal_arousal"]["p"]).tolist()
+H["vocal_arousal"]["p_local_holm"] = CP.holm(H["vocal_arousal"]["p_local"]).tolist()
+OUT["vocal_validity"] = {code: dict(n=int((aud.arousal == code).sum()), mean_index=float(np.nanmean(voc[(aud.arousal == code).to_numpy()])),
+                                    loud_z=float(aud.loud_z[aud.arousal == code].mean()), f0_z=float(aud.f0_z[aud.arousal == code].mean()),
+                                    srate_z=float(np.nanmean(srate_z[(aud.arousal == code).to_numpy()])))
+                         for code in ("up", "-", "down")}
+OUT["vocal_validity"]["power_dec"] = dict(n=int(pw_dec.sum()), mean_index=float(np.nanmean(voc[pw_dec == 1])))
+aud[["session", "i", "j", "target", "stage", "arousal"]].assign(vocal=voc, srate_z=srate_z).to_csv(
+    os.path.join(HERE, "vocal%s.csv" % SUF), index=False)
+
 # H14 counts and variability; H19 arousal and variability
 H["H14_counts_variance"] = dict(n=len(counts), **both(lambda jj: np.array([np.nanmean(CP.gather_var(S, jj))]), js_of(counts), 80))
 up = sub(calls, calls.arousal == "up")
@@ -419,6 +461,10 @@ def show(name, v, scale=1000):
 log("\nHYPOTHESIS-SPECIFIC (minus null mean; speed mm/s, dps mm, rate spm x1000 shown as 0.001 spm, counts per 10 strokes x1000)")
 for name, v in H.items():
     show(name, v)
+log("  vocal arousal validity (index mean, sd units, by coded arousal): " + ", ".join(
+    "%s %+.2f (n %d)" % (k, v["mean_index"], v["n"]) for k, v in OUT["vocal_validity"].items()))
+log("  vocal arousal Holm p (global / local): " + " ".join("%.3f/%.3f" % (a, b) for a, b in zip(
+    H["vocal_arousal"]["p_holm"], H["vocal_arousal"]["p_local_holm"])))
 c = H["H1_power_speed_curve"]
 log("  H1 power-call speed curve (mm/s): " + " ".join("%+.0f" % (1000 * x) for x in c["est"]))
 log("     global null sd:               " + " ".join("%.0f" % (1000 * x) for x in c["sd"]))

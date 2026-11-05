@@ -70,7 +70,7 @@ def compare():
     mod = json.load(open(os.path.join(EXP, "push_response_model.json")))
     meas = json.load(open(os.path.join(EXP, "two_coxswains.json")))["pushes"]
     out = {}
-    for sid, m in mod.items():
+    for sid, m in [(k, v) for k, v in mod.items() if not k.startswith("_")]:   # skip the saved comparison
         f = np.array(m["fraction"])
         h = np.arange(1, len(f) + 1)
         taus = np.linspace(1.0, 20.0, 400)
@@ -79,7 +79,7 @@ def compare():
         mod[sid]["tau_s"] = tau
         print("%s model: tau %.1f s = %.1f strokes; share of the plateau at strokes 3-5: %.2f, by stroke 10: %.2f" % (
             sid, tau, tau / m["period"], f[2:5].mean(), f[9]))
-    shape = np.mean([np.array(m["fraction"][:12]) for m in mod.values()], 0)
+    shape = np.mean([np.array(m["fraction"][:12]) for k, m in mod.items() if not k.startswith("_")], 0)
     for key in ("all_j_exec", "A_j_exec", "B_j_exec", "all_j_ann"):
         if key not in meas:
             continue

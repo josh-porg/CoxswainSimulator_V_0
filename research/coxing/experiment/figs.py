@@ -9,7 +9,7 @@ import numpy as np
 
 CODE = os.path.dirname(os.path.abspath(__file__))   # this script (committed, research/)
 HERE = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "data", "local", "coxing", "experiment"))   # its data and outputs (gitignored)
-R = json.load(open(os.path.join(HERE, "results.json")))
+R = json.load(open(os.path.join(HERE, os.environ.get("RESULTS", "results.json"))))   # RESULTS=results_set_first.json: the paper's set
 SH = json.load(open(os.path.join(HERE, "..", "short_horizon.json")))
 plt.rcParams.update({"font.family": "serif", "font.size": 8.5, "axes.spines.top": False, "axes.spines.right": False})
 INK, ACC, GREY = "#1f2a36", "#b0442c", "#8c96a0"
