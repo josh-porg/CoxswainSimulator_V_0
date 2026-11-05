@@ -30,8 +30,10 @@ def main():
     ap.add_argument("--kind", default="race")
     ap.add_argument("--boat", default="4+")
     ap.add_argument("--date", default="")
+    ap.add_argument("--source", default="", help="what the recording is (default: coxswain audio recording <key>)")
     a = ap.parse_args()
-    off = float(json.load(open(os.path.join(ROOT, "data", "local", "coxing", "sync", a.key + ".json")))["offset"])
+    sync = json.load(open(os.path.join(ROOT, "data", "local", "coxing", "sync", a.key + ".json")))
+    off = float(sync["offset"])
     segs = json.load(open(os.path.join(ROOT, "data", "local", "overlay", "calls", a.key + "_nocond.json"), encoding="utf-8"))
     s = C.load_csv(a.coxbox)
     d = os.path.join(ROOT, "data", "local", "coxing", "sessions", a.sid)
@@ -63,9 +65,10 @@ def main():
     phrases = [dict(i=k, **p) for k, p in enumerate(q for q in phrases if q["text"])]
     json.dump(phrases, open(os.path.join(d, "phrases.json"), "w", encoding="utf-8"), indent=0)
     open(os.path.join(d, "phrases.txt"), "w", encoding="utf-8").write("".join("%d|%d|%s\n" % (p["i"], p["t"], p["text"]) for p in phrases))
-    json.dump(dict(id=a.sid, kind=a.kind, boat_class=a.boat, date=a.date, source="coxswain audio recording " + a.key,
+    json.dump(dict(id=a.sid, kind=a.kind, boat_class=a.boat, date=a.date, source=a.source or "coxswain audio recording " + a.key,
                    boat_source="CoxBox CBGPS per-stroke export", sync_offset_s=off,
-                   sync_method="stroke lock on the 20-150 Hz envelope (sync_audio_coxbox.py)", note=a.note,
+                   sync_method=sync.get("method_note", "stroke lock on the 20-150 Hz envelope (sync_audio_coxbox.py)"),
+                   note=a.note,
                    t0=float(s.t[0]), t1=float(s.t[-1])), open(os.path.join(d, "meta.json"), "w"), indent=1)
     inside = sum(1 for p in phrases if s.t[0] <= p["t"] <= s.t[-1])
     print("%s: %d strokes, %d words, %d phrases (%d inside the race)" % (a.sid, len(s.t), len(ws), len(phrases), inside))

@@ -18,11 +18,19 @@ CB = {"practice_01": "20260925 0555AM", "practice_02": "20260925 0620AM", "contr
       "practice_06": "20261007 0948AM", "practice_07": "20261007 1003AM", "practice_08": "20261007 1014AM",
       "race_06": "20261017 0737AM",
       # another coxswain's boat and CoxBox unit (a full file name): the second crew in the study
-      "race_07": "Sharing file  CoxBox 011007363 20261017 0713AM.csv"}
+      "race_07": "Sharing file  CoxBox 011007363 20261017 0713AM.csv",
+      # Head of the Lake 2026 (1 Nov): files kept with the race day, a path under data/local
+      "race_08": "raceday/hotl2026/coxbox/Sharing file  CoxBox 011009704 20261101 1102AM.csv",
+      "race_09": "raceday/hotl2026/coxbox/Sharing file  CoxBox 011009704 20261101 1256PM.csv"}
+ONLY = sys.argv[1:]                     # optional: session ids to (re)build; default all
 
 for sid, cb in CB.items():
+    if ONLY and sid not in ONLY:
+        continue
     name = cb if cb.endswith(".csv") else "Sharing file  CoxBox 011009704 %s.csv" % cb
-    s = C.load_csv(os.path.join(ROOT, "data", "local", "coxbox", name))
+    path = os.path.join(ROOT, "data", "local", *name.split("/")) if "/" in name else \
+        os.path.join(ROOT, "data", "local", "coxbox", name)
+    s = C.load_csv(path)
     boat = np.genfromtxt(os.path.join(SDIR, sid, "boat.csv"), delimiter=",", names=True)
     assert len(boat["t"]) == len(s.t) and np.allclose(boat["t"], s.t), sid
     lat0 = np.radians(np.nanmean(s.lat))

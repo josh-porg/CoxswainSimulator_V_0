@@ -18,7 +18,8 @@
    Constant force per stroke (work per stroke fixed, drag power ~ v^3) predicts 1/3; constant power predicts ~0.
 
 Coxswain labels are neutral: A (sessions of the first coxswain), B (race_07). Data and outputs in
-data/local/coxing/experiment (two_coxswains.json, two_coxswains.log).
+data/local/coxing/experiment (two_coxswains.json, two_coxswains.log). EPISODES=<suffix> reads episodes<suffix>.csv (a run of
+run_experiment.py with SET/COURSE) and writes two_coxswains<suffix>.json/.log, e.g. EPISODES=_before_hotl.
 """
 import json
 import os
@@ -40,7 +41,8 @@ COX_B = ["race_07"]
 NPERM = 2000
 ANN = re.compile(r"in two|take a\b|take (?:\d+|five|ten|twenty|three)|\bready\b|give me (?:\d+|five|ten)|last 10|last ten", re.I)
 EXEC_WORDS = {"one", "go", "now"}
-LOG = os.path.join(EXP, "two_coxswains.log")
+EPS = os.environ.get("EPISODES", "")                 # which run_experiment episodes file (suffix)
+LOG = os.path.join(EXP, "two_coxswains%s.log" % EPS)
 OUT = {}
 
 
@@ -95,7 +97,9 @@ def policy(calls, sess):
     log("\n1. CALLING POLICY: boat state before the call, minus the same at shifted strokes")
     log("   surprise = one-step speed residual, mean of the 3 strokes before (mm/s); contingency = speed change before"
         " (mm/s); turn = |turn rate| at the call (deg/s)")
-    for cox, sids in (("A", [k for k in sess if k not in COX_B]), ("B", COX_B)):
+    for cox, sids in (("A", [k for k in sess if k not in COX_B]), ("B", [k for k in COX_B if k in sess])):
+        if not sids:                              # a run without that coxswain (EPISODES=_set_hotl)
+            continue
         S = [sess[k] for k in sids]
         res[cox] = {}
         for lab, f in CLASSES.items():
@@ -186,6 +190,8 @@ def gearing(calls, sess):
                                frac=(b0 + 5) / n))
     B = pd.DataFrame(blocks)
     for lab, d in (("all", B), ("A", B[B.cox == "A"]), ("B", B[B.cox == "B"])):
+        if len(d) < 6:                            # a run without that coxswain
+            continue
         d = d.copy()
         d["turn"] = d.turn.fillna(d.turn.mean())
         for c in ("lv", "lr", "turn", "frac"):    # within-session (fixed effects)
@@ -208,7 +214,9 @@ def gearing(calls, sess):
         log("   blocks %-3s %3d blocks in %2d pieces: elasticity %.2f (95%% CI %.2f to %.2f, resampled)" % (
             lab, len(d), len(sids), b[0], lo_, hi_))
     # rate calls: relative speed response over relative rate response, strokes 1-5
-    for lab, sids in (("all", list(sess)), ("A", [k for k in sess if k not in COX_B]), ("B", COX_B)):
+    for lab, sids in (("all", list(sess)), ("A", [k for k in sess if k not in COX_B]), ("B", [k for k in COX_B if k in sess])):
+        if not sids:
+            continue
         S = [sess[k] for k in sids]
         d = calls[calls.session.isin(sids) & (calls.target == "rate") & (calls.stage == "dec")]
         if len(d) < 5:
@@ -234,7 +242,7 @@ def gearing(calls, sess):
 
 def main():
     open(LOG, "w").close()
-    D = pd.read_csv(os.path.join(EXP, "episodes.csv"))
+    D = pd.read_csv(os.path.join(EXP, "episodes%s.csv" % EPS))
     calls = D[D.target != "count"].reset_index(drop=True)
     sids = list(dict.fromkeys(D.session))
     sess = {k: load(k) for k in sids}
@@ -243,7 +251,7 @@ def main():
     OUT["policy"] = policy(calls, sess)
     OUT["pushes"] = pushes(calls, sess)
     OUT["gearing"] = gearing(calls, sess)
-    json.dump(OUT, open(os.path.join(EXP, "two_coxswains.json"), "w"), indent=1)
+    json.dump(OUT, open(os.path.join(EXP, "two_coxswains%s.json" % EPS), "w"), indent=1)
 
 
 if __name__ == "__main__":

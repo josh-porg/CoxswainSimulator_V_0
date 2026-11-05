@@ -27,7 +27,7 @@ ANN = re.compile(r"in two|take a\b|take (\d+|five|ten|twenty|three)|\bready\b|gi
 
 def main():
     sids = sys.argv[1:] or ["race_06", "race_07"]
-    D = pd.read_csv(os.path.join(EXP, "episodes.csv"))
+    D = pd.read_csv(os.path.join(EXP, "episodes%s.csv" % os.environ.get("EPISODES", "")))
     for sid in sids:
         s = CP.prepare(CP.load_session(os.path.join(ROOT, "data", "local", "coxing", "sessions", sid)), course=COURSE)
         pw = D[(D.session == sid) & (D.target == "power") & (D.stage == "dec")]

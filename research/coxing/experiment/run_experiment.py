@@ -36,15 +36,26 @@ AUDIO = {"practice_01": "0117", "practice_02": "0119", "race_04": "0132", "race_
 OTHER_COX = ["race_07"]
 for _k in OTHER_COX:                         # the recording's key lives in the private session meta (names stay in data/local)
     AUDIO[_k] = json.load(open(os.path.join(SDIR, _k, "meta.json")))["source"].split()[-1]
-# SET=first: the first coxswain's sessions only (the analysis as it stood before race_07); SET=race_07: race_07 alone
-# (the out-of-sample test of the first coxswain's conclusions); default: all sessions.
+# race_08, race_09 (added 5 Nov 2026): Head of the Lake 2026, the FIRST coxswain with two new crews (women's eight,
+# men's four), from the head camera's audio on the race video's sync (CODEBOOK addendum, 5 Nov). They continue the
+# first coxswain's familiarity sequence.
+HOTL = ["race_08", "race_09"]
+ORDER = ORDER + HOTL
+AUDIO.update({"race_08": "0151", "race_09": "0153"})
+# SET=first: the first coxswain's sessions only; SET=race_07: race_07 alone (the out-of-sample test of the first
+# coxswain's conclusions on another coxswain); SET=before_hotl: every session before Head of the Lake (the analysis as
+# it stood on 4 Nov 2026); SET=hotl: race_08 and race_09 alone (the same coxswain with new crews); default: all.
 SET = os.environ.get("SET", "all")
 if SET == "first":
-    pass
+    SES = SES + HOTL
 elif SET in OTHER_COX:
     SES = [SET]
-else:
+elif SET == "before_hotl":
     SES = SES + OTHER_COX
+elif SET == "hotl":
+    SES = list(HOTL)
+else:
+    SES = SES + HOTL + OTHER_COX
 # COURSE=1: the boat's own forecast also carries the course (turn rate; heading where the piece turns),
 # a robustness run written with the suffix _course. Without it the analysis is the pre-registered one.
 COURSE = os.environ.get("COURSE") == "1"
