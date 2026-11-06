@@ -4,7 +4,7 @@
 
 Text: Cohen's kappa per field between the human and the primary coder (first showings only; the human's main target,
 i.e. the first of several; fields other than target only where both coded a call, not a count or other talk), with a
-95% bootstrap interval; how often the primary coder's target is among the human's targets; flags and notes; for arousal also
+95% bootstrap interval; how often the primary coder's target (and function) is among the human's; flags and notes; for arousal also
 against the hypothesis-blind and lexical coders. Test-retest kappa per field from the unannounced repeats.
 Voice: Spearman correlation of the 1-7 rating with the acoustic vocal arousal index of the same phrase (loudness,
 F0 and speech rate, each z-scored within the piece over its call phrases), the mean rating by each coder's arousal
@@ -107,6 +107,13 @@ def main():
     if multi:
         print("  targets: %d of %d phrases have several; the primary coder's target is among the human's in %.0f%%" % (
             out["targets"]["several"], len(multi), 100 * out["targets"]["primary_among_human"]))
+    mf = [(h.get("functions") or [h["function"]], p["function"]) for h, p, _, _ in rows
+          if h["target"] not in ("count", "other") and p["target"] not in ("count", "other")]
+    if mf:
+        out["functions"] = dict(n=len(mf), several=sum(len(f) > 1 for f, _ in mf),
+                                primary_among_human=float(np.mean([p in f for f, p in mf])))
+        print("  functions: %d of %d calls have several; the primary coder's function is among the human's in %.0f%%" % (
+            out["functions"]["several"], len(mf), 100 * out["functions"]["primary_among_human"]))
     calls = [(h, bl, ru) for h, p, bl, ru in rows if h["target"] not in ("count", "other") and bl is not None]
     if len(calls) >= 10:
         a = [h["arousal"] for h, _, _ in calls]

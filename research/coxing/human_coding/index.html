@@ -48,7 +48,7 @@ const F = [
   ["stage", "Stage", [["i","inf","states a fact"],["a","ass","evaluates the crew's performance (better, too high, that's it)"],["d","dec","tells the crew what to do"],["-","-","does not apply"]]],
   ["level", "Feedback level", [["t","task","about the boat or stroke outcome"],["p","proc","how to execute (technique)"],["s","sreg","directs the crew's own monitoring or focus (focus, stay sharp, lock in)"],["e","self","about the persons or their worth"],["-","-","does not apply"]]],
   ["action", "Action specified", [["y","y","a concrete movement, force or rhythm change is named"],["n","n","no concrete action"]]],
-  ["function", "Function", [["r","recruit","engage or arouse participation (let's go, with me)"],["d","dof","narrows what to attend to (just legs, only the catch)"],["i","direct","keeps the goal or plan in view (target rate, hold, splits vs target)"],["m","mark","points to a specific discrepancy (blades too high, late)"],["f","frust","controls frustration or anxiety (relax, stay calm)"],["e","demo","demonstrates the rhythm with timed words"],["-","-","none"]]],
+  ["function", "Function (several allowed; the first is the main one)", [["r","recruit","engage or arouse participation (let's go, with me)"],["d","dof","narrows what to attend to (just legs, only the catch)"],["i","direct","keeps the goal or plan in view (target rate, hold, splits vs target)"],["m","mark","points to a specific discrepancy (blades too high, late)"],["f","frust","controls frustration or anxiety (relax, stay calm)"],["e","demo","demonstrates the rhythm with timed words"],["-","-","none"]]],
   ["focus", "Attentional focus", [["i","int","body or body movement (legs, hands, core, feet, breathe)"],["e","ext","boat, oar, water or effect (blades in, move the boat, run)"],["-","-","neither"]]],
   ["ref", "Named reference", [["y","y","a reference the crew can perceive and match: a rate number, a felt quality, a rival, this rhythm"],["n","n","no reference"]]],
   ["discrep", "Discrepancy", [["y","y","a margin, deficit or split relative to a target or rival (up a seat, 500 to go)"],["n","n","none"]]],
@@ -56,6 +56,8 @@ const F = [
   ["form", "Form", [["a","analog","an image or metaphor for the movement (hang off the handle, squeeze, send it)"],["e","expl","a literal description of the movement or rule"],["-","-","no movement content"]]],
   ["arousal", "Arousal", [["u","up","urges intensity, urgency or aggression (now, go, attack, give me everything)"],["d","down","calms, settles, conserves (relax, settle, easy, breathe)"],["-","-","neither"]]],
 ];
+const MULTI = new Set(["target", "function"]);       // fields that take several values; the first chosen is the main one
+const filled = nm => MULTI.has(nm) ? cur[nm].length > 0 : !!cur[nm];
 const FLAGS = [["F","fragment","continues a call; coded as that call"],["U","unsure","a judgement call"],["X","transcript wrong","the words look misheard"],["S","signal","marks a shift in the talk or calls for attention (okay, listen)"]];
 let S, mode, items, done, pos, cur, field, flags, note, noting, t0, plays = 0, busy = false;
 const app = document.getElementById("app"), help = document.getElementById("help");
@@ -84,12 +86,12 @@ function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"
 
 // ---------------- text coding
 function startText() {
-  cur = { target: [] }; field = 0; flags = new Set(); note = ""; noting = false; t0 = performance.now();
-  help.textContent = "Target: letters toggle targets (first = main), Space moves on. Other fields: one letter each. Backspace: back. Shift+F/U/X/S: flags. Shift+N: note. Enter: save and next.";
+  cur = { target: [], function: [] }; field = 0; flags = new Set(); note = ""; noting = false; t0 = performance.now();
+  help.textContent = "Target and Function: letters toggle values (first = main), Space moves on. Other fields: one letter each. Backspace: back. Shift+F/U/X/S: flags. Shift+N: note. Enter: save and next.";
   renderText();
 }
 function skipped() { return cur.target.length > 0 && cur.target.every(t => t === "count" || t === "other"); }
-function complete() { return cur.target.length > 0 && (skipped() || F.slice(1).every(f => cur[f[0]])); }
+function complete() { return cur.target.length > 0 && (skipped() || F.slice(1).every(f => filled(f[0]))); }
 function renderText(msg = "") {
   const it = items[pos];
   let h = progress() + '<div class="ctx">' + it.before.map(esc).map(x => `<div>${x}</div>`).join("") + "</div>";
@@ -97,8 +99,9 @@ function renderText(msg = "") {
   h += '<div class="fields">';
   F.forEach((f, k) => {
     const off = k > 0 && skipped();
-    const isSel = v => k === 0 ? cur.target.includes(v) : cur[f[0]] === v;
-    const mark = v => k === 0 && cur.target.length > 1 && cur.target[0] === v ? "<sup>main</sup>" : "";
+    const multi = MULTI.has(f[0]);
+    const isSel = v => multi ? cur[f[0]].includes(v) : cur[f[0]] === v;
+    const mark = v => multi && cur[f[0]].length > 1 && cur[f[0]][0] === v ? "<sup>main</sup>" : "";
     h += `<div class="row ${k === field && !off ? "active" : ""}" style="${off ? "opacity:.35" : ""}"><span class="name">${f[1].split(":")[0].split(" (")[0]}</span><span>` +
       f[2].map(o => `<span class="opt ${isSel(o[1]) ? "sel" : ""}" data-f="${k}" data-v="${o[1]}"><b>${o[0]}</b> ${o[1]}${mark(o[1])}</span>`).join("") + "</span></div>";
   });
@@ -106,7 +109,7 @@ function renderText(msg = "") {
   const af = F[Math.min(field, F.length - 1)];
   let def = complete() && field >= F.length ? "All fields set. Enter saves and moves on." :
     "<b>" + af[1] + "</b>: " + af[2].map(o => `${o[1]} = ${o[2]}`).join("; ");
-  if (field === 0) def += cur.target.length ? "<br>Space: done with targets, move on." : "";
+  if (field < F.length && MULTI.has(af[0]) && cur[af[0]].length) def += "<br>Press more letters to add values, or Space to move on.";
   h += `<div class="def">${def}</div>`;
   h += '<div class="flags">' + FLAGS.map(g => `<span class="flag ${flags.has(g[1]) ? "on" : ""}" data-flag="${g[1]}" title="${g[2]}">Shift+${g[0]} ${g[1]}</span>`).join("") +
     `<span class="flag ${note ? "on" : ""}" data-note="1">Shift+N note${note ? " ✓" : ""}</span></div>`;
@@ -115,27 +118,29 @@ function renderText(msg = "") {
   app.innerHTML = h;
   if (noting) { const t = document.getElementById("note"); t.focus(); t.setSelectionRange(t.value.length, t.value.length); }
 }
-function nextField() {
-  field = 1;
-  if (skipped()) { field = F.length; return; }
-  while (field < F.length && cur[F[field][0]]) field++;
+function nextField() {                                   // leave a multi-value field (Space)
+  if (field === 0 && skipped()) { field = F.length; return; }
+  field = field + 1;
+  while (field < F.length && filled(F[field][0])) field++;
 }
 function setField(k, v) {
-  if (k === 0) {
-    const i = cur.target.indexOf(v);
-    i >= 0 ? cur.target.splice(i, 1) : cur.target.push(v);
-    field = 0; return renderText();
+  const nm = F[k][0];
+  if (MULTI.has(nm)) {                                    // toggle; "-" (none) excludes the other values
+    if (v === "-") cur[nm] = cur[nm].includes("-") ? [] : ["-"];
+    else { cur[nm] = cur[nm].filter(x => x !== "-"); const i = cur[nm].indexOf(v); i >= 0 ? cur[nm].splice(i, 1) : cur[nm].push(v); }
+    field = k; return renderText();
   }
-  cur[F[k][0]] = v;
+  cur[nm] = v;
   field = k + 1;
-  while (field < F.length && cur[F[field][0]]) field++;
+  while (field < F.length && filled(F[field][0])) field++;
   renderText();
 }
 async function saveText() {
   if (!complete()) return renderText(cur.target.length ? "Set every field first." : "Choose at least one target.");
   if (busy) return; busy = true;
-  const codes = skipped() ? Object.fromEntries(F.map(f => [f[0], "-"])) : Object.fromEntries(F.slice(1).map(f => [f[0], cur[f[0]]]));
+  const codes = skipped() ? Object.fromEntries(F.map(f => [f[0], "-"])) : Object.fromEntries(F.slice(1).map(f => [f[0], MULTI.has(f[0]) ? cur[f[0]][0] : cur[f[0]]]));
   codes.target = cur.target[0]; codes.targets = [...cur.target];
+  codes.functions = skipped() ? ["-"] : [...cur.function];
   const r = await fetch("/api/text", { method:"POST", headers:{ "Content-Type":"application/json" },
     body: JSON.stringify({ id: items[pos].id, codes, flags:[...flags], note: note.trim(), ms: Math.round(performance.now() - t0) }) });
   busy = false;
@@ -190,12 +195,16 @@ document.addEventListener("keydown", e => {
   if (e.shiftKey && /^n$/i.test(e.key)) { e.preventDefault(); noting = true; return renderText(); }
   if (e.shiftKey && /^[fuxs]$/i.test(e.key)) { const g = FLAGS.find(x => x[0] === e.key.toUpperCase())[1]; flags.has(g) ? flags.delete(g) : flags.add(g); return renderText(); }
   if (e.key === "Enter") { e.preventDefault(); return saveText(); }
-  if (e.key === " " && field === 0) { e.preventDefault(); if (cur.target.length) { nextField(); renderText(); } else renderText("Choose at least one target."); return; }
+  if (e.key === " " && field < F.length && MULTI.has(F[field][0])) {
+    e.preventDefault();
+    if (cur[F[field][0]].length) { nextField(); renderText(); } else renderText("Choose at least one value first.");
+    return;
+  }
   if (e.key === "Backspace") {
     e.preventDefault();
-    if (field === 0) cur.target.pop();
+    if (field < F.length && MULTI.has(F[field][0]) && cur[F[field][0]].length) cur[F[field][0]].pop();
     else if (field >= F.length && skipped()) field = 0;
-    else { field = field - 1; if (field > 0) delete cur[F[field][0]]; }
+    else if (field > 0) { field = field - 1; if (!MULTI.has(F[field][0])) delete cur[F[field][0]]; }
     return renderText();
   }
   if (field >= F.length) return;

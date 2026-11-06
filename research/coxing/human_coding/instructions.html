@@ -60,7 +60,8 @@ split across lines and run-ons. A phrase is whatever the transcript split off; i
 <i>main</i> target (marked "main" when there are several); press a letter again to remove it. Press
 <kbd>Space</kbd> when done.</li>
 <li><b>The other ten fields.</b> One letter each; the cursor moves on by itself. <kbd>-</kbd> or <kbd>0</kbd>
-means "does not apply".</li>
+means "does not apply". <b>Function</b> works like Target: it takes several values, the first is the main one, and
+<kbd>Space</kbd> moves on.</li>
 <li><b>Flags and a note,</b> if any (see <a href="#keys">keys</a>).</li>
 <li><b><kbd>Enter</kbd></b> saves and shows the next phrase. Check the row first: a saved phrase is locked.</li>
 </ol>
@@ -77,7 +78,7 @@ context shown.</p>
 <tr><td>Stage</td><td>inf (i), ass (a), dec (d), - </td><td><b>inf</b> states a fact. <b>ass</b> evaluates the crew's performance ("better", "too high", "that's it"). <b>dec</b> tells the crew what to do.</td></tr>
 <tr><td>Feedback level</td><td>task (t), proc (p), sreg (s), self (e), -</td><td><b>task</b> about the boat or stroke outcome. <b>proc</b> how to execute (technique). <b>sreg</b> directs the crew's own monitoring or focus ("focus", "stay sharp", "lock in", "find our rhythm"). <b>self</b> about the persons or their worth ("you're strong", "don't let them down").</td></tr>
 <tr><td>Action specified</td><td>y, n</td><td><b>y</b> if a concrete action is named: an instruction naming a movement, force or rhythm change.</td></tr>
-<tr><td>Function</td><td>recruit (r), dof (d), direct (i), mark (m), frust (f), demo (e), -</td><td><b>recruit</b> engages or arouses participation ("let's go", "with me"). <b>dof</b> narrows what to attend to ("just legs", "only the catch"). <b>direct</b> keeps the goal or plan in view (target rate, hold, plan, splits against target). <b>mark</b> points to a specific discrepancy ("blades too high", "late at the catch"). <b>frust</b> controls frustration or anxiety ("relax", "stay calm", "save it"). <b>demo</b> demonstrates the rhythm with timed words ("catch… send").</td></tr>
+<tr><td>Function</td><td>recruit (r), dof (d), direct (i), mark (m), frust (f), demo (e), -<br><span class="muted">several allowed</span></td><td><b>recruit</b> engages or arouses participation ("let's go", "with me"). <b>dof</b> narrows what to attend to ("just legs", "only the catch"). <b>direct</b> keeps the goal or plan in view (target rate, hold, plan, splits against target). <b>mark</b> points to a specific discrepancy ("blades too high", "late at the catch"). <b>frust</b> controls frustration or anxiety ("relax", "stay calm", "save it"). <b>demo</b> demonstrates the rhythm with timed words ("catch… send").</td></tr>
 <tr><td>Attentional focus</td><td>int (i), ext (e), -</td><td><b>int</b> the body or a body movement (legs, hands, shoulders, core, feet, breathe). <b>ext</b> the boat, oar, water or effect ("blades in", "move the boat", "run", "push the water").</td></tr>
 <tr><td>Named reference</td><td>y, n</td><td><b>y</b> if the call names something the crew can perceive and match: a rate number, a felt quality of the boat ("feel the run", "hear the catch"), a rival, a rhythm ("this rhythm").</td></tr>
 <tr><td>Discrepancy</td><td>y, n</td><td><b>y</b> if the call reports a margin, deficit or split relative to a target or rival ("up a seat", "two down", "we need 2 more", "500 to go").</td></tr>
@@ -87,10 +88,12 @@ context shown.</p>
 </table>
 
 <h2 id="cases">Special cases</h2>
-<h3>Several targets</h3>
-<p>When a phrase addresses more than one variable at once, choose all of them, the most important first. Only the
-main target is compared with the machine coder; the others are kept as extra information. Don't add targets just
-because they are loosely related; choose the ones the phrase is about.</p>
+<h3>Several targets or functions</h3>
+<p>When a phrase addresses more than one variable at once, choose all of them, the most important first. The same
+goes for Function, when a call does several jobs at once (for example engaging the crew and narrowing what they
+attend to). Only the main value is compared with the machine coder; the others are kept as extra information. Don't
+add values just because they are loosely related; choose the ones the phrase is about. Choosing "-" (none) on
+Function clears the others, and the reverse.</p>
 <h3>Fragments</h3>
 <p>If the phrase only continues a call from the line before (the second half of a sentence, a trailing "all the way
 through"), code the call it belongs to and press <kbd>Shift</kbd>+<kbd>F</kbd>.</p>
@@ -113,10 +116,10 @@ code <i>other</i> with the flag.</p>
 <h2 id="keys">Keys</h2>
 <table>
 <tr><th>Key</th><th>Does</th></tr>
-<tr><td>letters</td><td>On Target: toggle a target (first = main). On other fields: choose a value and move on.</td></tr>
-<tr><td><kbd>Space</kbd></td><td>Finish choosing targets, go to Stage.</td></tr>
+<tr><td>letters</td><td>On Target and Function: toggle a value (first = main). On other fields: choose a value and move on.</td></tr>
+<tr><td><kbd>Space</kbd></td><td>Finish choosing targets or functions, go to the next field.</td></tr>
 <tr><td><kbd>-</kbd> or <kbd>0</kbd></td><td>"Does not apply".</td></tr>
-<tr><td><kbd>Backspace</kbd></td><td>Back one field and clear it (on Target: remove the last target).</td></tr>
+<tr><td><kbd>Backspace</kbd></td><td>Back one field and clear it (on Target or Function: remove the last value first).</td></tr>
 <tr><td><kbd>Enter</kbd></td><td>Save and next (only when every field is set). Locks the phrase.</td></tr>
 <tr><td><kbd>Shift</kbd>+<kbd>F</kbd></td><td>Flag: fragment.</td></tr>
 <tr><td><kbd>Shift</kbd>+<kbd>U</kbd></td><td>Flag: unsure.</td></tr>
