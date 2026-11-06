@@ -14970,3 +14970,20 @@ IVV within 0.6, speed and power close), the hold's strength still unsourced abov
 ~0.05 even damped and stiffened. Default: off. Next: the blade-track efficiency on the sweep runs; a sourced hold from
 the joints' own torque–velocity (Anderson et al. 2007) and reflex gains (the trunk's, §208); a measured sweep shaft
 stiffness (DATA_REQUESTS §15).
+
+**Addendum: the 0.05 is accounting, and it moves the question to the blade** (`efficiency_definition_k07_c2sweep_hold4_bladetrack.log`).
+With the blade-track energy figure beside the gate-track one (Concept2-derived sweep shaft, hold β 4):
+
+| | gate track (Kleshnev's method) | blade track | rigid (hold β 4) |
+|---|---|---|---|
+| eight | 0.748 | **0.790** | 0.796 |
+| four | 0.712 | **0.758** | 0.766 |
+
+The bent blade wastes almost exactly what the rigid one does; the ~0.04–0.05 is the gate-track accounting, which on a
+bending oar books part of the shaft's stored and returned energy as blade waste (the bend is not back to zero at the
+release, and the gate-track normal is not the blade's). Kleshnev measured the same way on real, bending oars, so his
+band already contains this booking. Like for like, then, **the model's blades are ~0.05 less efficient than real ones**,
+and the rigid oar "passed" (0.796 against 0.798–0.908) only because it lacks a deficit the measurement includes. The open
+question moves from the oar to the blade's efficiency level — the cross-flow law's face-on coefficient and the catch and
+release (blade added mass, immersion) are the candidates — to be taken up with bending on, since bending is now the like
+for like comparison. Bending itself is no longer the thing failing the sweep boats.
