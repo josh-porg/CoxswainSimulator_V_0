@@ -123,13 +123,13 @@ def compare():
     json.dump(res, open(os.path.join(OUT, "agreement.json"), "w"), indent=1)
 
 
-def voice():
+def voice(suffix=""):
     """Which coder's arousal the voice agrees with: the vocal arousal index (run_experiment.py, CODEBOOK addendum of
-    5 Nov) of the author's calls, by agreement between the primary and blind coders. Reads vocal_set_first.csv and
-    vocal_blindarousal_all_set_first.csv (SET=first runs with and without ALT_AROUSAL=all ALT_SRC=blind)."""
+    5 Nov), by agreement between the primary and blind coders. Reads vocal<suffix>.csv and
+    vocal_blindarousal_all<suffix>.csv (runs with and without ALT_AROUSAL=all ALT_SRC=blind; suffix "" = all pieces)."""
     import pandas as pd
-    h = pd.read_csv(os.path.join(EXP, "vocal_set_first.csv"))
-    b = pd.read_csv(os.path.join(EXP, "vocal_blindarousal_all_set_first.csv"))
+    h = pd.read_csv(os.path.join(EXP, "vocal%s.csv" % suffix))
+    b = pd.read_csv(os.path.join(EXP, "vocal_blindarousal_all%s.csv" % suffix))
     m = h.merge(b[["session", "i", "arousal"]], on=["session", "i"], suffixes=("_hand", "_blind"))
     out = {}
     for lab, sel in (("both up", (m.arousal_hand == "up") & (m.arousal_blind == "up")),
@@ -138,8 +138,8 @@ def voice():
                      ("neither", (m.arousal_hand != "up") & (m.arousal_blind != "up"))):
         out[lab] = dict(n=int(sel.sum()), vocal=float(m.vocal[sel].mean()))
         print("%-16s n %4d  vocal arousal index %+.2f sd" % (lab, sel.sum(), m.vocal[sel].mean()))
-    json.dump(out, open(os.path.join(OUT, "voice.json"), "w"), indent=1)
+    json.dump(out, open(os.path.join(OUT, "voice%s.json" % suffix), "w"), indent=1)
 
 
 if __name__ == "__main__":
-    {"pack": pack, "compare": compare, "voice": voice}[sys.argv[1]]()
+    {"pack": pack, "compare": compare, "voice": voice}[sys.argv[1]](*sys.argv[2:])

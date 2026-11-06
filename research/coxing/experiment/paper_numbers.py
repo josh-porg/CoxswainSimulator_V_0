@@ -2,9 +2,10 @@
 
     .venv/Scripts/python.exe research/coxing/experiment/paper_numbers.py > data/local/coxing/experiment/paper_numbers.txt
 
-The paper's primary set is the first coxswain's pieces (SET=first); the second coxswain's race is reported on its
-own (SET=race_07) and pooled with them (all). Robustness: COURSE=1, SYNC=counts, and arousal from the lexical
-(ALT_AROUSAL=all) and hypothesis-blind (ALT_SRC=blind) coders.
+The paper's primary analysis pools every piece of both coxswains (results.json); coxswain differences come from
+coxswain_difference.py, and per-coxswain sets (SET=first, SET=race_07) serve what belongs to one coxswain (calling
+profile, the debrief). Robustness: COURSE=1, SYNC=counts, and arousal from the lexical (ALT_AROUSAL=all) and
+hypothesis-blind (ALT_SRC=blind) coders.
 """
 import csv
 import json
@@ -105,21 +106,27 @@ KEY = ["vocal_arousal", "H1_power_speed_curve", "H1_all_calls_speed_curve", "H7_
 
 def main():
     table1()
-    prim("results_set_first.json")
-    hyp("results_set_first.json")
-    for f in ("results_course_set_first.json", "results_countsync055_set_first.json", "results_countsync045_set_first.json",
-              "results_countsync065_set_first.json", "results_course_countsync055_set_first.json"):
+    prim("results.json")
+    hyp("results.json")
+    for f in ("results_course.json", "results_countsync055.json", "results_course_countsync055.json"):
         hyp(f, KEY)
-    for f in ("results_course_set_first.json", "results_rulearousal_all_set_first.json",
-              "results_blindarousal_all_set_first.json", "results_course_blindarousal_all_set_first.json",
-              "results_countsync055_set_first.json"):
+    for f in ("results_course.json", "results_rulearousal_all.json", "results_blindarousal_all.json",
+              "results_course_blindarousal_all.json", "results_countsync055.json"):
         prim(f)
+    for f in ("coxswain_difference.json", "coxswain_difference_course.json"):
+        print("COXSWAIN DIFFERENCE %s:" % f)
+        for k, v in J(f).items():
+            sc = 1.0 if "spm" in k else 1000.0
+            print("  %-38s A %+.2f  B %+.2f  B-A %+.2f (sd %.2f) p %.3f  n %d/%d" % (
+                k, sc * v["A"], sc * v["B"], sc * v["diff"], sc * v["diff_sd"], v["p"], v["n_A"], v["n_B"]))
+    print("VOICE by coder agreement (all pieces):", json.dumps(J("blind_arousal/voice.json")))
+    print("--- per coxswain: the first coxswain's pieces (debrief), the second's race ---")
+    prim("results_set_first.json")
+    hyp("results_set_first.json", KEY)
+    hyp("results_course_set_first.json", KEY)
     prim("results_set_race_07.json")
     hyp("results_set_race_07.json", KEY)
-    hyp("results_course_set_race_07.json", KEY) if os.path.exists(os.path.join(HERE, "results_course_set_race_07.json")) else None
-    prim("results.json")
-    hyp("results.json", KEY)
-    hyp("results_course.json", KEY)
+    hyp("results_course_set_race_07.json", KEY)
     print("PER PIECE (power calls, strokes 3-5):", {k: (v["n"], round(mm(v["est"]), 1), round(v["p"], 3))
                                                     for k, v in J("per_piece.json").items()})
     print("RELIABILITY (lexical coder):", J("reliability.json"))
