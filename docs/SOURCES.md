@@ -14933,5 +14933,40 @@ sweep oar because they are larger radius shafts than sculls".
   the blade root's distance): a sweep shaft is ~2.6× a scull's EI, as a ~1.4× wider tube's would be.
   `OarBending.concept2_sweep` ([L14] scull EI × 2.63 = 5526 N·m², K_ang 4867 N·m/rad on the eight) is 1.65× stiffer
   than [RLBQV19]'s bench law (10.6° at 900 N·m against 17.5°), whose K_ang was measured on their rotating-arm mount and
-  may include it. The eight and four on Kleshnev's measure with it (no hold, β 1, β 4) and rigid at β 4 were running
-  (`data/local/validation/efficiency_definition_k07_c2sweep*.log`, `_rigid_hold4.log`).
+  may include it.
+
+**Results** (2026-11-06; logs as named).
+
+*Rung 2, own bodies, own-pace hold* (`rung2_population_ownbody_*hold*own*.log`):
+
+| IVV / speed / power | β 0 | β 1 | β 2 | β 4 |
+|---|---|---|---|---|
+| [CR06] rigid | 52.4 %, 4.143, 259 | 52.4 %, 4.143, 259 | 52.4 %, 4.143, 259 | — |
+| [CR06] bending | 53.0 %, 4.145, 287 | **52.4 %, 4.188, 259** | 52.9 %, 4.211, 256 | — |
+| [BR24] rigid | 50.3 %, 4.728, 425 | 50.3 %, 4.731, 427 | 50.1 %, 4.734, 428 | **49.6 %, 4.745, 432** |
+| [BR24] bending | 64.2 %, 3.968, 625 (rings) | 60.6 %, 4.526, 442 (rings) | 50.7 %, 4.824, 410 | 51.7 %, 4.736, 382 |
+
+Referenced to the rower's own pace the hold leaves the rigid runs where they were (it even brings [BR24]'s rigid
+run to his IVV and power at β 4). With it, bending is within 0–0.6 points of the rigid oar for both athletes at β 1–2
+([CR06] equal at β 1; [BR24] needs β 2, above the force–velocity range, and then rows 4 % fast).
+
+*Sweep boats, Kleshnev's energy efficiency* (`efficiency_definition_k07_*`; bands: eight 0.798–0.908, four
+0.768–0.902):
+
+| | eight | four |
+|---|---|---|
+| rigid, hold 1 / hold 4 | 0.802 / 0.796 | 0.774 / 0.766 |
+| [RLBQV19] sweep, hold 1 | 0.502 | 0.487 |
+| Concept2-derived sweep, no hold / hold 1 / hold 4 | 0.510 / 0.615 / **0.748** | 0.504 / 0.626 / **0.712** |
+
+The stiffer shaft and the hold each help, but the bending sweep boats stay about 0.05 below the rigid ones at equal
+hold, while the load-weighted slip ratio barely moves (eight 0.792 against 0.795 at hold 4). Whether that 0.05 is waste
+or the gate-track accounting on a blade bent 10–16° (Kleshnev's own measurement makes the same gate-track assumption on
+real, bending oars) is the next check: the blade-track energy figure (`StrokeRecord.blade_efficiency_k07_blade`) beside
+the gate one, on these runs. A hold of 4 also tips the rigid boats just under their bands.
+
+**Where bending stands.** Sculls: passes with a hold of 1–2 on the rower's own pace (her force curve, both athletes'
+IVV within 0.6, speed and power close), the hold's strength still unsourced above ~1. Sweeps: fails Kleshnev's band by
+~0.05 even damped and stiffened. Default: off. Next: the blade-track efficiency on the sweep runs; a sourced hold from
+the joints' own torque–velocity (Anderson et al. 2007) and reflex gains (the trunk's, §208); a measured sweep shaft
+stiffness (DATA_REQUESTS §15).

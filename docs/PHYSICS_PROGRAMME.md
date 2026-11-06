@@ -1261,6 +1261,14 @@ the boat speeds that go with their drive durations).
   force-curve measure, not blade exit. The open problem is the crew's impedance about its planned motion, not the shaft.
   - *Next:* the joints' own torque–velocity slopes (Anderson et al. 2007 surfaces, already in the muscle check) at
     rung 2's activation, summed through the linkage to the clock; then rung 2 on both athletes again.
+- **§220 (2026-11-06): the crew's hold on its own pace, and a stiffer sweep shaft** (both from the user). A hold on the
+  rower's own pace, force × (1 + β(1 − speed/own pace)), leaves the rigid runs unchanged and brings bending within
+  0–0.6 points of rigid IVV for both athletes at β 1–2 (β above ~1 is beyond force–velocity alone: unsourced). By
+  Concept2's spec a sweep shaft is ~2.6× a scull's stiffness; the bench sweep law was ~1.65× too soft
+  (`OarBending.concept2_sweep`). The sweep boats improve (eight 0.50 → 0.75 on Kleshnev's measure, damped and stiffened)
+  but stay ~0.05 below rigid and their bands. Bending stays off.
+  - *Next:* the blade-track efficiency beside the gate-track on the sweep runs (waste or accounting?); a sourced hold
+    (joint torque–velocity, reflex gains); a measured sweep shaft (DATA_REQUESTS §15).
 
 ## Calibration and validation data from the squad's own boats (noted 2026-10-08)
 

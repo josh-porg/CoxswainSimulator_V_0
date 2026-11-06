@@ -95,6 +95,9 @@ class Settled:
     #: drive on the gate-angle track, the published band's own definition
     #: (``StrokeRecord.blade_efficiency_k07``).
     blade_efficiency_k07: Optional[float] = None
+    #: The same energy efficiency on the bent blade's own track (equal to it on a rigid oar): a diagnostic beside
+    #: the band's gate-track figure, never scored (SOURCES §220).
+    blade_efficiency_k07_blade: Optional[float] = None
 
     @property
     def efficiency(self) -> float:
@@ -255,7 +258,8 @@ def settle_dynamic(boat, watts: float, start: float,
     return Settled(scale=float(watts), speed=mean_speed, surge_swing=swing,
                    crew_power=crew, drag_power=drag * mean_speed,
                    blade_efficiency=run.settled_blade_efficiency(),
-                   blade_efficiency_k07=run.settled_blade_efficiency(track="k07"))
+                   blade_efficiency_k07=run.settled_blade_efficiency(track="k07"),
+                   blade_efficiency_k07_blade=run.settled_blade_efficiency(track="k07_blade"))
 
 
 def efficiency_at(boat, scale: float, start: float):

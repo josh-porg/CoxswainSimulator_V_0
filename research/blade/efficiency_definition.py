@@ -94,8 +94,10 @@ def main():
             boat.oar_bending = bending_law(boat) if bend == "bending" else None
             t0 = time.time()
             got = scorecard.settle_dynamic(boat, args.watts, start=5.0, handle_fv=fv)
-            print("%-3s %-7s %.2f m/s  slip ratio %.4f  K07 energy (gate track) %.4f  swing %.1f%%  (%.0f s)" % (
+            print("%-3s %-7s %.2f m/s  slip ratio %.4f  K07 energy (gate track) %.4f  (blade track %.4f)  swing %.1f%%"
+                  "  (%.0f s)" % (
                 name, bend, got.speed, got.blade_efficiency, got.blade_efficiency_k07,
+                got.blade_efficiency_k07_blade if got.blade_efficiency_k07_blade is not None else float("nan"),
                 100.0 * got.surge_swing, time.time() - t0), flush=True)
 
 
