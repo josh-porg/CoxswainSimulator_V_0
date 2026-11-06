@@ -1253,6 +1253,14 @@ the boat speeds that go with their drive durations).
   (Engstrom et al. 2023, open, 11 rowers, all joints by rate) is in hand as an ergometer population time course.
   - *Next for bending:* the late drive, tested on her handle force (it now discriminates): the hinge's unbending speed
     in the blade's slip, the release, the shaft's own damping. Then rung 2 power-matched with the force–velocity.
+- **§219 (2026-11-06): bending passes wherever the crew's motion is set.** On her own body timing with her motion
+  imposed, the measured scull shaft brings her handle force from 20.2 % to 12.5 % rms error, matches her late drive
+  (85 against 79 N) and her speed (4.200 against 4.191 m/s); his rung 1 improves too (speed +4 %, IVV −1.7). In rung 2
+  she is level with the rigid oar given Sprague's force–velocity (IVV 52.7 against 52.4 %); his clock rings (60.8 against
+  50.3 %). The full-text force–velocity (Sprague 2007, V0 6.16 m/s) only partly damps the mode; release slip ([K05]) is a
+  force-curve measure, not blade exit. The open problem is the crew's impedance about its planned motion, not the shaft.
+  - *Next:* the joints' own torque–velocity slopes (Anderson et al. 2007 surfaces, already in the muscle check) at
+    rung 2's activation, summed through the linkage to the clock; then rung 2 on both athletes again.
 
 ## Calibration and validation data from the squad's own boats (noted 2026-10-08)
 
