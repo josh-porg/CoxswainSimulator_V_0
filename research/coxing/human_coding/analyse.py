@@ -2,8 +2,9 @@
 
     .venv/Scripts/python.exe research/coxing/human_coding/analyse.py
 
-Text: Cohen's kappa per field between the human and the primary coder (first showings only; fields other than
-target only where both coded a call, not a count or other talk), with a 95% bootstrap interval; for arousal also
+Text: Cohen's kappa per field between the human and the primary coder (first showings only; the human's main target,
+i.e. the first of several; fields other than target only where both coded a call, not a count or other talk), with a
+95% bootstrap interval; how often the primary coder's target is among the human's targets; flags and notes; for arousal also
 against the hypothesis-blind and lexical coders. Test-retest kappa per field from the unannounced repeats.
 Voice: Spearman correlation of the 1-7 rating with the acoustic vocal arousal index of the same phrase (loudness,
 F0 and speech rate, each z-scored within the piece over its call phrases), the mean rating by each coder's arousal
@@ -100,6 +101,12 @@ def main():
             continue
         out["fields"][f] = dict(n=len(a), kappa_primary=kappa(a, b), ci=boot(a, b, rng))
         print("  %-9s n=%3d  kappa vs primary %.2f (95%% %.2f-%.2f)" % (f, len(a), out["fields"][f]["kappa_primary"], *out["fields"][f]["ci"]))
+    multi = [(h.get("targets") or [h["target"]], p["target"]) for h, p, _, _ in rows]
+    out["targets"] = dict(n=len(multi), several=sum(len(t) > 1 for t, _ in multi),
+                          primary_among_human=float(np.mean([p in t for t, p in multi])) if multi else None)
+    if multi:
+        print("  targets: %d of %d phrases have several; the primary coder's target is among the human's in %.0f%%" % (
+            out["targets"]["several"], len(multi), 100 * out["targets"]["primary_among_human"]))
     calls = [(h, bl, ru) for h, p, bl, ru in rows if h["target"] not in ("count", "other") and bl is not None]
     if len(calls) >= 10:
         a = [h["arousal"] for h, _, _ in calls]
@@ -113,7 +120,9 @@ def main():
     if reps:
         out["retest"] = {f: kappa([a[f] for a, _ in reps], [b[f] for _, b in reps]) for f in FIELDS}
         print("  test-retest kappa (%d repeats): %s" % (len(reps), ", ".join("%s %.2f" % (f, v) for f, v in out["retest"].items())))
-    out["flags"] = {g: sum(g in (r.get("flags") or []) for r in lt) for g in ("fragment", "unsure", "transcript wrong")}
+    out["flags"] = {g: sum(g in (r.get("flags") or []) for r in lt) for g in ("fragment", "unsure", "transcript wrong", "signal")}
+    out["notes"] = sum(bool(r.get("note")) for r in lt)
+    print("  flags %s; %d notes" % (out["flags"], out["notes"]))
     out["seconds_per_item"] = float(np.median([r["ms"] for r in lt]) / 1000) if lt else None
     # ---- voice
     lv = read("log_voice.jsonl")

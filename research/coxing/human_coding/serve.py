@@ -2,7 +2,7 @@
 
     .venv/Scripts/python.exe research/coxing/human_coding/serve.py        then open http://127.0.0.1:8765
 
-Serves index.html beside this file, the pack written by pack.py (data/local/coxing/human_coding/) and the voice
+Serves index.html and instructions.html beside this file, the pack written by pack.py (data/local/coxing/human_coding/) and the voice
 clips, and appends every submitted code to log_text.jsonl / log_voice.jsonl. Each log line carries the hash of the
 line before it (a hash chain), so an edit to any earlier line is detectable; an item can be logged once only. The
 voice task opens when every text item is logged. key.json (which piece and phrase each id is) is never served.
@@ -17,7 +17,8 @@ import time
 ROOT = r"C:\Users\satur\PycharmProjects\CoxswainSimulator_V_0"
 DATA = os.environ.get("CODING_DATA", os.path.join(ROOT, "data", "local", "coxing", "human_coding"))   # CODING_DATA: a test copy
 PAGE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html")
-PORT = 8765
+INSTRUCTIONS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "instructions.html")
+PORT = int(os.environ.get("CODING_PORT", 8765))           # CODING_PORT: another port for a test copy
 
 
 def read_log(name):
@@ -52,6 +53,8 @@ class H(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path in ("/", "/index.html"):
             return self.send(200, open(PAGE, "rb").read(), "text/html; charset=utf-8")
+        if self.path == "/instructions":
+            return self.send(200, open(INSTRUCTIONS, "rb").read(), "text/html; charset=utf-8")
         if self.path == "/api/state":
             text = json.load(open(os.path.join(DATA, "pack_text.json"), encoding="utf-8"))
             voice = json.load(open(os.path.join(DATA, "pack_voice.json")))
@@ -70,7 +73,7 @@ class H(http.server.BaseHTTPRequestHandler):
         if not re.fullmatch(r"[0-9a-f]{8}", str(body.get("id", ""))):
             return self.send(400, {"error": "bad id"})
         if self.path == "/api/text":
-            rec = {k: body.get(k) for k in ("id", "codes", "flags", "ms")}
+            rec = {k: body.get(k) for k in ("id", "codes", "flags", "note", "ms")}
         elif self.path == "/api/voice":
             if not read_log("log_text.jsonl") or len(read_log("log_text.jsonl")) < len(
                     json.load(open(os.path.join(DATA, "pack_text.json"), encoding="utf-8"))["items"]):

@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coding instructions</title>
+<style>
+:root { --bg:#f6f5f2; --card:#fff; --ink:#1f2a36; --muted:#5f6670; --line:#e3e1db; --acc:#2f6fb3; --accbg:#e6f1fb; }
+@media (prefers-color-scheme: dark) { :root { --bg:#171717; --card:#212121; --ink:#ecebe7; --muted:#a8a6a0; --line:#33322f; --acc:#85b7eb; --accbg:#0c2a48; } }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.65 system-ui, sans-serif; }
+main { max-width:820px; margin:0 auto; padding:28px 16px 64px; }
+h1 { font-size:26px; font-weight:600; margin:0 0 4px; } h2 { font-size:19px; font-weight:600; margin:32px 0 8px; } h3 { font-size:16px; font-weight:600; margin:18px 0 4px; }
+p, li { color:var(--ink); } .muted { color:var(--muted); }
+nav { font-size:14px; margin:12px 0 20px; display:flex; flex-wrap:wrap; gap:6px 14px; } nav a, a { color:var(--acc); }
+table { border-collapse:collapse; width:100%; font-size:14px; margin:8px 0; }
+th, td { text-align:left; vertical-align:top; padding:6px 8px; border-bottom:1px solid var(--line); }
+th { color:var(--muted); font-weight:600; }
+kbd { font:13px ui-monospace, monospace; background:var(--accbg); color:var(--acc); padding:1px 6px; border-radius:5px; }
+.box { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 18px; margin:12px 0; }
+</style>
+</head>
+<body>
+<main>
+<h1>Coding instructions</h1>
+<p class="muted">Keep this tab open while you code. Nothing here tells you how any phrase in the sample is coded.</p>
+<nav><a href="#why">Why</a><a href="#rules">Fairness rules</a><a href="#screen">The screen</a><a href="#steps">Coding a phrase</a><a href="#fields">Field guide</a><a href="#cases">Special cases</a><a href="#keys">Keys</a><a href="#blocks">Blocks and locking</a><a href="#voice">Voice task</a><a href="#after">Afterwards</a></nav>
+
+<h2 id="why">Why you are coding</h2>
+<p>Every call in the study was coded by a language model under the codebook. Your codes check that coding: for each
+field, how often a human who knows rowing and coxing reads the phrase the same way. That check is only worth
+something if your codes are your own, so the rules below keep anything but the words out of your view.</p>
+<p>You will code 600 phrases from all fifteen pieces (yours and another coxswain's), in random order. Some phrases
+come round a second time, unannounced, to measure how consistent coding is. Then there is a short voice task.</p>
+
+<h2 id="rules">Fairness rules</h2>
+<ul>
+<li><b>Code alone.</b> Don't discuss sampled phrases with anyone (Claude included) until you have finished.</li>
+<li><b>Words only.</b> While coding, don't open the videos, transcripts, CoxBox files, results, the paper or the
+machine codes. You were in the boat for most pieces; code what the words do, not what you remember happening next.</li>
+<li><b>Never use the outcome.</b> Whether the boat sped up has nothing to do with how a call is coded.</li>
+<li><b>Decide and move on.</b> If two readings are close, choose the one you think fits the codebook better and
+press <kbd>Shift</kbd>+<kbd>U</kbd> (unsure). Don't agonise; the flag records it.</li>
+<li><b>Take the breaks.</b> Coding drifts when you are tired. Stop at the end of a block whenever you like.</li>
+<li><b>Disagree freely.</b> If your reading of a rule differs from what you think the machine would do, go with
+yours. Disagreements are what the check is for. A note (<kbd>Shift</kbd>+<kbd>N</kbd>) explaining your reasoning
+helps improve the codebook later.</li>
+</ul>
+
+<h2 id="screen">The screen</h2>
+<p>The highlighted line is the phrase to code. The grey lines are the three phrases before it and the two after
+it in the transcript, there to show what it belongs to. Below are the eleven fields. The active field has a
+blue outline, and its definitions are shown underneath. The bar at the top shows progress and the block number.</p>
+<p>Transcripts are automatic speech recognition from a microphone in a moving boat. Expect misheard words, sentences
+split across lines and run-ons. A phrase is whatever the transcript split off; it may be half a sentence.</p>
+
+<h2 id="steps">Coding a phrase</h2>
+<ol>
+<li><b>Target(s).</b> Press the letter of each variable the phrase addresses. The first one you press is the
+<i>main</i> target (marked "main" when there are several); press a letter again to remove it. Press
+<kbd>Space</kbd> when done.</li>
+<li><b>The other ten fields.</b> One letter each; the cursor moves on by itself. <kbd>-</kbd> or <kbd>0</kbd>
+means "does not apply".</li>
+<li><b>Flags and a note,</b> if any (see <a href="#keys">keys</a>).</li>
+<li><b><kbd>Enter</kbd></b> saves and shows the next phrase. Check the row first: a saved phrase is locked.</li>
+</ol>
+<p>If the only target is <i>count</i> or <i>other</i>, the other fields don't apply and are skipped:
+press <kbd>Enter</kbd> straight away.</p>
+
+<h2 id="fields">Field guide</h2>
+<p class="muted">From the codebook (CODEBOOK.md), with its own examples. Code each phrase on its own terms, in the
+context shown.</p>
+<table>
+<tr><th>Field</th><th>Values (key)</th><th>Rule</th></tr>
+<tr><td>Target</td><td>power (p), rate (r), length (l), catch (c), finish (f), body (b), set (s), together (t), steer (w), info (i), morale (m), tactic (k), count (n), other (o)</td>
+<td>The variable the call addresses. <b>power</b> effort, pressure, drive, legs or push as force. <b>rate</b> stroke rate, rhythm, ratio, slide speed, build or settle. <b>length</b> reach, long, length. <b>catch</b> entry, blade in, catch timing. <b>finish</b> release, extraction, hands away. <b>body</b> posture, sit up, core, shoulders, breathing. <b>set</b> balance, blade height, level. <b>together</b> timing across the crew, "with stroke". <b>steer</b> course, turns, side press. <b>info</b> split, rate, position, distance, opponent reports, time left. <b>morale</b> encouragement or belief with no rowing target. <b>tactic</b> a move on a crew, a push to gain, a response to a crew. <b>count</b> a stroke count. <b>other</b> incidental talk.</td></tr>
+<tr><td>Stage</td><td>inf (i), ass (a), dec (d), - </td><td><b>inf</b> states a fact. <b>ass</b> evaluates the crew's performance ("better", "too high", "that's it"). <b>dec</b> tells the crew what to do.</td></tr>
+<tr><td>Feedback level</td><td>task (t), proc (p), sreg (s), self (e), -</td><td><b>task</b> about the boat or stroke outcome. <b>proc</b> how to execute (technique). <b>sreg</b> directs the crew's own monitoring or focus ("focus", "stay sharp", "lock in", "find our rhythm"). <b>self</b> about the persons or their worth ("you're strong", "don't let them down").</td></tr>
+<tr><td>Action specified</td><td>y, n</td><td><b>y</b> if a concrete action is named: an instruction naming a movement, force or rhythm change.</td></tr>
+<tr><td>Function</td><td>recruit (r), dof (d), direct (i), mark (m), frust (f), demo (e), -</td><td><b>recruit</b> engages or arouses participation ("let's go", "with me"). <b>dof</b> narrows what to attend to ("just legs", "only the catch"). <b>direct</b> keeps the goal or plan in view (target rate, hold, plan, splits against target). <b>mark</b> points to a specific discrepancy ("blades too high", "late at the catch"). <b>frust</b> controls frustration or anxiety ("relax", "stay calm", "save it"). <b>demo</b> demonstrates the rhythm with timed words ("catch… send").</td></tr>
+<tr><td>Attentional focus</td><td>int (i), ext (e), -</td><td><b>int</b> the body or a body movement (legs, hands, shoulders, core, feet, breathe). <b>ext</b> the boat, oar, water or effect ("blades in", "move the boat", "run", "push the water").</td></tr>
+<tr><td>Named reference</td><td>y, n</td><td><b>y</b> if the call names something the crew can perceive and match: a rate number, a felt quality of the boat ("feel the run", "hear the catch"), a rival, a rhythm ("this rhythm").</td></tr>
+<tr><td>Discrepancy</td><td>y, n</td><td><b>y</b> if the call reports a margin, deficit or split relative to a target or rival ("up a seat", "two down", "we need 2 more", "500 to go").</td></tr>
+<tr><td>Appraisal</td><td>chal (c), thr (t), neu (n)</td><td><b>chal</b> names resources, capability or progress ("you've got this", "we're walking", "good"). <b>thr</b> names shortfall, failure or danger framed as inadequacy ("not good enough", "they're taking us"). <b>neu</b> otherwise.</td></tr>
+<tr><td>Form</td><td>analog (a), expl (e), -</td><td><b>analog</b> describes the movement through an image or metaphor ("hang off the handle", "lock in", "squeeze", "send it"). <b>expl</b> a literal description of the movement or rule. <b>-</b> no movement content.</td></tr>
+<tr><td>Arousal</td><td>up (u), down (d), -</td><td><b>up</b> urges intensity, urgency or aggression ("now!", "go", "attack", "hit it", "give me everything"). <b>down</b> calms, settles or conserves ("relax", "settle", "easy", "save it", "breathe").</td></tr>
+</table>
+
+<h2 id="cases">Special cases</h2>
+<h3>Several targets</h3>
+<p>When a phrase addresses more than one variable at once, choose all of them, the most important first. Only the
+main target is compared with the machine coder; the others are kept as extra information. Don't add targets just
+because they are loosely related; choose the ones the phrase is about.</p>
+<h3>Fragments</h3>
+<p>If the phrase only continues a call from the line before (the second half of a sentence, a trailing "all the way
+through"), code the call it belongs to and press <kbd>Shift</kbd>+<kbd>F</kbd>.</p>
+<h3>Signal words</h3>
+<p>Some words mainly shift the talk or call for attention ("okay", "listen", "alright"). The codebook has no
+category for that job. Code what the phrase itself addresses: if it addresses no variable, that is <i>other</i>; if
+you judge that it also addresses a variable, code that variable. Either way, press <kbd>Shift</kbd>+<kbd>S</kbd>
+(signal) when shifting the talk or calling for attention is part of what it does. A note on how it works is
+welcome.</p>
+<h3>Counts mixed with calls</h3>
+<p>A bare count ("one", "that's two", "ten more" used as a count) is <i>count</i>. When a phrase mixes a count
+with a call ("three, sit up, four"), code the call.</p>
+<h3>Numbers that are readouts</h3>
+<p>Splits, rates, distances and times read out ("2 .18", "you're at a 30", "500 to go") are reports, so
+<i>info</i>, not counts.</p>
+<h3>Misheard words</h3>
+<p>Code your best reading of what was meant and press <kbd>Shift</kbd>+<kbd>X</kbd>. If it can't be read at all,
+code <i>other</i> with the flag.</p>
+
+<h2 id="keys">Keys</h2>
+<table>
+<tr><th>Key</th><th>Does</th></tr>
+<tr><td>letters</td><td>On Target: toggle a target (first = main). On other fields: choose a value and move on.</td></tr>
+<tr><td><kbd>Space</kbd></td><td>Finish choosing targets, go to Stage.</td></tr>
+<tr><td><kbd>-</kbd> or <kbd>0</kbd></td><td>"Does not apply".</td></tr>
+<tr><td><kbd>Backspace</kbd></td><td>Back one field and clear it (on Target: remove the last target).</td></tr>
+<tr><td><kbd>Enter</kbd></td><td>Save and next (only when every field is set). Locks the phrase.</td></tr>
+<tr><td><kbd>Shift</kbd>+<kbd>F</kbd></td><td>Flag: fragment.</td></tr>
+<tr><td><kbd>Shift</kbd>+<kbd>U</kbd></td><td>Flag: unsure.</td></tr>
+<tr><td><kbd>Shift</kbd>+<kbd>X</kbd></td><td>Flag: transcript wrong.</td></tr>
+<tr><td><kbd>Shift</kbd>+<kbd>S</kbd></td><td>Flag: signal (shifts the talk or calls for attention).</td></tr>
+<tr><td><kbd>Shift</kbd>+<kbd>N</kbd></td><td>Write a note; <kbd>Enter</kbd> or <kbd>Esc</kbd> closes it.</td></tr>
+</table>
+<p class="muted">You can also click the options and flags.</p>
+
+<h2 id="blocks">Blocks, resuming and locking</h2>
+<p>Phrases come in blocks of 40, about 15 minutes each, with a break screen between blocks. You can close the page
+at any time; next time it resumes at the first phrase not yet saved. Each saved phrase is written to a log in which
+every line carries a fingerprint of the one before, so a later change to any line would show, and a phrase can be
+saved only once. That is why there is no undo after <kbd>Enter</kbd>.</p>
+
+<h2 id="voice">The voice task</h2>
+<p>When every phrase is coded, the page switches to the voice task: 220 short clips of calls, filtered so the
+words can't be made out while loudness, pitch and pace remain. Rate how aroused the voice sounds, from 1 (very calm)
+to 7 (very fired-up). Rate the voice, not what you guess was said. <kbd>Space</kbd> replays; a number rates and moves
+on. It takes about 15 minutes.</p>
+
+<h2 id="after">Afterwards</h2>
+<p>Tell Claude when you have finished. The agreement analysis was fixed in the codebook before you started: agreement
+per field between your codes and the machine coder's (and for arousal, the blind and lexical coders' too), how
+consistent you were on the repeated phrases, how often the machine's target is among yours, and, for the voice task,
+how your ratings line up with the acoustic measure and with each coder's arousal codes.</p>
+</main>
+</body>
+</html>

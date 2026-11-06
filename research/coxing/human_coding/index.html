@@ -10,6 +10,7 @@
 * { box-sizing:border-box; }
 body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.6 system-ui, sans-serif; }
 main { max-width:860px; margin:0 auto; padding:24px 16px 48px; }
+a { color:var(--acc); }
 .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px 20px; }
 .top { display:flex; justify-content:space-between; font-size:13px; color:var(--muted); margin-bottom:8px; gap:12px; flex-wrap:wrap; }
 .bar { height:4px; background:var(--line); border-radius:4px; margin-bottom:16px; } .bar > div { height:4px; background:var(--acc); border-radius:4px; }
@@ -22,10 +23,12 @@ main { max-width:860px; margin:0 auto; padding:24px 16px 48px; }
 .opt { display:inline-block; margin:2px 8px 2px 0; padding:1px 6px; border-radius:6px; cursor:pointer; }
 .opt b { font-weight:600; color:var(--acc); }
 .opt.sel { background:var(--accbg); color:var(--acc); }
+.opt sup { font-size:10px; margin-left:2px; }
 .def { font-size:13px; color:var(--muted); margin-top:10px; min-height:3.2em; }
 .flags { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
 .flag { font-size:13px; padding:4px 10px; border:1px solid var(--line); border-radius:8px; cursor:pointer; color:var(--muted); }
 .flag.on { background:var(--warnbg); color:var(--warn); border-color:var(--warn); }
+textarea { width:100%; margin-top:10px; min-height:60px; font:14px/1.5 system-ui, sans-serif; background:var(--bg); color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:8px; }
 .hint { font-size:12px; color:var(--faint); margin-top:12px; }
 .msg { font-size:14px; color:var(--warn); min-height:1.4em; margin-top:8px; }
 .big { font-size:22px; margin:8px 0 4px; }
@@ -39,8 +42,9 @@ main { max-width:860px; margin:0 auto; padding:24px 16px 48px; }
 </main>
 <script>
 // The codebook's fields (CODEBOOK.md), in coding order. Keys are single letters; "-" or 0 for "does not apply".
+// Target takes several values: letters toggle them, the first chosen is the main target, Space moves on.
 const F = [
-  ["target", "Target: the variable the call addresses", [["p","power","effort, pressure, drive, legs or push as force"],["r","rate","stroke rate, rhythm, ratio, slide speed, build or settle"],["l","length","reach, long, length, stride"],["c","catch","entry, blade in, catch timing"],["f","finish","release, extraction, hands away, send"],["b","body","posture, sit up, core, shoulders, breathing"],["s","set","balance, blade height, level"],["t","together","timing across the crew, with stroke"],["w","steer","course, turns, side press"],["i","info","split, rate, position, distance, time or opponent reports"],["m","morale","encouragement or belief without a rowing target"],["k","tactic","move on a crew, push to gain, respond to a crew"],["n","count","a stroke count (no further codes)"],["o","other","incidental talk (no further codes)"]]],
+  ["target", "Target: the variable the call addresses (several allowed; the first is the main one)", [["p","power","effort, pressure, drive, legs or push as force"],["r","rate","stroke rate, rhythm, ratio, slide speed, build or settle"],["l","length","reach, long, length, stride"],["c","catch","entry, blade in, catch timing"],["f","finish","release, extraction, hands away, send"],["b","body","posture, sit up, core, shoulders, breathing"],["s","set","balance, blade height, level"],["t","together","timing across the crew, with stroke"],["w","steer","course, turns, side press"],["i","info","split, rate, position, distance, time or opponent reports"],["m","morale","encouragement or belief without a rowing target"],["k","tactic","move on a crew, push to gain, respond to a crew"],["n","count","a stroke count (no further codes)"],["o","other","incidental talk (no further codes)"]]],
   ["stage", "Stage", [["i","inf","states a fact"],["a","ass","evaluates the crew's performance (better, too high, that's it)"],["d","dec","tells the crew what to do"],["-","-","does not apply"]]],
   ["level", "Feedback level", [["t","task","about the boat or stroke outcome"],["p","proc","how to execute (technique)"],["s","sreg","directs the crew's own monitoring or focus (focus, stay sharp, lock in)"],["e","self","about the persons or their worth"],["-","-","does not apply"]]],
   ["action", "Action specified", [["y","y","a concrete movement, force or rhythm change is named"],["n","n","no concrete action"]]],
@@ -52,9 +56,10 @@ const F = [
   ["form", "Form", [["a","analog","an image or metaphor for the movement (hang off the handle, squeeze, send it)"],["e","expl","a literal description of the movement or rule"],["-","-","no movement content"]]],
   ["arousal", "Arousal", [["u","up","urges intensity, urgency or aggression (now, go, attack, give me everything)"],["d","down","calms, settles, conserves (relax, settle, easy, breathe)"],["-","-","neither"]]],
 ];
-const FLAGS = [["F","fragment","continues a call; coded as that call"],["U","unsure","a judgement call"],["X","transcript wrong","the words look misheard"]];
-let S, mode, items, done, pos, cur, field, flags, t0, sinceBreak = 0, plays = 0, busy = false;
+const FLAGS = [["F","fragment","continues a call; coded as that call"],["U","unsure","a judgement call"],["X","transcript wrong","the words look misheard"],["S","signal","marks a shift in the talk or calls for attention (okay, listen)"]];
+let S, mode, items, done, pos, cur, field, flags, note, noting, t0, plays = 0, busy = false;
 const app = document.getElementById("app"), help = document.getElementById("help");
+const INSTR = '<a href="/instructions" target="_blank">Instructions</a>';
 
 async function load() {
   S = await (await fetch("/api/state")).json();
@@ -63,23 +68,28 @@ async function load() {
   items = (mode === "voice" ? S.voice : S.text).items;
   pos = items.findIndex(x => !done.has(x.id));
   if (pos < 0) return finished();
+  if (mode === "text" && done.size === 0) return welcome();
   mode === "text" ? startText() : startVoice();
 }
-function finished() { app.innerHTML = '<div class="big">All done</div><div>Every item is logged. Thank you; the codes are locked in the log.</div>'; help.textContent = ""; }
+function welcome() {
+  mode = "welcome"; help.textContent = "";
+  app.innerHTML = `<div class="big">Before you start</div><div>Read the <a href="/instructions" target="_blank">instructions</a> once (they open in a new tab and stay one click away on every screen). Then press Enter to begin.</div>`;
+}
+function finished() { app.innerHTML = '<div class="big">All done</div><div>Every item is logged and locked. Tell Claude, who will run the agreement analysis.</div>'; help.textContent = ""; }
 function progress() {
   const n = done.size, N = items.length;
-  return `<div class="top"><span>${mode === "text" ? "Text coding" : "Voice task"} · item ${n + 1} of ${N} · random order · no piece, time or boat shown</span><span>block ${Math.floor(n / 40) + 1}</span></div><div class="bar"><div style="width:${(100 * n / N).toFixed(1)}%"></div></div>`;
+  return `<div class="top"><span>${mode.startsWith("voice") ? "Voice task" : "Text coding"} · item ${Math.min(n + 1, N)} of ${N} · random order · no piece, time or boat shown</span><span>block ${Math.floor(n / 40) + 1} · ${INSTR}</span></div><div class="bar"><div style="width:${(100 * n / N).toFixed(1)}%"></div></div>`;
 }
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c])); }
 
 // ---------------- text coding
 function startText() {
-  cur = {}; field = 0; flags = new Set(); t0 = performance.now();
-  help.textContent = "Type the letter for each field (it moves on by itself). Backspace: back one field. Shift+F / Shift+U / Shift+X: flags. Enter: save and next.";
+  cur = { target: [] }; field = 0; flags = new Set(); note = ""; noting = false; t0 = performance.now();
+  help.textContent = "Target: letters toggle targets (first = main), Space moves on. Other fields: one letter each. Backspace: back. Shift+F/U/X/S: flags. Shift+N: note. Enter: save and next.";
   renderText();
 }
-function skipped() { return cur.target === "count" || cur.target === "other"; }
-function complete() { return cur.target && (skipped() || F.every(f => cur[f[0]])); }
+function skipped() { return cur.target.length > 0 && cur.target.every(t => t === "count" || t === "other"); }
+function complete() { return cur.target.length > 0 && (skipped() || F.slice(1).every(f => cur[f[0]])); }
 function renderText(msg = "") {
   const it = items[pos];
   let h = progress() + '<div class="ctx">' + it.before.map(esc).map(x => `<div>${x}</div>`).join("") + "</div>";
@@ -87,32 +97,50 @@ function renderText(msg = "") {
   h += '<div class="fields">';
   F.forEach((f, k) => {
     const off = k > 0 && skipped();
-    h += `<div class="row ${k === field && !off ? "active" : ""}" style="${off ? "opacity:.35" : ""}"><span class="name">${f[1].split(":")[0]}</span><span>` +
-      f[2].map(o => `<span class="opt ${cur[f[0]] === o[1] ? "sel" : ""}" data-f="${k}" data-v="${o[1]}"><b>${o[0]}</b> ${o[1]}</span>`).join("") + "</span></div>";
+    const isSel = v => k === 0 ? cur.target.includes(v) : cur[f[0]] === v;
+    const mark = v => k === 0 && cur.target.length > 1 && cur.target[0] === v ? "<sup>main</sup>" : "";
+    h += `<div class="row ${k === field && !off ? "active" : ""}" style="${off ? "opacity:.35" : ""}"><span class="name">${f[1].split(":")[0].split(" (")[0]}</span><span>` +
+      f[2].map(o => `<span class="opt ${isSel(o[1]) ? "sel" : ""}" data-f="${k}" data-v="${o[1]}"><b>${o[0]}</b> ${o[1]}${mark(o[1])}</span>`).join("") + "</span></div>";
   });
   h += "</div>";
   const af = F[Math.min(field, F.length - 1)];
-  h += `<div class="def">${complete() ? "All fields set. Enter saves and moves on." : "<b>" + af[1] + "</b>: " + af[2].map(o => `${o[1]} = ${o[2]}`).join("; ")}</div>`;
-  h += '<div class="flags">' + FLAGS.map(g => `<span class="flag ${flags.has(g[1]) ? "on" : ""}" data-flag="${g[1]}">Shift+${g[0]} ${g[1]}</span>`).join("") + "</div>";
+  let def = complete() && field >= F.length ? "All fields set. Enter saves and moves on." :
+    "<b>" + af[1] + "</b>: " + af[2].map(o => `${o[1]} = ${o[2]}`).join("; ");
+  if (field === 0) def += cur.target.length ? "<br>Space: done with targets, move on." : "";
+  h += `<div class="def">${def}</div>`;
+  h += '<div class="flags">' + FLAGS.map(g => `<span class="flag ${flags.has(g[1]) ? "on" : ""}" data-flag="${g[1]}" title="${g[2]}">Shift+${g[0]} ${g[1]}</span>`).join("") +
+    `<span class="flag ${note ? "on" : ""}" data-note="1">Shift+N note${note ? " ✓" : ""}</span></div>`;
+  if (noting) h += `<textarea id="note" placeholder="Your reasoning, in a sentence or two. Enter closes; Shift+Enter for a new line.">${esc(note)}</textarea>`;
   h += `<div class="msg">${msg}</div>`;
   app.innerHTML = h;
+  if (noting) { const t = document.getElementById("note"); t.focus(); t.setSelectionRange(t.value.length, t.value.length); }
+}
+function nextField() {
+  field = 1;
+  if (skipped()) { field = F.length; return; }
+  while (field < F.length && cur[F[field][0]]) field++;
 }
 function setField(k, v) {
+  if (k === 0) {
+    const i = cur.target.indexOf(v);
+    i >= 0 ? cur.target.splice(i, 1) : cur.target.push(v);
+    field = 0; return renderText();
+  }
   cur[F[k][0]] = v;
-  if (k === 0 && (v === "count" || v === "other")) { field = F.length; return renderText(); }
   field = k + 1;
   while (field < F.length && cur[F[field][0]]) field++;
   renderText();
 }
 async function saveText() {
-  if (!complete()) return renderText("Set every field first.");
+  if (!complete()) return renderText(cur.target.length ? "Set every field first." : "Choose at least one target.");
   if (busy) return; busy = true;
-  const codes = skipped() ? Object.fromEntries(F.map(f => [f[0], f[0] === "target" ? cur.target : "-"])) : cur;
+  const codes = skipped() ? Object.fromEntries(F.map(f => [f[0], "-"])) : Object.fromEntries(F.slice(1).map(f => [f[0], cur[f[0]]]));
+  codes.target = cur.target[0]; codes.targets = [...cur.target];
   const r = await fetch("/api/text", { method:"POST", headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify({ id: items[pos].id, codes, flags:[...flags], ms: Math.round(performance.now() - t0) }) });
+    body: JSON.stringify({ id: items[pos].id, codes, flags:[...flags], note: note.trim(), ms: Math.round(performance.now() - t0) }) });
   busy = false;
   if (!r.ok && r.status !== 409) return renderText("Not saved: the server did not answer. Is serve.py running?");
-  done.add(items[pos].id); sinceBreak++;
+  done.add(items[pos].id);
   pos = items.findIndex(x => !done.has(x.id));
   if (pos < 0) return load();
   if (done.size % 40 === 0) return pause();
@@ -148,24 +176,40 @@ async function rate(n) {
 // ---------------- input
 document.addEventListener("keydown", e => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (noting) {                                          // typing a note: only Enter (close) and Escape (close) are ours
+    if ((e.key === "Enter" && !e.shiftKey) || e.key === "Escape") { e.preventDefault(); note = document.getElementById("note").value; noting = false; renderText(); }
+    return;
+  }
+  if (mode === "welcome") { if (e.key === "Enter") { mode = "text"; startText(); } return; }
   if (mode === "textpause" || mode === "voicepause") { if (e.key === "Enter") { mode = mode === "textpause" ? "text" : "voice"; mode === "text" ? startText() : startVoice(); } return; }
   if (mode === "voice") {
     if (e.key === " ") { e.preventDefault(); play(); } else if (/^[1-7]$/.test(e.key)) rate(+e.key);
     return;
   }
   if (mode !== "text") return;
-  if (e.shiftKey && /^[fux]$/i.test(e.key)) { const g = FLAGS.find(x => x[0] === e.key.toUpperCase())[1]; flags.has(g) ? flags.delete(g) : flags.add(g); return renderText(); }
+  if (e.shiftKey && /^n$/i.test(e.key)) { e.preventDefault(); noting = true; return renderText(); }
+  if (e.shiftKey && /^[fuxs]$/i.test(e.key)) { const g = FLAGS.find(x => x[0] === e.key.toUpperCase())[1]; flags.has(g) ? flags.delete(g) : flags.add(g); return renderText(); }
   if (e.key === "Enter") { e.preventDefault(); return saveText(); }
-  if (e.key === "Backspace") { e.preventDefault(); if (field > 0) { field = skipped() ? 0 : field - 1; delete cur[F[field][0]]; } return renderText(); }
+  if (e.key === " " && field === 0) { e.preventDefault(); if (cur.target.length) { nextField(); renderText(); } else renderText("Choose at least one target."); return; }
+  if (e.key === "Backspace") {
+    e.preventDefault();
+    if (field === 0) cur.target.pop();
+    else if (field >= F.length && skipped()) field = 0;
+    else { field = field - 1; if (field > 0) delete cur[F[field][0]]; }
+    return renderText();
+  }
   if (field >= F.length) return;
-  const key = e.key === "0" ? "-" : e.key.toLowerCase();
+  const key = (e.key === "0" || e.key === "-" || e.code === "Minus" || e.code === "NumpadSubtract" || e.code === "Digit0" || e.code === "Numpad0") ? "-" : e.key.toLowerCase();
   const o = F[field][2].find(x => x[0] === key);
   if (o) setField(field, o[1]);
 });
 app.addEventListener("click", e => {
   const o = e.target.closest(".opt"), g = e.target.closest(".flag"), r = e.target.closest("[data-rate]");
   if (o && mode === "text") { const k = +o.dataset.f; if (k === 0 || !skipped()) { field = k; setField(k, o.dataset.v); } }
-  if (g && mode === "text") { const v = g.dataset.flag; flags.has(v) ? flags.delete(v) : flags.add(v); renderText(); }
+  if (g && mode === "text") {
+    if (g.dataset.note) { noting = true; return renderText(); }
+    const v = g.dataset.flag; flags.has(v) ? flags.delete(v) : flags.add(v); renderText();
+  }
   if (r && mode === "voice") rate(+r.dataset.rate);
 });
 load();
