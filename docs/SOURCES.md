@@ -14859,3 +14859,58 @@ the shaft's own damping — tested first on her handle force, which now discrimi
   keyframed legs finish late, and the ergometer population independently supports [K05]'s leg timing (§213). (The
   elbow cannot be compared this way yet: the rower's chain holds the arm; the research arm draw is generated
   separately, §209.)
+
+## 219. Bending passes where the crew's motion is set; the open problem is the crew, not the shaft (2026-11-06)
+
+The user: "keep working" (bending to be reworked until validated, §218).
+
+**1. Kleshnev's release slip is not blade exit.** [K05]'s Table 1 has release slip 0.20 m on water — and 0.21–0.25 m on
+the RowPerfect and Concept2, where there is no blade. It is handle travel measured from a force threshold, a property
+of the force curve, so it cannot serve as a blade-exit (immersion) law. No sourced blade-exit timing was found; the
+model's blade stays fully wetted to the finish angle in rung 1 ([BR24]'s measured vertical angle, `blade_depth.py`, is
+the one source of a real exit, and only for him).
+
+**2. Her handle force with her motion imposed** (rung 1, `research/blade/bending_handle_force.py`; logs
+`data/local/validation/bending_handle_force_cr06_*.log`). The bending oar against the rigid one, rms of the force
+against oar angle as a fraction of her 279 N peak, the peak's angle (hers ≈ 13–15°), the force at −29 to −31° (hers
+65–79 N), and the run:
+
+| body and shaft | rms | peak | late force | speed (hers 4.191) | IVV (hers 49.4 %) |
+|---|---|---|---|---|---|
+| research body, rigid | 19.7 % | 44° | 28 N | 4.180 | 51.2 % |
+| research body, [L14] (thesis EI) | 15.1 % | 8.8° | 118 N | 4.236 | 53.5 % |
+| research body, EI ×1.17 (Concept2 spec) | 13.1 % | 8.8° | 107 N | 4.237 | 53.2 % |
+| research body, EI ×2 | 12.8 % | 31° | 75 N | 4.225 | 52.6 % |
+| [K05] legs, rigid | 15.4 % | 13.8° | 30 N | 4.162 | 52.7 % |
+| [K05] legs, [L14] | 14.3 % | 9.4° | 107 N | 4.236 | 53.3 % |
+| **her own legs and back, rigid** | 20.2 % | 14.6° | 44 N | 4.102 | 52.9 % |
+| **her own legs and back, [L14]** | **12.5 %** | 10.3° | **85 N** (hers 79) | **4.200** | 53.2 % |
+
+On her own body timing the bending oar is better on every force measure, matches her late drive and her speed; IVV is
+level (rung 1 imposes a population drive law on the oar, not her own oar timing, so IVV here is not the decisive test).
+The stiffness rows are sensitivities (her oar's stiffness is unmeasured), not fits. With the population leg timing
+([K05]), the rigid oar's catch spike also goes (peak at her 13.8°): the leg timing and the shaft both shape the early
+drive.
+
+**3. Rung 2 on each athlete's own body** (`rung2_population.py --body own`, `data/local/crew/logs/rung2_population_ownbody_*.log`):
+
+| | measured | rigid | [L14] bending | [L14] + Sprague F–v |
+|---|---|---|---|---|
+| [CR06] | 4.191 m/s, 49.4 %, 261 W | 4.143, 52.4 %, 259 | 4.145, 53.0 %, 287 | **4.167, 52.7 %, 267** |
+| [BR24] | 4.641 m/s, 49.1 %, 432 W | 4.728, 50.3 %, 425 | 3.968, 64.2 %, 625 (τ′ 0.72–1.49) | 4.145, 60.8 %, 466 (τ′ 0.79–1.36) |
+| [BR24] rung 1 (motion imposed) | | 4.217, 60.3 % | **4.385, 58.6 %** | — |
+
+For her, bending with the force–velocity is level with the rigid oar in rung 2 (IVV +0.3, speed and power closer) and
+better in her force curve. For him, rung 1 improves with bending (speed +4 %, IVV −1.7) but rung 2's clock rings: his
+forces are larger, so his bend is, and Sprague's slope does not damp the clock.
+
+**Where bending stands.** It passes everywhere the crew's motion is set: [RLBQV19]'s trial, the energy return, the
+single, her handle force and speed (own body), his rung 1. It fails only where the model solves the crew's motion
+(rung 2 and the clock crew): the crew's pull has no sourced impedance about its planned motion, so the shaft's spring
+and the crew's inertia ring (§218). That is a crew-model gap that the rigid oar hides. Bending stays off by default until
+the crew carries a sourced impedance; nothing else in the ladder now argues against the shaft.
+
+**Next.** A sourced within-stroke impedance for the crew: the joint torque–angular-velocity surfaces the muscle check
+already uses (Anderson et al. 2007) give each joint's force–velocity slope at the activation rung 2 solves, a
+within-contraction property rather than Sprague's across-trial line; summed through the body's linkage to the clock.
+Then rung 2 again on both athletes.
