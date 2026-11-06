@@ -38,6 +38,21 @@ def _l14_ei(theta_deg: float, beam: float, load: float = 201.04) -> float:
 L14_MEDIUM_EI = _l14_ei(0.5 * (4.77 + 4.49), 1.299)
 L14_EXTRA_SOFT_EI = _l14_ei(0.5 * (5.98 + 6.13), 1.299)
 
+#: Concept2's published shaft deflections under 10 kg hung at the neck, cm (concept2.com shafts-and-flex pages, read
+#: 2026-11-05): medium scull 4.5 (Skinny and Ultralight); medium sweep 3.75 (Skinny 4.0, Ultralight 3.5). The scull
+#: test's span is 1.50 m from the support ([L14] citing Concept2); the sweep's is not printed, so it is scaled by the
+#: blade root's distance from the pin (2.04 / 1.57 m on the catalogue oars): a stated assumption.
+C2_SCULL_MEDIUM_CM, C2_SWEEP_MEDIUM_CM = 4.5, 3.75
+C2_SCULL_SPAN = 1.50
+
+
+def concept2_sweep_over_scull(sweep_root: float = 2.04, scull_root: float = 1.57) -> float:
+    """EI of a medium sweep shaft over a medium scull shaft by Concept2's own test: ``(L_sw / L_sc)^3 d_sc / d_sw``
+    for a cantilever, the spans in the ratio of the blade roots' distances from the pin. ~2.6, as a tube's EI goes as
+    its radius cubed and a sweep shaft is ~1.4x the diameter (the user, 2026-11-06: "larger radius shafts")."""
+    span = C2_SCULL_SPAN * float(sweep_root) / float(scull_root)
+    return (span / C2_SCULL_SPAN) ** 3 * C2_SCULL_MEDIUM_CM / C2_SWEEP_MEDIUM_CM
+
 
 @dataclass(frozen=True)
 class OarBending:
@@ -59,6 +74,19 @@ class OarBending:
     def robert2019_sweep(cls) -> "OarBending":
         """[RLBQV19]'s bench law for their sweep oar on their mount: K_ang 2948 N m, K_ang/K_lin = 0.861 m."""
         return cls(2948.0, 2948.0 / 3424.1, "[RLBQV19] eq. 1, sweep oar on the rotating arm")
+
+    @classmethod
+    def concept2_sweep(cls, outboard_centre: float, blade_length: float) -> "OarBending":
+        """A medium sweep shaft: [L14]'s measured medium scull EI times Concept2's sweep-over-scull stiffness ratio
+        (``concept2_sweep_over_scull``), as a uniform cantilever on this oar (derived; SOURCES §220). [RLBQV19]'s bench
+        law is ~1.65x softer than this: their K_ang was measured on their rotating-arm mount, which may add its own
+        compliance to the oar's."""
+        x = float(outboard_centre) - 0.5 * float(blade_length)
+        ei = L14_MEDIUM_EI * concept2_sweep_over_scull(sweep_root=x)
+        law = cls.laschowski2014_scull(outboard_centre, blade_length, ei=ei)
+        return cls(law.k_ang, law.hinge_inboard_of_root,
+                   "[L14] scull EI x Concept2 sweep/scull %.2f = %.0f N m^2, uniform cantilever (derived)"
+                   % (concept2_sweep_over_scull(sweep_root=x), ei))
 
     @classmethod
     def laschowski2014_scull(cls, outboard_centre: float, blade_length: float,

@@ -54,7 +54,7 @@ def trace(boat_name, torque, strokes, bend, fv=None):
     first, last = wet[0], wet[-1]
     print("%s %s%s, peak torque %.0f N m: %.2f m/s, %.0f W per rower, oar %d (catch %.1f, finish %.1f deg)"
           % (boat_name, "bending" if bend else "rigid",
-             "" if fv is None else ", crew force-velocity V0 %.2f m/s" % fv.v0,
+             "" if fv is None else ", crew %s" % (fv.key(),),
              torque, run.settled_speed(), run.settled_power(), slot,
              np.degrees(oar.catch_angle), np.degrees(oar.finish_angle)))
     print("  I = the seat's inertia about the pin: the rower's reflected inertia plus the oar (kg m^2)")
@@ -82,11 +82,16 @@ def main():
     ap.add_argument("--strokes", type=int, default=4)
     ap.add_argument("--fv", type=float, default=None,
                     help="the crew's handle force-velocity with this V0, m/s (coxswain.crew.handle_fv; SOURCES §218)")
+    ap.add_argument("--hold", type=float, default=None,
+                    help="the crew's hold on its planned speed, beta (coxswain.crew.handle_fv.PlannedSpeedHold; §220)")
     args = ap.parse_args()
     fv = None
     if args.fv is not None:
         from coxswain.crew.handle_fv import HandleForceVelocity
         fv = HandleForceVelocity(args.fv, "--fv")
+    if args.hold is not None:
+        from coxswain.crew.handle_fv import PlannedSpeedHold
+        fv = PlannedSpeedHold(args.hold, "--hold")
     for bend in (False, True):
         trace(args.boat, args.torque, args.strokes, bend, fv)
 

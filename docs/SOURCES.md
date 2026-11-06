@@ -14914,3 +14914,24 @@ the crew carries a sourced impedance; nothing else in the ladder now argues agai
 already uses (Anderson et al. 2007) give each joint's force–velocity slope at the activation rung 2 solves, a
 within-contraction property rather than Sprague's across-trial line; summed through the body's linkage to the clock.
 Then rung 2 again on both athletes.
+
+## 220. The crew's hold on its pace, and a stiffer sweep shaft (2026-11-06, in progress)
+
+The user: "can we not fix the flat hand bending issue" (the crew holding its handle speed); "you may have a too flexible
+sweep oar because they are larger radius shafts than sculls".
+
+- **Hold.** `rung2_clock.ClockSim.setup_clock(hold=, hold_own=)`, `rung2_population.py --hold B [--hold-own]`,
+  `coxswain.crew.handle_fv.PlannedSpeedHold` (`DynamicOarSimulator(handle_fv=)`): the crew's force scaled by
+  1 + β(1 − speed/reference). Force–velocity alone supports β ≈ 0.35–1.0 (Sprague 2007; a muscle's Hill curve). Rung 2,
+  own bodies (measured [CR06] 4.191 m/s, 49.4 %, 261 W; [BR24] 4.641, 49.1 %, 432): referenced to the population's pace,
+  β = 1 stops [BR24]'s bending ring (64.2 → 53.1 %) but costs his rigid run 2 points; referenced to the rower's **own**
+  pace the hold leaves the rigid runs unchanged ([CR06] 52.4 %, [BR24] 50.3 % at β = 1) and, at β = 4, brings [BR24]'s
+  rigid run to 49.6 %, 432 W. Bending, own pace: [CR06] β = 1 4.188 m/s, 52.4 %, 259 W (= rigid IVV); [BR24] β = 1 rings
+  (60.6 %), β = 2 4.824 m/s, 50.7 %, 410 W, β = 4 4.736, 51.7 %, 382 W. Rigid at β = 2 (own pace) and [CR06] bending at
+  β = 2 were running when the session paused (`data/local/crew/logs/rung2_population_ownbody_*hold2own*.log`).
+- **Sweep shaft.** Concept2's medium shafts (sweep 3.75 cm, scull 4.5 cm under 10 kg at the neck; sweep span scaled by
+  the blade root's distance): a sweep shaft is ~2.6× a scull's EI, as a ~1.4× wider tube's would be.
+  `OarBending.concept2_sweep` ([L14] scull EI × 2.63 = 5526 N·m², K_ang 4867 N·m/rad on the eight) is 1.65× stiffer
+  than [RLBQV19]'s bench law (10.6° at 900 N·m against 17.5°), whose K_ang was measured on their rotating-arm mount and
+  may include it. The eight and four on Kleshnev's measure with it (no hold, β 1, β 4) and rigid at β 4 were running
+  (`data/local/validation/efficiency_definition_k07_c2sweep*.log`, `_rigid_hold4.log`).

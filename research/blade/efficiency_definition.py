@@ -19,13 +19,19 @@ from coxswain.validation import scorecard
 from coxswain.validation.targets import by_key
 
 
+#: the sweep oar's bending law: "robert" ([RLBQV19]'s bench) or "concept2" ([L14] scull EI x Concept2's ratio, §220)
+SWEEP_LAW = "robert"
+
+
 def bending_law(boat):
     """The bending law under test: [RLBQV19]'s bench law on a sweep rig, [L14]'s measured scull shaft on a scull. No
     profile bends the oars (withdrawn, SOURCES §217), so the study sets it on the boat itself."""
     from coxswain.crew.oar_bending import OarBending
-    if boat.rig.is_sweep:
-        return OarBending.robert2019_sweep()
     oar = boat.rig.seats[0].oarlocks[0].oar
+    if boat.rig.is_sweep:
+        if SWEEP_LAW == "concept2":
+            return OarBending.concept2_sweep(float(oar.blade_centre_outboard), float(oar.blade_length))
+        return OarBending.robert2019_sweep()
     return OarBending.laschowski2014_scull(float(oar.blade_centre_outboard), float(oar.blade_length))
 
 
@@ -61,20 +67,28 @@ def main():
     ap.add_argument("--modes", nargs="+", default=["bending", "rigid"], choices=["bending", "rigid"])
     ap.add_argument("--fv", type=float, default=None,
                     help="the crew's handle force-velocity with this V0, m/s (coxswain.crew.handle_fv; SOURCES §218)")
+    ap.add_argument("--hold", type=float, default=None,
+                    help="the crew's hold on its planned speed, beta (coxswain.crew.handle_fv.PlannedSpeedHold; §220)")
+    ap.add_argument("--sweep-law", default="robert", choices=["robert", "concept2"])
     args = ap.parse_args()
+    global SWEEP_LAW
+    SWEEP_LAW = args.sweep_law
     if args.bend:
         for name in args.boats:
             bend_report(name, args.watts, args.rate)
         return
     profile = physics.resolve("research")
     target = by_key("blade_efficiency_level")
-    fv = None
+    fv, label = None, ""
     if args.fv is not None:
         from coxswain.crew.handle_fv import HandleForceVelocity
-        fv = HandleForceVelocity(args.fv, "--fv")
+        fv, label = HandleForceVelocity(args.fv, "--fv"), "; crew force-velocity V0 %.2f m/s" % args.fv
+    if args.hold is not None:
+        from coxswain.crew.handle_fv import PlannedSpeedHold
+        fv, label = PlannedSpeedHold(args.hold, "--hold"), "; crew hold beta %.2f" % args.hold
     for name in args.boats:
         print("%s band %.3f-%.3f (Kleshnev Table 2, gate-angle track)%s" % (
-            (name,) + target.band_for(name) + ("" if fv is None else "; crew force-velocity V0 %.2f m/s" % fv.v0,)))
+            (name,) + target.band_for(name) + (label,)))
         for bend in args.modes:
             boat = profile.apply(catalog.build(name, rate=args.rate))
             boat.oar_bending = bending_law(boat) if bend == "bending" else None

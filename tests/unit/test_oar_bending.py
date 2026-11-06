@@ -149,3 +149,14 @@ def test_the_blade_added_mass_is_refused_on_a_bending_oar():
     with pytest.raises(ValueError, match="oar_bending=False"):
         DynamicOarSimulator(boat, **kw)
     assert DynamicOarSimulator(boat, oar_bending=False, **kw).oar_bending is None
+
+
+def test_a_sweep_shaft_is_stiffer_than_a_scull_by_concept2s_own_test():
+    """Concept2's medium shafts under 10 kg at the neck (sweep 3.75 cm over a longer span, scull 4.5 cm): a sweep shaft
+    is ~2.6x a scull's EI, as a ~1.4x wider tube's would be; [RLBQV19]'s bench oar comes out ~1.65x softer (SOURCES
+    §220)."""
+    from coxswain.crew.oar_bending import concept2_sweep_over_scull
+    assert concept2_sweep_over_scull(2.04, 1.57) == pytest.approx(2.63, abs=0.05)
+    c2 = OarBending.concept2_sweep(2.30, 0.52)
+    assert c2.k_ang / OarBending.robert2019_sweep().k_ang == pytest.approx(1.65, abs=0.05)
+    assert "Concept2" in c2.source

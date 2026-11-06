@@ -50,3 +50,20 @@ def test_the_torque_reads_the_oar_rate():
     assert sim._torque(0, angle, state, 0.1, planned) == pytest.approx(plain._torque(0, angle, state, 0.1))
     assert sim._torque(0, angle, state, 0.1, planned * 1.5) < plain._torque(0, angle, state, 0.1)
     assert sim._torque(0, angle, state, 0.1) == pytest.approx(plain._torque(0, angle, state, 0.1))   # no rate given
+
+
+def test_the_planned_speed_hold_scales_the_pull_by_its_fractional_error():
+    """``1 + beta (1 - v / v_ref)``, never negative, keyed apart from a force-velocity line (SOURCES §220)."""
+    from coxswain.crew.handle_fv import PlannedSpeedHold
+    hold = PlannedSpeedHold(1.0)
+    assert hold.factor(2.0, 2.0) == pytest.approx(1.0)
+    assert hold.factor(3.0, 2.0) == pytest.approx(0.5)
+    assert hold.factor(1.0, 2.0) == pytest.approx(1.5)
+    assert PlannedSpeedHold(4.0).factor(5.0, 2.0) == 0.0
+    assert hold.key() != HandleForceVelocity(2.0).key()
+    with pytest.raises(ValueError):
+        PlannedSpeedHold(-1.0)
+    boat = catalog.single_scull(rate=30.0)
+    a = _match_key(boat, 300.0, "sweep", "slip", handle_fv=hold)
+    b = _match_key(boat, 300.0, "sweep", "slip", handle_fv=PlannedSpeedHold(2.0))
+    assert a != b

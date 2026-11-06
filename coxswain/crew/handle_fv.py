@@ -74,6 +74,38 @@ class HandleForceVelocity:
         return (float(self.v0),)
 
 
+@dataclass(frozen=True)
+class PlannedSpeedHold:
+    """The crew's hold on its planned handle speed (SOURCES §220): the pull scaled by ``1 + beta (1 - v / v_ref)``,
+    a fractional speed error costing ``beta`` times as much fractional force; never below zero. The same interface as
+    :class:`HandleForceVelocity` (``factor``, ``key``), so either drives ``DynamicOarSimulator(handle_fv=)``.
+
+    A linear force-velocity at V0 is this with beta = v_ref / (V0 - v_ref): Sprague et al. 2007's line gives beta
+    ~0.35-0.65 at on-water handle speeds (Kleshnev 2005: 1.59 m/s mean, 2.36 peak), a single muscle's Hill curve
+    ~0.7-1.0. beta = 1 stops the bending shaft ringing on both athletes in rung 2 (SOURCES §220): the top of the
+    force-velocity range, studied rather than sourced."""
+
+    beta: float
+    source: str = ""
+
+    def __post_init__(self):
+        if not self.beta >= 0.0:
+            raise ValueError("beta must be non-negative, got %r" % (self.beta,))
+
+    def factor(self, speed: float, planned: float) -> float:
+        if planned <= 1e-9:
+            return 1.0
+        return max(1.0 + self.beta * (1.0 - abs(float(speed)) / abs(float(planned))), 0.0)
+
+    def key(self) -> tuple:
+        return ("hold", float(self.beta))
+
+    @property
+    def v0(self) -> float:
+        """For labels: the equivalent zero-force speed in units of the planned speed, (1 + beta) / beta."""
+        return float("inf") if self.beta == 0.0 else (1.0 + self.beta) / self.beta
+
+
 class PlannedSpeed:
     """The crew's planned oar rate at each drive angle, from the boat's own sweep: ``rate(theta)`` over the drive."""
 

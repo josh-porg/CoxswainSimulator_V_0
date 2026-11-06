@@ -61,6 +61,10 @@ BENDING = False
 RIGID = False
 #: the crew's handle force-velocity on rung 2's muscles (coxswain.crew.handle_fv.HandleForceVelocity; SOURCES §218)
 FV = None
+#: the crew's hold on its planned speed, beta (rung2_clock.ClockSim.setup_clock; SOURCES §220): studied, not sourced
+HOLD = 0.0
+#: hold the rower's own pace (the previous drive's mean tau') instead of the plan's
+HOLD_OWN = False
 
 
 def blade_options(boat):
@@ -115,7 +119,8 @@ def make(boat, mode, Q=None, body=None):
     boat.power_scales = np.ones(boat.n_seats)
     sim = C2.ClockSim(boat, peak_torque=0.0, catch="sweep", crew="handle",
                       coxswain=Coxswain(rudder_override=lambda t, s: 0.0), fast=True, **blade_options(boat))
-    sim.setup_clock(mode, Q, body=body, fv=FV if mode == "free" else None)
+    sim.setup_clock(mode, Q, body=body, fv=FV if mode == "free" else None, hold=HOLD if mode == "free" else 0.0,
+                    hold_own=HOLD_OWN)
     return sim
 
 
@@ -301,8 +306,13 @@ def main():
                     help="the oar shaft bends ([L14]'s measured scull shaft as a quasi-static hinge; SOURCES sec. 216-217)")
     ap.add_argument("--fv", type=float, default=None,
                     help="the muscles' handle force-velocity with this V0, m/s (SOURCES sec. 218)")
+    ap.add_argument("--hold", type=float, default=0.0,
+                    help="the crew's hold on its planned speed, beta (SOURCES sec. 220)")
+    ap.add_argument("--hold-own", action="store_true", help="the hold's reference is the rower's own pace")
     a = ap.parse_args()
-    global FV
+    global FV, HOLD, HOLD_OWN
+    HOLD = float(a.hold)
+    HOLD_OWN = bool(a.hold_own)
     if a.fv is not None:
         from coxswain.crew.handle_fv import HandleForceVelocity
         FV = HandleForceVelocity(a.fv, "--fv")

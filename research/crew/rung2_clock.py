@@ -66,14 +66,21 @@ BIOROW_CATCH_TO_BURIED_DEG = 6.0
 class ClockSim(DynamicOarSimulator):
     """Rung 1 with the stroke clock a state (mode 'free') or the clock itself (mode 'reference')."""
 
-    def setup_clock(self, mode, Q=None, body=None, fv=None):
+    def setup_clock(self, mode, Q=None, body=None, fv=None, hold=0.0, hold_own=False):
         """``body``: a crew field f(t) -> (mass, pos, vel, acc) on the clock (default the boat's own).
         ``fv``: the crew's handle force-velocity (:class:`coxswain.crew.handle_fv.HandleForceVelocity`; SOURCES §218).
         The muscles' generalised force Q(tau) is the population's at the planned speed tau' = 1; with ``fv`` it is
         scaled through the drive by ``(V0 - tau' v_p(tau)) / (V0 - v_p(tau))``, ``v_p`` the handle speed of the sweep
-        at tau, so a clock that runs ahead pulls less and one held back pulls more."""
+        at tau, so a clock that runs ahead pulls less and one held back pulls more.
+        ``hold``: beta >= 0, the crew's hold on its planned speed through the drive (SOURCES §220): the muscles' force
+        is scaled by ``1 + beta (1 - tau')``, a fractional speed error costing beta times as much fractional force.
+        0 is the open-loop crew; Sprague et al.'s linear force-velocity corresponds to beta = v/(V0 - v) ~ 0.6-0.9 at a
+        racing handle speed; an imposed motion (rung 1) is beta -> infinity. Studied, not sourced."""
         self.mode, self.Q = mode, Q
         self.fv = fv
+        self.hold = float(hold)
+        #: ``hold_own``: hold the rower's own pace (the previous drive's mean tau') rather than the plan's tau' = 1
+        self.hold_own = bool(hold_own)
         self.body = body
         self._clock = None
         self.qlog = []                                           # reference: (c, Q) at accepted times
@@ -275,14 +282,35 @@ class ClockSim(DynamicOarSimulator):
         """The muscles' generalised force at the clock's position and speed (the force-velocity if ``fv``)."""
         q = self.Q(tau)
         fv = getattr(self, "fv", None)
+        hold = float(getattr(self, "hold", 0.0))
         timing = self.boat.timing
-        if fv is None or float(tau) % float(timing.period) > float(timing.drive_fraction) * float(timing.period):
+        if (fv is None and hold == 0.0) or \
+                float(tau) % float(timing.period) > float(timing.drive_fraction) * float(timing.period):
+            return q
+        if hold:
+            ref = self._hold_reference() if getattr(self, "hold_own", False) else 1.0
+            q = q * max(1.0 + hold * (1.0 - float(td) / ref), 0.0)
+        if fv is None:
             return q
         inboard = float(self.boat.rig.seats[self._seats[0]].oarlocks[0].oar.inboard)
         planned = abs(float(self.boat.oar_sweep.rate(float(tau) % float(timing.period), timing))) * inboard
         if planned <= 1e-9:
             return q
         return q * fv.factor(abs(float(td)) * planned, planned)
+
+
+    def _hold_reference(self):
+        """The rower's own pace for the hold: the clock's mean speed over the previous stroke's free drive (1 until a
+        stroke has been rowed). A rower holds their own rhythm, not the population's (SOURCES §220)."""
+        mark = getattr(self, "_hold_mark", None)
+        if mark != self._stroke_start:
+            previous = getattr(self, "_hold_mark", None)
+            if previous is not None:
+                tds = [r[2] for r in self.tlog if previous <= r[0] < self._stroke_start and r[3] != 0.0]
+                if len(tds) > 20:
+                    self._hold_ref = float(np.mean(tds))
+            self._hold_mark = self._stroke_start
+        return float(getattr(self, "_hold_ref", 1.0))
 
 
 def build(mode, Q=None):
