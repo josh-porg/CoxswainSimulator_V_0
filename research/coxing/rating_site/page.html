@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coxing calls</title>
+<style>
+:root { --bg:#f6f5f2; --card:#fff; --ink:#1f2a36; --muted:#5f6670; --faint:#8a9099; --line:#e3e1db; --acc:#2f6fb3; --accbg:#e6f1fb; --ok:#2f7d4f; --okbg:#e7f4ec; --warn:#8a5a00; --warnbg:#faeeda; }
+@media (prefers-color-scheme: dark) { :root { --bg:#171717; --card:#212121; --ink:#ecebe7; --muted:#a8a6a0; --faint:#77756f; --line:#33322f; --acc:#85b7eb; --accbg:#0c2a48; --ok:#8fd3a8; --okbg:#10301d; --warn:#fac775; --warnbg:#3b2a08; } }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.55 system-ui, sans-serif; }
+main { max-width:640px; margin:0 auto; padding:16px 16px 40px; }
+a { color:var(--acc); }
+.card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; }
+.top { display:flex; justify-content:space-between; gap:8px; font-size:13px; color:var(--muted); margin-bottom:8px; }
+.bar { height:5px; background:var(--line); border-radius:5px; margin-bottom:14px; } .bar > div { height:5px; background:var(--acc); border-radius:5px; }
+.ctx { color:var(--faint); font-size:14px; }
+.phrase { font-size:19px; background:var(--accbg); padding:10px 12px; border-radius:10px; margin:6px 0; }
+.q { margin-top:16px; } .q .t { font-size:14px; font-weight:600; } .q .d { font-size:13px; color:var(--muted); margin:2px 0 6px; }
+.chips { display:flex; flex-wrap:wrap; gap:6px; }
+.chip { border:1px solid var(--line); background:var(--card); color:var(--ink); border-radius:999px; padding:8px 13px; font-size:15px; cursor:pointer; min-height:40px; }
+.chip.on { background:var(--accbg); border-color:var(--acc); color:var(--acc); }
+.chip sup { font-size:10px; margin-left:3px; }
+.chip.flag.on { background:var(--warnbg); border-color:var(--warn); color:var(--warn); }
+button.main { width:100%; margin-top:18px; padding:14px; font-size:17px; border-radius:12px; border:0; background:var(--acc); color:#fff; cursor:pointer; }
+button.main:disabled { opacity:.4; cursor:default; }
+.msg { color:var(--warn); font-size:14px; min-height:1.3em; margin-top:8px; }
+.big { font-size:22px; font-weight:600; margin:4px 0 8px; }
+label { display:block; margin:12px 0 4px; font-size:14px; font-weight:600; }
+select { width:100%; padding:10px; font-size:16px; border-radius:10px; border:1px solid var(--line); background:var(--card); color:var(--ink); }
+.scale { display:grid; grid-template-columns:repeat(7, 1fr); gap:6px; margin-top:12px; }
+.scale button { padding:14px 0; font-size:18px; border-radius:10px; border:1px solid var(--line); background:var(--card); color:var(--ink); }
+.scale button:disabled { opacity:.35; }
+.ends { display:flex; justify-content:space-between; font-size:12px; color:var(--muted); margin-top:4px; }
+.stat { background:var(--okbg); color:var(--ok); border-radius:10px; padding:12px; margin-top:12px; }
+.foot { font-size:12px; color:var(--faint); margin-top:14px; text-align:center; }
+</style>
+</head>
+<body>
+<main>
+<div class="card" id="app">Loading…</div>
+<div class="foot"><a href="/guide" target="_blank">How to rate</a></div>
+</main>
+<script>
+const T = [["power","effort, pressure, drive, legs or push as force"],["rate","stroke rate, rhythm, ratio, slide speed"],["length","reach, long, length"],["catch","entry, blade in, catch timing"],["finish","release, extraction, hands away"],["body","posture, sit up, core, breathing"],["set","balance, blade height"],["together","timing across the crew"],["steer","course, turns, side press"],["info","split, rate, distance or position reports"],["morale","encouragement with no rowing target"],["tactic","a move on another crew"],["count","a stroke count"],["other","incidental talk"]];
+const Q = [
+  ["stage", "What does it do?", "", [["inf","states a fact"],["ass","judges how it's going"],["dec","tells the crew what to do"]]],
+  ["action", "Does it name a concrete action?", "a movement, force or rhythm change the crew can do", [["y","yes"],["n","no"]]],
+  ["arousal", "Does it raise or lower intensity?", "", [["up","raises (now, go, attack)"],["down","lowers (relax, settle, breathe)"],["-","neither"]]],
+];
+const app = document.getElementById("app");
+let item, cur, flags, t0, plays, playedFull, busy = false;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
+
+async function api(path, body) {
+  const r = await fetch(path, body ? { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(body) } : {});
+  if (r.status === 401) { app.innerHTML = '<div class="big">Invite only</div><div>Open the personal link you were sent. If it doesn\'t work, ask the person who invited you for a new one.</div>'; throw new Error("auth"); }
+  return { ok: r.ok, status: r.status, data: await r.json().catch(() => ({})) };
+}
+async function start() {
+  const me = (await api("/api/me")).data;
+  if (me.state === "consent") return consent();
+  next();
+}
+function consent() {
+  app.innerHTML = `<div class="big">Before you start</div>
+  <p>You're helping a study of what makes a coxswain's call work. Each day you'll see up to 15 short calls from real races and practices (names removed) and answer three or four quick questions about each, then listen to 10 short muffled clips and rate how fired-up the voice sounds. It takes about five minutes. There are no right or wrong answers; your own reading is what's wanted.</p>
+  <p>What's stored: your answers, the time each took, and the profile below, under an anonymous id. Nothing else about you, and your answers are never shown to other raters. Taking part is voluntary; you can stop at any time, and you can ask the study lead to delete your answers.</p>
+  <label for="role">You are mainly a</label><select id="role"><option value="">choose</option><option>coxswain</option><option>rower</option><option>both</option><option>coach</option><option>other</option></select>
+  <label for="years">Years in rowing</label><select id="years"><option value="">choose</option><option>under 2</option><option>2-5</option><option>5-10</option><option>over 10</option></select>
+  <label for="level">Level you mostly do it at</label><select id="level"><option value="">choose</option><option>learn to row</option><option>club or masters</option><option>school or junior</option><option>college</option><option>national or elite</option></select>
+  <label><input type="checkbox" id="agree"> I've read this and agree to take part</label>
+  <button class="main" id="go">Start</button><div class="msg" id="m"></div>`;
+  document.getElementById("go").onclick = async () => {
+    const v = id => document.getElementById(id).value;
+    if (!document.getElementById("agree").checked || !v("role") || !v("years") || !v("level")) { document.getElementById("m").textContent = "Fill in all three and tick the box first."; return; }
+    const r = await api("/api/consent", { agree: true, role: v("role"), years: v("years"), level: v("level") });
+    if (r.ok) next(); else document.getElementById("m").textContent = r.data.error || "Something went wrong.";
+  };
+}
+function head(p, kind) {
+  const n = kind === "text" ? p.text_today : p.voice_today, N = kind === "text" ? p.text_quota : p.voice_quota;
+  const all = p.text_quota + p.voice_quota, done = p.text_today + p.voice_today;
+  return `<div class="top"><span>${kind === "text" ? "Calls" : "Voices"} · ${n + 1} of ${N} today</span><span>${done} of ${all} done</span></div><div class="bar"><div style="width:${(100 * done / all).toFixed(0)}%"></div></div>`;
+}
+async function next() {
+  const r = (await api("/api/next")).data;
+  if (r.done) return finished(r.progress);
+  item = r; t0 = performance.now();
+  r.kind === "text" ? showText() : showVoice();
+}
+function finished(p) {
+  const pct = Math.round(100 * p.study_covered / p.study_phrases);
+  app.innerHTML = `<div class="big">That's today done. Thank you.</div>
+  <p>New calls tomorrow. Short daily sessions keep the ratings fresh, so there's a limit on purpose.</p>
+  <div class="stat">You've rated ${p.mine} items over ${p.days} day${p.days === 1 ? "" : "s"}. Together, ${p.raters} rater${p.raters === 1 ? " has" : "s have"} reached ${pct}% of the study's calls.</div>`;
+}
+
+// ---------------- text
+function showText() {
+  cur = { targets: [] }; flags = new Set();
+  renderText();
+}
+function skipped() { return cur.targets.length && cur.targets.every(t => t === "count" || t === "other"); }
+function complete() { return cur.targets.length && (skipped() || Q.every(q => cur[q[0]])); }
+function renderText(msg = "") {
+  const x = item;
+  let h = head(x.progress, "text");
+  h += `<div class="ctx">${x.before.map(esc).join("<br>")}</div><div class="phrase">${esc(x.text)}</div><div class="ctx">${x.after.map(esc).join("<br>")}</div>`;
+  h += `<div class="q"><div class="t">What is it about?</div><div class="d">Tap all that apply; the first you tap counts as the main one. The grey lines are context.</div><div class="chips">` +
+    T.map(([v, d]) => `<button class="chip ${cur.targets.includes(v) ? "on" : ""}" data-t="${v}" title="${d}">${v}${cur.targets.length > 1 && cur.targets[0] === v ? "<sup>main</sup>" : ""}</button>`).join("") + "</div></div>";
+  if (!skipped()) Q.forEach(([k, t, d, opts]) => {
+    h += `<div class="q"><div class="t">${t}</div>${d ? `<div class="d">${d}</div>` : ""}<div class="chips">` +
+      opts.map(([v, l]) => `<button class="chip ${cur[k] === v ? "on" : ""}" data-k="${k}" data-v="${v}">${l}</button>`).join("") + "</div></div>";
+  });
+  h += `<div class="q"><div class="chips"><button class="chip flag ${flags.has("unsure") ? "on" : ""}" data-f="unsure">not sure</button><button class="chip flag ${flags.has("misheard") ? "on" : ""}" data-f="misheard">words look misheard</button></div></div>`;
+  h += `<button class="main" id="save" ${complete() ? "" : "disabled"}>Next</button><div class="msg">${msg}</div>`;
+  app.innerHTML = h;
+  app.querySelectorAll("[data-t]").forEach(b => b.onclick = () => { const v = b.dataset.t, i = cur.targets.indexOf(v); i >= 0 ? cur.targets.splice(i, 1) : cur.targets.push(v); renderText(); });
+  app.querySelectorAll("[data-k]").forEach(b => b.onclick = () => { cur[b.dataset.k] = b.dataset.v; renderText(); });
+  app.querySelectorAll("[data-f]").forEach(b => b.onclick = () => { const f = b.dataset.f; flags.has(f) ? flags.delete(f) : flags.add(f); renderText(); });
+  document.getElementById("save").onclick = saveText;
+}
+async function saveText() {
+  if (!complete() || busy) return; busy = true;
+  const r = await api("/api/text", { id: item.id, codes: cur, flags: [...flags], ms: Math.round(performance.now() - t0) });
+  busy = false;
+  if (!r.ok) return renderText(r.data.error || "Not saved; try again.");
+  next();
+}
+
+// ---------------- voice
+function showVoice() {
+  plays = 0; playedFull = false;
+  app.innerHTML = head(item.progress, "voice") + `<div class="big">How fired-up does this voice sound?</div>
+  <div class="d" style="color:var(--muted);font-size:14px">The words are filtered out on purpose. Listen to the whole clip, then rate the voice, not what you think was said.</div>
+  <button class="main" id="play">Play</button>
+  <div class="scale">${[1,2,3,4,5,6,7].map(n => `<button data-r="${n}" disabled>${n}</button>`).join("")}</div>
+  <div class="ends"><span>very calm</span><span>very fired-up</span></div><div class="msg" id="m"></div>`;
+  const audio = new Audio(`/clip/${item.id}.wav`);
+  audio.onended = () => { playedFull = true; app.querySelectorAll("[data-r]").forEach(b => b.disabled = false); document.getElementById("play").textContent = "Play again"; };
+  document.getElementById("play").onclick = () => { plays++; audio.currentTime = 0; audio.play(); };
+  app.querySelectorAll("[data-r]").forEach(b => b.onclick = async () => {
+    if (busy) return; busy = true;
+    const r = await api("/api/voice", { id: item.id, rating: +b.dataset.r, plays, played_full: playedFull, ms: Math.round(performance.now() - t0) });
+    busy = false;
+    if (!r.ok) { document.getElementById("m").textContent = r.data.error || "Not saved; try again."; return; }
+    next();
+  });
+}
+
+// keyboard, optional: digits rate a voice
+document.addEventListener("keydown", e => {
+  if (item && item.kind === "voice" && /^[1-7]$/.test(e.key)) { const b = app.querySelector(`[data-r="${e.key}"]`); if (b && !b.disabled) b.click(); }
+  if (item && item.kind === "voice" && e.key === " ") { e.preventDefault(); document.getElementById("play")?.click(); }
+});
+start().catch(() => {});
+</script>
+</body>
+</html>

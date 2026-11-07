@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ratings admin</title>
+<style>
+:root { --bg:#f6f5f2; --card:#fff; --ink:#1f2a36; --muted:#5f6670; --line:#e3e1db; --acc:#2f6fb3; }
+@media (prefers-color-scheme: dark) { :root { --bg:#171717; --card:#212121; --ink:#ecebe7; --muted:#a8a6a0; --line:#33322f; --acc:#85b7eb; } }
+body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui, sans-serif; }
+main { max-width:1100px; margin:0 auto; padding:20px 16px 48px; }
+h1 { font-size:22px; margin:0 0 4px; } h2 { font-size:17px; margin:24px 0 8px; }
+.grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:10px; }
+.tile { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; } .tile .n { font-size:24px; font-weight:600; } .tile .l { font-size:13px; color:var(--muted); }
+.wrap { overflow-x:auto; background:var(--card); border:1px solid var(--line); border-radius:12px; }
+table { border-collapse:collapse; width:100%; font-size:14px; } td, th { text-align:left; padding:7px 9px; border-bottom:1px solid var(--line); white-space:nowrap; } th { color:var(--muted); font-weight:600; }
+a { color:var(--acc); } .muted { color:var(--muted); font-size:13px; }
+</style>
+</head>
+<body>
+<main>
+<h1>Ratings admin</h1>
+<div class="muted" id="when"></div>
+<h2>Agreement across raters (Krippendorff's alpha)</h2>
+<div class="grid" id="alpha"></div>
+<p class="muted">Computed on calls and clips with at least two raters, check items and repeats left out. Target uses each rater's main target. Alpha near 1 means raters agree; near 0, no better than chance; around 0.67 is a common lowest acceptable value for tentative conclusions.</p>
+<h2>Coverage (raters per item)</h2>
+<div class="wrap"><table id="cov"></table></div>
+<h2>Raters</h2>
+<div class="wrap"><table id="raters"></table></div>
+<p class="muted">Check items are phrases with an unambiguous answer (a bare count or a split readout); a rater who misses many is worth a look. <a href="/api/admin/export">Download all ratings (JSON)</a> for the full analysis.</p>
+</main>
+<script>
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
+fetch("/api/admin").then(r => r.ok ? r.json() : Promise.reject(r.status)).then(s => {
+  document.getElementById("when").textContent = "Day " + s.today + " (study time zone)";
+  document.getElementById("alpha").innerHTML = Object.entries(s.alpha).map(([k, v]) =>
+    `<div class="tile"><div class="n">${v == null ? "–" : v.toFixed(2)}</div><div class="l">${esc(k)}</div></div>`).join("");
+  const keys = ["0", "1", "2", "3", "4"];
+  document.getElementById("cov").innerHTML = "<tr><th></th>" + keys.map(k => `<th>${k === "4" ? "4+" : k} raters</th>`).join("") + "</tr>" +
+    [["calls", s.coverage_text], ["clips", s.coverage_voice]].map(([n, c]) => `<tr><td>${n}</td>` + keys.map(k => `<td>${c[k] || 0}</td>`).join("") + "</tr>").join("");
+  const cols = [["label","Label"],["public_id","Id"],["role","Role"],["years","Years"],["level","Level"],["text","Calls"],["voice","Clips"],["days","Days"],["checks","Checks"],["last","Last active"],["exclude","Own pieces"],["consent","Consented"]];
+  document.getElementById("raters").innerHTML = "<tr>" + cols.map(c => `<th>${c[1]}</th>`).join("") + "</tr>" + s.raters.map(r =>
+    "<tr>" + cols.map(([k]) => `<td>${k === "checks" ? (r.checks ? `${r.checks_ok}/${r.checks}` : "–") : k === "label" ? esc(r.label) + (r.admin ? " (admin)" : "") : esc(r[k] ?? "–")}</td>`).join("") + "</tr>").join("");
+}).catch(() => { document.querySelector("main").innerHTML = "<h1>Admins only</h1>"; });
+</script>
+</body>
+</html>
