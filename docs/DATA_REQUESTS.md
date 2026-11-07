@@ -914,7 +914,9 @@ SOURCES §217. The scull's outboard stiffness is now measured ([L14], EI ≈ 210
    inboard deflection under a handle load with the oar held at the pin, or EI along the whole shaft. Candidates:
    Concept2's engineering data (they test at the neck only in their spec), or a bench measurement on one of the
    club's sculls (a weight, a clamp at the button, a ruler: cheap).
-2. **A sweep oar's bend on water at race load**, to test the sweep law that fails at the finish (§217: the model's blade
+2. *(Stiffness found 2026-11-06: Prinsen & Wilkins 1986 measured a sweep shaft's EI at 8000 N·m², which Concept2's
+   spec reproduces; SOURCES §221. The on-water bend trace is still wanted as a dynamic check.)* **A sweep oar's bend on
+   water at race load**, to test the sweep law that fails at the finish (§217: the model's blade
    lags 20–38° into the finish). The FlexOmega system measures on-water bending moments (Ungricht et al. 2023,
    validated); Sliasas's model reports the blade lagging the oarlock for ~45 % of the drive and then leading. Wanted:
    blade (or tip) deflection against oar angle through the drive for a sweep oar at racing rate.

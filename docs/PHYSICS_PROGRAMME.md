@@ -1269,6 +1269,14 @@ the boat speeds that go with their drive durations).
   but stay ~0.05 below rigid and their bands. Bending stays off.
   - *Next:* the blade-track efficiency beside the gate-track on the sweep runs (waste or accounting?); a sourced hold
     (joint torque–velocity, reflex gains); a measured sweep shaft (DATA_REQUESTS §15).
+- **§221 (2026-11-06): a measured sweep shaft, the muscles' hold, the blade's waste.** Prinsen & Wilkins (1986) measured
+  a sweep shaft at EI 8000 N·m² (Concept2's spec on their span agrees); with it the sweep boats score with the rigid
+  ones on Kleshnev's measure and pass at hold 4 (four also at 1; eight 0.024 short at 1). The muscles' own
+  torque–velocity gives a hold of ~0.6–0.7, the trunk reflex perhaps 0.3 more. The blade's waste sits at peak load
+  (local efficiency 0.77 at 0.2–0.5 of the drive). Bending passes the ladder at a hold of 1–2; the decision to enable
+  it, and at what hold, is the user's.
+  - *Next:* the arms' and reflexes' share of the hold (to source β up to ~2); the blade's force per slip at peak load
+    (how much of [G19]'s transient the face-on 2.2 carries).
 
 ## Calibration and validation data from the squad's own boats (noted 2026-10-08)
 

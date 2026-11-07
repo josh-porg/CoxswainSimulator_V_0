@@ -160,3 +160,13 @@ def test_a_sweep_shaft_is_stiffer_than_a_scull_by_concept2s_own_test():
     c2 = OarBending.concept2_sweep(2.30, 0.52)
     assert c2.k_ang / OarBending.robert2019_sweep().k_ang == pytest.approx(1.65, abs=0.05)
     assert "Concept2" in c2.source
+
+
+def test_the_measured_sweep_shaft():
+    """Prinsen & Wilkins (1986) measured a sweep oar's central shaft at 8000 N m^2; Concept2's medium sweep deflection
+    on the 1986 standard 2.05 m span gives ~7500: they agree, and [RLBQV19]'s bench law is ~2.4x softer (SOURCES §221)."""
+    from coxswain.crew.oar_bending import C2_SWEEP_EI_205, PRINSEN1986_SWEEP_EI
+    assert C2_SWEEP_EI_205 == pytest.approx(PRINSEN1986_SWEEP_EI, rel=0.07)
+    m = OarBending.measured_sweep(2.30, 0.52)
+    assert m.k_ang / OarBending.robert2019_sweep().k_ang == pytest.approx(2.39, abs=0.05)
+    assert np.degrees(900.0 / m.k_ang) == pytest.approx(7.3, abs=0.2)
