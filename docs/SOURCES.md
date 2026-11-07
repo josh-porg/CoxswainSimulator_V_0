@@ -14987,3 +14987,54 @@ and the rigid oar "passed" (0.796 against 0.798–0.908) only because it lacks a
 question moves from the oar to the blade's efficiency level — the cross-flow law's face-on coefficient and the catch and
 release (blade added mass, immersion) are the candidates — to be taken up with bending on, since bending is now the like
 for like comparison. Bending itself is no longer the thing failing the sweep boats.
+
+## 221. A measured sweep shaft; the hold the muscles supply; where the blade's waste is (2026-11-06)
+
+The user: "yes continue on those three things" (the blade's efficiency level, a sourced hold, a measured sweep shaft).
+
+**1. A measured sweep shaft** (`OarBending.measured_sweep`). Prinsen & Wilkins (1986), *Polymer Composites* 7(4)
+226–231 (open; `data/local/literature/prinsen1986_oar/`): the central shaft of a wooden sweep oar (385 cm), a beam fixed
+at the pivot, measured at "typically 8,000 N m²"; their carbon tube was built to it. Their standard flex test hangs 10 kg
+205 cm out, and Concept2's medium sweep deflection (3.75 cm) on that span gives 7513 N·m²: the two agree to 6 %. The
+§220 Concept2-derived figure (5526, scaled span) was ~30 % soft; [RLBQV19]'s bench law ~2.4× soft (its K_ang includes
+their mount). At 8000 N·m² the eight's oar bends 7.3° at 900 N·m (bench law 17.5°). Kleshnev's measure, research
+profile, 360 W, rate 28 (`efficiency_definition_k07_measuredsweep_hold*.log`):
+
+| | gate track (scored) | blade track | band |
+|---|---|---|---|
+| eight, hold β 1 | 0.774 | 0.787 | 0.798–0.908 (−0.024) |
+| eight, hold β 4 | **0.805** | 0.790 | pass |
+| four, hold β 1 | **0.778** | 0.761 | 0.768–0.902, pass |
+| four, hold β 4 | **0.777** | 0.760 | pass |
+| (rigid, hold 1: eight 0.802, four 0.774) | | | |
+
+**Correction to §220's addendum:** the "blade ~0.05 less efficient than real ones" came from too soft a shaft; at the
+measured stiffness the gate and blade tracks agree within 0.015 and the bending boats score with the rigid ones. The
+sweep boats pass at hold β 4 and, at β 1, the four passes and the eight is 0.024 short.
+
+**2. The hold the muscles supply** (`research/crew/hold_from_strength.py`, `data/local/crew/logs/hold_from_strength.log`).
+For a joint torque T = a C₁ g(θ) f(ω) the hold is β = −ω f′(ω)/f(ω), independent of activation. Anderson et al.
+(2007)'s knee- and hip-extension hyperbolae at the research body's drive speeds (knee to ~3.8–4.0 rad/s, hip to ~3.9),
+weighted by the joints' power capacity: **β ≈ 0.57 ([BR24]) and 0.67 ([CR06])**, locally up to 1.3–1.4 where the hip
+nears its 50 %-torque speed (60 % of the drive). The trunk's measured reflex (Moorhouse & Granata 2007, §208), carried
+as a velocity gain at T10, adds roughly 0.3 (an estimate, not a calculation). So the sourced hold is ~0.9–1.0: enough
+for [CR06] (needs 1), the eight's and four's ringing (hold 1 already stops the worst of it), not for [BR24] (needs 2).
+Not counted: the arms (Frey-Law's elbow is tabulated; the shoulder is unsourced) and co-contraction, both of which
+would add.
+
+**3. Where the blade wastes its energy** (`research/blade/blade_waste_profile.py`; rigid eight,
+`blade_waste_profile_8_rigid.log`). By tenths of the drive the local efficiency is 0.83 at 0.1–0.2, **0.77 at 0.2–0.5**
+(where 46 % of the handle work is done), rising to 0.89 at the release. The waste is at peak load, not at the catch or
+the release: the blade's force per unit slip at peak load is the lever. [G19]'s accelerating plate holds its force
+30–40 % above steady for 7–8 plate heights (§9x; a drive is ~2.5) — but the research blade's face-on coefficient (2.2)
+came from [GTW21]'s robot on a realistic path, so how much of that transient it already carries is the open question.
+With the measured shafts the rigid and bending boats sit at the bottom of Kleshnev's bands (eight 0.80 against
+0.798–0.908), so this is now a level question for the blade, not a bending one.
+
+**Where bending stands.** The ladder, with the measured shafts and a hold on the rower's own pace: [RLBQV19]'s trial,
+energy return, the single, her handle force (own body), both athletes' rung 2 within 0.6 points of rigid IVV (hold 1–2),
+the sweep boats in band (hold 4; four at hold 1, eight 0.024 short at hold 1). The one thing not sourced is a hold above
+~1: [BR24]'s rung 2 and the eight at hold 1 want more than the muscles' force–velocity gives. Decision for the user:
+enable bending in the research profile with the measured shafts and a hold of 1 (sourced; the eight 0.024 short,
+[BR24] rings) or 2 (passes both athletes; above the sourced range), or wait for the arms' and reflexes' share of the
+hold to be sourced.

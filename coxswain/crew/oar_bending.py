@@ -45,6 +45,14 @@ L14_EXTRA_SOFT_EI = _l14_ei(0.5 * (5.98 + 6.13), 1.299)
 C2_SCULL_MEDIUM_CM, C2_SWEEP_MEDIUM_CM = 4.5, 3.75
 C2_SCULL_SPAN = 1.50
 
+#: Prinsen & Wilkins (1986), Polymer Composites 7(4) 226-231 (open; data/local/literature/prinsen1986_oar/): the central
+#: shaft of a wooden **sweep** oar (385 cm), as a beam fixed at the pivot and loaded at the free end, measured at
+#: "typically 8,000 N m^2"; their carbon tube was built to match it. Their standard flex test hangs 10 kg 205 cm out;
+#: Concept2's medium sweep deflection (3.75 cm) on that span gives 98.1 x 2.05^3 / (3 x 0.0375) = 7513 N m^2. The two
+#: agree to 6 %.
+PRINSEN1986_SWEEP_EI = 8000.0
+C2_SWEEP_EI_205 = 98.1 * 2.05 ** 3 / (3.0 * C2_SWEEP_MEDIUM_CM / 100.0)
+
 
 def concept2_sweep_over_scull(sweep_root: float = 2.04, scull_root: float = 1.57) -> float:
     """EI of a medium sweep shaft over a medium scull shaft by Concept2's own test: ``(L_sw / L_sc)^3 d_sc / d_sw``
@@ -74,6 +82,17 @@ class OarBending:
     def robert2019_sweep(cls) -> "OarBending":
         """[RLBQV19]'s bench law for their sweep oar on their mount: K_ang 2948 N m, K_ang/K_lin = 0.861 m."""
         return cls(2948.0, 2948.0 / 3424.1, "[RLBQV19] eq. 1, sweep oar on the rotating arm")
+
+    @classmethod
+    def measured_sweep(cls, outboard_centre: float, blade_length: float, ei: float = None) -> "OarBending":
+        """A sweep shaft at its measured stiffness, as a uniform cantilever on this oar: Prinsen & Wilkins (1986)'s
+        8000 N m^2 (wooden sweep oar's central shaft, measured), which Concept2's medium sweep spec on the 2.05 m
+        standard span reproduces (7513 N m^2). ``ei`` overrides. [RLBQV19]'s bench law is ~2.4x softer
+        (SOURCES §221)."""
+        ei = PRINSEN1986_SWEEP_EI if ei is None else float(ei)
+        law = cls.laschowski2014_scull(outboard_centre, blade_length, ei=ei)
+        return cls(law.k_ang, law.hinge_inboard_of_root,
+                   "Prinsen & Wilkins 1986 sweep shaft EI %.0f N m^2, uniform cantilever (measured EI)" % ei)
 
     @classmethod
     def concept2_sweep(cls, outboard_centre: float, blade_length: float) -> "OarBending":

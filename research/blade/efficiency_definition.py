@@ -31,6 +31,8 @@ def bending_law(boat):
     if boat.rig.is_sweep:
         if SWEEP_LAW == "concept2":
             return OarBending.concept2_sweep(float(oar.blade_centre_outboard), float(oar.blade_length))
+        if SWEEP_LAW == "measured":
+            return OarBending.measured_sweep(float(oar.blade_centre_outboard), float(oar.blade_length))
         return OarBending.robert2019_sweep()
     return OarBending.laschowski2014_scull(float(oar.blade_centre_outboard), float(oar.blade_length))
 
@@ -69,7 +71,7 @@ def main():
                     help="the crew's handle force-velocity with this V0, m/s (coxswain.crew.handle_fv; SOURCES §218)")
     ap.add_argument("--hold", type=float, default=None,
                     help="the crew's hold on its planned speed, beta (coxswain.crew.handle_fv.PlannedSpeedHold; §220)")
-    ap.add_argument("--sweep-law", default="robert", choices=["robert", "concept2"])
+    ap.add_argument("--sweep-law", default="robert", choices=["robert", "concept2", "measured"])
     args = ap.parse_args()
     global SWEEP_LAW
     SWEEP_LAW = args.sweep_law
