@@ -287,8 +287,9 @@ class ClockSim(DynamicOarSimulator):
         if (fv is None and hold == 0.0) or \
                 float(tau) % float(timing.period) > float(timing.drive_fraction) * float(timing.period):
             return q
+        # the pace held: the plan's (tau' = 1) or, with hold_own, the rower's own previous drive (SOURCES §220, §222)
+        ref = self._hold_reference() if getattr(self, "hold_own", False) else 1.0
         if hold:
-            ref = self._hold_reference() if getattr(self, "hold_own", False) else 1.0
             q = q * max(1.0 + hold * (1.0 - float(td) / ref), 0.0)
         if fv is None:
             return q
@@ -296,7 +297,7 @@ class ClockSim(DynamicOarSimulator):
         planned = abs(float(self.boat.oar_sweep.rate(float(tau) % float(timing.period), timing))) * inboard
         if planned <= 1e-9:
             return q
-        return q * fv.factor(abs(float(td)) * planned, planned)
+        return q * fv.factor(abs(float(td)) * planned, ref * planned)
 
 
     def _hold_reference(self):

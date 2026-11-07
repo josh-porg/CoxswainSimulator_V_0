@@ -928,8 +928,15 @@ SOURCES §217. The scull's outboard stiffness is now measured ([L14], EI ≈ 210
    *2026-11-05:* Sprague et al. 2007 found open and downloaded; the on-water study identified (Nordez, Delhaye,
    Teissier, Colloud, Peyrot & Samozino 2025, Sports Biomech. 24(9) 2750–2765) and requested from Nordez; Tullis &
    Galipeau 2020 (ISEA, open: a Hill force–velocity–length athlete coupled to the ergometer) read.
+   *2026-11-07: answered.* Nordez sent the full text (`data/local/literature/nordez2025_onwater_fv/`): velocity is the
+   drive-averaged handle speed (gate rate × inboard), force summed over both gates; on water F0 971 N, **V0 4.53 m/s**;
+   the same rowers on a Concept2 V0 3.14 m/s (SOURCES §222). The submaximal slope remains unmeasured.
 
 **Paper-copy requests sent 2026-11-05** (from the project Gmail, user approved; watched in
 `data/local/outreach/gmail_threads.json`): Nordez (on-water F–v, 2025); Tullis (Sliasas & Tullis 2011, shaft bending);
 Barré (Barré & Kobus 2010, §12); McGregor (Buckeridge, Bull & McGregor 2015; Buckeridge et al. 2016 stretcher height);
 Lintmeijer (2017 power, 2018 centre of mass); Caplan (Caplan & Gardner 2005 stretcher height).
+*Answered:* Nordez (2026-11-05, full text) and McGregor (2026-11-06, both papers) — in `data/local/literature/`
+(`nordez2025_onwater_fv`, `buckeridge2015_lowback`, `buckeridge2016_stretcher`). Also received unrequested: Hase et al.
+2002 (JSME Int. J. C 45(4), whole-body musculoskeletal ergometer model; `hase2002_rowing_msk`). Waiting: Tullis, Barré,
+Lintmeijer, Caplan (follow-up after 14 days).

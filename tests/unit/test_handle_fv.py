@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 
 from coxswain.boats import catalog
-from coxswain.crew.handle_fv import ERGOMETER_V0, HandleForceVelocity, PlannedSpeed
+from coxswain.crew.handle_fv import NORDEZ2025_ONWATER_V0, HandleForceVelocity, PlannedSpeed
 from coxswain.sim.dynamic_oar import DynamicOarSimulator, _match_key
 
 
@@ -15,7 +15,8 @@ def test_the_pull_is_unchanged_at_the_planned_speed_and_falls_along_the_slope():
     assert fv.factor(6.0, 2.0) == 0.0                             # never negative
     with pytest.raises(ValueError):
         fv.factor(1.0, 5.0)
-    assert HandleForceVelocity.onwater().v0 == pytest.approx(ERGOMETER_V0 / 0.69)
+    assert HandleForceVelocity.onwater().v0 == pytest.approx(NORDEZ2025_ONWATER_V0) == pytest.approx(4.53)
+    assert HandleForceVelocity.ergometer().v0 == pytest.approx(3.14)
 
 
 def test_planned_speed_is_the_boats_own_sweep():

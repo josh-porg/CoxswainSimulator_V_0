@@ -15038,3 +15038,58 @@ the sweep boats in band (hold 4; four at hold 1, eight 0.024 short at hold 1). T
 enable bending in the research profile with the measured shafts and a hold of 1 (sourced; the eight 0.024 short,
 [BR24] rings) or 2 (passes both athletes; above the sourced range), or wait for the arms' and reflexes' share of the
 hold to be sourced.
+
+## 222. The on-water force–velocity measured: the crew's hold sourced at ~0.6–0.7, and what it passes (2026-11-07)
+
+Replies to the 2026-11-05 paper requests (DATA_REQUESTS §15) brought four papers (`data/local/literature/`, notes in
+each folder).
+
+**[NDT25] Nordez, Delhaye, Teissier, Colloud, Peyrot & Samozino (2025)**, *Force–velocity and power–velocity
+relationships in on-water rowing*, Sports Biomech., doi:10.1080/14763141.2025.2511765 (full text from the authors).
+14 national-level scullers, all-out starts in an instrumented double with 266/287/320 cm sculls. **Handle velocity is
+the gate's angular rate × inboard and force the pin force summed over both gates, both averaged over the drive** — the
+model's own definitions. Linear (median R² 0.96): **F0 971 ± 241 N, V0 4.53 ± 0.74 m/s**, Pmax 1088 W; individual V0
+2.9–6.1 m/s; inter-day CV of V0 9 %. Points cover 25–50 % of V0, so V0 is an extrapolation. The same rowers on a
+Concept2: F0 1152 N, **V0 3.14 m/s**. `HandleForceVelocity.onwater()` now returns 4.53 m/s and `.ergometer()` 3.14 m/s
+(replacing an abstract's 3.50 / 0.69); Sprague et al. 2007's ergometer 6.16 m/s stays as `sprague2007()`.
+
+**The hold it implies.** A linear F–V is the hold β = v/(V0 − v). At the research body's planned handle speeds
+(mean 1.47 / 1.58 m/s, peak 2.12 / 2.27 m/s for [CR06] / [BR24]) that is **β ≈ 0.62 / 0.70 work-weighted** (0.53 / 0.59
+time-averaged), up to 0.88 / 1.00 at peak handle speed. This agrees with §221's joint-by-joint estimate from Anderson
+et al. 2007 (0.67 / 0.57) — now from a whole-body, on-water measurement. Still a maximal across-trial relation used as
+a submaximal within-stroke impedance (the model's assumption); within-stroke reflexes are not in it.
+
+**What the sourced line passes** (no free parameter; measured shafts: sculls [L14], sweeps `measured_sweep`):
+
+| test | bending | rigid | target |
+|---|---|---|---|
+| eight, Kleshnev energy (gate track) | **0.802** | 0.802 | 0.798–0.908 |
+| four | **0.778** | 0.773 | 0.768–0.902 |
+| [CR06] rung 2, own body | 4.186 m/s, IVV **52.6 %**, 263 W | 4.142, 52.4 %, 259 W | 4.191, 49.4 %, 261 W |
+| [BR24] rung 2, own body | 4.224 m/s, IVV **61.5 %**, 345 W | 4.723, 50.3 %, 425 W | 4.641, 49.1 %, 432 W |
+
+Logs: `data/local/validation/efficiency_definition_k07_measuredsweep_fv4.53.log`,
+`data/local/crew/logs/rung2_population_ownbody_{bending_l14,rigid}_fv4.53*.log`. Referencing the rower's own pace
+instead of the plan's changes nothing here (her own pace settles at 0.98–1.05 of the plan; `rung2_clock._muscle` now
+applies `hold_own` to the force–velocity as well as the hold). The eight now passes where hold β 1 left it 0.024 short:
+the F–V's hold is weak at the catch and the finish and near 1 at peak handle speed, where the shaft is loaded.
+
+**[BR24] still rings.** With bending her stroke runs 0.4 m/s slow at 80 % of her power; rigid with the same line is
+right. She needed hold β 2 on her own pace (§220); the measured whole-body line gives 0.7, and the reflex (~0.3, §221)
+does not close it. Nothing sourced yet supplies the difference. Since the measured shafts leave the scored efficiency
+unchanged (eight 0.802 both ways), the recommendation is to keep bending an option, not the research default (the user decides).
+
+**Also received.**
+- **[BBM15]** Buckeridge, Bull & McGregor (2016; online 2015), J. Sports Sci. 34(4) 369–378 — the published form of
+  [BU13] ch. 7, with the women-only values in the text: peak knee extension 3.82 → 3.68 N·m/kg, ankle 1.16 → 1.23,
+  L5/S1 12.47 → 13.09 (rate 18 → free rate). Same bottom-up method and same statics caveat as [BU13].
+- **[BWBM16]** Buckeridge, Weinert-Aplin, Bull & McGregor (2016), Sports Biomech., stretcher height ([BU13] ch. 8):
+  10 men, peak resultant foot force 14.2 N/kg, horizontal 11.0 N/kg (ratio 0.77); raising the stretcher 5 cm lowers
+  both and shortens the stroke; Table 5 peak moments ankle 0.8, knee 3.7, hip 4.7, L5/S1 11.6 N·m/kg.
+- **[HKY02]** Hase, Kaya, Yamazaki, Andrews, Zavatsky & Halliday (2002), *Biomechanics of rowing I*, JSME Int. J. C
+  45(4) 1073–1081 (scanned copy; values read off plots). 5 experienced men, Concept2, 26 spm, whole-body
+  musculoskeletal model with measured handle and foot forces: handle peak ≈ 850 N; foot force per leg 450 N fore-aft,
+  370 N vertical (39° above horizontal, ratio 0.77 like [BWBM16]); **lumbar extension ≈ 280 N·m, hip ≈ 240 N·m per
+  side, knee only ≈ 40 N·m extension then ≈ 60 N·m flexion**; lower : upper body metabolic energy 6 : 4. Unlike
+  [BU13]'s hip (5.4 N·m/kg, which fails the top-down statics check of the joint-moments section), these magnitudes
+  are consistent with the handle force: a better target for phase 4.3's joint moments.

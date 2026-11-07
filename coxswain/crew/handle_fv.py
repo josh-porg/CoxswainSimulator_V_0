@@ -15,9 +15,15 @@ inertia at the drive's own period (SOURCES sec. 218).
 ``v0`` is the handle speed at zero force, m/s. **Sprague et al. 2007 (full text, read 2026-11-05):** 11 collegiate men,
 maximal 5-stroke trials on an inertial ergometer at several loads; pull force against pull-averaged handle velocity is
 linear, F = 1214 - 197 V N (r^2 0.993; the Hill fit is as good), so V0 = 6.16 m/s and the slope ~197 N s/m; peak
-instantaneous force F = 1557 - 184 V. A second figure, V0 3.50 m/s (F0 1322 N, "a Concept2 study of 59 rowers"), is
-from an abstract whose source could not be identified: kept only as the low end of a sweep. On water V0 is higher
-still (Nordez et al. 2025, Sports Biomech.: the ergometer's 31 % lower; abstract, full text requested).
+instantaneous force F = 1557 - 184 V.
+
+**Nordez et al. 2025 (Sports Biomech., full text from the authors, read 2026-11-07):** 14 national-level scullers
+(10 men, 4 women), all-out starts in an instrumented double with 266, 287 and 320 cm sculls; Powerline pin force
+summed over both gates, handle velocity = gate angular rate x inboard (the model's own definition), both averaged
+over the drive (minimum to maximum hand position). Linear, median R^2 0.96: **F0 971 +- 241 N, V0 4.53 +- 0.74 m/s**,
+Pmax 1088 W (V0 range 2.9-6.1 m/s; inter-day CV 9 %). The same rowers on a Concept2: F0 1152 N, V0 3.14 m/s -- so
+an unidentified abstract's ergometer 3.50 m/s is close, and Sprague's ergometer 6.16 sits above both. As a hold
+(PlannedSpeedHold) the on-water line is beta = v / (V0 - v): ~0.5 at 1.6 m/s, ~1.1 at the 2.4 m/s peak.
 
 Caveat: these are maximal relations across trials (each point a different load), with velocity averaged over the pull.
 Using one as the within-stroke impedance of a submaximal rower (the slope scaled by the activation, through the
@@ -32,10 +38,11 @@ import numpy as np
 #: Sprague et al. 2007: pull force F0 1214 N, slope -197 N s/m (pull-averaged handle velocity), so V0 = 6.16 m/s.
 SPRAGUE2007_F0, SPRAGUE2007_SLOPE = 1214.0, 197.0
 SPRAGUE2007_V0 = SPRAGUE2007_F0 / SPRAGUE2007_SLOPE
-#: Handle speed at zero force on the ergometer from an unidentified abstract (Concept2, 59 rowers), m/s: a low bound.
-ERGOMETER_V0 = 3.50
-#: The on-water study's V0 relative to the ergometer's: the ergometer's is 31 % lower (abstract).
-ONWATER_OVER_ERGOMETER = 1.0 / 0.69
+#: Nordez et al. 2025, on water (double scull, drive-averaged handle speed = gate rate x inboard): F0 971 N, V0 4.53 m/s.
+NORDEZ2025_ONWATER_F0, NORDEZ2025_ONWATER_V0 = 971.0, 4.53
+#: The same study's rowers on a Concept2 ergometer: F0 1152 N, V0 3.14 m/s.
+NORDEZ2025_ERGOMETER_F0, NORDEZ2025_ERGOMETER_V0 = 1152.0, 3.14
+ERGOMETER_V0 = NORDEZ2025_ERGOMETER_V0
 
 
 @dataclass(frozen=True)
@@ -56,12 +63,13 @@ class HandleForceVelocity:
 
     @classmethod
     def onwater(cls) -> "HandleForceVelocity":
-        """The ergometer's V0 scaled to water by the on-water study's ratio (SOURCES sec. 218)."""
-        return cls(ERGOMETER_V0 * ONWATER_OVER_ERGOMETER, "on-water: Concept2 V0 3.50 m/s / 0.69 (abstracts)")
+        """Nordez et al. 2025's on-water line (full text): V0 4.53 m/s, drive-averaged (SOURCES §222)."""
+        return cls(NORDEZ2025_ONWATER_V0, "Nordez et al. 2025: on-water double scull, V0 4.53 m/s (drive-averaged)")
 
     @classmethod
     def ergometer(cls) -> "HandleForceVelocity":
-        return cls(ERGOMETER_V0, "Concept2 V0 3.50 m/s (abstract)")
+        """Nordez et al. 2025's rowers on a Concept2: V0 3.14 m/s."""
+        return cls(NORDEZ2025_ERGOMETER_V0, "Nordez et al. 2025: Concept2, V0 3.14 m/s")
 
     def factor(self, speed: float, planned: float) -> float:
         """``(V0 - v) / (V0 - v_ref)``, never below zero: the pull at handle speed ``speed`` relative to the planned

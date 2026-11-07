@@ -1277,6 +1277,14 @@ the boat speeds that go with their drive durations).
   it, and at what hold, is the user's.
   - *Next:* the arms' and reflexes' share of the hold (to source β up to ~2); the blade's force per slip at peak load
     (how much of [G19]'s transient the face-on 2.2 carries).
+- **§222 (2026-11-07): the on-water force–velocity measured.** Nordez et al. 2025 (full text from the authors): on
+  water, drive-averaged handle speed (gate rate × inboard, the model's definition), F0 971 N, V0 4.53 m/s; Concept2
+  3.14 m/s. As a hold that is β ≈ 0.6–0.7 over the drive (~1 at peak speed), confirming §221's joint estimate. With it,
+  no free parameter, bending passes the eight (0.802) and four (0.778) and [CR06]'s rung 2 (52.6 % vs rigid 52.4 %);
+  [BR24] still rings (61.5 %). Bending stays an option. Also received: [BBM15], [BWBM16], and Hase et al. 2002 (joint
+  moments that pass the statics check: hip ≈ 240 N·m per side, knee small) — a better phase-4.3 target.
+  - *Next:* why [BR24]'s stroke rings at the measured F–V (her own timing near the shaft mode?); the research body's
+    joint moments against [HKY02].
 
 ## Calibration and validation data from the squad's own boats (noted 2026-10-08)
 
