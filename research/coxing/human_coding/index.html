@@ -59,7 +59,7 @@ const F = [
 const MULTI = new Set(["target", "function"]);       // fields that take several values; the first chosen is the main one
 const filled = nm => MULTI.has(nm) ? cur[nm].length > 0 : !!cur[nm];
 const FLAGS = [["F","fragment","continues a call; coded as that call"],["U","unsure","a judgement call"],["X","transcript wrong","the words look misheard"],["S","signal","marks a shift in the talk or calls for attention (okay, listen)"]];
-let S, mode, items, done, pos, cur, field, flags, note, noting, t0, plays = 0, busy = false;
+let S, mode, items, done, pos, cur, field, flags, note, noting, focusNote = false, t0, plays = 0, busy = false;
 const app = document.getElementById("app"), help = document.getElementById("help");
 const INSTR = '<a href="/instructions" target="_blank">Instructions</a>';
 
@@ -116,7 +116,11 @@ function renderText(msg = "") {
   if (noting) h += `<textarea id="note" placeholder="Your reasoning, in a sentence or two. Enter closes; Shift+Enter for a new line.">${esc(note)}</textarea>`;
   h += `<div class="msg">${msg}</div>`;
   app.innerHTML = h;
-  if (noting) { const t = document.getElementById("note"); t.focus(); t.setSelectionRange(t.value.length, t.value.length); }
+  if (noting) {                                        // the note is saved on every keystroke, so clicking away keeps it
+    const t = document.getElementById("note");
+    t.addEventListener("input", () => { note = t.value; });
+    if (focusNote) { t.focus(); t.setSelectionRange(t.value.length, t.value.length); focusNote = false; }
+  }
 }
 function nextField() {                                   // leave a multi-value field (Space)
   if (field === 0 && skipped()) { field = F.length; return; }
@@ -181,8 +185,8 @@ async function rate(n) {
 // ---------------- input
 document.addEventListener("keydown", e => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
-  if (noting) {                                          // typing a note: only Enter (close) and Escape (close) are ours
-    if ((e.key === "Enter" && !e.shiftKey) || e.key === "Escape") { e.preventDefault(); note = document.getElementById("note").value; noting = false; renderText(); }
+  if (e.target && e.target.id === "note") {             // typing in the note: only Enter (close) and Escape (close) are ours
+    if ((e.key === "Enter" && !e.shiftKey) || e.key === "Escape") { e.preventDefault(); note = e.target.value; noting = false; renderText(); }
     return;
   }
   if (mode === "welcome") { if (e.key === "Enter") { mode = "text"; startText(); } return; }
@@ -192,7 +196,7 @@ document.addEventListener("keydown", e => {
     return;
   }
   if (mode !== "text") return;
-  if (e.shiftKey && /^n$/i.test(e.key)) { e.preventDefault(); noting = true; return renderText(); }
+  if (e.shiftKey && /^n$/i.test(e.key)) { e.preventDefault(); noting = true; focusNote = true; return renderText(); }
   if (e.shiftKey && /^[fuxs]$/i.test(e.key)) { const g = FLAGS.find(x => x[0] === e.key.toUpperCase())[1]; flags.has(g) ? flags.delete(g) : flags.add(g); return renderText(); }
   if (e.key === "Enter") { e.preventDefault(); return saveText(); }
   if (e.key === " " && field < F.length && MULTI.has(F[field][0])) {
@@ -216,7 +220,7 @@ app.addEventListener("click", e => {
   const o = e.target.closest(".opt"), g = e.target.closest(".flag"), r = e.target.closest("[data-rate]");
   if (o && mode === "text") { const k = +o.dataset.f; if (k === 0 || !skipped()) { field = k; setField(k, o.dataset.v); } }
   if (g && mode === "text") {
-    if (g.dataset.note) { noting = true; return renderText(); }
+    if (g.dataset.note) { noting = true; focusNote = true; return renderText(); }
     const v = g.dataset.flag; flags.has(v) ? flags.delete(v) : flags.add(v); renderText();
   }
   if (r && mode === "voice") rate(+r.dataset.rate);
