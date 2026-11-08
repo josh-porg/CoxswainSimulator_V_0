@@ -138,6 +138,21 @@ def main():
     print("TWO COXSWAINS gearing:", json.dumps(t["gearing"]))
     print("COUNT ANCHOR (0.55):", json.dumps({k: (v["shift_phase"], v["n"], v["phase"], v["R"], v["anchored"])
                                                for k, v in json.load(open(os.path.join(HERE, "..", "sync", "count_anchor.json")))["0.55"].items()}))
+    g = J("guide/results.json")                                 # guide_validation.py
+    r, c, rep = g["rule_coder_on_guide"], g["guide_classifier_on_calls"], g["repertoire_first_coxswain"]
+    coded = sum(v["n"] - v["rule_targets"].get("other", 0) for v in r["by_heading"].values())
+    print("GUIDE: %d phrases, headings %s" % (g["n_guide"], g["by_heading"]))
+    print("GUIDE rule coder: agreement %.2f chance %.2f p %.4f; among %d phrases it codes %.2f; by heading %s" % (
+        r["agreement"], r["chance"], r["p"], coded, sum(v["agree"] * v["n"] for v in r["by_heading"].values()) / coded,
+        {h: round(v["agree"], 2) for h, v in r["by_heading"].items()}))
+    print("GUIDE classifier: all %s; close %s" % ({k: round(v, 4) if isinstance(v, float) else v for k, v in c["all"].items()},
+                                                 {k: round(v, 4) if isinstance(v, float) else v for k, v in c["close"].items()}))
+    print("GUIDE classifier by target:", {t: (v["n"], round(v["agree"], 2)) for t, v in c["by_target"].items()})
+    print("GUIDE outside types:", c["outside_guide_types"])
+    print("GUIDE repertoire (first coxswain): %d of %d matched; marked %d/%d, unmarked %d/%d, Fisher p %.3f; by heading %s" % (
+        rep["guide_phrases_with_close_match"], g["n_guide"], rep["marked"]["with_match"], rep["marked"]["n"],
+        rep["unmarked"]["with_match"], rep["unmarked"]["n"], rep["fisher_p"],
+        {h: "%d/%d" % (v["with_match"], v["n"]) for h, v in rep["by_heading"].items()}))
 
 
 if __name__ == "__main__":
