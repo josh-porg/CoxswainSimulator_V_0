@@ -15070,12 +15070,12 @@ a submaximal within-stroke impedance (the model's assumption); within-stroke ref
 
 Logs: `data/local/validation/efficiency_definition_k07_measuredsweep_fv4.53.log`,
 `data/local/crew/logs/rung2_population_ownbody_{bending_l14,rigid}_fv4.53*.log`. Referencing the rower's own pace
-instead of the plan's changes nothing here (her own pace settles at 0.98–1.05 of the plan; `rung2_clock._muscle` now
+instead of the plan's changes nothing here ([BR24]'s own pace settles at 0.98–1.05 of the plan; `rung2_clock._muscle` now
 applies `hold_own` to the force–velocity as well as the hold). The eight now passes where hold β 1 left it 0.024 short:
 the F–V's hold is weak at the catch and the finish and near 1 at peak handle speed, where the shaft is loaded.
 
-**[BR24] still rings.** With bending her stroke runs 0.4 m/s slow at 80 % of her power; rigid with the same line is
-right. She needed hold β 2 on her own pace (§220); the measured whole-body line gives 0.7, and the reflex (~0.3, §221)
+**[BR24] still rings.** With bending the stroke runs 0.4 m/s slow at 80 % of the measured power; rigid with the same line is
+right. It needed hold β 2 on its own pace (§220); the measured whole-body line gives 0.7, and the reflex (~0.3, §221)
 does not close it. Nothing sourced yet supplies the difference. Since the measured shafts leave the scored efficiency
 unchanged (eight 0.802 both ways), the recommendation is to keep bending an option, not the research default (the user decides).
 

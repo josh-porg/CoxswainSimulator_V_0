@@ -65,6 +65,8 @@ FV = None
 HOLD = 0.0
 #: hold the rower's own pace (the previous drive's mean tau') instead of the plan's
 HOLD_OWN = False
+#: each athlete's last rung-2 simulator and run, ``(free sim, run)``, for traces (research/blade/bending_ring_trace.py)
+LAST_RUN = {}
 
 
 def blade_options(boat):
@@ -212,6 +214,7 @@ def athlete(name, strokes, s_pop, q_drive, ph, q, p_pop):
     free = make(free_boat, "free", Q=Q, body=own_body(name, free_boat) if BODY == "own" else None)
     free.start_state = np.concatenate([run_b.last_states[:, -1], [P, 1.0]])
     run_f = free.run_strokes(strokes, surge_speed=4.3)
+    LAST_RUN[name] = (free, run_f)
     s_f = C2.summary(run_f)
     tt, ss, aa = model_track(free, run_f, True)
     prog_f = compare(tt, ss, ht, hs)
@@ -343,7 +346,10 @@ def main():
                                                             + "".join("_" + c for c in a.clocks)
                                                             + "".join("_" + t for t in a.hand_terms)
                                                             + ("_" + a.travel if a.travel else "")
-                                                            + ("_bending" if a.bending else ""))), "w"), indent=1, default=float)
+                                                            + ("_bending" if a.bending else "")
+                                                            + ("_fv%g" % a.fv if a.fv is not None else "")
+                                                            + ("_hold%g" % a.hold if a.hold else "") + ("own" if a.hold_own else "")
+                                                            + ("" if a.athletes == ["cr06", "br24"] else "_" + "_".join(a.athletes)))), "w"), indent=1, default=float)
 
 
 if __name__ == "__main__":
