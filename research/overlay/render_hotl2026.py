@@ -45,7 +45,8 @@ import title_card as T                                           # noqa: E402
 LOCAL = os.path.join(ROOT, "data", "local")
 CARDS = os.path.join(LOCAL, "overlay", "cards_hotl2026.json")
 COXBOX = os.path.join(LOCAL, "raceday", "hotl2026", "coxbox")
-VIDEOS = os.path.join(os.path.expanduser("~"), "Downloads")
+VIDEOS = os.path.join(json.load(open(os.path.join(LOCAL, "coxing", "local_paths.json"), encoding="utf-8"))["media_root"],
+                      "2026 race videos (raw)")   # raw footage, kept online-only in the synced media folder (private path)
 OUT = os.path.join(LOCAL, "overlay", "videos_titled", "hotl2026")
 SYNC = os.path.join(OUT, "sync.json")
 
