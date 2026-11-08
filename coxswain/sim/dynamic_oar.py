@@ -270,7 +270,7 @@ class DynamicOarSimulator(RowingSimulator):
                  blade_added_mass: str = "none", catch: str = "rest",
                  blade_span: float = None, blade_coefficients: str = "cg07",
                  blade_depth=None, blade_immersion=None, oar_bending=None,
-                 liftdrag_blade=None, handle_fv=None, bend_dynamics=None, **kwargs):
+                 liftdrag_blade=None, handle_fv=None, bend_dynamics=None, release_after=None, **kwargs):
         if blade_law not in self.BLADE_LAWS:
             raise ValueError("unknown blade law %r; this simulator runs %s"
                              % (blade_law, ", ".join(self.BLADE_LAWS)))
@@ -349,6 +349,9 @@ class DynamicOarSimulator(RowingSimulator):
                 "the same law across the span changes the level it was fitted at")
         self.crew = crew
         self.release = release
+        #: Hands on the handle only: the fraction of the oar's arc past the catch before [CR06]'s "stopped driving"
+        #: release may take the blade out (``None``: anywhere, as built; SOURCES §226)
+        self.release_after = release_after
         super().__init__(boat, **kwargs)
         if blade_depth is not None:
             self.blade_depth = blade_depth              # checked against the coefficients
@@ -1172,7 +1175,13 @@ class DynamicOarSimulator(RowingSimulator):
                 state_now = State.from_vector(y[:STATE_SIZE])
                 driving = np.array([self._normal_velocity(k, angle, rate, state_now) < 0.0
                                     for k in range(n)])
-                # [CR06]'s release, eq. 16 again: once the blade stops driving it is out
+                # [CR06]'s release, eq. 16 again: once the blade stops driving it is out -- with ``release_after``,
+                # only once the oar is that fraction of its arc past the catch (extraction is the finish's act; a
+                # blade unloaded for a moment near the catch stays buried and brakes: SOURCES §226)
+                if self.release_after is not None:
+                    arc = np.array([(oar.catch_angle - angle) / max(oar.catch_angle - oar.finish_angle, 1e-9)
+                                    for oar in self._oars])
+                    driving = driving | (arc < float(self.release_after))
                 out = (~self._in_air) & ((angle <= finishes + 1e-12) | ~driving)
                 self._handle_done |= out
                 self._in_air |= out

@@ -1308,6 +1308,12 @@ the boat speeds that go with their drive durations).
   dynamic-shaft round trip is exact, so the stall is the population's handle force at the catch, not the dynamics;
   `--q-map split` (own body + population handle) improves [CR06] but not him.
   - *Next:* a load-responsive muscle at the handle (joint strength driving it) for rung 2 — the body build.
+- **§226 (2026-11-08): the stall fixed; the gap measured.** The stall was the release rule taking the blade out right
+  after the catch when the clock slowed; `release_after` restricts it to the second half of the arc (rigid runs
+  unchanged). [BR24] rows with the dynamic shaft and converges. Rigid + added mass + split hand-over is within 1–2 IVV
+  points of both athletes; the dynamic shaft is 4–6 high, not because of the added mass's size.
+  - *Next:* how much of the blade's water inertia a flexible oar passes to the hull (rigid: it smooths IVV by ~2
+    points; through the spring it does not); [BR24]'s low handle power on the rigid added-mass path.
 
 ## Calibration and validation data from the squad's own boats (noted 2026-10-08)
 

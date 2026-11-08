@@ -76,6 +76,8 @@ BEND_DYNAMICS = None
 #: is timed, not placed); "split" -- the athlete's own body part (its measured timing is an input) plus the population's
 #: handle part, scaled. The recovery is by cycle phase either way.
 Q_MAP = "progress"
+#: the arc fraction past the catch before the "stopped driving" release may act (DynamicOarSimulator release_after)
+RELEASE_AFTER = None
 #: the population's drive fraction, set by population_tables
 POP = {}
 
@@ -91,6 +93,8 @@ def blade_options(boat):
         opts["oar_bending"] = OarBending.laschowski2014_scull(float(oar.blade_centre_outboard), float(oar.blade_length))
         if BEND_DYNAMICS is not None:                            # the bend as a dynamic state (SOURCES §224)
             opts["bend_dynamics"] = BEND_DYNAMICS
+    if RELEASE_AFTER is not None:
+        opts["release_after"] = RELEASE_AFTER
     if ADDED_MASS != "none":
         opts["blade_added_mass"] = ADDED_MASS
     return opts
@@ -364,14 +368,17 @@ def main():
                     help="the shaft's structural damping ratio for --bend-dynamics (default BendDynamics')")
     ap.add_argument("--dt", type=float, default=None,
                     help="fixed integration step, s (default: integrators.estimate_step): a convergence test")
+    ap.add_argument("--release-after", type=float, default=None,
+                    help="the arc fraction past the catch before the stopped-driving release may act (§226)")
     ap.add_argument("--q-map", default="progress", choices=["progress", "time", "split"],
                     help="hand the population's muscle force over by drive progress (as built) or drive time (§225)")
     a = ap.parse_args()
     if a.dt:
         import coxswain.core.integrators as I
         I.estimate_step = lambda *args, **kw: float(a.dt)
-    global FV, HOLD, HOLD_OWN, ADDED_MASS, BEND_DYNAMICS, Q_MAP
+    global FV, HOLD, HOLD_OWN, ADDED_MASS, BEND_DYNAMICS, Q_MAP, RELEASE_AFTER
     Q_MAP = a.q_map
+    RELEASE_AFTER = a.release_after
     HOLD = float(a.hold)
     HOLD_OWN = bool(a.hold_own)
     ADDED_MASS = a.added_mass
@@ -416,6 +423,7 @@ def main():
                                                             + ("_benddyn%g" % BEND_DYNAMICS.damping_ratio if BEND_DYNAMICS is not None else "")
                                                             + ("_dt%g" % a.dt if a.dt else "")
                                                             + ("" if a.q_map == "progress" else "_qmap" + a.q_map)
+                                                            + ("_release%g" % a.release_after if a.release_after is not None else "")
                                                             + ("" if a.athletes == ["cr06", "br24"] else "_" + "_".join(a.athletes)))), "w"), indent=1, default=float)
 
 

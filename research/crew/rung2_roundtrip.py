@@ -34,6 +34,7 @@ def roundtrip(name, strokes):
     s_r = C2.summary(run_r)
     ph, q = RP.q_table(ref, run_r)
     ROUND["table"] = (ph, q)
+    ROUND["parts"] = RP.parts_table(ref, run_r)
     P = float(boat.timing.period)
 
     def Q(tau):
@@ -98,6 +99,16 @@ def main():
             own = float(np.interp(tau / P, own_ph, own_q, period=1.0))
             pop = k * float(np.interp(s, s_pop, q_drive))
             print("  t %.2f s  s %.2f | %8.0f | %8.0f | %6.2f" % (tau, s, own, pop, pop / own if abs(own) > 1 else np.nan))
+        # the same split into the body's part and the handle's (rung2_clock.residual_parts)
+        oph, obody, ohandle = ROUND["parts"]
+        hs, hq = RP.POP["handle_drive"]
+        print("\ndrive progress | own body | own handle | population handle x %.3f | handle ratio" % k)
+        for tau in np.linspace(0.0, D, 21):
+            s = float(RP.progress_of(boat, tau)[0])
+            ob = float(np.interp(tau / P, oph, obody, period=1.0))
+            oh = float(np.interp(tau / P, oph, ohandle, period=1.0))
+            ph_ = k * float(np.interp(s, hs, hq))
+            print("  t %.2f s  s %.2f | %8.0f | %8.0f | %8.0f | %6.2f" % (tau, s, ob, oh, ph_, ph_ / oh if abs(oh) > 1 else np.nan))
 
 
 if __name__ == "__main__":

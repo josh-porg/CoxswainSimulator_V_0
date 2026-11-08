@@ -57,3 +57,16 @@ def test_the_measured_scull_shaft_bends_dynamically():
     bend = np.degrees(sim._bend_history[0])
     assert np.isfinite(run.settled_speed())
     assert 1.0 < bend.max() < 20.0                             # [L14]'s shafts bend 4-5 degrees at their test load
+
+
+@pytest.mark.slow
+def test_release_after_leaves_a_run_without_an_early_release_unchanged():
+    """``release_after`` only stops the stopped-driving release acting near the catch (SOURCES §226); a rigid run whose
+    blades release at the finish rows exactly as before."""
+    boat = physics.resolve("research").apply(catalog.single_scull(rate=30.0))
+    boat.power_scales = np.ones(boat.n_seats)
+    kw = dict(peak_torque=0.0, catch="sweep", crew="handle", blade_law="liftdrag", blade_added_mass="patton",
+              oar_bending=False, coxswain=Coxswain(rudder_override=lambda t, s: 0.0), fast=True)
+    plain = DynamicOarSimulator(boat, **kw).run_strokes(2, surge_speed=4.2)
+    held = DynamicOarSimulator(boat, release_after=0.5, **kw).run_strokes(2, surge_speed=4.2)
+    assert held.settled_speed() == pytest.approx(plain.settled_speed(), rel=1e-9)

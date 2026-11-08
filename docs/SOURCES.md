@@ -15278,3 +15278,44 @@ also fail a geometric bound: ~530 N per leg would need a 0.54 m lever about the 
   not supply that early force through a compliant shaft. The fix is a muscle that answers the load — joint strength
   (Anderson, Frey-Law; `coxswain.crew.joint_muscles`) driving the handle — rather than a borrowed force table: the body
   build (review §12). `--q-map split` is offered, not made the default (the user decides).
+
+## 226. The stall fixed: the release rule fired at the catch; where the gap to the athletes stands (2026-11-08)
+
+The user: "lets fix it and close the gap".
+
+**1. Where the force fell short** (`rung2_roundtrip.py --compare-population`, parts from
+`rung2_clock.ClockSim.residual_parts`). The handle's part of the population force, scaled to power, against each
+athlete's own need: [CR06] 0.78–1.09 of it through the drive (it fits); [BR24] 0.06–0.70 over 0.15–0.25 s and 1.21–1.85
+from mid-drive — his stroke is front-loaded against the population's. That alone slows the early drive; it does not end
+the stroke.
+
+**2. What ended it.** The trace showed the blade declared out at 0.16 s with the oar at 60° (catch 67°). The handle
+crew's release (`DynamicOarSimulator._integrate_sweep_catch`, [CR06] eq. 16) takes a blade out the moment it stops
+driving, judged on the *shaft's* rate: when the clock slowed, the shaft nearly stopped, the forward-moving boat made the
+blade "not driving", and the stroke ended right after the catch. Extraction is the finish's act; a blade unloaded for a
+moment near the catch stays buried and brakes. **Fix:** `DynamicOarSimulator(release_after=f)` — the stopped-driving
+release acts only once the oar is a fraction f of its arc past the catch (research option, default None = as built;
+rung 2 `--release-after 0.5`). A rigid run with no early release is unchanged to 1e-9
+(`test_release_after_leaves_a_run_without_an_early_release_unchanged`), and the rigid rung-2 numbers are identical.
+
+**3. Rung 2 now** (own body, on-water F–V on own pace, release after half the arc; `crew/logs/rung2_ownbody_*release0.5*`):
+
+| | [CR06] | [BR24] |
+|---|---|---|
+| measured | 4.191 m/s, IVV 49.4 %, 261 W | 4.641, 49.1 %, 432 W |
+| dynamic shaft + Patton, progress hand-over | 4.152, 55.4 %, 237 W | **4.902, 57.4 %, 404 W** (was a stall) |
+| dynamic shaft + Patton, split hand-over | 4.249, 53.6 %, 258 W | **4.801, 55.0 %, 380 W** (oar track rms 0.011) |
+| same at 3.125 ms | 4.250, 53.5 % | 4.796, 55.2 % (converged) |
+| dynamic shaft + Labbe (22 kg), split | 4.277, 53.5 % | 4.838, 54.9 % |
+| **rigid + Patton, split hand-over** | **4.183, 50.5 %, 245 W** | **4.684, 46.9 %**, 299 W |
+
+- The stall is gone and the dynamic shaft converges with the step for both athletes.
+- **The gap.** The rigid oar with the blade's added mass and the split hand-over is within 0.2 / 0.9 % of both speeds and
+  1.1 / 2.2 points of both IVVs. The dynamic shaft is 4.1 / 5.9 points high and 1.4 / 3.4 % fast.
+- **Not the added mass's size:** 22 kg against 13 kg moves IVV by 0.1 points. On the rigid oar the blade's water lowers
+  IVV by ~2 points (52.4 → 50.5 % for [CR06]); through the shaft's spring it no longer smooths the hull. How much of the
+  blade's water inertia a real flexible oar passes to the boat — and over what time — is the open physics.
+- [BR24]'s handle power stays low on the rigid oar (299 W against 432) though his speed is right: a power-accounting
+  question on the added-mass path to check.
+- Not closed by fitting: the shaft (two measurements), the added mass (two sources) and the muscles (population, F–V
+  measured) are all sourced; the split hand-over and the release rule are structural.
