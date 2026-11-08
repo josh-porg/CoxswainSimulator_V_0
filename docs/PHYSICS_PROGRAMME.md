@@ -1283,8 +1283,16 @@ the boat speeds that go with their drive durations).
   no free parameter, bending passes the eight (0.802) and four (0.778) and [CR06]'s rung 2 (52.6 % vs rigid 52.4 %);
   [BR24] still rings (61.5 %). Bending stays an option. Also received: [BBM15], [BWBM16], and Hase et al. 2002 (joint
   moments that pass the statics check: hip ≈ 240 N·m per side, knee small) — a better phase-4.3 target.
-  - *Next:* why [BR24]'s stroke rings at the measured F–V (her own timing near the shaft mode?); the research body's
-    joint moments against [HKY02].
+  - *Next:* why [BR24]'s stroke rings at the measured F–V; the research body's joint moments against [HKY02].
+- **§223 (2026-11-08): [BR24]'s bending stroke is unstable; joint moments pass against Hase 2002.** The ringing is a
+  ~0.25 s swing that grows through the drive (not §218's 0.64 s mode) and does not converge with the time step
+  (6.25 / 3.1 / 1.6 ms: 4.23 / 3.91 / 3.97 m/s): rung 2 with the quasi-static hinge is unstable at [BR24]'s force and
+  marginal at [CR06]'s. A force swing to zero triggers the release mid-drive. §220's hold-2 pass is unconfirmed (default
+  step). Bending stays off for rung 2. Joint moments: hip lever arm 0.49 / 0.53 m against [HKY02]'s 0.565; the knee's
+  extensor-then-flexor shape matches, its early extensor is 1.7× too large.
+  - *Next:* separate the energy source of the swing (hull recoil through the blade's slip vs the massless hinge) — a
+    hinge solved inside each integration stage, or with the shaft's own small inertia, would test the second; the
+    knee's foot-force direction through the drive.
 
 ## Calibration and validation data from the squad's own boats (noted 2026-10-08)
 

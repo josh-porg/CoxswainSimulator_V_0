@@ -15093,3 +15093,50 @@ unchanged (eight 0.802 both ways), the recommendation is to keep bending an opti
   side, knee only ≈ 40 N·m extension then ≈ 60 N·m flexion**; lower : upper body metabolic energy 6 : 4. Unlike
   [BU13]'s hip (5.4 N·m/kg, which fails the top-down statics check of the joint-moments section), these magnitudes
   are consistent with the handle force: a better target for phase 4.3's joint moments.
+
+## 223. [BR24]'s bending stroke is unstable, not under-damped; the body's joint moments against Hase 2002 (2026-11-08)
+
+**1. The ringing traced** (`research/blade/bending_ring_trace.py`; logs `data/local/validation/bending_ring_trace_*`).
+Rung 2, own body, cross-flow normal blade, buried catch, on-water F–V (V0 4.53 m/s, §222) on the rower's own pace.
+- **Not the 0.64 s crew–shaft mode of §218.** The handle force swings with a period of ~0.24–0.28 s (the stroke
+  clock's speed τ′ at ~0.1–0.2 s), and the swing *grows* through the drive (log decrement of the bend −0.35 [CR06],
+  −0.91 [BR24]). [BR24]'s handle force runs 474 → 578 → −1 → 598 N between 0.32 and 0.60 s while τ′ swings
+  0.82 → 1.29 → 0.92.
+- **The collapse mechanism.** When a swing takes the handle force to zero, the clock's release logic reads it as the
+  blade's release and hands over to the recovery mid-drive (`rung2_clock._integrate_sweep_catch`): the boat then runs
+  at 2.5–2.7 m/s. A first trace that built the population's muscle table on the rigid oar (Q within 1 % of the bending
+  table's) collapsed both athletes this way; with each table built on its own oar, as `rung2_population.main` does, the
+  §222 numbers reproduce exactly (rigid first or bending alone: no state carried between runs).
+- **Step-size test** (`--dt`; the default fixed RK4 step is 6.25 ms and the hinge is solved once after each step):
+
+  | | 6.25 ms | 3.125 ms | 1.5625 ms |
+  |---|---|---|---|
+  | [CR06] bending | 4.186 m/s, IVV 52.6 %, 263 W | 4.230, 53.5 %, 265 W | — |
+  | [BR24] bending | 4.225, 61.4 %, 346 W | 3.914, 61.5 %, 223 W (drive ends at 0.36 s) | 3.968, 70.5 %, 347 W |
+
+  The swing does not shrink with the step — at 1.56 ms [BR24]'s handle force peaks at 840–890 N — so this is not a
+  time-step artefact: **rung 2's equations with the quasi-static bending hinge are unstable at [BR24]'s force level**
+  and marginal at [CR06]'s (1 % change with half the step). The hold β 2 that "passed" [BR24] in §220 was run at the
+  default step and is not checked for convergence; treat it as unconfirmed.
+- **What it is not.** A damping shortfall would decay, and the measured F–V adds damping (dQ/dτ′ < 0). A growing swing
+  means energy is fed in: candidates are the hull's recoil (which lowers the crew's effective inertia, §182, making the
+  mode fast) acting through the blade's slip, and the massless hinge's coupling of blade speed to bend rate. Not yet
+  separated.
+- **Consequence.** Bending stays an option and is not to be enabled for rung 2 until its stroke converges with the step.
+  The fixed-motion tests (rung 1, the sweep boats' scorecard at a set crew) are not affected by this instability.
+
+**2. Joint moments against [HKY02]** (`research/crew/joint_moments_vs_hase.py`, `data/local/crew/logs/
+joint_moments_vs_hase.log`; the model's rung-2 moments from `muscle_capacity.py`, both sides; Hase's doubled; each
+divided by its own peak handle force):
+
+| lever arm, m | hip extension | knee extension (early) | knee flexion (late) | peak handle |
+|---|---|---|---|---|
+| [HKY02], 5 men, ergometer, 26 spm | 0.565 | 0.094 | 0.141 | 850 N |
+| [CR06] | 0.487 | 0.157 | 0.130 | 726 N |
+| [BR24] | 0.528 | 0.163 | 0.165 | 1097 N |
+
+The hip is within 7–14 %. The knee has Hase's shape — extensor early in the drive, flexor in its second half, which
+[BU13]'s bottom-up values do not show — and the flexor part matches; the early extensor is ~1.7× Hase's. The model's
+knee uses [BU15]'s women's foot-force direction (horizontal/resultant 0.81) held through the drive; Hase's and
+[BWBM16]'s men give 0.77 at peak. *Next:* the knee's early extensor against the foot force's direction and centre of
+pressure through the drive.
