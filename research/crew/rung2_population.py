@@ -71,6 +71,13 @@ LAST_RUN = {}
 #: dynamic state (coxswain.crew.oar_bending.BendDynamics; SOURCES §224)
 ADDED_MASS = "none"
 BEND_DYNAMICS = None
+#: how the population's muscle force is handed to an athlete through the drive (SOURCES §225): "progress" -- at the same
+#: fraction of the oar's arc (as built); "time" -- at the same fraction of the drive's duration (a muscle's activation
+#: is timed, not placed); "split" -- the athlete's own body part (its measured timing is an input) plus the population's
+#: handle part, scaled. The recovery is by cycle phase either way.
+Q_MAP = "progress"
+#: the population's drive fraction, set by population_tables
+POP = {}
 
 
 def blade_options(boat):
@@ -132,6 +139,18 @@ def make(boat, mode, Q=None, body=None):
     sim.setup_clock(mode, Q, body=body, fv=FV if mode == "free" else None, hold=HOLD if mode == "free" else 0.0,
                     hold_own=HOLD_OWN)
     return sim
+
+
+def parts_table(sim, run):
+    """The last stroke's residual split into the body's part and the handle's, against cycle phase (§225)."""
+    P = float(sim.boat.timing.period)
+    start = float(run.last_time[0])
+    lg = np.array([(c, b, h) for t, c, b, h in sim.qparts if t >= start])
+    o = np.argsort(lg[:, 0])
+    lg = lg[o]
+    keep = np.concatenate([[True], np.diff(lg[:, 0]) > 1e-9])
+    lg = lg[keep]
+    return lg[:, 0] / P, lg[:, 1], lg[:, 2]
 
 
 def q_table(sim, run):
@@ -213,8 +232,18 @@ def athlete(name, strokes, s_pop, q_drive, ph, q, p_pop):
     D = float(base_boat.timing.drive_fraction) * P
     k = m["power"] / p_pop
 
+    if Q_MAP == "split":
+        own_ph, body_part, _own_handle = parts_table(base, run_b)
+
     def Q(tau):
         if tau <= D:
+            if Q_MAP == "time":                                  # the population's force at the same fraction of its drive
+                return k * float(np.interp(float(tau) / D * POP["drive_fraction"], ph, q, period=1.0))
+            if Q_MAP == "split":
+                # the athlete's own body (its measured timing is an input) plus the population's handle force, scaled
+                s_now = float(progress_of(base_boat, tau)[0])
+                return (float(np.interp(float(tau) / P, own_ph, body_part, period=1.0))
+                        + k * float(np.interp(s_now, *POP["handle_drive"])))
             return k * float(np.interp(float(progress_of(base_boat, tau)[0]), s_pop, q_drive))
         return k * float(np.interp(np.mod(tau / P, 1.0), ph, q, period=1.0))
 
@@ -257,6 +286,13 @@ def population_tables(strokes):
     s_pop = np.maximum.accumulate(progress_of(pop_boat, ph[on] * P_pop))
     q_drive = q[on]
     keep = np.concatenate([[True], np.diff(s_pop) > 1e-9])
+    POP["drive_fraction"] = float(pop_boat.timing.drive_fraction)
+    # the handle's part alone against drive progress, for Q_MAP "split"
+    pph, _pbody, phandle = parts_table(pop, run_p)
+    pon = pph * P_pop <= float(pop_boat.timing.drive_fraction) * P_pop
+    ps = np.maximum.accumulate(progress_of(pop_boat, pph[pon] * P_pop))
+    pkeep = np.concatenate([[True], np.diff(ps) > 1e-9])
+    POP["handle_drive"] = (ps[pkeep], phandle[pon][pkeep])
     return s_p, (s_pop[keep], q_drive[keep], ph, q)
 
 
@@ -328,11 +364,14 @@ def main():
                     help="the shaft's structural damping ratio for --bend-dynamics (default BendDynamics')")
     ap.add_argument("--dt", type=float, default=None,
                     help="fixed integration step, s (default: integrators.estimate_step): a convergence test")
+    ap.add_argument("--q-map", default="progress", choices=["progress", "time", "split"],
+                    help="hand the population's muscle force over by drive progress (as built) or drive time (§225)")
     a = ap.parse_args()
     if a.dt:
         import coxswain.core.integrators as I
         I.estimate_step = lambda *args, **kw: float(a.dt)
-    global FV, HOLD, HOLD_OWN, ADDED_MASS, BEND_DYNAMICS
+    global FV, HOLD, HOLD_OWN, ADDED_MASS, BEND_DYNAMICS, Q_MAP
+    Q_MAP = a.q_map
     HOLD = float(a.hold)
     HOLD_OWN = bool(a.hold_own)
     ADDED_MASS = a.added_mass
@@ -376,6 +415,7 @@ def main():
                                                             + ("" if a.added_mass == "none" else "_am" + a.added_mass)
                                                             + ("_benddyn%g" % BEND_DYNAMICS.damping_ratio if BEND_DYNAMICS is not None else "")
                                                             + ("_dt%g" % a.dt if a.dt else "")
+                                                            + ("" if a.q_map == "progress" else "_qmap" + a.q_map)
                                                             + ("" if a.athletes == ["cr06", "br24"] else "_" + "_".join(a.athletes)))), "w"), indent=1, default=float)
 
 

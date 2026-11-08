@@ -84,6 +84,7 @@ class ClockSim(DynamicOarSimulator):
         self.body = body
         self._clock = None
         self.qlog = []                                           # reference: (c, Q) at accepted times
+        self.qparts = []                                         # reference: (t, c, body part, handle part)
         self.tlog = []                                           # free: (t, tau, tau')
         self.rlog = []                                           # free: each release (stroke start, c, tau, tau')
         self._rec = None
@@ -220,6 +221,12 @@ class ClockSim(DynamicOarSimulator):
     # -- the equation ------------------------------------------------------------------------------------
     def residual(self, t, base, d, tau, td, a):
         """The generalised muscle force along tau the motion needs at tau'' = a (W per unit tau')."""
+        body, handle = self.residual_parts(t, base, d, tau, td, a)
+        return body + handle
+
+    def residual_parts(self, t, base, d, tau, td, a):
+        """The residual's two parts: the body's (its masses' inertia and weight along tau) and the handle's (the oars'
+        torque times d phi / d tau) -- so a population's handle force can be handed over apart from its body's (§225)."""
         m, _p, vf, af = self._body(self._stroke_start + tau)
         m = np.asarray(m, float); vf = np.asarray(vf, float); af = np.asarray(af, float)
         a_rel = af * td * td + vf * a
@@ -229,7 +236,7 @@ class ClockSim(DynamicOarSimulator):
         air = self._in_air if self._in_air is not None else np.zeros(n, dtype=bool)
         torque = self.handle_torques(t, base, air)
         dphi = float(self.boat.oar_sweep.rate(tau, self.boat.timing))
-        return body + float(np.sum(torque)) * dphi
+        return body, float(np.sum(torque)) * dphi
 
     def derivative(self, t, y):
         y = np.asarray(y, float)
@@ -240,7 +247,9 @@ class ClockSim(DynamicOarSimulator):
                 c = t - self._stroke_start
                 self._clock = (c, 1.0, 0.0)
                 try:
-                    self.qlog.append((t, c, self.residual(t, y, d, c, 1.0, 0.0)))
+                    body, handle = self.residual_parts(t, y, d, c, 1.0, 0.0)
+                    self.qlog.append((t, c, body + handle))
+                    self.qparts.append((t, c, body, handle))
                 finally:
                     self._clock = None
                 self._last = t

@@ -51,15 +51,41 @@ RF = 0.81                    # [BU15] horizontal / resultant foot force at maxim
 #: the foot force's direction through the drive (SOURCES §224): "bu15" holds RF; "hase2002" follows [HKY02]'s Fig. 2
 #: (5 men, Concept2, 26 spm; fore-aft and vertical foot force per leg read off the plot at the same instants, drive =
 #: 0-33 % of the cycle): horizontal / resultant against drive progress
-FOOT_DIRECTION = "bu15"
+FOOT_DIRECTION = "seat"
 HASE2002_RF = (np.array([0.00, 0.15, 0.30, 0.40, 0.45, 0.60, 0.75, 0.90, 1.00]),
                np.array([0.63, 0.70, 0.80, 0.83, 0.85, 0.86, 0.86, 0.70, 0.70]))
+#: "bu13": [BU13] Fig. 5.7(c) (Buckeridge 2013 thesis, data/local/literature/buckeridge2013_thesis/, p. 146), rate 28,
+#: bilaterally summed horizontal and vertical foot force read at the same instants: GB heavyweight women scullers
+#: (green; drive ~0-42 % of the cycle) and lightweight men (blue; ~0-45 %), the same group whose [BU15] gives RF 0.81
+#: at maximum handle force (0.845 here, within its SD). Panels (b) and (d) are not used: their vertical exceeds the
+#: resultant, which cannot be. Women for "F", men for "M".
+BU13_RF = {"F": (np.array([0.00, 0.12, 0.24, 0.36, 0.48, 0.60, 0.71, 0.83, 0.95]),
+                 np.array([0.97, 0.93, 0.91, 0.885, 0.845, 0.77, 0.73, 0.78, 0.71])),
+           "M": (np.array([0.00, 0.22, 0.44, 0.56, 0.67, 0.78, 0.89]),
+                 np.array([0.94, 0.90, 0.87, 0.85, 0.80, 0.79, 0.86]))}
 
 
-def foot_ratio(progress):
-    """Horizontal / resultant foot force at drive progress 0 (catch) .. 1 (release)."""
-    if FOOT_DIRECTION == "hase2002" and 0.0 <= float(progress) <= 1.0:     # the drive only; the recovery keeps RF
-        return float(np.interp(float(progress), *HASE2002_RF))
+#: "seat": the foot force's vertical from vertical momentum, with the seat's measured load (N per kg body mass):
+#: Buckeridge et al. (2016) [BWBM16] Table 3, own stretcher height: catch 1.55, maximum handle force 2.99, finish
+#: 12.56 (10 men, Concept2, ~31 spm), linear between, maximum handle force at the stroke's own instant. It settles the
+#: catch, where [BU13]'s footplate "vertical" (~2 N/kg at rate 28) is not compatible with a seat carrying 1.55 N/kg of
+#: a 9.81 N/kg body; its axes are probably the footplate's own.
+SEAT_BWBM16 = (1.55, 2.99, 12.56)
+
+
+def seat_load(progress, p_mhf):
+    """The seat's vertical load, N/kg, at drive progress 0..1 with maximum handle force at ``p_mhf``."""
+    catch, mhf, finish = SEAT_BWBM16
+    return float(np.interp(float(progress), [0.0, max(float(p_mhf), 1e-3), 1.0], [catch, mhf, finish]))
+
+
+def foot_ratio(progress, sex="F"):
+    """Horizontal / resultant foot force at drive progress 0 (catch) .. 1 (release); the recovery keeps RF."""
+    if 0.0 <= float(progress) <= 1.0:
+        if FOOT_DIRECTION == "hase2002":
+            return float(np.interp(float(progress), *HASE2002_RF))
+        if FOOT_DIRECTION == "bu13":
+            return float(np.interp(float(progress), *BU13_RF[sex]))
     return RF
 PHI = np.radians(42.0)       # [BU15] footplate incline
 SOLE = 0.07                  # ankle above the sole, m (knee_ankle_cr06)
@@ -214,6 +240,8 @@ def athlete(name, strokes):
     KE = J.anderson("KE", GROUP[name], mass, stature)
     EF = J.elbow("flexion", SEX[name])
     rows = []
+    c_mhf = float(log[int(np.argmax([rec[2] for rec in log]))][1]) % P   # maximum handle force, for the seat load
+    p_mhf = c_mhf / D_drive
     for rec in log:
         t, c, F, ax, az = rec[:5]
         td, tdd = (rec[5], rec[6]) if len(rec) > 5 else (1.0, 0.0)   # the clock's rate (1 on time)
@@ -225,7 +253,12 @@ def athlete(name, strokes):
         j = {k: v[[0, 2]] for k, v in rower.joint_positions(cc).items()}
         # stretcher: the whole body's horizontal momentum, the handle's reaction (-F) on the hands
         Fh = float(np.sum(masses * a_abs[:, 0])) + F
-        Fv = Fh * np.tan(np.arccos(foot_ratio(cc / D_drive)))
+        if FOOT_DIRECTION == "seat" and 0.0 <= cc / D_drive <= 1.0:
+            # the vertical from the body's own vertical momentum and the measured seat load (the handle horizontal):
+            # F_feet,z = sum m (a_z + g) - F_seat (SOURCES §225)
+            Fv = float(np.sum(masses * (a_abs[:, 1] + G))) - seat_load(cc / D_drive, p_mhf) * mass
+        else:
+            Fv = Fh * np.tan(np.arccos(foot_ratio(cc / D_drive, SEX[name])))
         p = j["ankle"] + np.array([s_cop * ux - SOLE * nx, s_cop * uz - SOLE * nz])
         knee = _cross(p - j["knee"], (Fh, Fv))
         for i in (10, 11):                                       # shank and foot: weight minus inertia
@@ -253,7 +286,7 @@ def athlete(name, strokes):
             sh_ext += _cross(r, (0.0, -masses[i] * G)) - _cross(r, masses[i] * a_abs[i])
         th = {k: float(np.interp(cc, grid, TH[k], period=P)) for k in TH}
         w = {k: td * float(np.interp(cc, grid, W[k], period=P)) for k in W}
-        rows.append(dict(t=t - start, c=cc, F=F, Fh=Fh, hip=hipM.get(round(t, 9), np.nan), knee=knee, elbow=elbow_flex,
+        rows.append(dict(t=t - start, c=cc, F=F, Fh=Fh, Fv=Fv, hip=hipM.get(round(t, 9), np.nan), knee=knee, elbow=elbow_flex,
                          shoulder=sh_ext, th_hip=th["hip"], th_knee=th["knee"], th_elbow=th["elbow"],
                          w_hip=-w["hip"], w_knee=-w["knee"], w_elbow=w["elbow"]))
     R = {k: np.array([r[k] for r in rows]) for k in rows[0]}
@@ -286,7 +319,7 @@ def athlete(name, strokes):
                   100 * out[k]["outside_tested_fraction"], out[k]["peak_speed"]), flush=True)
     out["shoulder"] = dict(peak_moment=float(np.nanmax(np.abs(R["shoulder"][drive]))))
     out["stretcher_peak"] = float(R["Fh"].max())
-    out["series"] = {k: R[k][::4].round(4).tolist() for k in ("t", "F", "hip_ext", "knee", "elbow", "th_hip", "th_knee",
+    out["series"] = {k: R[k][::4].round(4).tolist() for k in ("t", "F", "Fh", "Fv", "hip_ext", "knee", "elbow", "th_hip", "th_knee",
                                                               "th_elbow", "w_hip", "w_knee", "w_elbow")}
     out["series"].update({"a_" + k: np.round(v[::4], 4).tolist() for k, v in act.items()})
     print("%s: model %.3f m/s at %.0f W (measured %.0f W); stretcher peak %.0f N; shoulder moment peak %.0f N.m (unsourced"
@@ -304,7 +337,7 @@ def main():
     ap.add_argument("--hand-terms", nargs="*", default=[], help="hand-chain reach terms, e.g. stretch")
     ap.add_argument("--rung2", action="store_true",
                     help="check rung 2's power-matched stroke (hands an output) instead of rung 1's (§216)")
-    ap.add_argument("--foot-direction", default="bu15", choices=["bu15", "hase2002"],
+    ap.add_argument("--foot-direction", default="seat", choices=["bu15", "hase2002", "bu13", "seat"],
                     help="the foot force's direction: [BU15]'s RF held, or [HKY02]'s through the drive (SOURCES §224)")
     a = ap.parse_args()
     global RUNG2, FOOT_DIRECTION
@@ -319,7 +352,7 @@ def main():
     json.dump(out, open(os.path.join(OUT, "muscle_capacity%s.json" % (
         ("" if a.catch_posture == "as-built" else "_straightarms") + "".join("_" + c for c in a.clocks)
         + "".join("_" + t for t in a.hand_terms) + ("_rung2" if a.rung2 else "")
-        + ("" if a.foot_direction == "bu15" else "_foot" + a.foot_direction))), "w"), indent=1, default=float)
+        + "_foot" + a.foot_direction)), "w"), indent=1, default=float)
 
 
 if __name__ == "__main__":

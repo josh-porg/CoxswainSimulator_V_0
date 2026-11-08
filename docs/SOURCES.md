@@ -15225,3 +15225,56 @@ the drive, 0.85–0.86 mid-drive. With it the knee's early extensor lever falls 
 (Hase 0.094) but the late flexor from 0.130 / 0.165 to 0.069 / 0.098 m (Hase 0.141): a few hundredths in the ratio swing
 the knee a lot. Hase's direction is from men on an ergometer; [CR06] needs the women's curves ([BU13] Fig. 5.7). The
 held [BU15] 0.81 stays the default; Hase's curve is an option.
+
+## 225. The knee from the body's own vertical balance; the stronger athlete's stall narrowed to the catch's handle force (2026-11-08)
+
+The user: "fix the knee and the full stroke things".
+
+**1. The knee.** The model's knee moment hangs on the foot force's direction, and the sources disagree most at the
+catch: [HKY02] 0.63 (mostly vertical), [BU13] Fig. 5.7(c) 0.93–0.97 (mostly horizontal; Buckeridge 2013 thesis,
+downloaded from Spiral with the standing permission, `data/local/literature/buckeridge2013_thesis/`; panels (b) and (d)
+are unusable — their vertical exceeds the resultant). [BU13]'s trend cannot be right in the global frame: with
+[BWBM16]'s measured seat load at the catch, 1.55 N/kg, the feet must carry ~8 N/kg of a 9.81 N/kg body vertically,
+against [BU13]'s ~2 — its axes are probably the inclined footplate's own. Its own knee values (3.7–4.0 N·m/kg per side)
+also fail a geometric bound: ~530 N per leg would need a 0.54 m lever about the knee, beyond shank plus foot.
+- **The fix** (`research/crew/muscle_capacity.py`, `FOOT_DIRECTION = "seat"`, now the default): the foot force's
+  vertical from the body's own vertical momentum and the measured seat load, F_feet,z = sum m (a_z + g) − F_seat, with
+  [BWBM16] Table 3's seat load (catch 1.55, maximum handle force 2.99, finish 12.56 N/kg; linear between, maximum
+  handle force at the stroke's own instant), the horizontal from the horizontal momentum as before.
+- **Result** (`joint_moments_vs_hase` on `muscle_capacity_rung2_footseat.json`; lever = moment / peak handle force):
+
+  | | knee extensor | knee flexor |
+  |---|---|---|
+  | [HKY02] | 0.094 m | 0.141 m |
+  | [CR06]: held 0.81 → seat | 0.157 → **0.115** (1.2×) | 0.130 → **0.160** (1.13×) |
+  | [BR24]: held 0.81 → seat | 0.163 → **0.147** (1.56×) | 0.165 → **0.113** (0.80×) |
+
+  The implied direction for [CR06] is 0.65–0.69 early in the drive (as [HKY02]) and 0.81 at maximum handle force (as
+  [BU15]): the two sources reconciled by the momentum balance. Her knee is within its strength over 98 % of the drive
+  (21 % infeasible before). Options kept: "bu15" (held), "hase2002", "bu13".
+- [VI17]'s centre of pressure stays at the ball (0.73 of the foot) until ~80 % of the drive and moves heelward only as
+  the force falls, so it does not touch the flexor peak at ~55 %; held as before.
+
+**2. The stronger athlete's stall** (dynamic shaft, §224).
+- **Round trip** (`research/crew/rung2_roundtrip.py`): driven by the force inverted from his own rung-1 stroke, his
+  dynamic-shaft clock returns tau' 1.000–1.003 and rung 1's stroke exactly (4.534 m/s, 313 W); [CR06] the same. The
+  dynamics are consistent; the stall is in the population's muscle table.
+- **Where:** handed over by drive progress, the population's force supplies 24–90 % of what his stroke needs over
+  0.15–0.35 s (`rung2_roundtrip_br24_benddyn_tables.log`); with the rigid oar plus added mass the population's force
+  is front-loaded (to accelerate the water) and covers him.
+- **Hand-over by drive time** (`--q-map time`) is identical to by progress: every boat here uses the same drive law.
+- **Split hand-over** (`--q-map split`, `rung2_clock.ClockSim.residual_parts`): the athlete's own body part (his
+  measured timing is an input) plus the population's handle part, scaled to his power:
+
+  | rung 2 | [CR06] | [BR24] |
+  |---|---|---|
+  | rigid, progress → split | 4.142 m/s, 52.4 % → 4.133, 52.4 % | 4.723, 50.3 % → 4.704, 50.7 % |
+  | rigid + added mass, progress → split | 4.202, 52.2 % → **4.183, 50.5 %** | 4.721, 46.4 % → 4.684, 46.9 % |
+  | dynamic shaft + added mass, progress → split | 4.152, 55.4 % → **4.249, 53.6 %, 258 W** | stalls → stalls |
+
+  It improves [CR06] on both added-mass models and leaves the rigid oar where it was, but [BR24]'s stall survives: what
+  is left is the handle force at the catch. His boat runs faster (4.64 against 4.19 m/s), so his blade and its water
+  must be accelerated harder before it drives, and the population's handle-force profile, scaled by power only, does
+  not supply that early force through a compliant shaft. The fix is a muscle that answers the load — joint strength
+  (Anderson, Frey-Law; `coxswain.crew.joint_muscles`) driving the handle — rather than a borrowed force table: the body
+  build (review §12). `--q-map split` is offered, not made the default (the user decides).

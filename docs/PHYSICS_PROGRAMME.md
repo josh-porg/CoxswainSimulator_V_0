@@ -1302,6 +1302,12 @@ the boat speeds that go with their drive durations).
   - *Next:* [BR24]'s stall — a light inner oar driving 13 kg of water through a soft shaft, or the population's muscle
     table against his own timing (run the table on his own rung 1, and with the trunk/arm compliance in the crew); the
     women's foot-force curves for the knee ([BU13] Fig. 5.7).
+- **§225 (2026-11-08): the knee fixed; the stall narrowed.** The foot force's vertical now comes from the body's own
+  vertical momentum and the measured seat load ([BWBM16]): [CR06]'s knee levers 0.115 / 0.160 m against [HKY02]'s
+  0.094 / 0.141, and the implied direction matches [HKY02] at the catch and [BU15] at maximum handle force. [BR24]'s
+  dynamic-shaft round trip is exact, so the stall is the population's handle force at the catch, not the dynamics;
+  `--q-map split` (own body + population handle) improves [CR06] but not him.
+  - *Next:* a load-responsive muscle at the handle (joint strength driving it) for rung 2 — the body build.
 
 ## Calibration and validation data from the squad's own boats (noted 2026-10-08)
 
