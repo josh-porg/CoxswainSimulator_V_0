@@ -48,6 +48,19 @@ from coxswain.sim.dynamic_oar import DynamicOarSimulator         # noqa: E402
 OUT = C2.OUT
 G = 9.81
 RF = 0.81                    # [BU15] horizontal / resultant foot force at maximum handle force
+#: the foot force's direction through the drive (SOURCES §224): "bu15" holds RF; "hase2002" follows [HKY02]'s Fig. 2
+#: (5 men, Concept2, 26 spm; fore-aft and vertical foot force per leg read off the plot at the same instants, drive =
+#: 0-33 % of the cycle): horizontal / resultant against drive progress
+FOOT_DIRECTION = "bu15"
+HASE2002_RF = (np.array([0.00, 0.15, 0.30, 0.40, 0.45, 0.60, 0.75, 0.90, 1.00]),
+               np.array([0.63, 0.70, 0.80, 0.83, 0.85, 0.86, 0.86, 0.70, 0.70]))
+
+
+def foot_ratio(progress):
+    """Horizontal / resultant foot force at drive progress 0 (catch) .. 1 (release)."""
+    if FOOT_DIRECTION == "hase2002" and 0.0 <= float(progress) <= 1.0:     # the drive only; the recovery keeps RF
+        return float(np.interp(float(progress), *HASE2002_RF))
+    return RF
 PHI = np.radians(42.0)       # [BU15] footplate incline
 SOLE = 0.07                  # ankle above the sole, m (knee_ankle_cr06)
 COP_FOOT = 0.73              # [VI17] centre of pressure as a fraction of foot length
@@ -187,6 +200,7 @@ def athlete(name, strokes):
         sim = make(boat)
     run = sim.run_strokes(strokes, surge_speed=4.3)
     P = float(boat.timing.period)
+    D_drive = float(boat.timing.drive_fraction) * P            # drive progress for the foot direction
     start = float(run.last_time[0])
     log = [r for r in sim.caplog if r[0] >= start]
     hipM = {round(t, 9): M for t, c, M in sim.mlog if t >= start}
@@ -211,7 +225,7 @@ def athlete(name, strokes):
         j = {k: v[[0, 2]] for k, v in rower.joint_positions(cc).items()}
         # stretcher: the whole body's horizontal momentum, the handle's reaction (-F) on the hands
         Fh = float(np.sum(masses * a_abs[:, 0])) + F
-        Fv = Fh * np.tan(np.arccos(RF))
+        Fv = Fh * np.tan(np.arccos(foot_ratio(cc / D_drive)))
         p = j["ankle"] + np.array([s_cop * ux - SOLE * nx, s_cop * uz - SOLE * nz])
         knee = _cross(p - j["knee"], (Fh, Fv))
         for i in (10, 11):                                       # shank and foot: weight minus inertia
@@ -290,9 +304,12 @@ def main():
     ap.add_argument("--hand-terms", nargs="*", default=[], help="hand-chain reach terms, e.g. stretch")
     ap.add_argument("--rung2", action="store_true",
                     help="check rung 2's power-matched stroke (hands an output) instead of rung 1's (§216)")
+    ap.add_argument("--foot-direction", default="bu15", choices=["bu15", "hase2002"],
+                    help="the foot force's direction: [BU15]'s RF held, or [HKY02]'s through the drive (SOURCES §224)")
     a = ap.parse_args()
-    global RUNG2
+    global RUNG2, FOOT_DIRECTION
     RUNG2 = bool(a.rung2)
+    FOOT_DIRECTION = a.foot_direction
     C2.R.CATCH_POSTURE = a.catch_posture
     C2.R.BODY_CLOCKS = tuple(a.clocks)
     C2.R.HAND_TERMS = tuple(a.hand_terms)
@@ -301,7 +318,8 @@ def main():
     out = {n: athlete(n, a.strokes) for n in a.athletes}
     json.dump(out, open(os.path.join(OUT, "muscle_capacity%s.json" % (
         ("" if a.catch_posture == "as-built" else "_straightarms") + "".join("_" + c for c in a.clocks)
-        + "".join("_" + t for t in a.hand_terms) + ("_rung2" if a.rung2 else ""))), "w"), indent=1, default=float)
+        + "".join("_" + t for t in a.hand_terms) + ("_rung2" if a.rung2 else "")
+        + ("" if a.foot_direction == "bu15" else "_foot" + a.foot_direction))), "w"), indent=1, default=float)
 
 
 if __name__ == "__main__":

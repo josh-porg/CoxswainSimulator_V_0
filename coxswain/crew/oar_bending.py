@@ -120,6 +120,44 @@ class OarBending:
         return cls(float(k_ang), float(ratio), "[L14] EI %.0f N m^2, uniform cantilever (derived)" % ei)
 
 
+#: A scull Big Blade's own mass, kg: assumed (Concept2 does not publish it); small beside the water it carries.
+BLADE_MASS_ASSUMED = 0.3
+#: Structural damping ratio of a scull's in-air bending mode, measured: Breitschädel & Løset (2010), Procedia Eng.
+#: 2:3011, Table 1 -- eight sculls clamped behind the collar, free oscillation after a 50 N tip load: 2.9-3.8 %, mean
+#: 3.4 % (their first frequencies, 8.1-8.4 Hz, are reproduced by [L14]'s EI to 0.3 % on average: research/blade/
+#: oar_modes.py). In the water the blade's drag damps the mode far above this.
+STRUCTURAL_DAMPING_BL2010 = 0.034
+
+
+@dataclass(frozen=True)
+class BendDynamics:
+    """The bend as a dynamic degree of freedom (SOURCES §224), for :class:`OarBending`'s hinge.
+
+    The quasi-static hinge holds the shaft in equilibrium with the blade's load at every instant. In the water the
+    blade carries 13-22 kg of added mass (coxswain.crew.blade_added_mass), which makes the shaft's first bending mode
+    ~1 Hz and overdamped (research/blade/oar_modes.py) -- as slow as the drive -- so the equilibrium does not hold.
+    Here the blade is a body on the hinge: its own mass ``blade_mass`` plus the simulator's added mass at the blade
+    centre ``l``, the hinge at ``h`` (``e = l - h``), a spring ``k_h = K_ang e / l`` and a structural damper set by
+    ``damping_ratio`` on the dry blade's mode. With the hands on the handle (``theta_ddot`` known)::
+
+        m_B (e^2 phi_ddot + e g.X_h + l e theta_ddot + e c) + c_h phi_dot + k_h phi = e F_n(theta + phi, ...)
+        T_handle = (I_oar - m_blade l^2) theta_ddot - K_ang phi - (l / e) c_h phi_dot
+
+    solved with the hull in the coupled added-mass system (monolithic: no step-lagged hinge). Its static limit is the
+    quasi-static hinge; its stiff limit the rigid oar with the blade's added mass."""
+
+    blade_mass: float = BLADE_MASS_ASSUMED
+    damping_ratio: float = STRUCTURAL_DAMPING_BL2010
+    source: str = "assumed blade mass; structural damping measured (Breitschädel & Løset 2010; SOURCES §224)"
+
+    def __post_init__(self):
+        if not self.blade_mass > 0.0 or not self.damping_ratio >= 0.0:
+            raise ValueError("the blade needs a positive mass and a non-negative damping ratio")
+
+    def key(self) -> tuple:
+        return ("bend-dynamics", float(self.blade_mass), float(self.damping_ratio))
+
+
 def beam_hinge_ratio(root: float, tip: float) -> float:
     """``f / phi`` at the blade root of a uniform cantilever loaded at its tip (the check against [RLBQV19])."""
     return float(root * (3.0 * tip - root) / (3.0 * (2.0 * tip - root)))

@@ -67,6 +67,10 @@ HOLD = 0.0
 HOLD_OWN = False
 #: each athlete's last rung-2 simulator and run, ``(free sim, run)``, for traces (research/blade/bending_ring_trace.py)
 LAST_RUN = {}
+#: the blade's added mass ("none", "patton", "labbe"; coxswain.crew.blade_added_mass) and, with bending, the bend as a
+#: dynamic state (coxswain.crew.oar_bending.BendDynamics; SOURCES §224)
+ADDED_MASS = "none"
+BEND_DYNAMICS = None
 
 
 def blade_options(boat):
@@ -78,6 +82,10 @@ def blade_options(boat):
         from coxswain.crew.oar_bending import OarBending
         oar = boat.rig.seats[0].oarlocks[0].oar
         opts["oar_bending"] = OarBending.laschowski2014_scull(float(oar.blade_centre_outboard), float(oar.blade_length))
+        if BEND_DYNAMICS is not None:                            # the bend as a dynamic state (SOURCES §224)
+            opts["bend_dynamics"] = BEND_DYNAMICS
+    if ADDED_MASS != "none":
+        opts["blade_added_mass"] = ADDED_MASS
     return opts
 
 
@@ -312,10 +320,26 @@ def main():
     ap.add_argument("--hold", type=float, default=0.0,
                     help="the crew's hold on its planned speed, beta (SOURCES sec. 220)")
     ap.add_argument("--hold-own", action="store_true", help="the hold's reference is the rower's own pace")
+    ap.add_argument("--added-mass", default="none", choices=["none", "patton", "labbe"],
+                    help="the blade's added mass (coxswain.crew.blade_added_mass)")
+    ap.add_argument("--bend-dynamics", action="store_true",
+                    help="with --bending: the bend as a dynamic state with the blade's mass and added mass (§224)")
+    ap.add_argument("--structural-damping", type=float, default=None,
+                    help="the shaft's structural damping ratio for --bend-dynamics (default BendDynamics')")
+    ap.add_argument("--dt", type=float, default=None,
+                    help="fixed integration step, s (default: integrators.estimate_step): a convergence test")
     a = ap.parse_args()
-    global FV, HOLD, HOLD_OWN
+    if a.dt:
+        import coxswain.core.integrators as I
+        I.estimate_step = lambda *args, **kw: float(a.dt)
+    global FV, HOLD, HOLD_OWN, ADDED_MASS, BEND_DYNAMICS
     HOLD = float(a.hold)
     HOLD_OWN = bool(a.hold_own)
+    ADDED_MASS = a.added_mass
+    if a.bend_dynamics:
+        from coxswain.crew.oar_bending import BendDynamics
+        BEND_DYNAMICS = BendDynamics() if a.structural_damping is None else BendDynamics(
+            damping_ratio=a.structural_damping)
     if a.fv is not None:
         from coxswain.crew.handle_fv import HandleForceVelocity
         FV = HandleForceVelocity(a.fv, "--fv")
@@ -349,6 +373,9 @@ def main():
                                                             + ("_bending" if a.bending else "")
                                                             + ("_fv%g" % a.fv if a.fv is not None else "")
                                                             + ("_hold%g" % a.hold if a.hold else "") + ("own" if a.hold_own else "")
+                                                            + ("" if a.added_mass == "none" else "_am" + a.added_mass)
+                                                            + ("_benddyn%g" % BEND_DYNAMICS.damping_ratio if BEND_DYNAMICS is not None else "")
+                                                            + ("_dt%g" % a.dt if a.dt else "")
                                                             + ("" if a.athletes == ["cr06", "br24"] else "_" + "_".join(a.athletes)))), "w"), indent=1, default=float)
 
 

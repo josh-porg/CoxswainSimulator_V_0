@@ -270,7 +270,7 @@ class DynamicOarSimulator(RowingSimulator):
                  blade_added_mass: str = "none", catch: str = "rest",
                  blade_span: float = None, blade_coefficients: str = "cg07",
                  blade_depth=None, blade_immersion=None, oar_bending=None,
-                 liftdrag_blade=None, handle_fv=None, **kwargs):
+                 liftdrag_blade=None, handle_fv=None, bend_dynamics=None, **kwargs):
         if blade_law not in self.BLADE_LAWS:
             raise ValueError("unknown blade law %r; this simulator runs %s"
                              % (blade_law, ", ".join(self.BLADE_LAWS)))
@@ -403,8 +403,20 @@ class DynamicOarSimulator(RowingSimulator):
         #: Per oar, the blade's rotation about the hinge ``phi`` (positive lagging toward the catch while it
         #: drives) and its rate, updated after every step of the sweep catch's stepping. The loads on the oar
         #: and the hull see it; the post-run blade-efficiency tally reads the stored states and stays rigid.
-        oar_bending = _resolve_bending(boat, oar_bending, catch, blade_added_mass)
+        oar_bending = _resolve_bending(boat, oar_bending, catch, blade_added_mass,
+                                       dynamic=bend_dynamics is not None)
         self.oar_bending = oar_bending
+        #: Optional :class:`~coxswain.crew.oar_bending.BendDynamics`: the bend as two more states per oar (phi,
+        #: phi_dot) with the blade's mass and added mass, solved with the hull (SOURCES §224). ``None``: the
+        #: quasi-static hinge above.
+        if bend_dynamics is not None:
+            if oar_bending is None:
+                raise ValueError("bend dynamics need a bending shaft (oar_bending)")
+            if crew != "handle" or blade_added_mass == "none":
+                raise ValueError("bend dynamics are solved with the hands on the handle and the blade's added mass "
+                                 "(the water the blade carries is what makes the bend dynamic); crew=%r, "
+                                 "blade_added_mass=%r" % (crew, blade_added_mass))
+        self.bend_dynamics = bend_dynamics
         #: Steps at which the bending solve found no balance and took a bracket end (STRUCTURAL_ISSUES S13).
         self.bend_solve_failures = 0
         self._bend_history = None
@@ -431,6 +443,12 @@ class DynamicOarSimulator(RowingSimulator):
         #: Oar states per seat: angle and rate, plus the elapsed drive time
         #: when the crew follows the oar.
         self._per_oar = 3 if crew == "follows" else 2
+        if self.bend_dynamics is not None:                         # plus the bend and its rate (SOURCES §224)
+            self._per_oar += 2
+            self._bend_lever = np.array([
+                (float(oar.outboard) - self.oar_bending.hinge_radius(
+                    float(oar.outboard), float(boat.rig.seats[seat].oarlocks[0].oar.blade_length)))
+                / float(oar.outboard) for oar, seat in zip(self._oars, self._seats)])
         #: Added mass per blade, kg, per seat slot; zero unless studied.
         self._blade_mass = [0.0] * self.n_oar_states
         if blade_added_mass != "none":
@@ -596,6 +614,11 @@ class DynamicOarSimulator(RowingSimulator):
         n = self.n_oar_states
         return (y[:STATE_SIZE], y[STATE_SIZE:STATE_SIZE + n],
                 y[STATE_SIZE + n:STATE_SIZE + 2 * n])
+
+    def _bend_states(self, y: np.ndarray):
+        """``(phi, phi_dot)`` per oar from the state, with bend dynamics (after the angles and rates)."""
+        n, base = self.n_oar_states, STATE_SIZE + 2 * self.n_oar_states
+        return np.asarray(y[base:base + n], float), np.asarray(y[base + n:base + 2 * n], float)
 
     # -- kinematics at the oarlock ------------------------------------------
     def _water_velocity_hull(self, state: State) -> np.ndarray:
@@ -884,6 +907,8 @@ class DynamicOarSimulator(RowingSimulator):
         hull, angles, rates = self._split(y)
         if self.crew == "follows":
             return self._following_derivative(t, y, hull, angles, rates)
+        if self.bend_dynamics is not None:                         # the bend is a state: the loads read it from y
+            self._bend[:], self._bend_rate[:] = self._bend_states(y)
         if self.blade_added_mass != "none":
             return self._coupled_derivative(t, hull, angles, rates)
         self._oar_state = (angles, rates)
@@ -1127,6 +1152,8 @@ class DynamicOarSimulator(RowingSimulator):
         if self._in_air is None:
             self._in_air = np.zeros(n, dtype=bool)
         times[0], states[:, 0], air[:, 0] = t, y, self._in_air
+        if self.bend_dynamics is not None:
+            self._bend[:], self._bend_rate[:] = self._bend_states(y)
         bend[0, :, 0], bend[1, :, 0] = self._bend, self._bend_rate
         handle = self.crew == "handle"
         finishes = np.array([oar.finish_angle for oar in self._oars])
@@ -1161,7 +1188,9 @@ class DynamicOarSimulator(RowingSimulator):
                         self._entry_angle[slot] = float(angle)
                         self.entries.append((int(slot), float(t),
                                              float(angle), float(rate)))
-            if self.oar_bending is not None:
+            if self.bend_dynamics is not None:                     # integrated with everything else (SOURCES §224)
+                self._bend[:], self._bend_rate[:] = self._bend_states(y)
+            elif self.oar_bending is not None:
                 self._update_bending(y, step)
             times[i + 1], states[:, i + 1] = t, y
             air[:, i + 1] = self._in_air
@@ -1328,8 +1357,9 @@ class DynamicOarSimulator(RowingSimulator):
         finally:
             self._oar_state = None
 
-        system = np.zeros((6 + n, 6 + n))
-        rhs = np.zeros(6 + n)
+        size = 6 + n + (n if self.bend_dynamics is not None else 0)
+        system = np.zeros((size, size))
+        rhs = np.zeros(size)
         system[:6, :6] = matrix
         rhs[:6] = forces.generalised()
         rot = state.rot_hull_to_abs
@@ -1346,8 +1376,12 @@ class DynamicOarSimulator(RowingSimulator):
                 # identity and its known acceleration moves to the hull's right side.
                 system[row, row] = 1.0
                 rhs[row] = self._sweep_motion(t - self._stroke_start)[1]
-                if (self._in_air is not None and self._in_air[slot]) \
-                        or angle <= oar.finish_angle:
+                wet = not ((self._in_air is not None and self._in_air[slot]) or angle <= oar.finish_angle)
+                if self.bend_dynamics is not None:
+                    self._add_bend_rows(system, rhs, slot, seat, angle, rate, state, rot, omega_abs, omega_hull,
+                                        known=rhs[row], wet=wet)
+                    continue
+                if not wet:
                     continue
                 self._add_blade_mass(system, rhs, slot, seat, angle, rate, state,
                                      rot, omega_abs, omega_hull, known=rhs[row])
@@ -1393,6 +1427,49 @@ class DynamicOarSimulator(RowingSimulator):
         h = np.concatenate([normal_dot_abs, np.cross(point_abs, normal_dot_abs)])
         return mass, arm, g, c, w_n, h
 
+    def _bend_constants(self, slot):
+        """``(l, e, k_h, c_h, m_dry)`` for one blade on its hinge (``BendDynamics``; SOURCES §224)."""
+        arm = float(self._oars[slot].outboard)
+        e = arm * float(self._bend_lever[slot])
+        k_h = float(self.oar_bending.k_ang) * float(self._bend_lever[slot])
+        m_dry = float(self.bend_dynamics.blade_mass)
+        c_h = 2.0 * float(self.bend_dynamics.damping_ratio) * np.sqrt(k_h * m_dry * e * e)
+        return arm, e, k_h, c_h, m_dry
+
+    def _add_bend_rows(self, system, rhs, slot, seat, angle, rate, state, rot, omega_abs, omega_hull, known, wet):
+        """The bend's row of the coupled system, hands on the handle (``theta_ddot = known``).
+
+        Per blade the centre's normal acceleration is ``g . X_h + l theta_ddot + e phi_ddot + c`` with the blade at
+        ``theta + phi`` and its rate ``theta_dot + (e / l) phi_dot`` (the bent blade's own track). In the water the
+        blade carries its added mass ``m`` and its dry mass; out of it, the dry mass only. Each of the seat's blades
+        adds its share to the one bend row (a sculler's two blades bend alike)::
+
+            [m g g^T] X_h + m e g phi_ddot            = ... - m (c g + w_n h) - m l g theta_ddot   (hull rows)
+            m e g^T X_h + (m + m_dry) e^2 phi_ddot    = e F_n - k_h phi - c_h phi_dot - (m + m_dry) e (l theta_ddot)
+                                                        - m e c - mdot w_n e                         (bend row)
+        """
+        n = self.n_oar_states
+        row = 6 + n + slot
+        arm, e, k_h, c_h, m_dry = self._bend_constants(slot)
+        phi, phid = float(self._bend[slot]), float(self._bend_rate[slot])
+        lever = float(self._bend_lever[slot])
+        angle_b, rate_b = angle + phi, rate + lever * phid
+        for lock in self.boat.rig.seats[seat].oarlocks:
+            system[row, row] += m_dry * e * e
+            rhs[row] -= m_dry * e * arm * float(known) + k_h * phi + c_h * phid
+            if not wet:
+                continue
+            mass, _arm, g, c, w_n, h = self._blade_mass_terms(slot, lock, angle_b, rate_b, state, rot, omega_abs,
+                                                              omega_hull)
+            mdot = self._blade_mass_now(slot, angle_b, rate_b)[1]
+            f_n = float(self._blade_loads_arm_rigid(slot, angle_b, rate_b, state, lock)[0])
+            system[:6, :6] += mass * np.outer(g, g)
+            rhs[:6] -= mass * (c * g + w_n * h) + mdot * w_n * g + mass * arm * g * float(known)
+            system[:6, row] += mass * e * g
+            system[row, :6] += mass * e * g
+            system[row, row] += mass * e * e
+            rhs[row] += e * f_n - mass * e * (c + arm * float(known)) - mdot * w_n * e
+
     def _add_blade_mass(self, system, rhs, slot, seat, angle, rate, state, rot,
                         omega_abs, omega_hull, known=None):
         """Each of a seat's blades adds its entrained water to the system.
@@ -1434,6 +1511,17 @@ class DynamicOarSimulator(RowingSimulator):
         locks_max = max(len(self.boat.rig.seats[s].oarlocks) for s in self._seats)
         out = np.zeros((n, locks_max))
         hull_accel = None
+        if self.bend_dynamics is not None:
+            # the crew holds the inner oar; the blade, its water and the shaft's spring and damper act through the
+            # hinge: T = (I_oar - m_blade l^2) theta_ddot - K_ang phi - (l / e) c_h phi_dot (SOURCES §224)
+            phi_all, phid_all = self._bend_states(y)
+            for slot, seat in enumerate(self._seats):
+                arm, e, k_h, c_h, m_dry = self._bend_constants(slot)
+                inertia = float(getattr(self._oars[slot].inertia, "oar_inertia", 0.0)) - m_dry * arm * arm
+                for j, _lock in enumerate(self.boat.rig.seats[seat].oarlocks):
+                    out[slot, j] = (inertia * accel - float(self.oar_bending.k_ang) * float(phi_all[slot])
+                                    - c_h / float(self._bend_lever[slot]) * float(phid_all[slot]))
+            return out
         if self.blade_added_mass != "none" and not np.all(air):
             saved = self._in_air
             self._in_air = air.copy()
@@ -1476,10 +1564,11 @@ class DynamicOarSimulator(RowingSimulator):
             angle_rate = np.array([float(rates[k]) if float(angles[k])
                                    > self._oars[k].finish_angle else 0.0
                                    for k in range(n)])
-        return np.concatenate([state.velocity,
-                               euler_rates(state.attitude, state.omega),
-                               accel[0:3], accel[3:6], angle_rate,
-                               accel[6:6 + n]])
+        out = [state.velocity, euler_rates(state.attitude, state.omega), accel[0:3], accel[3:6], angle_rate,
+               accel[6:6 + n]]
+        if self.bend_dynamics is not None:                         # (phi_dot, phi_ddot): SOURCES §224
+            out += [self._bend_rate.copy(), accel[6 + n:6 + 2 * n]]
+        return np.concatenate(out)
 
     # -- measurement ---------------------------------------------------------
     def _stroke_blade_efficiency(self, times, states,
@@ -1782,7 +1871,7 @@ def _crossflow_tangential(coefficients) -> bool:
     return not (isinstance(coefficients, str) and coefficients.startswith("crossflow-normal@"))
 
 
-def _resolve_bending(boat, oar_bending, catch, added_mass="none"):
+def _resolve_bending(boat, oar_bending, catch, added_mass="none", dynamic=False):
     """The shaft's bending a simulator runs with: the one passed; ``None`` -- the boat's own, if a physics profile
     gave it one (``boat.oar_bending``; SOURCES sec. 217); ``False`` -- the rigid oar. A bending passed explicitly
     under any catch but the sweep is an error; the boat's own is simply not used there (it is updated step by step
@@ -1790,7 +1879,8 @@ def _resolve_bending(boat, oar_bending, catch, added_mass="none"):
 
     Refused with the blade's added mass: the coupled added-mass solve takes the blade's normal acceleration from the
     shaft alone, so on a bending oar it leaves out the bend's own motion (12% of the scale on the handle-mode
-    derivative check, 2026-11-03). Pass ``oar_bending=False`` to run the added mass on a rigid oar."""
+    derivative check, 2026-11-03). Pass ``oar_bending=False`` to run the added mass on a rigid oar. ``dynamic``: the
+    bend is a dynamic state (``BendDynamics``), whose motion the coupled solve does carry, so the two combine."""
     explicit = oar_bending is not None and oar_bending is not False
     if oar_bending is None:
         oar_bending = getattr(boat, "oar_bending", None)
@@ -1800,7 +1890,7 @@ def _resolve_bending(boat, oar_bending, catch, added_mass="none"):
         if explicit:
             raise ValueError("oar bending is updated step by step under the sweep catch only; catch=%r" % (catch,))
         return None
-    if added_mass != "none":
+    if added_mass != "none" and not dynamic:
         raise ValueError("the blade added mass (%r) is solved for a rigid oar and this one bends (%s); pass "
                          "oar_bending=False to run the added mass rigid" % (
                              added_mass, "passed" if explicit else "the boat's own, from its physics profile"))

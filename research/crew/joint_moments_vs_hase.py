@@ -36,11 +36,13 @@ def main():
     for name, v in d.items():
         s = v["series"]
         F = np.asarray(s["F"], float)
-        hip = np.asarray(s["hip_ext"], float)
-        knee = np.asarray(s["knee"], float)
+        drive = F > 0.05 * np.nanmax(F)                          # the drive, as muscle_capacity scores it
+        hip = np.asarray(s["hip_ext"], float)[drive]
+        knee = np.asarray(s["knee"], float)[drive]
+        tt = np.asarray(s["t"], float)[drive]
         f = float(np.nanmax(F))
-        ext_t = float(np.asarray(s["t"])[int(np.nanargmax(knee))])
-        flex_t = float(np.asarray(s["t"])[int(np.nanargmin(knee))])
+        ext_t = float(tt[int(np.nanargmax(knee))])
+        flex_t = float(tt[int(np.nanargmin(knee))])
         print("  %-12s %6.3f    %6.3f     %6.3f      %5.0f   (knee ext peak at %.2f s, flex peak at %.2f s)"
               % (name, np.nanmax(hip) / f, np.nanmax(knee) / f, -np.nanmin(knee) / f, f, ext_t, flex_t))
 
