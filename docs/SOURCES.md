@@ -15140,3 +15140,88 @@ The hip is within 7–14 %. The knee has Hase's shape — extensor early in the 
 knee uses [BU15]'s women's foot-force direction (horizontal/resultant 0.81) held through the drive; Hase's and
 [BWBM16]'s men give 0.77 at peak. *Next:* the knee's early extensor against the foot force's direction and centre of
 pressure through the drive.
+
+## 224. Vibration analysis of the bending oar: the coupling is cleared, the massless hinge is not; a dynamic shaft (2026-11-08)
+
+The user asked for classical system identification and vibration analysis of the bending model, suspected the bend
+dynamics, flagged the partitioned-FSI added-mass instability (diagnosed in their thesis with ATLAS, Poznański 2026,
+ch. ATLAS), and questioned a blade with stiffness but no inertia or damping.
+
+**1. Frozen-time stability** (`research/blade/bending_stability.py`, logs `data/local/validation/bending_stability_*`).
+At each instant of rung 2's drive, the simulator's own reduced equations in (tau, tau', phi) and then with the hull's
+surge velocity, Jacobians by central differences, plus the analytic reduced form
+`A = [[0,1,0],[0,Q_v/M,N S' K/M],[-G_a S'/(G_r k), -S'/k, (K-G_a)/(G_r k)]]` (substituting the hinge into the clock's
+equation collapses the blade terms to the spring) with ablations:
+- no static divergence: G_a/K (the load's growth with the bend angle against the shaft's stiffness) is at most 0.51;
+- the only consistent instability of the 3-state system is a slow real root (+1 to +1.5 1/s) from G_a — a drift, not a
+  ring; G_a = 0 removes it;
+- with the surge, a crew–shaft–hull mode appears at 24–48 rad/s (the observed 0.25 s swing), **damped** (sigma -2 to -18
+  1/s) at nearly every instant ([BR24] marginal +0.5 / +1.2 1/s at two instants near 40 rad/s).
+So the swing's mode exists but is frozen-time stable: its growth must come from the time variation (M swings 27–82
+through the drive: a parametric, Floquet-type route) or the nonlinearity.
+
+**2. The coupling layer** (ATLAS's test: the staggered step's interface map p -> H(S(p)), p the hinge rate). Gain
+dp'/dp 0.18–0.66 ([BR24]) and 0.27–0.67 ([CR06]) at 6.25 ms, 0.04–0.35 at 1.56 ms; residual amplification rho 0.16–0.68:
+**the partitioned stagger contracts at every instant**, more so at small steps, while the simulated swing grew with
+small steps. Not an added-mass partition instability.
+
+**3. The shaft's own modes** (`research/blade/oar_modes.py`, Hermite Euler–Bernoulli FE verified against beta_n L to
+1e-5). [CR06]'s scull: in air (hands held) 6.7 Hz; with the blade's added mass (Patton 13.1 kg, Labbe 21.9 kg) the first
+bending mode falls to 0.9–1.2 Hz and with the blade's linearised drag (1.5 m/s slip) becomes **overdamped**, slow root
+2.8–3.2 1/s — as slow as the drive. The water the blade carries is 42–71 kg m^2 about the pin, more than the crew's
+reflected inertia per oar. The massless hinge omits all of it; its only damping is the drag's slope, which vanishes as
+the blade's slip goes to zero — the likeliest nonlinear route to the growing swing.
+
+**[BL10] Breitschädel & Løset (2010)**, *Vibration analyses of single scull oars*, Procedia Eng. 2:3011–3016 (CC BY-NC-ND;
+downloaded by the user, `data/local/literature/breitschadel2010_oar_vibration/`): eight sculls clamped behind the collar,
+free oscillation from a 50 N tip load: **f 8.08–8.44 Hz, damping ratio 2.9–3.8 %** (mean 3.4 %). The FE of their setup
+with [L14]'s EI predicts 7.77–8.54 Hz (mean ratio 0.997); the EI reproducing each oar is 1991–2360 N m^2 (mean 2118)
+against 2099 — an independent dynamic confirmation of the static stiffness, nothing fitted.
+
+**4. A dynamic shaft** (`coxswain.crew.oar_bending.BendDynamics`, `DynamicOarSimulator(bend_dynamics=)`, research
+option, hands on the handle with the blade's added mass). The blade is a body on the hinge (hinge at h, e = l - h):
+
+    m_B (e^2 phi'' + e g.X_h + l e theta'' + e c) + c_h phi' + k_h phi = e F_n(theta + phi, theta' + (e/l) phi')
+    T_handle = (I_oar - m_blade l^2) theta'' - K_ang phi - (l/e) c_h phi'
+
+with m_B the blade's mass (0.3 kg, assumed) plus its added mass, k_h = K_ang e/l (so the static limit is the
+quasi-static hinge), c_h from [BL10]'s 3.4 % on the dry blade's mode. The bend is two more states per oar, solved with
+the hull in the coupled added-mass system: monolithic, no step-lagged hinge. Checks (`tests/unit/test_bend_dynamics.py`):
+the stiff limit converges to the rigid oar with the same added mass as ~1/K (speed +2.35 / 0.76 / 0.24 / 0.07 % at
+K = 3e4 / 1e5 / 3e5 / 1e6 N m/rad, 0.4 ms step).
+
+**5. Rung 2 with the dynamic shaft** (own body, on-water F–V on the rower's own pace, Patton added mass; logs
+`data/local/crew/logs/rung2_ownbody_*ampatton*`):
+
+| | [CR06] | [BR24] |
+|---|---|---|
+| measured | 4.191 m/s, IVV 49.4 %, 261 W | 4.641, 49.1 %, 432 W |
+| rigid + added mass, buried catch | 4.202, 52.2 %, 251 W | 4.721, 46.4 %, 308 W |
+| dynamic bend, buried, 6.25 / 3.125 ms | 4.152 / 4.152, 55.4 / 55.7 % | stalls: 1.49 m/s, 27 W (both steps) |
+| rigid + added mass, entry catch | 4.219, 52.6 %, 257 W | 4.780, 47.1 %, 339 W |
+| dynamic bend, entry, 6.25 / 3.125 ms | 4.200 / 4.206, 54.2 / 53.9 % | stalls: 1.45 m/s, 16 W (both steps) |
+
+- **The dynamic shaft converges with the step** (0.3 points of IVV between 6.25 and 3.125 ms), which the massless hinge
+  never did: the numerical non-convergence of §223 is gone.
+- **[BR24] stalls, reproducibly.** Traced (`bending_ring_trace_br24_benddyn_ampatton.log`, buried catch): during the
+  prescribed placement the hands wind the spring against the blade and its 13 kg of water starting from rest (bend
+  8.3°, ~690 N m on the two blades at burial); at the takeover the muscle-driven clock cannot hold it, tau' falls to
+  zero and reverses, the blade's slip reverses and the release logic ends the drive at a 60° oar angle. With the
+  rigid oar the water's inertia is in the crew's own generalised inertia, so nothing is stored at the hand-over. The
+  entry catch (clock dynamic from first contact, load and added mass ramping in) does not remove the stall, so the
+  placement is not the whole cause. Open: the population's muscle table is built on the dynamic shaft at rung 1
+  (Q -211 to 1662 against the rigid+added-mass table's -884 to 2285), and [BR24] uses his own body timing on it;
+  whether the stall is a genuine limit of a light inner oar driving a heavy water mass through a soft shaft, or a
+  mismatch between that table and his timing, is the next test.
+- **Where bending stands.** The massless hinge is retired as the research bending model for rung 2: it omits the
+  blade's water inertia, its only damping vanishes with the slip, and its rung 2 does not converge. The dynamic shaft
+  converges and passes [CR06] (speed within 0.4 %, IVV 4.5–5 points high against rigid's 3), but stalls [BR24]. Bending
+  stays off.
+
+**6. The knee and the foot force's direction** (`research/crew/muscle_capacity.py --foot-direction hase2002`,
+`joint_moments_vs_hase_foothase2002.log`). [HKY02]'s Fig. 2, read at matched instants (§222's "0.77" divided peaks at
+different times; at peak fore-aft force the ratio is 0.83): horizontal/resultant 0.63 at the catch, 0.70 at 15 % of
+the drive, 0.85–0.86 mid-drive. With it the knee's early extensor lever falls from 0.157 / 0.163 m to 0.114 / 0.115 m
+(Hase 0.094) but the late flexor from 0.130 / 0.165 to 0.069 / 0.098 m (Hase 0.141): a few hundredths in the ratio swing
+the knee a lot. Hase's direction is from men on an ergometer; [CR06] needs the women's curves ([BU13] Fig. 5.7). The
+held [BU15] 0.81 stays the default; Hase's curve is an option.

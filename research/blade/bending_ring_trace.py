@@ -82,11 +82,17 @@ def main():
     ap.add_argument("--dt", type=float, default=None,
                     help="fixed integration step, s (default: integrators.estimate_step, 6.25 ms): a convergence test "
                          "of the bend's once-per-step hinge update")
+    ap.add_argument("--added-mass", default="none", choices=["none", "patton", "labbe"])
+    ap.add_argument("--bend-dynamics", action="store_true", help="the bend as a dynamic state (SOURCES §224)")
     a = ap.parse_args()
     if a.dt:
         import coxswain.core.integrators as I
         I.estimate_step = lambda *args, **kw: float(a.dt)
         print("integration step %.5f s" % a.dt, flush=True)
+    RP.ADDED_MASS = a.added_mass
+    if a.bend_dynamics:
+        from coxswain.crew.oar_bending import BendDynamics
+        RP.BEND_DYNAMICS = BendDynamics()
     from coxswain.crew.handle_fv import HandleForceVelocity
     RP.FV = HandleForceVelocity(a.fv, "--fv") if a.fv else None
     RP.HOLD, RP.HOLD_OWN = float(a.hold), bool(a.hold_own)

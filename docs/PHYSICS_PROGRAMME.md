@@ -1293,6 +1293,15 @@ the boat speeds that go with their drive durations).
   - *Next:* separate the energy source of the swing (hull recoil through the blade's slip vs the massless hinge) — a
     hinge solved inside each integration stage, or with the shaft's own small inertia, would test the second; the
     knee's foot-force direction through the drive.
+- **§224 (2026-11-08): vibration analysis; the massless hinge retired; a dynamic shaft.** Frozen-time Jacobians (with
+  the hull's surge) show the swing's crew–shaft–hull mode at 24–48 rad/s, damped; ATLAS's coupling-layer test clears
+  the stagger (rho < 0.7, smaller at small steps); the beam FE puts the in-water first bending mode at ~1 Hz,
+  overdamped, which the massless hinge cannot represent. [BL10]'s measured in-air modes confirm [L14]'s EI (0.3 %) and
+  give 3.4 % damping. `BendDynamics` (blade + added mass on the hinge, monolithic with the hull) converges with the step
+  and to the rigid-with-added-mass limit; rung 2 [CR06] 4.20 m/s, IVV 54 %; [BR24] stalls (both steps and catches).
+  - *Next:* [BR24]'s stall — a light inner oar driving 13 kg of water through a soft shaft, or the population's muscle
+    table against his own timing (run the table on his own rung 1, and with the trunk/arm compliance in the crew); the
+    women's foot-force curves for the knee ([BU13] Fig. 5.7).
 
 ## Calibration and validation data from the squad's own boats (noted 2026-10-08)
 
