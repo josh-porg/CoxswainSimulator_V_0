@@ -1,75 +1,51 @@
-# Rating site for outside raters
+# Rating site for outside raters (GitHub Pages + Google Sheet)
 
-A small self-hosted site where invited raters (other coxswains, rowers) rate coxswain calls: up to 15 phrases a day
-on four questions, then 10 muffled voice clips, then the day closes. Design and analysis are fixed in the study's
-codebook (addendum of 7 Nov 2026). Python 3.9+, standard library only, one SQLite file.
+Invited rowers and coxswains rate coxswain calls on a static site: a username on first visit, then each day up to 15
+calls on four questions and 10 muffled voice clips. Design and analysis are fixed in the study's codebook (addendum
+of 7 Nov 2026 and its hosting amendment).
 
 | file | what |
 |---|---|
-| `pack.py` | builds `pack.json` and `clips/` from the human coding sample; names redacted, with a review list |
-| `app.py` | the server, plus `invite` and `raters` commands |
-| `page.html`, `guide.html` | the rater's page and the short "how to rate" guide |
-| `admin.html` | the study lead's dashboard: raters, coverage, check items, Krippendorff's alpha, export |
-| `analyse.py` | the full agreement analysis on a downloaded `ratings.db` |
+| `build_site.py` | encrypts every phrase of the 15 pieces (names redacted) and a muffled clip per call into `site_build/` |
+| `web/index.html`, `web/app.js`, `web/guide.html` | the site (static; decrypts in the browser with the key in the link) |
+| `web/Code.gs` | the Google Apps Script backend: raters, daily batches, ratings in your Sheet |
+| `web/test.html` | local test harness that runs the real `Code.gs` with stand-ins for Google's services; never deployed |
+| `analyse.py` | the agreement analysis on the ratings the admin view downloads |
 
-The data folder (`pack.json`, `clips/`, `ratings.db`) holds crew speech and stays private: it is never committed to
-this repository.
+**How it stays private with a just-send-a-link workflow.** Phrases and clips are published only encrypted
+(AES-256-GCM). The key is in the link after `#`, which browsers never send to GitHub, Google or any log, so the files on
+GitHub are unreadable without the link. The Apps Script accepts ratings only with a token derived from the key. The
+public `manifest.json` holds only opaque codes. Limits: anyone you forward a link to can read and rate; usernames are
+not verified (the admin view shows when one username is used from several devices). If a link leaks, rebuild with
+`--rotate` and send new links: old links stop working.
 
-## Before sharing any link
+## One-time setup
 
-1. **Names.** Run `pack.py`, open `data/local/coxing/rating_site/names_review.txt`, and mark every line `name` (to be
-   replaced by "[name]") or `keep`. Re-run with `--final`; it refuses while any line is unmarked. Then skim a few
-   dozen phrases in `pack.json`: words that are both names and ordinary words can slip through.
-2. **Crews' consent.** Outside raters will read what was said in the boat (without names). Make sure the crews are
-   comfortable with that.
+1. **Review names.** Run `.venv-tools/Scripts/python.exe research/coxing/rating_site/build_site.py`, open
+   `data/local/coxing/rating_site/names_review.txt` and mark each `?` line `name` (replaced by "[name]") or `keep`.
+   Repeat until it reports none left. Get the crews' OK for outside raters reading their calls (without names).
+2. **Build the shareable site** with a fresh key:
+   `.venv-tools/Scripts/python.exe research/coxing/rating_site/build_site.py --final --rotate`.
+   It prints the rater link, your admin link, and three script properties (also saved in `site_key.json`).
+3. **Google Sheet and script.** Create a new Google Sheet. Extensions > Apps Script. Replace the editor's contents
+   with `site_build/Code.gs`. Project settings: set the time zone (it decides when a rater's day starts) and add the
+   script properties `WRITE_TOKEN`, `ADMIN_KEY` and `MANIFEST_URL` from step 2. Deploy > New deployment > Web app,
+   Execute as: Me, Who has access: Anyone. Authorise it, and copy the web app URL.
+4. **Point the site at the script and publish:**
+   `build_site.py --final --script-url <web app URL>` (no `--rotate`: the key stays), then
+   `cd data/local/coxing/rating_site/site_build && git add -A && git commit -m "Update data" && git push`.
+   GitHub Pages serves it at https://josh-porg.github.io/coxing-ratings/ within a minute or two.
+5. **Send the rater link** (one link for everyone; each person picks a username). Keep the admin link to yourself.
 
-## Running it locally (to try it)
+## Running it
 
-```
-python research/coxing/rating_site/app.py invite "me" --admin
-python research/coxing/rating_site/app.py serve
-```
-Open the printed link: it signs the browser in. `/admin` is the dashboard (admins only).
+Raters sign up once per device with a username, profile and the races they were in (excluded from their queue). The
+admin link shows raters, coverage, check-item accuracy and Krippendorff's alpha, and downloads all ratings as JSON.
+For the full analysis: `.venv/Scripts/python.exe research/coxing/rating_site/analyse.py ratings_<day>.json`.
+To delete a rater's answers at their request, delete their rows in the Sheet's `ratings` tab and note it in the study log.
 
-## Deploying
+## Testing locally
 
-Any machine that can run Python and keep a file between restarts works. Two simple options:
-
-**A small server (VPS) with Caddy for HTTPS.** Copy the code files and the data folder to the server, e.g.
-`/srv/ratings/code` and `/srv/ratings/data`. Run it as a service:
-```
-RATING_DATA=/srv/ratings/data RATING_SECURE=1 RATING_TZ_HOURS=-8 \
-  python3 /srv/ratings/code/app.py serve --host 127.0.0.1 --port 8080
-```
-and point Caddy at it (`/etc/caddy/Caddyfile`):
-```
-ratings.example.org {
-    reverse_proxy 127.0.0.1:8080
-}
-```
-Caddy obtains the HTTPS certificate itself.
-
-**Your own computer behind a tunnel** (Cloudflare Tunnel or Tailscale Funnel): run `serve` locally with
-`RATING_SECURE=1` and expose port 8080 through the tunnel, which provides HTTPS. Simple, but the site is down
-whenever the computer is off.
-
-Whichever you use, set `RATING_SECURE=1` only when the site is served over HTTPS (the sign-in cookie is then never
-sent in the clear), and set `RATING_TZ_HOURS` to the time zone that should define "a day" (-8 is Pacific standard
-time).
-
-## Inviting raters
-
-On the machine where the site runs (the invite is written to its database):
-```
-python3 app.py invite "label for you only" --base-url https://ratings.example.org
-python3 app.py invite "label" --exclude race_07 --base-url https://ratings.example.org
-```
-Each command prints one personal link; send it to that rater only. `--exclude` takes the sessions the rater coxed
-or rowed in, so they never rate their own race. The label is only shown to admins. `raters` lists everyone.
-
-## Data and analysis
-
-Ratings are append-only: raters cannot change or delete what they saved. Back up `ratings.db` regularly (copy the
-file). For the analysis, copy it into `data/local/coxing/rating_site/` and run `analyse.py`, or download all
-ratings as JSON from the dashboard. To delete a rater's answers at their request, remove their rows from the
-`ratings` table and note it in the study log.
+`build_site.py` without `--final` writes `site_build_test/` (with `test.html`). Serve that folder
+(`python -m http.server 8768`) and open `http://127.0.0.1:8768/test.html#k=<key>&admin=<admin key>` (both from
+`site_key.json`): the real `Code.gs` runs in the page with in-memory sheets, with buttons for the next day and the admin view.

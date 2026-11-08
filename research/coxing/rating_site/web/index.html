@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Coxing calls</title>
+<style>
+:root { --bg:#f6f5f2; --card:#fff; --ink:#1f2a36; --muted:#5f6670; --faint:#8a9099; --line:#e3e1db; --acc:#2f6fb3; --accbg:#e6f1fb; --ok:#2f7d4f; --okbg:#e7f4ec; --warn:#8a5a00; --warnbg:#faeeda; }
+@media (prefers-color-scheme: dark) { :root { --bg:#171717; --card:#212121; --ink:#ecebe7; --muted:#a8a6a0; --faint:#77756f; --line:#33322f; --acc:#85b7eb; --accbg:#0c2a48; --ok:#8fd3a8; --okbg:#10301d; --warn:#fac775; --warnbg:#3b2a08; } }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.55 system-ui, sans-serif; }
+main { max-width:640px; margin:0 auto; padding:16px 16px 40px; } main.wide { max-width:1100px; }
+a { color:var(--acc); }
+.card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; }
+.top { display:flex; justify-content:space-between; gap:8px; font-size:13px; color:var(--muted); margin-bottom:8px; flex-wrap:wrap; }
+.bar { height:5px; background:var(--line); border-radius:5px; margin-bottom:14px; } .bar > div { height:5px; background:var(--acc); border-radius:5px; }
+.ctx { color:var(--faint); font-size:14px; }
+.phrase { font-size:19px; background:var(--accbg); padding:10px 12px; border-radius:10px; margin:6px 0; }
+.q { margin-top:16px; } .q .t { font-size:14px; font-weight:600; } .q .d { font-size:13px; color:var(--muted); margin:2px 0 6px; }
+.chips { display:flex; flex-wrap:wrap; gap:6px; }
+.chip { border:1px solid var(--line); background:var(--card); color:var(--ink); border-radius:999px; padding:8px 13px; font-size:15px; cursor:pointer; min-height:40px; }
+.chip.on { background:var(--accbg); border-color:var(--acc); color:var(--acc); }
+.chip sup { font-size:10px; margin-left:3px; }
+.chip.flag.on { background:var(--warnbg); border-color:var(--warn); color:var(--warn); }
+button.main { width:100%; margin-top:18px; padding:14px; font-size:17px; border-radius:12px; border:0; background:var(--acc); color:#fff; cursor:pointer; }
+button.main:disabled { opacity:.4; cursor:default; }
+.msg { color:var(--warn); font-size:14px; min-height:1.3em; margin-top:8px; }
+.big { font-size:22px; font-weight:600; margin:4px 0 8px; }
+label.f { display:block; margin:12px 0 4px; font-size:14px; font-weight:600; }
+select, input[type=text] { width:100%; padding:10px; font-size:16px; border-radius:10px; border:1px solid var(--line); background:var(--card); color:var(--ink); }
+.own label { display:block; font-size:14px; margin:4px 0; }
+.scale { display:grid; grid-template-columns:repeat(7, 1fr); gap:6px; margin-top:12px; }
+.scale button { padding:14px 0; font-size:18px; border-radius:10px; border:1px solid var(--line); background:var(--card); color:var(--ink); }
+.scale button:disabled { opacity:.35; }
+.ends { display:flex; justify-content:space-between; font-size:12px; color:var(--muted); margin-top:4px; }
+.stat { background:var(--okbg); color:var(--ok); border-radius:10px; padding:12px; margin-top:12px; }
+.foot { font-size:12px; color:var(--faint); margin-top:14px; text-align:center; }
+.grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; }
+.tile { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; } .tile .n { font-size:24px; font-weight:600; } .tile .l { font-size:13px; color:var(--muted); }
+.wrap { overflow-x:auto; background:var(--card); border:1px solid var(--line); border-radius:12px; margin-top:8px; }
+table { border-collapse:collapse; width:100%; font-size:14px; } td, th { text-align:left; padding:7px 9px; border-bottom:1px solid var(--line); white-space:nowrap; } th { color:var(--muted); font-weight:600; }
+h2 { font-size:17px; margin:22px 0 6px; } .muted { color:var(--muted); font-size:13px; }
+</style>
+</head>
+<body>
+<main id="main">
+<div class="card" id="app">Loading…</div>
+<div class="foot"><a href="guide.html" target="_blank" id="guide">How to rate</a></div>
+</main>
+<script src="app.js"></script>
+</body>
+</html>
