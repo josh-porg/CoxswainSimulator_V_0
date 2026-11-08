@@ -150,7 +150,7 @@ function drawBatch_(rater, day, set, ratings, m) {
     text.splice(hash_(seed + "pos") % (text.length + 1), 0, { kind: "text", id: c[0], check: 1, repeat: 0 });
   }
   const clipPool = m.clips.filter(([id, pc]) => !doneClip.has(id) && !own.has(pc)).map(([id]) => ({ id, o: order("voice", id, false) })).sort(cmp);
-  const earlier = mine.filter(r => r.kind === "voice" && !Number(r.is_repeat) && r.day !== day && !repeated.has(r.item)).map(r => r.item);
+  const earlier = mine.filter(r => r.kind === "voice" && !Number(r.is_repeat) && String(r.rating) !== "" && r.day !== day && !repeated.has(r.item)).map(r => r.item);
   const voice = clipPool.slice(0, Math.max(0, q.voice - (earlier.length ? 1 : 0))).map(x => ({ kind: "voice", id: x.id, check: 0, repeat: 0 }));
   if (earlier.length && voice.length) {
     const r = earlier[hash_(seed + "rep") % earlier.length];
@@ -224,11 +224,15 @@ function rate_(rater, p) {
     if (!skip && !(["inf", "ass", "dec"].includes(c.stage) && ["y", "n"].includes(c.action) && ["up", "down", "-"].includes(c.arousal)))
       return { error: "answer every question" };
     Object.assign(row, { targets: tg.join("|"), stage: skip ? "-" : c.stage, action: skip ? "-" : c.action, arousal: skip ? "-" : c.arousal,
-                         flags: (Array.isArray(p.flags) ? p.flags : []).filter(f => f === "unsure" || f === "misheard").join("|") });
+                         flags: (Array.isArray(p.flags) ? p.flags : []).filter(f => ["fragment", "unsure", "misheard"].includes(f)).join("|") });
   } else {
-    const r = Number(p.rating);
-    if (!(r >= 1 && r <= 7 && r === Math.round(r)) || p.played_full !== true) return { error: "play the clip to the end, then rate 1-7" };
-    Object.assign(row, { rating: r, plays: Number(p.plays) || 1 });
+    if (p.played_full !== true) return { error: "play the clip to the end first" };
+    if (p.novoice === true) Object.assign(row, { rating: "", flags: "novoice", plays: Number(p.plays) || 1 });   // no voice heard: no rating
+    else {
+      const r = Number(p.rating);
+      if (!(r >= 1 && r <= 7 && r === Math.round(r))) return { error: "rate 1-7" };
+      Object.assign(row, { rating: r, plays: Number(p.plays) || 1 });
+    }
   }
   append_("ratings", row);
   ratings.push(row);

@@ -36,7 +36,6 @@
   let me = null;
   try { me = JSON.parse(localStorage.getItem(STORE) || "null"); } catch (e) { me = null; }
   const save = () => { try { localStorage.setItem(STORE, JSON.stringify(me)); } catch (e) { } };
-  if (!me || !me.username) signup(); else run();
 
   function signup(msg = "", edit = false) {
     const device = (me && me.device) || (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2));
@@ -67,29 +66,69 @@
   }
 
   // ---------------------------------------------------------------- rating
-  let prog, item, cur, flags, t0, busy = false;
+  // Answers are queued and sent in the background (the Apps Script takes a second or two per answer), so the next
+  // item appears at once. The queue is kept in this browser until the script has accepted each answer; an answer the
+  // script has already recorded is refused as "not in your current set" and dropped, so resending is safe.
+  let prog, item, cur, flags, t0, lastProg = null, waitingFinish = false, sending = false, syncMsg = "";
+  const QKEY = STORE + "_queue";
+  let queue = [];
+  try { queue = JSON.parse(localStorage.getItem(QKEY) || "[]"); } catch (e) { queue = []; }
+  const saveQ = () => { try { localStorage.setItem(QKEY, JSON.stringify(queue)); } catch (e) { } };
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  window.addEventListener("beforeunload", e => { if (queue.length) { e.preventDefault(); e.returnValue = ""; } });
+  function syncStatus() {
+    const el = document.getElementById("sync");
+    if (el) el.textContent = syncMsg || (queue.length ? "saving…" : "");
+  }
+  async function pump() {
+    if (sending) return; sending = true;
+    while (queue.length) {
+      let r;
+      try { r = await backend(queue[0]); } catch (e) { r = null; }
+      if (r && r.ok) { queue.shift(); saveQ(); lastProg = r.progress; syncMsg = ""; }
+      else if (!r || r.error === undefined) { syncMsg = "No connection: your answers are kept and will be sent when it's back."; syncStatus(); await sleep(4000); continue; }
+      else { queue.shift(); saveQ(); if (!/not in your current set/.test(r.error)) syncMsg = "One answer wasn't saved (" + r.error + ")."; }
+      syncStatus();
+    }
+    sending = false; syncStatus();
+    if (waitingFinish) { waitingFinish = false; if (lastProg) prog = lastProg; finished(); }
+  }
+  function submit(payload) {
+    queue.push(Object.assign({ action: "rate", w: W, user: me.username, device: me.device }, payload)); saveQ();
+    prog.remaining.shift(); prog.done_in_set++; prog.mine++;
+    pump(); next();
+  }
   async function run(action = "today") {
     app.innerHTML = action === "more" ? "Drawing your next set…" : "Loading today's calls…";
+    if (queue.length) { queue.forEach(q => { q.user = me.username; }); await pump(); }   // answers left from an earlier visit
     const r = await backend({ action, w: W, user: me.username, device: me.device }).catch(() => ({ error: "No connection. Reload to try again." }));
     if (r.unknown) { me = { device: me.device }; save(); return signup("That name isn't registered yet; fill this in once."); }
     if (r.error) return say("Something went wrong", esc(r.error));
     if (r.profile) { me.profile = r.profile; save(); }
-    prog = r.progress; next();
+    prog = r.progress; lastProg = r.progress; next();
   }
   const who = () => `<span>${esc(me.username)} · <a href="#" id="edit">my details</a> · <a href="#" id="switch">not you?</a></span>`;
   function head() {
     const p = prog, setTxt = p.sets_per_day > 1 ? `set ${p.set} of ${p.sets_per_day} · ` : "";
-    return `<div class="top">${who()}<span>${setTxt}${p.done_in_set} of ${p.batch_size} done</span></div>
+    return `<div class="top">${who()}<span><span id="sync" class="sync"></span> ${setTxt}${p.done_in_set} of ${p.batch_size} done</span></div>
       <div class="bar"><div style="width:${(100 * p.done_in_set / Math.max(1, p.batch_size)).toFixed(0)}%"></div></div>`;
   }
   function wireSwitch() {
     const s = document.getElementById("switch"); if (s) s.onclick = e => { e.preventDefault(); me = { device: me.device }; save(); signup(); };
     const d = document.getElementById("edit"); if (d) d.onclick = e => { e.preventDefault(); item = null; signup("", true); };
+    syncStatus();
   }
   function next() {
-    if (!prog.remaining.length) return finished();
+    if (!prog.remaining.length) {
+      item = null;
+      if (queue.length) { waitingFinish = true; app.innerHTML = "Saving your last answers…"; return; }
+      if (lastProg && !lastProg.remaining.length) prog = lastProg;
+      return finished();
+    }
     item = prog.remaining[0]; t0 = performance.now();
     item.kind === "text" ? showText() : showVoice();
+    const nv = prog.remaining.slice(1).find(x => x.kind === "voice");   // fetch the next clip while this item is open
+    if (nv) clip(nv.id).catch(() => { });
   }
   function finished() {
     item = null;
@@ -101,73 +140,81 @@
       <p>That's plenty for today if you like. If you're up for more, another set takes about five minutes (up to ${prog.sets_per_day} a day). A short break first helps keep your ratings sharp.</p>
       <button class="main" id="more">Another set</button>`;
     else body = `<div class="big">That's today done. Thank you.</div><p>You've done ${prog.set === 1 ? "today's set" : "all " + prog.set + " sets for today"}. New calls tomorrow.</p>`;
-    app.innerHTML = `<div class="top">${who()}</div>` + body + stat;
+    app.innerHTML = `<div class="top">${who()}</div>` + body + stat + (syncMsg ? `<div class="msg">${esc(syncMsg)}</div>` : "");
     wireSwitch();
     const more = document.getElementById("more");
     if (more) more.onclick = () => run("more");
   }
-  const TG = [["power", "effort, pressure, drive, legs or push as force"], ["rate", "stroke rate, rhythm, ratio, slide speed"], ["length", "reach, long, length"], ["catch", "entry, blade in, catch timing"], ["finish", "release, extraction, hands away"], ["body", "posture, sit up, core, breathing"], ["set", "balance, blade height"], ["together", "timing across the crew"], ["steer", "course, turns, side pressure"], ["info", "split, rate, distance or position read out"], ["morale", "encouragement with no rowing target"], ["tactic", "a move on another crew"], ["count", "a stroke count"], ["other", "anything else that isn't a call"]];
+  const TG = [["power", "effort, pressure, drive, legs or push as force"], ["rate", "stroke rate, rhythm, ratio (drive vs recovery), slide speed, build or settle"], ["length", "reach, long, length"], ["catch", "entry, blades in, catch timing"], ["finish", "release, extraction, hands away"], ["body", "posture, sit up, core, body swing, the legs-body-arms sequence"], ["set", "balance, blade height"], ["together", "timing across the crew"], ["steer", "course, turns, side pressure"], ["info", "split, rate, distance or position read out"], ["morale", "encouragement with no rowing target"], ["tactic", "a move on another crew"], ["count", "a stroke count"], ["other", "anything else that isn't a call"]];
+  const TGL = { rate: "rate / rhythm" };
   const QS = [
     ["stage", "What does it do?", "", [["inf", "states a fact"], ["ass", "judges how it's going"], ["dec", "tells the crew what to do"]]],
     ["action", "Does it name a concrete action?", "a movement, force or rhythm change the crew can do", [["y", "yes"], ["n", "no"]]],
     ["arousal", "Does it raise or lower intensity?", "", [["up", "raises (now, go, attack)"], ["down", "lowers (relax, settle, breathe)"], ["-", "neither"]]],
   ];
+  const FLAGS = [["fragment", "part of a longer call"], ["unsure", "not sure"], ["misheard", "words look misheard"]];
   function showText() { cur = { targets: [] }; flags = new Set(); renderText(); }
   const skipped = () => cur.targets.length && cur.targets.every(t => t === "count" || t === "other");
   const complete = () => cur.targets.length && (skipped() || QS.every(q => cur[q[0]]));
   function renderText(msg = "") {
     const x = phraseOf(item.id);
+    const desc = cur.targets.map(t => `<b>${TGL[t] || t}</b>: ${TG.find(g => g[0] === t)[1]}`).join("<br>");
     let h = head() + `<div class="ctx">${x.before.map(esc).join("<br>")}</div><div class="phrase">${esc(x.text)}</div><div class="ctx">${x.after.map(esc).join("<br>")}</div>`;
     h += `<div class="q"><div class="t">What is it about?</div><div class="d">Tap all that apply; the first you tap counts as the main one. The grey lines are context.</div><div class="chips">` +
-      TG.map(([v, d]) => `<button class="chip ${cur.targets.includes(v) ? "on" : ""}" data-t="${v}" title="${d}">${v}${cur.targets.length > 1 && cur.targets[0] === v ? "<sup>main</sup>" : ""}</button>`).join("") + "</div></div>";
+      TG.map(([v, d]) => `<button class="chip ${cur.targets.includes(v) ? "on" : ""}" data-t="${v}" title="${d}">${TGL[v] || v}${cur.targets.length > 1 && cur.targets[0] === v ? "<sup>main</sup>" : ""}</button>`).join("") +
+      `</div>${desc ? `<div class="d" style="margin-top:6px">${desc}</div>` : ""}</div>`;
     if (!skipped()) QS.forEach(([k, t, d, opts]) => {
       h += `<div class="q"><div class="t">${t}</div>${d ? `<div class="d">${d}</div>` : ""}<div class="chips">` +
         opts.map(([v, l]) => `<button class="chip ${cur[k] === v ? "on" : ""}" data-k="${k}" data-v="${v}">${l}</button>`).join("") + "</div></div>";
     });
-    h += `<div class="q"><div class="chips"><button class="chip flag ${flags.has("unsure") ? "on" : ""}" data-f="unsure">not sure</button><button class="chip flag ${flags.has("misheard") ? "on" : ""}" data-f="misheard">words look misheard</button></div></div>`;
+    h += `<div class="q"><div class="chips">${FLAGS.map(([f, l]) => `<button class="chip flag ${flags.has(f) ? "on" : ""}" data-f="${f}">${l}</button>`).join("")}</div>` +
+      (flags.has("fragment") ? `<div class="d" style="margin-top:6px">Answer for the whole call this line belongs to.</div>` : "") + `</div>`;
     h += `<button class="main" id="save" ${complete() ? "" : "disabled"}>Next</button><div class="msg">${esc(msg)}</div>`;
     app.innerHTML = h; wireSwitch();
     app.querySelectorAll("[data-t]").forEach(b => b.onclick = () => { const v = b.dataset.t, i = cur.targets.indexOf(v); i >= 0 ? cur.targets.splice(i, 1) : cur.targets.push(v); renderText(); });
     app.querySelectorAll("[data-k]").forEach(b => b.onclick = () => { cur[b.dataset.k] = b.dataset.v; renderText(); });
     app.querySelectorAll("[data-f]").forEach(b => b.onclick = () => { const f = b.dataset.f; flags.has(f) ? flags.delete(f) : flags.add(f); renderText(); });
-    document.getElementById("save").onclick = async () => {
-      if (!complete() || busy) return; busy = true;
-      const r = await backend({ action: "rate", w: W, user: me.username, device: me.device, kind: "text", id: item.id, codes: cur, flags: [...flags], ms: Math.round(performance.now() - t0) }).catch(() => ({ error: "No connection; try again." }));
-      busy = false;
-      if (r.error) return renderText(r.error);
-      prog = r.progress; next();
+    document.getElementById("save").onclick = () => {
+      if (!complete()) return;
+      submit({ kind: "text", id: item.id, codes: cur, flags: [...flags], ms: Math.round(performance.now() - t0) });
     };
   }
+  const clips = {};
+  const clip = id => clips[id] || (clips[id] = fetch("clips/" + id + ".bin").then(r => r.arrayBuffer()).then(b => window.__open(b))
+    .then(buf => URL.createObjectURL(new Blob([buf], { type: "audio/wav" }))).catch(e => { delete clips[id]; throw e; }));
   async function showVoice() {
     let plays = 0, full = false;
+    const mine = item;
     app.innerHTML = head() + `<div class="big">How fired-up does this voice sound?</div>
       <div class="muted">The words are filtered out on purpose. Listen to the whole clip, then rate the voice, not what you think was said.</div>
       <button class="main" id="play" disabled>Loading…</button>
       <div class="scale">${[1, 2, 3, 4, 5, 6, 7].map(n => `<button data-r="${n}" disabled>${n}</button>`).join("")}</div>
-      <div class="ends"><span>very calm</span><span>very fired-up</span></div><div class="msg" id="m"></div>`;
+      <div class="ends"><span>very calm</span><span>very fired-up</span></div>
+      <div class="q"><div class="chips"><button class="chip flag" id="novoice" disabled>no voice in this clip</button></div></div><div class="msg" id="m"></div>`;
     wireSwitch();
     let audio;
-    try {
-      const buf = await window.__open(await (await fetch("clips/" + item.id + ".bin")).arrayBuffer());
-      audio = new Audio(URL.createObjectURL(new Blob([buf], { type: "audio/wav" })));
-    } catch (e) { document.getElementById("m").textContent = "This clip didn't load. Reload the page to try again."; return; }
+    try { audio = new Audio(await clip(mine.id)); }
+    catch (e) { if (item === mine) document.getElementById("m").textContent = "This clip didn't load. Reload the page to try again."; return; }
+    if (item !== mine) return;
     const play = document.getElementById("play");
     play.disabled = false; play.textContent = "Play";
-    audio.onended = () => { full = true; app.querySelectorAll("[data-r]").forEach(b => b.disabled = false); play.textContent = "Play again"; };
+    audio.onended = () => { full = true; app.querySelectorAll("[data-r], #novoice").forEach(b => b.disabled = false); play.textContent = "Play again"; };
     play.onclick = () => { plays++; audio.currentTime = 0; audio.play(); };
-    app.querySelectorAll("[data-r]").forEach(b => b.onclick = async () => {
-      if (busy) return; busy = true;
-      const r = await backend({ action: "rate", w: W, user: me.username, device: me.device, kind: "voice", id: item.id, rating: +b.dataset.r, plays, played_full: full, ms: Math.round(performance.now() - t0) }).catch(() => ({ error: "No connection; try again." }));
-      busy = false;
-      if (r.error) { document.getElementById("m").textContent = r.error; return; }
-      prog = r.progress; next();
-    });
+    const send = extra => {
+      if (!full || item !== mine) return;
+      audio.pause();
+      submit(Object.assign({ kind: "voice", id: mine.id, plays, played_full: true, ms: Math.round(performance.now() - t0) }, extra));
+    };
+    app.querySelectorAll("[data-r]").forEach(b => b.onclick = () => send({ rating: +b.dataset.r }));
+    document.getElementById("novoice").onclick = () => send({ novoice: true });
   }
   document.addEventListener("keydown", e => {
     if (!item || item.kind !== "voice") return;
     if (/^[1-7]$/.test(e.key)) { const b = app.querySelector(`[data-r="${e.key}"]`); if (b && !b.disabled) b.click(); }
     if (e.key === " ") { e.preventDefault(); document.getElementById("play")?.click(); }
   });
+
+  if (!me || !me.username) signup(); else run();      // start here, once everything above is defined
 
   // ---------------------------------------------------------------- admin
   function alpha(units, metric) {                    // Krippendorff's alpha; units: {unit: [values]}
@@ -185,7 +232,7 @@
     const r = await backend({ action: "admin", admin: ADMIN }).catch(() => ({ error: "No connection." }));
     if (r.error) return say("Admin", esc(r.error));
     const man = await (await fetch("manifest.json")).json();
-    const R = r.ratings, text = R.filter(x => x.kind === "text" && !Number(x.is_check) && !Number(x.is_repeat)), voice = R.filter(x => x.kind === "voice" && !Number(x.is_repeat));
+    const R = r.ratings, text = R.filter(x => x.kind === "text" && !Number(x.is_check) && !Number(x.is_repeat)), voice = R.filter(x => x.kind === "voice" && !Number(x.is_repeat) && String(x.rating) !== "");
     const units = (rows, f) => { const u = {}; rows.forEach(x => { const v = f(x); (u[x.item] = u[x.item] || []).push(v); }); return u; };
     const A = { target: alpha(units(text, x => String(x.targets).split("|")[0])), stage: alpha(units(text, x => x.stage)), action: alpha(units(text, x => x.action)),
                 arousal: alpha(units(text, x => x.arousal)), "voice (interval)": alpha(units(voice, x => Number(x.rating)), "interval") };

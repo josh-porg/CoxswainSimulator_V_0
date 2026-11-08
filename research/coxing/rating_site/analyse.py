@@ -11,7 +11,8 @@ own pieces (own_pieces in the raters sheet) are dropped first. Reports:
 - per rater: agreement (share identical) with the leave-one-out majority of the other raters on the same items, with
   the human coder (the study lead's codes from the human coding tool) and with the machine coder; check-item accuracy,
   flagging raters below 50% after at least five days; number of devices used;
-- voice: Spearman correlation of each clip's mean rating with the human coder's rating and with the acoustic vocal
+- voice: "no voice in this clip" reports (a clip reported by two or more raters is marked for exclusion);
+  Spearman correlation of each clip's mean rating with the human coder's rating and with the acoustic vocal
   arousal index.
 Writes analysis_<input name>.json beside the input.
 """
@@ -89,7 +90,10 @@ def main():
     for scope in ["all"] + sorted({raters[r["username"]]["role"] for r in text if r["username"] in raters}):
         sel = [r for r in text if scope == "all" or raters.get(r["username"], {}).get("role") == scope]
         out["alpha"][scope] = {f: alpha(units([(r["item"], val(r, f)) for r in sel])) for f in FIELDS}
-    voice = [r for r in rows if r["kind"] == "voice" and not num(r["is_repeat"])]
+    voice = [r for r in rows if r["kind"] == "voice" and not num(r["is_repeat"]) and str(r["rating"]) != ""]
+    novoice = Counter(r["item"] for r in rows if r["kind"] == "voice" and "novoice" in str(r.get("flags", "")))
+    out["no_voice"] = dict(reports=sum(novoice.values()), clips_reported_twice=sorted(k for k, n in novoice.items() if n >= 2))
+    print("no-voice reports: %d (clips reported by two or more raters: %d)" % (out["no_voice"]["reports"], len(out["no_voice"]["clips_reported_twice"])))
     out["alpha"]["all"]["voice (interval)"] = alpha(units([(r["item"], float(r["rating"])) for r in voice]), "interval")
     print("alpha:", json.dumps(out["alpha"]))
     by_item = units([(r["item"], r) for r in text])
