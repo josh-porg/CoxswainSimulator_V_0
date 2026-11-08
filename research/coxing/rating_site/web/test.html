@@ -27,7 +27,10 @@ const SHEET = {}, PROPS = {}, CACHE = {};
 const sheetObj = n => ({
   appendRow: r => SHEET[n].push(r.slice()),
   getDataRange: () => ({ getValues: () => SHEET[n].map(r => r.slice()) }),
-  getRange: (a, b, c, d) => typeof a === "string" ? { setNumberFormat() {} } : { setValues: v => { SHEET[n][a - 1] = v[0].slice(); } },
+  getLastRow: () => SHEET[n].length,
+  getLastColumn: () => (SHEET[n][0] || []).length,
+  getRange: (a, b, c, d) => typeof a === "string" ? { setNumberFormat() { return this; } }
+    : { setNumberFormat() { return this; }, setValues: v => { v[0].forEach(x => { if (typeof x !== "string") throw new Error("non-text cell " + x); }); SHEET[n][a - 1] = v[0].slice(); } },
 });
 window.SpreadsheetApp = { getActiveSpreadsheet: () => ({ getSheetByName: n => SHEET[n] ? sheetObj(n) : null, insertSheet: n => { SHEET[n] = []; return sheetObj(n); } }) };
 window.PropertiesService = { getScriptProperties: () => ({ getProperty: k => k in PROPS ? PROPS[k] : null }) };

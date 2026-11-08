@@ -47,11 +47,12 @@ EXP = os.path.join(LOCAL, "coxing", "experiment")
 HC = os.path.join(LOCAL, "coxing", "human_coding")
 OUT = os.path.join(LOCAL, "coxing", "rating_site")
 KEYFILE = os.path.join(OUT, "site_key.json")
+TEST_KEYFILE = os.path.join(OUT, "site_key_test.json")   # test builds get a key of their own, never the live one
 REVIEW = os.path.join(OUT, "names_review.txt")
 WEB = os.path.join(CODE, "web")
 PIECES = ["race_01", "practice_01", "practice_02", "race_04", "race_05", "practice_03", "practice_04", "practice_05",
           "practice_06", "practice_07", "practice_08", "race_06", "race_07", "race_08", "race_09"]
-GROUPS = [  # what a rater ticks as "races I was in" (labels live only inside the encrypted pack)
+GROUPS = [  # race labels: the admin view and SETUP_PRIVATE.md use them to keep raters from races they were in
     ("Pink Ribbon Row, Sept 2026 (women's masters four)", ["race_01"]),
     ("Practice races, 25 Sept 2026 (women's eight)", ["practice_01", "practice_02"]),
     ("Tail of the Lake, Oct 2026 (mixed masters eight)", ["race_04"]),
@@ -163,6 +164,43 @@ def wav_bytes(y, sr):
 
 
 # ------------------------------------------------------------------ build
+def write_setup(K, pcode, site, script):
+    """SETUP_PRIVATE.md beside site_key.json: script properties, links, and the race codes for own_pieces."""
+    races = "\n".join("| %s | %s |" % (",".join(pcode[s] for s in sids), label) for label, sids in GROUPS)
+    md = f"""# Rating site setup (private: do not share this file)
+
+## Apps Script → Project Settings → Script properties
+
+| Property | Value |
+|---|---|
+| `WRITE_TOKEN` | `{K["write_token"]}` |
+| `ADMIN_KEY` | `{K["admin"]}` |
+| `MANIFEST_URL` | `{site}manifest.json` |
+
+Type each name exactly as shown, paste the value, then **Save script properties**. Optional: `SETS_PER_DAY` (default 3),
+`TEXT_PER_DAY` and `VOICE_PER_DAY` (calls and clips per set, default 15 and 10).
+
+## Links
+
+| Link | Who gets it |
+|---|---|
+| Rater link: `{site}#k={K["key"]}` | everyone you invite to rate |
+| Admin link: `{site}#k={K["key"]}&admin={K["admin"]}` | only you |
+
+Web app: {script or "(not set yet)"}
+
+## Keeping a rater away from races they were in
+
+In the Sheet's `raters` tab, type the codes into that rater's `own_pieces` cell, separated by commas (e.g. `P14,P15`).
+It applies from their next set.
+
+| Codes | Race |
+|---|---|
+{races}
+"""
+    open(os.path.join(OUT, "SETUP_PRIVATE.md"), "w", encoding="utf-8").write(md)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--final", action="store_true")
@@ -170,8 +208,9 @@ def main():
     ap.add_argument("--rotate", action="store_true", help="new key: every earlier link stops working")
     a = ap.parse_args()
     os.makedirs(OUT, exist_ok=True)
-    if os.path.exists(KEYFILE) and not a.rotate:
-        K = json.load(open(KEYFILE))
+    keyfile = KEYFILE if a.final else TEST_KEYFILE
+    if os.path.exists(keyfile) and not a.rotate:
+        K = json.load(open(keyfile))
     else:
         K = dict(key=b64u(secrets.token_bytes(32)), admin=b64u(secrets.token_bytes(18)), salt=secrets.token_hex(8))
     K["write_token"] = b64u(hashlib.sha256(("write:" + K["key"]).encode()).digest())
@@ -252,15 +291,18 @@ def main():
     open(os.path.join(dest, ".nojekyll"), "w").write("")
     K["codes"] = codemap
     K["pieces"] = {v: k for k, v in pcode.items()}
-    json.dump(K, open(KEYFILE, "w"), indent=0)
+    json.dump(K, open(keyfile, "w"), indent=0)
     site = "https://josh-porg.github.io/coxing-ratings/"
     print("%s: %d phrases (%d in the human sample, %d check items), %d clips" % (
         dest, len(items), sum("s" in m[2] for m in man_items), len(checks), len(man_clips)))
     print("rater link:  %s#k=%s" % (site, K["key"]))
     print("admin link:  %s#k=%s&admin=%s" % (site, K["key"], K["admin"]))
     print("Apps Script properties: WRITE_TOKEN=%s  ADMIN_KEY=%s  MANIFEST_URL=%smanifest.json" % (K["write_token"], K["admin"], site))
+    if a.final:
+        write_setup(K, pcode, site, cfg.get("script", ""))
     if not a.final:
-        print("TEST BUILD ONLY (site_build_test): do not publish.")
+        print("TEST BUILD ONLY (site_build_test, test key in site_key_test.json): do not publish.")
+        print("harness: http://127.0.0.1:8768/test.html#k=%s&admin=%s" % (K["key"], K["admin"]))
 
 
 if __name__ == "__main__":

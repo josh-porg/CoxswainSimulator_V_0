@@ -1,11 +1,13 @@
 """Outside raters: the agreement analysis fixed in the CODEBOOK addendum of 7 Nov 2026.
 
-    .venv/Scripts/python.exe research/coxing/rating_site/analyse.py path/to/ratings_YYYY-MM-DD.json
+    .venv/Scripts/python.exe research/coxing/rating_site/analyse.py path/to/ratings_YYYY-MM-DD.json [site_key_test.json]
 
 Input: the JSON the site's admin view downloads (raters and ratings, as stored in the Google Sheet). Item codes are
-mapped back to piece and phrase through data/local/coxing/rating_site/site_key.json (private). Reports:
+mapped back to piece and phrase through data/local/coxing/rating_site/site_key.json (private). Ratings of a rater's
+own pieces (own_pieces in the raters sheet) are dropped first. Reports:
 - Krippendorff's alpha per field across outside raters (main target, stage, action, arousal: nominal; voice: interval),
   overall and within each role;
+- by set of the day: check-item accuracy and median answer time (fatigue across a day's sets);
 - per rater: agreement (share identical) with the leave-one-out majority of the other raters on the same items, with
   the human coder (the study lead's codes from the human coding tool) and with the machine coder; check-item accuracy,
   flagging raters below 50% after at least five days; number of devices used;
@@ -62,8 +64,13 @@ def main():
     data = json.load(open(src, encoding="utf-8"))
     raters = {r["username"]: r for r in data["raters"]}
     rows = data["ratings"]
-    K = json.load(open(os.path.join(LOCAL, "rating_site", "site_key.json")))
+    K = json.load(open(sys.argv[2] if len(sys.argv) > 2 else os.path.join(LOCAL, "rating_site", "site_key.json")))   # 2nd arg: a test build's key file
     codemap = K["codes"]
+    # drop ratings of pieces the rater was in (own_pieces, entered by the study lead in the raters sheet)
+    own = {u: {K["pieces"].get(c.strip()) for c in str(r.get("own_pieces", "")).split(",") if c.strip()} for u, r in raters.items()}
+    n0 = len(rows)
+    rows = [r for r in rows if r["item"] not in codemap or codemap[r["item"]][0] not in own.get(r["username"], set())]
+    print("dropped %d ratings of the raters' own pieces" % (n0 - len(rows)))
     hkey = json.load(open(os.path.join(LOCAL, "human_coding", "key.json")))["items"]
     hlog = os.path.join(LOCAL, "human_coding", "log_text.jsonl")
     human = {r["id"]: r["codes"] for r in map(json.loads, open(hlog, encoding="utf-8"))} if os.path.exists(hlog) else {}
@@ -113,6 +120,17 @@ def main():
         print("%-20s %-9s n=%4d checks %s devices %d  target vs consensus/human/machine %s" % (
             user, res["role"] or "-", len(mine), "-" if acc is None else "%.0f%%" % (100 * acc), res["devices"],
             "/".join("-" if res["target"][k] is None else "%.2f" % res["target"][k] for k in ("vs_consensus", "vs_human", "vs_machine"))))
+    # fatigue: check-item accuracy and answer time by the set of the day (1st, 2nd, 3rd)
+    by_set = {}
+    for r in rows:
+        if r["kind"] == "text":
+            st = by_set.setdefault(str(num(r.get("set")) or 1), dict(checks=[], ms=[]))
+            st["ms"].append(num(r["ms"]))
+            if num(r["is_check"]):
+                st["checks"].append(str(r["targets"]).split("|")[0] == ("count" if machine(r["item"])["target"] == "count" else "info"))
+    out["by_set"] = {k: dict(n_text=len(v["ms"]), check_accuracy=float(np.mean(v["checks"])) if v["checks"] else None,
+                             n_checks=len(v["checks"]), median_ms=float(np.median(v["ms"]))) for k, v in sorted(by_set.items())}
+    print("by set of the day:", json.dumps(out["by_set"]))
     mean = {k: float(np.mean([float(r["rating"]) for r in v])) for k, v in units([(r["item"], r) for r in voice]).items()}
     vlog = os.path.join(LOCAL, "human_coding", "log_voice.jsonl")
     hv = {r["id"]: r["rating"] for r in map(json.loads, open(vlog, encoding="utf-8"))} if os.path.exists(vlog) else {}

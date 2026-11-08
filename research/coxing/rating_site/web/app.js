@@ -38,59 +38,73 @@
   const save = () => { try { localStorage.setItem(STORE, JSON.stringify(me)); } catch (e) { } };
   if (!me || !me.username) signup(); else run();
 
-  function signup(msg = "") {
+  function signup(msg = "", edit = false) {
     const device = (me && me.device) || (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2));
-    app.innerHTML = `<div class="big">Before you start</div>
-    <p>You're helping a study of what makes a coxswain's call work. Each day you'll see up to 15 short calls from real races and practices (names removed) and answer three or four quick questions about each, then listen to 10 short muffled clips and rate how fired-up the voice sounds. About five minutes. There are no right or wrong answers; your own reading is what's wanted.</p>
-    <p>What's stored: your username, your answers, the time each took, which device you used, and the profile below. Your answers are never shown to other raters. Taking part is voluntary; you can stop at any time and ask the study lead to delete your answers.</p>
-    <label class="f" for="u">Username (required; use the same one on every device)</label><input type="text" id="u" maxlength="40" autocomplete="nickname" placeholder="e.g. your first name and initial">
-    <label class="f" for="role">You are mainly a</label><select id="role"><option value="">choose</option><option>coxswain</option><option>rower</option><option>both</option><option>coach</option><option>other</option></select>
-    <label class="f" for="years">Years in rowing</label><select id="years"><option value="">choose</option><option>under 2</option><option>2-5</option><option>5-10</option><option>over 10</option></select>
-    <label class="f" for="level">Level you mostly do it at</label><select id="level"><option value="">choose</option><option>learn to row</option><option>club or masters</option><option>school or junior</option><option>college</option><option>national or elite</option></select>
-    <label class="f">Were you in any of these? (you won't be shown calls from them)</label>
-    <div class="own">${pack.groups.map(([label, pcs], n) => `<label><input type="checkbox" data-g="${n}"> ${esc(label)}</label>`).join("")}</div>
-    <label class="f"><input type="checkbox" id="agree"> I've read this and agree to take part</label>
-    <button class="main" id="go">Start</button><div class="msg" id="m">${esc(msg)}</div>`;
+    const pre = (edit && me && me.profile) || {}, name = (edit && me && me.username) || "";
+    const sel = (id, opts) => `<select id="${id}"><option value="">choose</option>${opts.map(o => `<option${pre[id] === o ? " selected" : ""}>${o}</option>`).join("")}</select>`;
+    app.innerHTML = `<div class="big">${edit ? "Your details" : "Before you start"}</div>
+    <p>You're helping a study of what makes a coxswain's call work. Each set is up to 15 short calls from real races and practices (other people's names removed), with three or four quick questions about each, then 10 short muffled clips where you rate how fired-up the voice sounds. About five minutes a set, and you can do more than one set a day if you like. There are no right or wrong answers; your own reading is what's wanted.</p>
+    <p>What's stored: your name, your answers, the time each took, which device you used, and the profile below. Only the study lead sees your name; it's never shown to other raters or published. Taking part is voluntary; you can stop at any time and ask the study lead to delete your answers.</p>
+    <label class="f" for="u">Your name (use the same on every device)</label><input type="text" id="u" maxlength="40" autocomplete="name" placeholder="first and last name" value="${esc(name)}">
+    <label class="f" for="role">You are mainly a</label>${sel("role", ["coxswain", "rower", "both", "coach", "other"])}
+    <label class="f" for="years">Years in rowing</label>${sel("years", ["under 2", "2 to 5", "5 to 10", "over 10"])}
+    <label class="f" for="level">Level you mostly do it at</label>${sel("level", ["learn to row", "club or masters", "school or junior", "college", "national or elite"])}
+    <label class="f"><input type="checkbox" id="agree"${edit ? " checked" : ""}> I've read this and agree to take part</label>
+    <button class="main" id="go">${edit ? "Save" : "Start"}</button>${edit ? `<div class="foot"><a href="#" id="back">back without saving</a></div>` : ""}<div class="msg" id="m">${esc(msg)}</div>`;
+    const back = document.getElementById("back");
+    if (back) back.onclick = e => { e.preventDefault(); run(); };
     document.getElementById("go").onclick = async () => {
       const v = id => document.getElementById(id).value.trim();
       const m = document.getElementById("m");
-      if (!v("u") || v("u").length < 2) return m.textContent = "Choose a username first (at least two characters).";
+      if (!v("u") || v("u").length < 2) return m.textContent = "Fill in your name first.";
       if (!v("role") || !v("years") || !v("level") || !document.getElementById("agree").checked) return m.textContent = "Fill in all three questions and tick the box.";
-      const own = [...app.querySelectorAll("[data-g]:checked")].flatMap(c => pack.groups[+c.dataset.g][1]);
+      const profile = { role: v("role"), years: v("years"), level: v("level") };
       m.textContent = "Saving…";
-      const r = await backend({ action: "register", w: W, user: v("u"), device, consent: true, own, profile: { role: v("role"), years: v("years"), level: v("level") } }).catch(() => ({ error: "No connection; try again." }));
+      const r = await backend({ action: "register", w: W, user: v("u"), device, consent: true, profile }).catch(() => ({ error: "No connection; try again." }));
       if (r.error) return m.textContent = r.error;
-      me = { username: v("u"), device }; save(); run();
+      me = { username: v("u"), device, profile }; save(); run();
     };
   }
 
   // ---------------------------------------------------------------- rating
   let prog, item, cur, flags, t0, busy = false;
-  async function run() {
-    app.innerHTML = "Loading today's calls…";
-    const r = await backend({ action: "today", w: W, user: me.username, device: me.device }).catch(() => ({ error: "No connection. Reload to try again." }));
-    if (r.unknown) { me = { device: me.device }; save(); return signup("That username isn't registered yet; fill this in once."); }
+  async function run(action = "today") {
+    app.innerHTML = action === "more" ? "Drawing your next set…" : "Loading today's calls…";
+    const r = await backend({ action, w: W, user: me.username, device: me.device }).catch(() => ({ error: "No connection. Reload to try again." }));
+    if (r.unknown) { me = { device: me.device }; save(); return signup("That name isn't registered yet; fill this in once."); }
     if (r.error) return say("Something went wrong", esc(r.error));
+    if (r.profile) { me.profile = r.profile; save(); }
     prog = r.progress; next();
   }
+  const who = () => `<span>${esc(me.username)} · <a href="#" id="edit">my details</a> · <a href="#" id="switch">not you?</a></span>`;
   function head() {
-    const p = prog, x = p.remaining[0];
-    return `<div class="top"><span>${esc(me.username)} · <a href="#" id="switch">not you?</a></span><span>${p.done_today} of ${p.batch_size} done today</span></div>
-      <div class="bar"><div style="width:${(100 * p.done_today / Math.max(1, p.batch_size)).toFixed(0)}%"></div></div>`;
+    const p = prog, setTxt = p.sets_per_day > 1 ? `set ${p.set} of ${p.sets_per_day} · ` : "";
+    return `<div class="top">${who()}<span>${setTxt}${p.done_in_set} of ${p.batch_size} done</span></div>
+      <div class="bar"><div style="width:${(100 * p.done_in_set / Math.max(1, p.batch_size)).toFixed(0)}%"></div></div>`;
   }
-  function wireSwitch() { const s = document.getElementById("switch"); if (s) s.onclick = e => { e.preventDefault(); me = { device: me.device }; save(); signup(); }; }
+  function wireSwitch() {
+    const s = document.getElementById("switch"); if (s) s.onclick = e => { e.preventDefault(); me = { device: me.device }; save(); signup(); };
+    const d = document.getElementById("edit"); if (d) d.onclick = e => { e.preventDefault(); item = null; signup("", true); };
+  }
   function next() {
     if (!prog.remaining.length) return finished();
     item = prog.remaining[0]; t0 = performance.now();
     item.kind === "text" ? showText() : showVoice();
   }
   function finished() {
+    item = null;
     const total = Object.keys(pack.items).length, pct = Math.round(100 * prog.covered / total);
-    app.innerHTML = `<div class="top"><span>${esc(me.username)} · <a href="#" id="switch">not you?</a></span></div>
-      <div class="big">That's today done. Thank you.</div>
-      <p>New calls tomorrow. Short daily sessions keep the ratings fresh, so there's a limit on purpose.</p>
-      <div class="stat">You've rated ${prog.mine} items over ${prog.days} day${prog.days === 1 ? "" : "s"}. Together, ${prog.raters} rater${prog.raters === 1 ? " has" : "s have"} reached ${pct}% of the study's calls.</div>`;
+    const stat = `<div class="stat">You've rated ${prog.mine} items over ${prog.days} day${prog.days === 1 ? "" : "s"}. Together, ${prog.raters} rater${prog.raters === 1 ? " has" : "s have"} reached ${pct}% of the study's calls.</div>`;
+    let body;
+    if (!prog.batch_size) body = `<div class="big">Nothing left for you to rate</div><p>You've been through every call open to you. Thank you!</p>`;
+    else if (prog.more) body = `<div class="big">Set ${prog.set} done. Thank you.</div>
+      <p>That's plenty for today if you like. If you're up for more, another set takes about five minutes (up to ${prog.sets_per_day} a day). A short break first helps keep your ratings sharp.</p>
+      <button class="main" id="more">Another set</button>`;
+    else body = `<div class="big">That's today done. Thank you.</div><p>You've done ${prog.set === 1 ? "today's set" : "all " + prog.set + " sets for today"}. New calls tomorrow.</p>`;
+    app.innerHTML = `<div class="top">${who()}</div>` + body + stat;
     wireSwitch();
+    const more = document.getElementById("more");
+    if (more) more.onclick = () => run("more");
   }
   const TG = [["power", "effort, pressure, drive, legs or push as force"], ["rate", "stroke rate, rhythm, ratio, slide speed"], ["length", "reach, long, length"], ["catch", "entry, blade in, catch timing"], ["finish", "release, extraction, hands away"], ["body", "posture, sit up, core, breathing"], ["set", "balance, blade height"], ["together", "timing across the crew"], ["steer", "course, turns, side pressure"], ["info", "split, rate, distance or position read out"], ["morale", "encouragement with no rowing target"], ["tactic", "a move on another crew"], ["count", "a stroke count"], ["other", "anything else that isn't a call"]];
   const QS = [
@@ -182,7 +196,7 @@
       const mine = R.filter(x => x.username === u.username), ch = mine.filter(x => Number(x.is_check));
       const ok = ch.filter(x => String(x.targets).split("|")[0] === pack.checks[x.item]).length;
       return { u: u.username, role: u.role, years: u.years, level: u.level, text: mine.filter(x => x.kind === "text").length, voice: mine.filter(x => x.kind === "voice").length,
-               days: new Set(mine.map(x => x.day)).size, checks: ch.length ? `${ok}/${ch.length}` : "–", devices: String(u.devices || "").split(",").filter(Boolean).length,
+               days: new Set(mine.map(x => x.day)).size, sets: new Set(mine.map(x => x.day + ":" + (Number(x.set) || 1))).size, checks: ch.length ? `${ok}/${ch.length}` : "–", devices: String(u.devices || "").split(",").filter(Boolean).length,
                last: mine.length ? mine[mine.length - 1].logged : "–", own: labelOf(u.own_pieces) };
     });
     const k = ["0", "1", "2", "3", "4"];
@@ -191,9 +205,9 @@
       <div class="muted">Items with two or more raters; check items and repeats left out; target uses each rater's main target. About 0.67 is a common lowest acceptable value for tentative conclusions.</div>
       <h2>Coverage (raters per item)</h2><div class="wrap"><table><tr><th></th>${k.map(x => `<th>${x === "4" ? "4+" : x}</th>`).join("")}</tr>
       <tr><td>calls</td>${k.map(x => `<td>${ht[x] || 0}</td>`).join("")}</tr><tr><td>clips</td>${k.map(x => `<td>${hv[x] || 0}</td>`).join("")}</tr></table></div>
-      <h2>Raters</h2><div class="wrap"><table><tr><th>Username</th><th>Role</th><th>Years</th><th>Level</th><th>Calls</th><th>Clips</th><th>Days</th><th>Checks</th><th>Devices</th><th>Last</th><th>Own races</th></tr>
-      ${rows.map(x => `<tr><td>${esc(x.u)}</td><td>${esc(x.role)}</td><td>${esc(x.years)}</td><td>${esc(x.level)}</td><td>${x.text}</td><td>${x.voice}</td><td>${x.days}</td><td>${x.checks}</td><td>${x.devices}</td><td>${esc(x.last)}</td><td>${esc(x.own)}</td></tr>`).join("")}</table></div>
-      <p class="muted">Checks: phrases with an unambiguous answer (a bare count or a split readout). More than one device on a username can mean a second phone, or someone else using that name.</p>
+      <h2>Raters</h2><div class="wrap"><table><tr><th>Name</th><th>Role</th><th>Years</th><th>Level</th><th>Calls</th><th>Clips</th><th>Days</th><th>Sets</th><th>Checks</th><th>Devices</th><th>Last</th><th>Kept from (own_pieces)</th></tr>
+      ${rows.map(x => `<tr><td>${esc(x.u)}</td><td>${esc(x.role)}</td><td>${esc(x.years)}</td><td>${esc(x.level)}</td><td>${x.text}</td><td>${x.voice}</td><td>${x.days}</td><td>${x.sets}</td><td>${x.checks}</td><td>${x.devices}</td><td>${esc(x.last)}</td><td>${esc(x.own)}</td></tr>`).join("")}</table></div>
+      <p class="muted">To keep a rater away from races they were in, type the piece codes into their own_pieces cell in the Sheet's raters tab (codes are listed in your private SETUP_PRIVATE.md). Checks: phrases with an unambiguous answer (a bare count or a split readout). More than one device on a name can mean a second phone, or someone else using that name.</p>
       <button class="main" id="dl">Download all ratings (JSON)</button>`;
     document.getElementById("dl").onclick = () => {
       const a = document.createElement("a");
