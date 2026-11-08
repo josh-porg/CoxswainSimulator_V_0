@@ -131,6 +131,19 @@ def seal(aes, data):
     return nonce + aes.encrypt(nonce, data, None)
 
 
+def write_sealed(aes, path, data):
+    """Encrypt data to path, but leave an existing file that already decrypts to the same data (so a rebuild with the
+    same key changes, and re-publishes, only what changed)."""
+    if os.path.exists(path):
+        old = open(path, "rb").read()
+        try:
+            if aes.decrypt(old[:12], old[12:], None) == data:
+                return
+        except Exception:
+            pass
+    open(path, "wb").write(seal(aes, data))
+
+
 def lowpass(x, sr, fc=CUTOFF_HZ):
     X = np.fft.rfft(x)
     f = np.fft.rfftfreq(len(x), 1.0 / sr)
@@ -202,11 +215,9 @@ def main():
     pieces = {pcode[sid]: [red(p["text"]) for p in sess[sid]["phrases"]] for sid in PIECES}
     groups = [[label, [pcode[s] for s in sids]] for label, sids in GROUPS]
     dest = os.path.join(OUT, "site_build" if a.final else "site_build_test")
-    if os.path.exists(os.path.join(dest, "clips")):
-        shutil.rmtree(os.path.join(dest, "clips"))
     os.makedirs(os.path.join(dest, "clips"), exist_ok=True)
     plain = json.dumps(dict(v=1, pieces=pieces, items=items, groups=groups, checks=checks), ensure_ascii=False).encode()
-    open(os.path.join(dest, "pack.enc"), "wb").write(seal(aes, plain))
+    write_sealed(aes, os.path.join(dest, "pack.enc"), plain)
     # muffled clips, loudness relative to the piece's median call
     wavs, man_clips = {}, []
     for sid in sorted({c[1] for c in clips_todo}):
@@ -223,8 +234,12 @@ def main():
         for iid, y in filt.items():
             ramp = np.minimum(1, np.minimum(np.arange(len(y)), np.arange(len(y))[::-1]) / (0.05 * sr))
             y = np.clip(y * ramp * (0.08 * 32767 / ref), -32767, 32767)[::step].astype(np.int16)
-            open(os.path.join(dest, "clips", iid + ".bin"), "wb").write(seal(aes, wav_bytes(y, sr // step)))
+            write_sealed(aes, os.path.join(dest, "clips", iid + ".bin"), wav_bytes(y, sr // step))
             man_clips.append([iid, pcode[sid]])
+    keep = {c[0] + ".bin" for c in man_clips}
+    for f in os.listdir(os.path.join(dest, "clips")):        # drop clips of calls no longer in the site
+        if f not in keep:
+            os.remove(os.path.join(dest, "clips", f))
     json.dump(dict(v=1, items=man_items, clips=man_clips), open(os.path.join(dest, "manifest.json"), "w"), separators=(",", ":"))
     for f in ("index.html", "app.js", "guide.html", "Code.gs", "README.md") + (() if a.final else ("test.html",)):
         shutil.copyfile(os.path.join(WEB, f), os.path.join(dest, f))
