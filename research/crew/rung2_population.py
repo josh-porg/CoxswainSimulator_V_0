@@ -74,10 +74,11 @@ BEND_DYNAMICS = None
 #: how the population's muscle force is handed to an athlete through the drive (SOURCES §225): "progress" -- at the same
 #: fraction of the oar's arc (as built); "time" -- at the same fraction of the drive's duration (a muscle's activation
 #: is timed, not placed); "split" -- the athlete's own body part (its measured timing is an input) plus the population's
-#: handle part, scaled. The recovery is by cycle phase either way.
-Q_MAP = "progress"
-#: the arc fraction past the catch before the "stopped driving" release may act (DynamicOarSimulator release_after)
-RELEASE_AFTER = None
+#: handle part, scaled. The recovery is by cycle phase either way. Default "split" since §227 (user decision 2026-11-08).
+Q_MAP = "split"
+#: the arc fraction past the catch before the "stopped driving" release may act (DynamicOarSimulator release_after).
+#: Default 0.5 since §227 (user decision 2026-11-08); 0 restores the release anywhere in the drive (§226's bug).
+RELEASE_AFTER = 0.5
 #: the population's drive fraction, set by population_tables
 POP = {}
 
@@ -93,7 +94,7 @@ def blade_options(boat):
         opts["oar_bending"] = OarBending.laschowski2014_scull(float(oar.blade_centre_outboard), float(oar.blade_length))
         if BEND_DYNAMICS is not None:                            # the bend as a dynamic state (SOURCES §224)
             opts["bend_dynamics"] = BEND_DYNAMICS
-    if RELEASE_AFTER is not None:
+    if RELEASE_AFTER:                                            # 0 / None: the release anywhere (the old rule)
         opts["release_after"] = RELEASE_AFTER
     if ADDED_MASS != "none":
         opts["blade_added_mass"] = ADDED_MASS
@@ -331,6 +332,7 @@ def solved_clock(name, strokes, tables, p_pop):
 
 
 def main():
+    global FV, HOLD, HOLD_OWN, ADDED_MASS, BEND_DYNAMICS, Q_MAP, RELEASE_AFTER
     ap = argparse.ArgumentParser()
     ap.add_argument("--strokes", type=int, default=10)
     ap.add_argument("--athletes", nargs="+", default=["cr06", "br24"])
@@ -368,15 +370,16 @@ def main():
                     help="the shaft's structural damping ratio for --bend-dynamics (default BendDynamics')")
     ap.add_argument("--dt", type=float, default=None,
                     help="fixed integration step, s (default: integrators.estimate_step): a convergence test")
-    ap.add_argument("--release-after", type=float, default=None,
-                    help="the arc fraction past the catch before the stopped-driving release may act (§226)")
-    ap.add_argument("--q-map", default="progress", choices=["progress", "time", "split"],
-                    help="hand the population's muscle force over by drive progress (as built) or drive time (§225)")
+    ap.add_argument("--release-after", type=float, default=RELEASE_AFTER,
+                    help="the arc fraction past the catch before the stopped-driving release may act (§226; default "
+                         "0.5 since §227; 0 = anywhere, the old rule)")
+    ap.add_argument("--q-map", default=Q_MAP, choices=["progress", "time", "split"],
+                    help="hand the population's muscle force over by drive progress (as built), drive time, or the "
+                         "athlete's own body part plus the population's handle part (§225; default split since §227)")
     a = ap.parse_args()
     if a.dt:
         import coxswain.core.integrators as I
         I.estimate_step = lambda *args, **kw: float(a.dt)
-    global FV, HOLD, HOLD_OWN, ADDED_MASS, BEND_DYNAMICS, Q_MAP, RELEASE_AFTER
     Q_MAP = a.q_map
     RELEASE_AFTER = a.release_after
     HOLD = float(a.hold)
@@ -422,8 +425,8 @@ def main():
                                                             + ("" if a.added_mass == "none" else "_am" + a.added_mass)
                                                             + ("_benddyn%g" % BEND_DYNAMICS.damping_ratio if BEND_DYNAMICS is not None else "")
                                                             + ("_dt%g" % a.dt if a.dt else "")
-                                                            + ("" if a.q_map == "progress" else "_qmap" + a.q_map)
-                                                            + ("_release%g" % a.release_after if a.release_after is not None else "")
+                                                            # always named: the defaults moved in §227 (S4)
+                                                            + "_qmap" + a.q_map + "_release%g" % a.release_after
                                                             + ("" if a.athletes == ["cr06", "br24"] else "_" + "_".join(a.athletes)))), "w"), indent=1, default=float)
 
 

@@ -1314,6 +1314,15 @@ the boat speeds that go with their drive durations).
   points of both athletes; the dynamic shaft is 4–6 high, not because of the added mass's size.
   - *Next:* how much of the blade's water inertia a flexible oar passes to the hull (rigid: it smooths IVV by ~2
     points; through the spring it does not); [BR24]'s low handle power on the rigid added-mass path.
+- **§227 (2026-11-08): the rigid oar's match was an artefact; two bent-blade bugs fixed.** Rung 2 defaults to the split
+  hand-over and the second-half release. Against [BR24]'s measured handle force the rigid oar + added mass spikes at the
+  catch and goes negative mid-drive (the blade's water locked to the hands, ~67 kg at the handle), which is where its
+  low IVV and low power come from. The dynamic shaft's release and catch read the gate's track, not the bent blade's
+  (a driving blade pulled at −8°), and its loads pointed along the straight oar; one `_blade_track` now feeds every
+  reader. Fixed: [BR24]'s force centre 0.49 against 0.49, power 419 W against 432, IVV 52.5 % (was 55.0), [CR06] 53.1 %;
+  converged at half the step.
+  - *Next:* the flexible shaft's early-drive force (87 / 162 N at 10 / 20 % against 133 / 222), the remaining 3–4 IVV
+    points; [BR24]'s 3.9 % excess speed at his power (drag or blade efficiency).
 
 ## Calibration and validation data from the squad's own boats (noted 2026-10-08)
 

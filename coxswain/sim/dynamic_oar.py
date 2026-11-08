@@ -667,15 +667,20 @@ class DynamicOarSimulator(RowingSimulator):
         """
         return self._blade_loads_arm(slot, angle, rate, state, lock)[:2]
 
+    def _blade_track(self, slot, angle, rate):
+        """``(angle, rate)`` of the blade itself: the gate's, plus the shaft's bend ``phi`` and the hinge's rate
+        ``(e / l) phi_dot`` when the oar bends. The one place the bent blade's track is formed (SOURCES §227: the
+        release test and the load's direction read the gate's while the loads read the blade's)."""
+        if self.oar_bending is None:
+            return float(angle), float(rate)
+        return (float(angle) + float(self._bend[slot]),
+                float(rate) + float(self._bend_lever[slot] * self._bend_rate[slot]))
+
     def _blade_loads_arm(self, slot, angle, rate, state, lock):
         """``(F_n, F_t, arm)`` with the shaft's bending, if any: the blade at ``angle + phi``, its slip at the
         centre carrying the hinge's rate ``(l - h) phi_dot`` (exact at the centre; across strips, the rate is
         that of the centre's point, within ``h / l`` of each strip's own)."""
-        if self.oar_bending is None:
-            return self._blade_loads_arm_rigid(slot, angle, rate, state, lock)
-        return self._blade_loads_arm_rigid(slot, angle + float(self._bend[slot]),
-                                           rate + float(self._bend_lever[slot] * self._bend_rate[slot]),
-                                           state, lock)
+        return self._blade_loads_arm_rigid(slot, *self._blade_track(slot, angle, rate), state, lock)
 
     def _update_bending(self, y, step):
         """After a step: per oar, the hinge rate at which the shaft's spring balances the blade's moment about the
@@ -890,10 +895,13 @@ class DynamicOarSimulator(RowingSimulator):
                 continue                          # blade out: recovery
             if self._in_air is not None and self._in_air[slot]:
                 continue                          # on the sweep, blade out
+            # the load acts on the blade where it is: with bending, at the bent angle (the loads are computed there;
+            # pointing them along the straight oar's normal was SOURCES §227's bug -- the added mass already used it)
+            blade_angle = self._blade_track(slot, angle, rate)[0]
             for lock in self.boat.rig.seats[seat].oarlocks:
                 side = int(lock.side)
-                normal = np.array([np.cos(angle), -side * np.sin(angle), 0.0])
-                axis = np.array([np.sin(angle), side * np.cos(angle), 0.0])
+                normal = np.array([np.cos(blade_angle), -side * np.sin(blade_angle), 0.0])
+                axis = np.array([np.sin(blade_angle), side * np.cos(blade_angle), 0.0])
                 # One path for every blade option (SOURCES §193, STRUCTURAL_ISSUES S1): a special case for the
                 # plain slip law used to skip _blade_loads_arm, so options added later (bending) were ignored.
                 f_n, f_t, arm = self._blade_loads_arm(slot, angle, rate, state, lock)
@@ -1164,6 +1172,8 @@ class DynamicOarSimulator(RowingSimulator):
             step = min(dt, t_end - t)
             y = integrators.rk4_step(self.derivative, t, y, step)
             t += step
+            if self.bend_dynamics is not None:                     # the release reads the bent blade (§227)
+                self._bend[:], self._bend_rate[:] = self._bend_states(y)
             if handle:
                 # the constraint, exactly: every oar on the sweep, every step
                 angle, rate = self._sweep_pose(t - self._stroke_start)
@@ -1173,7 +1183,9 @@ class DynamicOarSimulator(RowingSimulator):
                 # braking while the hands slow into the finish; the consistent rule is
                 # [CR06]'s, and the blade stays out for the rest of the stroke.
                 state_now = State.from_vector(y[:STATE_SIZE])
-                driving = np.array([self._normal_velocity(k, angle, rate, state_now) < 0.0
+                # the blade's own velocity through the water: with bending the bent blade's, which still drives while
+                # the gate's track has stopped (reading the gate pulled a loaded blade out mid-drive: SOURCES §227)
+                driving = np.array([self._normal_velocity(k, *self._blade_track(k, angle, rate), state_now) < 0.0
                                     for k in range(n)])
                 # [CR06]'s release, eq. 16 again: once the blade stops driving it is out -- with ``release_after``,
                 # only once the oar is that fraction of its arc past the catch (extraction is the finish's act; a
@@ -1192,7 +1204,7 @@ class DynamicOarSimulator(RowingSimulator):
                 for slot in np.flatnonzero(waiting):
                     y[STATE_SIZE + slot] = angle
                     y[STATE_SIZE + n + slot] = rate
-                    if self._normal_velocity(slot, angle, rate, state) <= 0.0:
+                    if self._normal_velocity(slot, *self._blade_track(slot, angle, rate), state) <= 0.0:
                         self._in_air[slot] = False
                         self._entry_angle[slot] = float(angle)
                         self.entries.append((int(slot), float(t),
@@ -1461,8 +1473,7 @@ class DynamicOarSimulator(RowingSimulator):
         row = 6 + n + slot
         arm, e, k_h, c_h, m_dry = self._bend_constants(slot)
         phi, phid = float(self._bend[slot]), float(self._bend_rate[slot])
-        lever = float(self._bend_lever[slot])
-        angle_b, rate_b = angle + phi, rate + lever * phid
+        angle_b, rate_b = self._blade_track(slot, angle, rate)
         for lock in self.boat.rig.seats[seat].oarlocks:
             system[row, row] += m_dry * e * e
             rhs[row] -= m_dry * e * arm * float(known) + k_h * phi + c_h * phid

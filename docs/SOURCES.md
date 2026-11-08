@@ -15319,3 +15319,64 @@ rung 2 `--release-after 0.5`). A rigid run with no early release is unchanged to
   question on the added-mass path to check.
 - Not closed by fitting: the shaft (two measurements), the added mass (two sources) and the muscles (population, F–V
   measured) are all sourced; the split hand-over and the release rule are structural.
+
+## 227. Why the rigid oar looked better: its handle force is not a rower's; two bent-blade bugs fixed (2026-11-08)
+
+The user: "lets make the strucutral fixes but also lets see if we can find the remaining bug that makes the rigid oar
+better".
+
+**1. Defaults.** Rung 2 (`research/crew/rung2_population.py`) now defaults to `--q-map split` and `--release-after 0.5`
+(user decision); `--release-after 0` restores the old rule. Output names always carry both (S4). The simulator's own
+`release_after` stays None (nothing shipped moves).
+
+**2. The diagnosis** (`research/blade/flex_gap_diagnosis.py`: one athlete, rigid + Patton then dynamic shaft + Patton,
+same settings; `data/local/validation/flex_gap_*.log`). Handle force per oar from the catch to the release against
+[BR24]'s measured cycle (`biorow/M1x_R32.csv`, H1/H2), at fractions of that time:
+
+| [BR24] | span | F at 10 / 20 / 30 / 50 / 70 / 90 % (N) | peak | force centre | power | IVV |
+|---|---|---|---|---|---|---|
+| measured | 0.889 s | 133 / 222 / 283 / 398 / 367 / 73 | 424 N at 0.58 | 0.49 | 432 W | 49.1 % |
+| rigid + Patton | 0.731 s | 281 / 253 / 74 / **−91** / 53 / **−71** | 479 N **at the catch** | 0.24 | 299 W | 46.9 % |
+| dynamic shaft, before | 0.613 s | 43 / 71 / 110 / 339 / 444 / 403 | 456 N at 0.79 | 0.65 | 380 W | 55.0 % |
+| **dynamic shaft, fixed** | 0.813 s | 87 / 162 / 321 / 458 / 366 / −16 | 460 N at 0.48 | **0.49** | **419 W** | 52.5 % |
+
+- **The rigid oar's match is an artefact.** A rigid oar locks the blade's 13 kg of water, ~2 m out, to the hands: about
+  m (l / l_in)² ≈ 67 kg at the handle. Rung 2's clock swings it like a flywheel — a spike at the catch, then the water
+  pushing the handle back as it slows (negative force mid-drive). The clock solve is implicit in τ'' (affine, solved at
+  τ'' = 0 and 1), so this is the rigid model's physics, not a coupling lag. The low IVV and the low power (299 W against
+  432) are the same artefact. [CR06]'s rigid curve spikes at the catch too (483 N at 2 % of the drive; centre 0.31).
+- **Bug 1, the release read the gate.** The handle crew's stopped-driving release and the catch entry tested the *gate's*
+  normal velocity. With a bent blade lagging the gate, the gate's track stopped "driving" while the blade still drove:
+  [BR24]'s blade came out at −8° (finish −36°) moving through the water at −1.2 m/s, with 54 % of its peak bend and 13 J
+  in the spring; [CR06]'s at −30° (finish −44°), at −0.49 m/s.
+- **Bug 2, the load's direction.** `_oar_loads` computed the loads on the bent blade but applied them along the
+  *straight* oar's normal and shaft; the added-mass terms already used the bent normal. A cos φ effect, not separately
+  measured.
+- **Fix (one path, STRUCTURAL_ISSUES S1 (4)).** `DynamicOarSimulator._blade_track(slot, angle, rate)` forms the bent
+  blade's angle and rate in one place; the loads, their direction, the added-mass rows, the release and the entry all read
+  it. With bend dynamics the bend is read from the step's state before the release test. Rigid oars are unchanged
+  (`_blade_track` returns the gate; the rigid rung-2 rows reproduce §226 exactly). Tests:
+  `test_bend_dynamics.py::test_the_blade_track_is_the_gate_plus_the_bend`,
+  `::test_a_bent_blades_load_points_along_the_bent_blades_normal` (fails on the old code); 31 related tests pass.
+
+**3. Rung 2 now** (defaults: split, release after half the arc; own body, on-water F–V on own pace, Patton;
+`crew/logs/rung2_ownbody_benddyn_ampatton_split_release0.5*_s227.log`):
+
+| | [CR06] | [BR24] |
+|---|---|---|
+| measured | 4.191 m/s, IVV 49.4 %, 261 W | 4.641, 49.1 %, 432 W |
+| rigid + Patton | 4.183, 50.5 %, 245 W | 4.684, 46.9 %, 299 W (handle force not a rower's) |
+| dynamic shaft + Patton, §226 | 4.249, 53.6 %, 258 W | 4.801, 55.0 %, 380 W |
+| **dynamic shaft + Patton, fixed** | **4.214, 53.1 %, 259 W** | **4.822, 52.5 %, 419 W** (oar track rms 0.014) |
+| same at 3.125 ms | 4.219, 52.7 % | 4.840, 52.2 % (converged) |
+
+- [BR24]'s force curve now has his shape (centre 0.49 against 0.49, peak at 0.48 against 0.58) and his power to 3 %.
+  His IVV gap falls from 5.9 to 3.4 points; [CR06]'s from 4.2 to 3.7.
+- **What is left.** The flexible shaft's force still starts low: [BR24] 87 / 162 N at 10 / 20 % of the drive against 133 /
+  222, and peaks higher (458 against 398 mid-drive). A late-loaded drive lets the boat slow more after the catch and
+  peak higher, which is the remaining IVV. [BR24] also runs 3.9 % fast at 3 % less power: ~12 % less power than
+  measured for his speed (drag or blade efficiency, not the shaft).
+- At the release the shaft has sprung forward (−3 to −6°, 1–2 % of the handle work left in it) — the bent blade, now the
+  one tested, is what stops driving.
+- The dry blade's 0.3 kg is still left out of the hull rows (it moves with the hull there); beside 13 kg of water it is
+  small and is noted, not fixed.
