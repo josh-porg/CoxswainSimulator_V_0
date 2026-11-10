@@ -1323,6 +1323,14 @@ the boat speeds that go with their drive durations).
   converged at half the step.
   - *Next:* the flexible shaft's early-drive force (87 / 162 N at 10 / 20 % against 133 / 222), the remaining 3–4 IVV
     points; [BR24]'s 3.9 % excess speed at his power (drag or blade efficiency).
+- **§228 (2026-11-09): the validation ladder** (docs/VALIDATION_LADDER.md; `research/validation/ladder.py`). 21 of 23
+  pass for the flexible shaft with the blade's water at κ 0.1 (the tank trial rejects the full added mass; §224's 1 Hz
+  mode withdrawn); D2 fails, IVV +4.4 / +4.1 points. Bugs fixed: the own body under the profile's trunk clock (§213;
+  `BodyOptions.measured`), a bent blade's wetting on the blade's angle. [BR24]'s speed is now +2.8 %.
+  - *Next:* the catch's build-up — a quasi-steady blade on the measured shaft loads too slowly in the first ~0.15 s
+    ([BR24] 65 N at 10 % of the drive against 133; [CR06] 48 against 99 in her first 10°; the blade review's first
+    fifths 0.44 / 0.51). Candidates: an unsteady (entrainment) term with a source at catch accelerations ([G19] stops
+    at 1.6 m/s²), or the blade's vertical entry loading the shaft before the slip does. Then the whole ladder again.
 
 ## Calibration and validation data from the squad's own boats (noted 2026-10-08)
 

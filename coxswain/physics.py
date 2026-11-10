@@ -438,7 +438,7 @@ def merged_body(body, names):
     import dataclasses
     from .crew.body_options import CLOCKS, DEFAULT_BODY
     body = body or DEFAULT_BODY
-    have = {c.joint for c in body.clocks}
+    have = {c.joint for c in body.clocks} | set(body.measured)      # measured joints take no clock (§228)
     extra = tuple(c for c in (CLOCKS[n]() for n in names) if c.joint not in have)
     return body if not extra else dataclasses.replace(body, clocks=body.clocks + extra)
 

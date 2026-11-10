@@ -201,32 +201,41 @@ class BodyOptions:
     clocks: tuple = ()
     reach_allowance: float = None
     travel: SegmentTravel = None
+    #: joints an athlete's *measured* channels time (a study warps the keyframes onto them): no clock is added for
+    #: them, the profile's included -- a measured time law outranks a population's, as an explicit clock does
+    #: (``physics.merged_body``). Without it the research profile's trunk clock stayed under an athlete's own back
+    #: channel: two trunk time laws in one body (SOURCES §228).
+    measured: tuple = ()
 
     def __post_init__(self):
         joints = [c.joint for c in self.clocks]
         if len(set(joints)) != len(joints):
             raise ValueError("one clock per joint")
+        if set(joints) & set(self.measured):
+            raise ValueError("a joint is clocked or measured, not both: %s" % sorted(set(joints) & set(self.measured)))
+        if any(j not in CLOCKED_JOINTS for j in self.measured):
+            raise ValueError("measured joints are among %s, got %r" % (CLOCKED_JOINTS, self.measured))
         if self.reach_allowance is not None and not self.reach_allowance >= 0.0:
             raise ValueError("the reach allowance is a distance, >= 0")
 
     @property
     def is_default(self) -> bool:
-        return not self.clocks and self.reach_allowance is None and self.travel is None
+        return not self.clocks and self.reach_allowance is None and self.travel is None and not self.measured
 
     def clock_for(self, joint):
         return next((c for c in self.clocks if c.joint == joint), None)
 
     def signature(self) -> tuple:
         return (tuple(c.signature() for c in self.clocks), self.reach_allowance,
-                None if self.travel is None else self.travel.signature())
+                None if self.travel is None else self.travel.signature(), tuple(self.measured))
 
 
 DEFAULT_BODY = BodyOptions()
 
 
-def body_options(clocks=(), reach_allowance=None, travel=None) -> BodyOptions:
+def body_options(clocks=(), reach_allowance=None, travel=None, measured=()) -> BodyOptions:
     """``BodyOptions`` from clock and travel names (``CLOCKS``, ``TRAVELS``) or objects."""
     built = tuple(CLOCKS[c]() if isinstance(c, str) else c for c in clocks)
     if isinstance(travel, str):
         travel = TRAVELS[travel]()
-    return BodyOptions(clocks=built, reach_allowance=reach_allowance, travel=travel)
+    return BodyOptions(clocks=built, reach_allowance=reach_allowance, travel=travel, measured=tuple(measured))

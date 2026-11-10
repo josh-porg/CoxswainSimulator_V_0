@@ -79,6 +79,9 @@ Q_MAP = "split"
 #: the arc fraction past the catch before the "stopped driving" release may act (DynamicOarSimulator release_after).
 #: Default 0.5 since §227 (user decision 2026-11-08); 0 restores the release anywhere in the drive (§226's bug).
 RELEASE_AFTER = 0.5
+#: the blade's water at the surface as a fraction of Patton's unbounded value (EntryImmersion.surface_factor), with the
+#: blade wetting over BioRow's 4 deg; None: no immersion on the buried catch, the whole added mass (as before §228)
+SURFACE_FACTOR = None
 #: the population's drive fraction, set by population_tables
 POP = {}
 
@@ -114,19 +117,39 @@ def _blade_law_options(boat):
                              density=rho, normal_from=cf, tangential_from=cf,
                              tangential_scale=H10_TANGENTIAL if BLADE == "crossflow_h10" else 0.0)
     opts = dict(blade_law="liftdrag", liftdrag_blade=blade, blade_span=float(oar.blade_length))
-    if C2.TAKEOVER_DEG == "entry":                               # the load ramps in over the placement (SOURCES sec. 173)
+    if C2.TAKEOVER_DEG == "entry" or SURFACE_FACTOR is not None:
+        # the load ramps in over the placement and the blade's water follows the wetted blade, kappa x Patton
+        # (SOURCES sec. 173; kappa < 0.1 from the population force curves, and [RLBQV19]'s bend, §228)
         from coxswain.crew.blade_immersion import EntryImmersion
-        opts["blade_immersion"] = EntryImmersion()
+        opts["blade_immersion"] = EntryImmersion(surface_factor=1.0 if SURFACE_FACTOR is None else SURFACE_FACTOR)
     return opts
 
 
 BODY = "model"
 
 
+#: the joints an athlete's own leg and back channels time (coxswain.crew.body_options.CLOCKED_JOINTS)
+OWN_BODY_JOINTS = ("shank", "thigh", "trunk")
+
+
+def athlete_boat(name, m):
+    """The athlete's boat; with their own body (``BODY == "own"``) built with no population clock on the joints their
+    channels time (``own_joints``; SOURCES §228), as their boat was before the research profile's trunk clock."""
+    return C2.R.boat_for(name, m, "on-water", drive_law=True, own_joints=OWN_BODY_JOINTS if BODY == "own" else ())
+
+
 def own_body(name, boat):
     """The athlete's own measured leg and back time-laws on the model's postures (a diagnostic input, not a fit):
     [BR24] research/biorow/measured_body.py (seat Ls, trunk Lt, his back travel); [CR06]
-    research/cr06/self_consistent_body_cr06.py (leg and back channels, her back travel 0.398 / 0.513)."""
+    research/cr06/self_consistent_body_cr06.py (leg and back channels, her back travel 0.398 / 0.513).
+
+    The channels time the legs and the trunk, so ``boat`` must carry no population clock on those joints (build it
+    with ``own_joints=OWN_BODY_JOINTS``): the research profile's trunk clock (§213) had stayed in the posture base the
+    channels are warped onto -- two trunk time laws in one body, +1.7 / +0.4 IVV points (SOURCES §228)."""
+    clocked = {c.joint for mbr in boat.crew for c in (mbr.rower.body.clocks if mbr.rower.body is not None else ())}
+    if clocked & set(OWN_BODY_JOINTS):
+        raise ValueError("own body on a boat whose %s carry a population clock: build it with own_joints "
+                         "(athlete_boat; SOURCES §228)" % sorted(clocked & set(OWN_BODY_JOINTS)))
     if name == "br24":
         import measured_body as MBd
         return MBd.body_field(boat, True)[0]
@@ -223,7 +246,7 @@ def athlete(name, strokes, s_pop, q_drive, ph, q, p_pop):
     m = V.ATHLETES[name][0]()
     ht, hs, ha = measured_track(name)
     out = dict(measured=dict(speed=m["speed"], ivv=m["ivv"], power=m["power"]))
-    base_boat = C2.R.boat_for(name, m, "on-water", drive_law=True)
+    base_boat = athlete_boat(name, m)
     body = own_body(name, base_boat) if BODY == "own" else None
     base = make(base_boat, "reference", body=body)
     run_b = base.run_strokes(strokes, surge_speed=4.3)
@@ -252,7 +275,7 @@ def athlete(name, strokes, s_pop, q_drive, ph, q, p_pop):
             return k * float(np.interp(float(progress_of(base_boat, tau)[0]), s_pop, q_drive))
         return k * float(np.interp(np.mod(tau / P, 1.0), ph, q, period=1.0))
 
-    free_boat = C2.R.boat_for(name, m, "on-water", drive_law=True)
+    free_boat = athlete_boat(name, m)
     free = make(free_boat, "free", Q=Q, body=own_body(name, free_boat) if BODY == "own" else None)
     free.start_state = np.concatenate([run_b.last_states[:, -1], [P, 1.0]])
     run_f = free.run_strokes(strokes, surge_speed=4.3)
@@ -263,8 +286,13 @@ def athlete(name, strokes, s_pop, q_drive, ph, q, p_pop):
     ang_f = compare(tt, aa, ht, ha) if name == "cr06" else (float("nan"), float("nan"))
     tl = np.array(free.tlog); last = tl[tl[:, 0] >= float(run_f.last_time[0])]
     over = sum(1 for r in free.rlog if r[4] != "ok")
+    import handle_force_shape as HFS                             # the drive's force shape (§227; the validation ladder)
     out["rung2"] = dict(s_f, progress_rms=prog_f[0], progress_max=prog_f[1], angle_rms=ang_f[0], angle_max=ang_f[1],
                         scale=k, overruns=over, tau_dot_last=[float(last[:, 2].min()), float(last[:, 2].max())],
+                        force_shape=HFS.shape(*HFS.model_stroke(free, run_f)),
+                        speed_trace=dict(t=(run_f.last_time - run_f.last_time[0]).tolist(),
+                                         v=run_f.last_states[6].tolist(),
+                                         air=np.asarray(free._air_mask[0], dtype=bool).tolist()),
                         trace=dict(t=(last[:, 0] - float(run_f.last_time[0])).tolist(), tau_dot=last[:, 2].tolist()))
     for lab, s, pr, an in (("rung 1, population law imposed", s_b, prog_b, ang_b),
                            ("rung 2, population muscles x %.3f" % k, s_f, prog_f, ang_f)):
@@ -332,7 +360,7 @@ def solved_clock(name, strokes, tables, p_pop):
 
 
 def main():
-    global FV, HOLD, HOLD_OWN, ADDED_MASS, BEND_DYNAMICS, Q_MAP, RELEASE_AFTER
+    global FV, HOLD, HOLD_OWN, ADDED_MASS, BEND_DYNAMICS, Q_MAP, RELEASE_AFTER, SURFACE_FACTOR
     ap = argparse.ArgumentParser()
     ap.add_argument("--strokes", type=int, default=10)
     ap.add_argument("--athletes", nargs="+", default=["cr06", "br24"])
@@ -373,6 +401,8 @@ def main():
     ap.add_argument("--release-after", type=float, default=RELEASE_AFTER,
                     help="the arc fraction past the catch before the stopped-driving release may act (§226; default "
                          "0.5 since §227; 0 = anywhere, the old rule)")
+    ap.add_argument("--surface-factor", type=float, default=None,
+                    help="the blade wets over 4 deg and carries kappa x Patton of water (§173; §228)")
     ap.add_argument("--q-map", default=Q_MAP, choices=["progress", "time", "split"],
                     help="hand the population's muscle force over by drive progress (as built), drive time, or the "
                          "athlete's own body part plus the population's handle part (§225; default split since §227)")
@@ -382,6 +412,7 @@ def main():
         I.estimate_step = lambda *args, **kw: float(a.dt)
     Q_MAP = a.q_map
     RELEASE_AFTER = a.release_after
+    SURFACE_FACTOR = a.surface_factor
     HOLD = float(a.hold)
     HOLD_OWN = bool(a.hold_own)
     ADDED_MASS = a.added_mass
@@ -427,6 +458,7 @@ def main():
                                                             + ("_dt%g" % a.dt if a.dt else "")
                                                             # always named: the defaults moved in §227 (S4)
                                                             + "_qmap" + a.q_map + "_release%g" % a.release_after
+                                                            + ("_kappa%g" % a.surface_factor if a.surface_factor is not None else "")
                                                             + ("" if a.athletes == ["cr06", "br24"] else "_" + "_".join(a.athletes)))), "w"), indent=1, default=float)
 
 

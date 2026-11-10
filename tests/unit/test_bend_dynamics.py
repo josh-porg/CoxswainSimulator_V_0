@@ -91,6 +91,28 @@ def test_a_bent_blades_load_points_along_the_bent_blades_normal():
     assert force == pytest.approx(expect, rel=1e-12, abs=1e-9)
 
 
+def test_a_bent_blades_wetting_is_read_at_the_gate():
+    """The loads are the bent blade's, but how wet it is follows the gate's travel since entry, as BioRow measure it
+    (SOURCES §228: the bent blade lags the gate early in the drive, so reading its own angle buried it too slowly)."""
+    from coxswain.core.state import STATE_SIZE, State
+    from coxswain.crew.blade_immersion import EntryImmersion
+    boat = physics.resolve("research").apply(catalog.single_scull(rate=30.0))
+    boat.power_scales = np.ones(boat.n_seats)
+    sim = DynamicOarSimulator(boat, peak_torque=0.0, catch="sweep", crew="handle", blade_law="liftdrag",
+                              blade_added_mass="patton", oar_bending=_scull_law(), bend_dynamics=BendDynamics(),
+                              blade_immersion=EntryImmersion(surface_factor=0.1),
+                              coxswain=Coxswain(rudder_override=lambda t, s: 0.0), fast=True)
+    state = State.from_vector(sim.augmented_initial_state(4.2)[:STATE_SIZE])
+    seen = []
+    real = sim._wetted
+    sim._wetted = lambda slot, angle: (seen.append(angle), real(slot, angle))[1]
+    sim._entry_angle = np.array([0.9])
+    sim._bend[:], sim._bend_rate[:] = 0.05, 0.0
+    lock = sim.boat.rig.seats[sim._seats[0]].oarlocks[0]
+    sim._blade_loads_arm(0, 0.85, -2.0, state, lock)
+    assert seen and all(a == pytest.approx(0.85) for a in seen)
+
+
 @pytest.mark.slow
 def test_release_after_leaves_a_run_without_an_early_release_unchanged():
     """``release_after`` only stops the stopped-driving release acting near the catch (SOURCES §226); a rigid run whose

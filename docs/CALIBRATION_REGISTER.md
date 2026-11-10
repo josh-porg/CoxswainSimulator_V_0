@@ -34,6 +34,12 @@ for race pace; fin depth 0.300 m (from a photograph); blade areas 0.110 / 0.083 
 bands. A chosen value becomes a fit the moment it is adjusted to make an output match data; it then moves to the table
 above.
 
+**Blade water at the surface κ = 0.1 of Patton's** (rung 2 `--surface-factor 0.1`, `EntryImmersion.surface_factor`;
+SOURCES §228): chosen at the bound §173 set from the population force curves (κ < 0.1, rigid oar), and confirmed, not
+fitted, by [RLBQV19]'s measured bend on the dynamic shaft (κ 0.1: rms 1.19°; 0.5: 2.20°; 1: 3.62°). Not adjusted to
+either athlete. Re-check if a source measures a surface-piercing blade's added mass, or if the catch's build-up
+(§228 section 5) is modelled — an entrainment term would share this budget. The bench bounds it below ~0.25.
+
 ## Study-only calibrations (enter no profile)
 
 | value | where | fitted to | note |

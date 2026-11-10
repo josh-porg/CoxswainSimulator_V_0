@@ -679,8 +679,10 @@ class DynamicOarSimulator(RowingSimulator):
     def _blade_loads_arm(self, slot, angle, rate, state, lock):
         """``(F_n, F_t, arm)`` with the shaft's bending, if any: the blade at ``angle + phi``, its slip at the
         centre carrying the hinge's rate ``(l - h) phi_dot`` (exact at the centre; across strips, the rate is
-        that of the centre's point, within ``h / l`` of each strip's own)."""
-        return self._blade_loads_arm_rigid(slot, *self._blade_track(slot, angle, rate), state, lock)
+        that of the centre's point, within ``h / l`` of each strip's own). The wetting and depth laws read the
+        gate's travel, as they are defined (SOURCES §228)."""
+        return self._blade_loads_arm_rigid(slot, *self._blade_track(slot, angle, rate), state, lock,
+                                           gate=(angle, rate))
 
     def _update_bending(self, y, step):
         """After a step: per oar, the hinge rate at which the shaft's spring balances the blade's moment about the
@@ -705,7 +707,7 @@ class DynamicOarSimulator(RowingSimulator):
 
             def g(pd):
                 f_n, _f_t, arm = self._blade_loads_arm_rigid(
-                    slot, angle + phi + step * pd, rate + self._bend_lever[slot] * pd, state, lock)
+                    slot, angle + phi + step * pd, rate + self._bend_lever[slot] * pd, state, lock, gate=(angle, rate))
                 return k * (phi + step * pd) - arm * f_n
 
             lo, hi = -phi / step - 60.0, 60.0
@@ -719,15 +721,22 @@ class DynamicOarSimulator(RowingSimulator):
             self._bend_rate[slot] = pd
             self._bend[slot] = phi + step * pd
 
-    def _blade_loads_arm_rigid(self, slot, angle, rate, state, lock):
+    def _blade_loads_arm_rigid(self, slot, angle, rate, state, lock, gate=None):
         """``(F_n, F_t, arm)``: the loads and the radius the normal load acts at.
 
         ``arm`` is the blade centre unless :attr:`blade_span` integrates the
-        law across the span, when it is the centre of pressure.
+        law across the span, when it is the centre of pressure. ``angle`` and
+        ``rate`` are the blade's own (the hydrodynamics); ``gate``, the gate's
+        ``(angle, rate)`` when they differ (a bent shaft), is what the wetting
+        and depth laws read: BioRow's "4 deg of oar movement" to bury the blade
+        and Grift's depth by drive progress are measured at the gate. Reading
+        them on the bent blade, which lags the gate early in the drive, buried
+        it too slowly (SOURCES §228; STRUCTURAL_ISSUES S12).
         """
         arm = float(self._oars[slot].outboard)
         if self.blade_span is not None:
-            return self._strip_loads(slot, angle, rate, state, lock)
+            return self._strip_loads(slot, angle, rate, state, lock, gate)
+        progress_angle = float(angle if gate is None else gate[0])
         if self.blade_law == "slip":
             speed = self._lock_speed_on_normal(state, lock, angle)
             blade = self._oars[slot].blade
@@ -745,14 +754,15 @@ class DynamicOarSimulator(RowingSimulator):
                     return 0.0, 0.0, arm          # not driving: out, [CR06]
             loads = blade.loads(angle, rate, velocity[:2], int(lock.side))
         if self.blade_depth is not None:
-            loads = tuple(f * self._depth_factor(slot, angle) for f in loads)
+            loads = tuple(f * self._depth_factor(slot, progress_angle) for f in loads)
         if self.blade_immersion is not None:
-            loads = tuple(f * self._wetted(slot, angle) for f in loads)
+            loads = tuple(f * self._wetted(slot, progress_angle) for f in loads)
         return tuple(loads) + (arm,)
 
-    def _strip_loads(self, slot, angle, rate, state, lock):
-        """The same law integrated across :attr:`blade_span`; release and depth as above."""
+    def _strip_loads(self, slot, angle, rate, state, lock, gate=None):
+        """The same law integrated across :attr:`blade_span`; release and depth as above (``gate`` likewise)."""
         from ..crew.blade_strips import liftdrag_strips, slip_strips
+        progress_angle = float(angle if gate is None else gate[0])
 
         centre = float(self._oars[slot].outboard)
         if self.blade_law == "slip":
@@ -774,10 +784,10 @@ class DynamicOarSimulator(RowingSimulator):
             f_n, f_t, arm = liftdrag_strips(blade, angle, rate, velocity[:2],
                                             int(lock.side), self.blade_span)
         if self.blade_depth is not None:
-            factor = self._depth_factor(slot, angle)
+            factor = self._depth_factor(slot, progress_angle)
             f_n, f_t = f_n * factor, f_t * factor
         if self.blade_immersion is not None:
-            factor = self._wetted(slot, angle)
+            factor = self._wetted(slot, progress_angle)
             f_n, f_t = f_n * factor, f_t * factor
         return float(f_n), float(f_t), float(arm)
 
@@ -1428,10 +1438,12 @@ class DynamicOarSimulator(RowingSimulator):
         return system, rhs
 
     def _blade_mass_terms(self, slot, lock, angle, rate, state, rot, omega_abs,
-                          omega_hull):
+                          omega_hull, gate=None):
         """``(m, l, g, c, w_n, h)`` for one blade: its normal acceleration is
-        ``g . X_h + l phi_ddot + c`` (see :meth:`_coupled_system`)."""
-        mass = self._blade_mass_now(slot, angle, rate)[0]
+        ``g . X_h + l phi_ddot + c`` (see :meth:`_coupled_system`). ``gate``:
+        the gate's ``(angle, rate)`` for the wetted mass when the blade's own
+        differs (a bent shaft; §228)."""
+        mass = self._blade_mass_now(slot, *((angle, rate) if gate is None else gate))[0]
         arm = float(self._oars[slot].outboard)
         side = int(lock.side)
         normal = np.array([np.cos(angle), -side * np.sin(angle), 0.0])
@@ -1479,10 +1491,11 @@ class DynamicOarSimulator(RowingSimulator):
             rhs[row] -= m_dry * e * arm * float(known) + k_h * phi + c_h * phid
             if not wet:
                 continue
+            # the blade's own track for the geometry and the loads, the gate's for how wet it is (§228)
             mass, _arm, g, c, w_n, h = self._blade_mass_terms(slot, lock, angle_b, rate_b, state, rot, omega_abs,
-                                                              omega_hull)
-            mdot = self._blade_mass_now(slot, angle_b, rate_b)[1]
-            f_n = float(self._blade_loads_arm_rigid(slot, angle_b, rate_b, state, lock)[0])
+                                                              omega_hull, gate=(angle, rate))
+            mdot = self._blade_mass_now(slot, angle, rate)[1]
+            f_n = float(self._blade_loads_arm_rigid(slot, angle_b, rate_b, state, lock, gate=(angle, rate))[0])
             system[:6, :6] += mass * np.outer(g, g)
             rhs[:6] -= mass * (c * g + w_n * h) + mdot * w_n * g + mass * arm * g * float(known)
             system[:6, row] += mass * e * g

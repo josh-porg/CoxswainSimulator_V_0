@@ -111,6 +111,7 @@ def main():
     ap.add_argument("--athlete", default="cr06", choices=["br24", "cr06"])
     ap.add_argument("--fv", type=float, default=4.53)
     ap.add_argument("--added-mass", default="patton", choices=["patton", "labbe"])
+    ap.add_argument("--surface-factor", type=float, default=None, help="kappa x the added mass, wetting over 4 deg (§228)")
     ap.add_argument("--strokes", type=int, default=10)
     ap.add_argument("--step", type=float, default=0.05)
     a = ap.parse_args()
@@ -120,7 +121,7 @@ def main():
     RP.HOLD, RP.HOLD_OWN = 0.0, True
     RP.BLADE, RP.BODY = "crossflow_normal", "own"
     RP.C2.TAKEOVER_DEG = RP.C2.BIOROW_CATCH_TO_BURIED_DEG
-    RP.ADDED_MASS, RP.Q_MAP, RP.RELEASE_AFTER = a.added_mass, "split", 0.5
+    RP.ADDED_MASS, RP.Q_MAP, RP.RELEASE_AFTER, RP.SURFACE_FACTOR = a.added_mass, "split", 0.5, a.surface_factor
     out = {}
     for label in ("rigid", "dynamic"):
         RP.BENDING = label == "dynamic"
@@ -152,7 +153,7 @@ def main():
         span, at, peak, when, centre = force_shape(t, f, wet)
         print("  %-9s | %5.3f | %s | %4.0f %4.2f | %4.2f" % (label, span, " ".join("%4.0f" % x for x in at), peak,
                                                              when, centre))
-    np.savez(os.path.join(ROOT, "data", "local", "validation", "flex_gap_%s.npz" % a.athlete),
+    np.savez(os.path.join(ROOT, "data", "local", "validation", "flex_gap_%s%s.npz" % (a.athlete, "" if a.surface_factor is None else "_kappa%g" % a.surface_factor)),
              **{label: tab for label, (_s, _r, tab, _res) in out.items()})
 
 

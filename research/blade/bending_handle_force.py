@@ -44,8 +44,11 @@ def measured_curve():
 
 def model_curve(bending, strokes):
     m = V.ATHLETES["cr06"][0]()
-    boat = RP.C2.R.boat_for("cr06", m, "on-water", drive_law=True)
-    boat.oar_bending = bending
+    boat = RP.C2.R.boat_for("cr06", m, "on-water", drive_law=True, own_joints=RP.OWN_BODY_JOINTS if OWN_BODY else ())
+    if RP.BEND_DYNAMICS is not None:                              # the dynamic shaft through rung 2's own options
+        RP.RIGID, RP.BENDING = bending is None, bending is not None
+    else:
+        boat.oar_bending = bending
     sim = RP.make(boat, "reference", body=RP.own_body("cr06", boat) if OWN_BODY else None)
     run = sim.run_strokes(strokes, surge_speed=4.3)
     t, y = run.last_time, run.last_states
@@ -84,7 +87,15 @@ def main():
                     help="segment clocks for the body (e.g. pitto2024_trunk k05_legs); default: the profile's own")
     ap.add_argument("--own-body", action="store_true",
                     help="her own measured leg and back timing (SOURCES §205), the IVV test's fair body")
+    ap.add_argument("--added-mass", default="none", choices=["none", "patton", "labbe"])
+    ap.add_argument("--surface-factor", type=float, default=None, help="kappa x the added mass, wetting over 4 deg")
+    ap.add_argument("--bend-dynamics", action="store_true", help="the dynamic shaft (BendDynamics; needs added mass)")
+    ap.add_argument("--json", default=None, help="write the rms, peak and angles here (the validation ladder)")
     args = ap.parse_args()
+    RP.ADDED_MASS, RP.SURFACE_FACTOR = args.added_mass, args.surface_factor
+    if args.bend_dynamics:
+        from coxswain.crew.oar_bending import BendDynamics
+        RP.BEND_DYNAMICS = BendDynamics()
     global OWN_BODY
     OWN_BODY = bool(args.own_body)
     if args.clocks is not None:
@@ -96,7 +107,7 @@ def main():
     rows = {}
     for label in ("rigid", "bending"):
         m = V.ATHLETES["cr06"][0]()
-        boat = RP.C2.R.boat_for("cr06", m, "on-water", drive_law=True)
+        boat = RP.C2.R.boat_for("cr06", m, "on-water", drive_law=True, own_joints=RP.OWN_BODY_JOINTS if OWN_BODY else ())
         oar = boat.rig.seats[0].oarlocks[0].oar
         from coxswain.crew.oar_bending import L14_MEDIUM_EI
         law = (OarBending.laschowski2014_scull(float(oar.blade_centre_outboard), float(oar.blade_length),
@@ -115,11 +126,19 @@ def main():
             b, mref[i], curves["rigid"][i], curves["bending"][i], ex["bending"][0, i], ex["bending"][1, i],
             ex["rigid"][2, i], ex["bending"][2, i]))
     peak = float(mref.max())
+    out = {}
     for lab, c in curves.items():
         s = rows[lab][2]
+        rms = float(np.sqrt(np.mean((c - mref) ** 2)))
+        out[lab] = dict(rms_N=rms, rms_frac=rms / peak, peak_at_deg=float(bins[int(np.argmax(c))]),
+                        measured_peak_at_deg=float(bins[int(np.argmax(mref))]), measured_peak_N=peak,
+                        speed=float(s["speed"]), ivv=float(s["ivv"]), power=float(s["power"]))
         print("%-8s rms %.0f N (%.1f%% of her peak %.0f N); peak at %.1f deg (hers %.1f); %.3f m/s, IVV %.1f%%, %.0f W"
-              % (lab, np.sqrt(np.mean((c - mref) ** 2)), 100 * np.sqrt(np.mean((c - mref) ** 2)) / peak, peak,
+              % (lab, rms, 100 * rms / peak, peak,
                  bins[int(np.argmax(c))], bins[int(np.argmax(mref))], s["speed"], 100 * s["ivv"], s["power"]))
+    if args.json:
+        import json
+        json.dump(out, open(args.json, "w"), indent=1)
 
 
 if __name__ == "__main__":

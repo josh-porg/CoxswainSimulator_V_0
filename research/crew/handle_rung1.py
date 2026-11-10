@@ -49,18 +49,19 @@ BODY_TRAVEL = None
 HAND_TERMS = ()
 
 
-def body_for(posture=None, clocks=None, terms=None, travel=None):
+def body_for(posture=None, clocks=None, terms=None, travel=None, measured=()):
     """``(BodyOptions or None, HandChain)`` for these switches: the clocks move the body; the chain's terms set the
-    kinematic rower's reach allowance so the boat's own elbow solve accepts the hand."""
+    kinematic rower's reach allowance so the boat's own elbow solve accepts the hand; ``measured`` names the joints an
+    athlete's own channels time, which take no population clock (SOURCES §228)."""
     from coxswain.crew.body_options import body_options
     from coxswain.crew.hand_chain import hand_chain
     clocks = BODY_CLOCKS if clocks is None else clocks
     travel = BODY_TRAVEL if travel is None else (travel or None)
     chain = hand_chain(HAND_TERMS if terms is None else terms)
     allowance = chain.reach_allowance() if (posture or CATCH_POSTURE) == "straight-arms" else None
-    if not clocks and allowance is None and not travel:
+    if not clocks and allowance is None and not travel and not measured:
         return None, chain
-    return body_options(clocks, allowance, travel or None), chain
+    return body_options(clocks, allowance, travel or None, measured), chain
 
 
 def _straight_arm_boat(build, base, chain):
@@ -95,15 +96,16 @@ def own_travel(name):
 
 
 def boat_for(name, measured, timing_kind, drive_law=False, catch_posture=None, clocks=None, terms=None,
-             travel=None):
-    """An athlete's boat. ``clocks`` / ``terms`` / ``travel`` override BODY_CLOCKS / HAND_TERMS / BODY_TRAVEL."""
+             travel=None, own_joints=()):
+    """An athlete's boat. ``clocks`` / ``terms`` / ``travel`` override BODY_CLOCKS / HAND_TERMS / BODY_TRAVEL;
+    ``own_joints``: the joints the athlete's own measured channels will time (no population clock on them, §228)."""
     posture = catch_posture or CATCH_POSTURE
     if posture == "straight-arms" and not drive_law:
         raise ValueError("the straight-arm catch couples the population drive law to the body: use drive_law=True")
     travel = BODY_TRAVEL if travel is None else travel
     if travel == "own":
         travel = own_travel(name)
-    body, chain = body_for(posture, clocks, terms, travel)
+    body, chain = body_for(posture, clocks, terms, travel, own_joints)
     if name == "br24":
         import like_for_like as L
         timing = OnWaterTiming(L.RATE) if timing_kind == "on-water" else StrokeTiming(L.RATE)

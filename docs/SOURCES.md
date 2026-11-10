@@ -15380,3 +15380,81 @@ same settings; `data/local/validation/flex_gap_*.log`). Handle force per oar fro
   one tested, is what stops driving.
 - The dry blade's 0.3 kg is still left out of the hull rows (it moves with the hull there); beside 13 kg of water it is
   small and is noted, not fixed.
+
+## 228. A validation ladder for the flexible-oar rower; the blade's water is small; two more bugs (2026-11-09)
+
+The user: "see whats worth following up on to get this model validated. get me a validation ladder and make it pass".
+Ladder: `docs/VALIDATION_LADDER.md` (bands set before the first run); evaluator `research/validation/ladder.py`
+(`data/local/validation/ladder_flexible_kappa0.1.log`, `ladder.json`).
+
+**1. The tank trial rejects the full added mass** (`research/blade/bench_dynamic_shaft.py`; rung B1). [RLBQV19]'s
+full-size sweep oar driven by motor through the water, its bend measured (their law on M_z, peak 7.48° at 85°); the
+same blade and shaft as the boat model, the water's force −m_a d(u_n)/dt about the hinge (the boat's form; the
+ideal-flow Munk term, `--munk`, is worse still). At [RLBQV19]'s own face-on regime (1.3, §191):
+
+| shaft | bend peak @ | bend rms | F_x rms, impulse | M_z impulse |
+|---|---|---|---|---|
+| rigid | — | 4.68° | 45 N, 1.02 | 0.88 |
+| massless hinge (quasi-static) | 8.45° @ 87° | 0.98° | 17 N, 1.21 | 1.05 |
+| dynamic, Patton × 0.1 (2.1 kg) | 8.83° @ 86° | **1.19°** | 22 N, 1.25 | **1.08** |
+| dynamic, Patton × 0.5 | 10.38° @ 85° | 2.20° | 44 N, 1.39 | 1.18 |
+| dynamic, Patton (21.4 kg) | 12.52° @ 87° | 3.62° | 69 N, 1.58 | 1.33 |
+| dynamic, [LB19] (37.2 kg) | 15.38° @ 90° | 5.49° | 96 N, 1.80 | 1.57 |
+
+The measured bend follows a shaft carrying a tenth of Patton's water, the bound §173 set from the population force
+curves (κ < 0.1, "no blade added mass") and §185 saw on this trial ("added mass at full strength makes things worse").
+**§224's 1 Hz overdamped mode rested on the full 13–22 kg and is withdrawn**: rung 2 now runs the dynamic shaft with
+the blade wetting over BioRow's 4° and κ = 0.1 (`--surface-factor 0.1`, `EntryImmersion`; CALIBRATION_REGISTER).
+At the research face-on (2.2) every shaft overloads this full-size blade (rigid impulse 1.54): §191's Froude regime
+(Fr 1.0 here). The athletes are at Fr 0.61 ([CR06], §191) and 0.66 ([BR24], his channels, same definition), below
+the onset, so 2.2 stands for them and ventilation does not explain [BR24]'s speed.
+
+**2. Bug: the athletes' own body carried the population's trunk clock** (STRUCTURAL_ISSUES S10). §205's own-body
+rung 2 (50.7 / 49.9 %) gave 52.4 / 50.3 % on today's code. Bisected in worktrees ([CR06]): §205's and §209's commits
+give 50.7 %, §213's ("trunk clock is the research default") and §215's 52.4 %; the two commits between were not run.
+With the profile's clock switched off the current code gives §205's numbers exactly, which settles it. The athletes' leg and back channels are warped onto the model's posture channels, which §213 had re-timed
+with the population trunk clock — two trunk time laws in one body. **Fix:** `BodyOptions.measured` names the joints an
+athlete's own channels time; `physics.merged_body` adds no clock there (as it keeps an explicit clock), so the boat is
+*built* without it (`handle_rung1.boat_for(own_joints=)`, `rung2_population.athlete_boat`); `own_body` refuses a boat
+with a population clock on a measured joint. Stripping the clock after construction failed [BR24]'s reach check, the
+reason §213 builds bodies at construction. Rigid rung 2 + κ 0.1: [CR06] 52.7 → **50.7 %**, [BR24] 50.5 → 50.6 %.
+Tests `tests/unit/test_measured_joints.py`.
+
+**3. Bug: a bent blade's wetting was read on the blade, not the gate** (STRUCTURAL_ISSUES S12). The loads take the bent
+blade's angle (§227), and that angle also went to the wetting and depth laws, which are defined on the gate's travel
+(BioRow's "4° of oar movement"; Grift's depth by drive progress): the lagging blade was buried too slowly. Fix:
+`_blade_loads_arm_rigid(..., gate=)`; the entrained water's fraction likewise. Small (10 % force 58 → 65 N), test
+`test_a_bent_blades_wetting_is_read_at_the_gate`.
+
+**4. The ladder, flexible shaft + κ 0.1** (`rung2_population.py --blade crossflow_normal --body own --catch buried
+--fv 4.53 --hold-own --added-mass patton --surface-factor 0.1 --bending --bend-dynamics`; split and release 0.5 are the
+defaults): **21 of 23 criteria pass.**
+
+| rung | result |
+|---|---|
+| A1 shaft modes | 0.997 of [BL10]'s eight sculls |
+| A2–A4 numerics | stiff limit, rigid invariance, half step (speed 0.05 %, IVV 0.05 pt) |
+| B1 tank trial | bend rms 1.19°, peak 86°, M_z impulse 1.08 |
+| C1 [CR06] rung 1 force | 10.4 % of her peak, peak 4.6° from hers (rigid 22.7 %) |
+| D1 speed | −0.5 % / +2.8 % |
+| **D2 IVV** | **53.9 / 53.1 % against 49.4 / 49.1 — +4.4 / +4.1 points, band ±3: fail** |
+| D3 power | −0.9 % / −2.3 % |
+| D4 [BR24] force shape | centre 0.54 (0.49), peak 423 N (424), least mid-drive 69 N |
+| D5 oar timing | 0.046 / 0.016 |
+| E1 scorecard | 10 of 10 (unchanged) |
+
+The rigid oar with the same settings is the mirror image: IVV 50.7 / 50.6 % (passes D2) but its force fails C1
+(22.7 %) and D4 ([BR24]'s centre 0.32: loaded at the catch, 106 N at mid-drive against his 398).
+
+**5. What D2 is.** Through the cycle the flexible shaft's speed dips 0.09 m/s deeper after the catch and peaks
+0.11–0.14 higher than measured. Its handle force starts low: [BR24] 65 / 150 N at 10 / 20 % of the drive against his
+133 / 222 (with the gate's travel from the catch matching his to ~1°: 3.6 / 7.2 / 11.6° at 0.10 / 0.15 / 0.20 s
+against 4.5 / 7.9 / 11.5°); [CR06]'s rung-1 force against angle the same (48 / 106 N in the first 10° against 99 /
+138). At the catch the blade's slip is a small difference of large velocities and the shaft's bending rate absorbs
+most of it, so a quasi-steady blade loads slowly; the rigid oar gets the first 0.1 s right (≈140 N) and overloads
+after. His 133 N at 0.09 s, with the blade under half buried (§173), needs ~2.8° of bend through [L14]'s shaft — more
+than slip on a quasi-steady blade gives. The same deficit is in the blade review: the cross-flow law gives 0.44 of
+[CR06]'s measured blade load in the first fifth (§191) and 0.51 of [GTW21]'s in the second (§190). So D2 is the
+catch's build-up (STATUS's open item, [G19] / [vV22]), not the shaft or the body.
+- Not closed here: the water's pickup at entry cannot carry it (B1 holds κ below ~0.25); [G19]'s entrainment is
+  measured at accelerations ten times below a catch; a stiffer shaft within [BL10]'s range would be a fit.
