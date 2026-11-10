@@ -1337,6 +1337,10 @@ the boat speeds that go with their drive durations).
   shape. Sane & Dickinson (2002) obtained (rotational circulation; not directly applicable).
   - *Next:* an asymmetric angle law from [KK03]'s shape at stroke-average-neutral level, tank-tested on [GTW21],
     [LJH12], [RLBQV19] first; then rung 2 and the whole ladder.
+- **§230 (2026-11-09): the asymmetry fails the tank test** (`research/blade/asymmetric_angle_law.py`): better on
+  [GTW21] (rms 5.6 → 4.7 N), worse on [RLBQV19] (27.5 → 31.3 N; M_z 62 → 100) and [LJH12] (6.2 → 9.4 N). Not adopted.
+  - *Next:* the blade's entry; [GTW21]'s early-drive lift by convective time as a tank-profiled lift slope; a data
+    request for [KK03]'s on-water thesis data (on approval).
 
 ## Calibration and validation data from the squad's own boats (noted 2026-10-08)
 

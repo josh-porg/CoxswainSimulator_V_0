@@ -15491,3 +15491,26 @@ opposite sign to what D2 needs.
 - *Next:* an asymmetric (rising/falling) angle law from [KK03]'s shape, normalised so its stroke-average equals the
   symmetric law's (no new level), tested open loop on [GTW21], [LJH12] and [RLBQV19] by fifths before any athlete run;
   only if it improves all three does it go to rung 2 and the whole ladder.
+
+## 230. The rotating plate's asymmetry fails the tank test (2026-11-09)
+
+`research/blade/asymmetric_angle_law.py` (log `data/local/validation/asymmetric_angle_law.log`). The symmetric
+cross-flow law times m(α, f_r) = [KK03]'s dynamic curve over its own mirror average (no new level; f_r interpolated
+between the digitised Fig. 10 curves 0.25 / 0.90 / 1.07, `data/literature/kobayashi2003_fig10_caseA.csv`, held above
+1.07), the angle signed by the along-blade flow at the drive's start. Criterion set before the run: it must improve all
+three measured loads.
+
+| dataset (face-on, f_r) | symmetric | asymmetric |
+|---|---|---|
+| [GTW21] (2.2; f_r 3.2, beyond the data) F_n by fifths | 0.96 / 0.53 / 0.76 / 1.18; rms 5.6 N; impulse 0.96 | 1.38 / 0.74 / 1.00 / 1.23; rms **4.7**; 1.12 |
+| [RLBQV19] (1.3; 1.08) F_x error / peak by window | +0.03 / −0.18 / +0.06 / −0.15; rms 27.5 N; M_z rms 62 | +0.08 / +0.11 / +0.10 / −0.17; rms **31.3**; M_z rms **100** |
+| [LJH12] (2.05; 0.29) C_d by incidence; F_x | +0.06 / +0.17 / +0.17 / +0.05; F_x rms 6.2 N | +0.04 / +0.10 / +0.24 / +0.06; F_x rms **9.4** |
+
+**Not adopted.** It fills [GTW21]'s mid-early shortfall (2nd fifth 0.53 → 0.74) but overshoots its first fifth and
+worsens both other loads' rms (the full-size [RLBQV19] moment by 60 %). Read as: the rising-side excess on a
+*shielded/at-surface plate rotating about its own axis in a uniform stream* does not carry to a blade on a curved
+path. The plate-orientation caveat (§229 (i)) is a likely part. D2 stays failing.
+- *Next candidates* (each tank-first): the blade's entry (load before the slip, BioRow's 65 ms; the measured handle
+  force at the catch includes the oar's reversal); [GTW21]'s own early-drive lift by convective time (their PIV shows
+  an LEV at t* 0.33) as a tank-profiled lift slope, the way the face-on was profiled; a request to the [KK03] authors'
+  group for the 1998 thesis's on-water data (Kobayashi, U. Tokyo M.Eng.) — drafted only on approval.

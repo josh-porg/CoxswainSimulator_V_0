@@ -1,0 +1,25 @@
+# Kobayashi & Kinoshita (2003), J. Soc. Naval Arch. Japan 194:59-65, doi:10.2534/jjasnaoe1968.2003.194_59, Fig. 10:
+# normal-force coefficient C_n = F_y / (0.5 rho U^2 S) of a flat plate (Type N, 200 x 350 mm, scull-blade area and
+# aspect ratio) rotated in a uniform 1.0 m/s flow so that its angle of attack runs 0 -> pi; Case a: the plate's top
+# edge at the still-water surface (air drawn onto the suction face), the rowing case. Read by eye from a 400-dpi render
+# of the scanned page at the plotted markers, every pi/16; uncertainty ~ +/-0.1 in C_n (the f_r 0.246 curve's falling
+# side, where markers crowd, ~ +/-0.15). Columns: angle of attack (rad), steady state, f_r = 0.246, 0.899, 1.074
+# (f_r = 2 pi c / (T U), their eq. 3). SOURCES §229.
+alpha,steady,fr0246,fr0899,fr1074
+0.0000,0.00,0.00,0.00,0.00
+0.1963,0.40,0.38,0.45,0.45
+0.3927,0.80,0.75,0.88,0.88
+0.5890,1.03,1.15,1.30,1.33
+0.7854,1.22,1.50,2.00,2.08
+0.9817,1.25,1.70,2.25,2.32
+1.1781,1.28,1.85,2.40,2.50
+1.3744,1.35,1.82,2.38,2.45
+1.5708,1.38,1.75,2.30,2.25
+1.7671,1.38,1.65,2.00,1.95
+1.9635,1.33,1.50,1.70,1.65
+2.1598,1.25,1.38,1.33,1.30
+2.3562,1.22,1.15,1.00,0.95
+2.5525,1.20,0.85,0.70,0.62
+2.7489,0.82,0.55,0.40,0.35
+2.9452,0.33,0.25,0.15,0.15
+3.1416,0.00,0.00,0.00,0.00
