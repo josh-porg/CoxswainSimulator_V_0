@@ -15540,5 +15540,12 @@ and head follow the model's postures on the warped clock).
   older model state, slip blade). With the force taken from the measurement, the swing is still too large: the
   residual is in the hull and body dynamics (or in how the measured cycle is formed), long-standing since §158, not
   in this week's oar work.
-- *Next:* size (ii) with a source on stroke-to-stroke timing variability; rerun the measured-force, measured-body
-  case on today's model; then the body's mass distribution and the hull's unsteady resistance.
+- **The measurement is self-consistent:** [BR24]'s BioRow velocity equals his integrated accelerometer (IVV 48.7 %
+  against 49.1 %, rms 0.02 m/s), so the velocity channel is not smoothed against the primary sensor (stroke averaging
+  would affect both). **Where the model's swing is made:** its deceleration as the rower comes forward into the catch
+  reaches −12.8 m/s² (flexible and rigid alike) against his measured −10.6 — about 20 % more, which builds the excess
+  recovery peak and dip. Through his drive the model also carries a ~5.5 Hz ripple (±0.1 m/s) his accelerometer does not
+  show, most likely his 50-sample seat and trunk channels differentiated twice; it does not set the extremes.
+- *Next:* the body's mass motion against the hull at the end of the recovery (segment masses and their relative
+  velocities against an independent source of a rower's centre-of-mass motion); stroke-to-stroke averaging sized from a
+  timing-variability source; the measured-force, measured-body case on today's model.
