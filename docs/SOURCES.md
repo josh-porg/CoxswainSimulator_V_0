@@ -15535,5 +15535,10 @@ unsteady hull resistance — [D11]'s hot films show turbulence peaking at peak d
 wrong sign for D2) and give no law; (ii) the measured IVV is a stroke-averaged cycle (BioRow; [CR06]'s figure),
 the model's one stroke (S12) — a timing jitter's smoothing, not sized; (iii) the own-body mass distribution (the arms
 and head follow the model's postures on the warped clock).
-- *Next:* size (ii) with a source on stroke-to-stroke timing variability; a rung-1 run driven by [BR24]'s measured
-  handle force on his measured body (`research/biorow/measured_body.py`) to isolate the hull and body from the blade.
+- That run exists (§161, `data/local/biorow/measured_body.log`): [BR24]'s own leg and back channels driven by **his
+  measured handle force** give IVV **56.0 %** against his 49.1 % (v min 3.34 against 3.46, v max 5.97 against 5.74;
+  older model state, slip blade). With the force taken from the measurement, the swing is still too large: the
+  residual is in the hull and body dynamics (or in how the measured cycle is formed), long-standing since §158, not
+  in this week's oar work.
+- *Next:* size (ii) with a source on stroke-to-stroke timing variability; rerun the measured-force, measured-body
+  case on today's model; then the body's mass distribution and the hull's unsteady resistance.
