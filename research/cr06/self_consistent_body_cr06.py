@@ -42,10 +42,18 @@ BODY = MEAS                                  # body curves live in the measured 
 FINE = np.linspace(0.0, T_CR06, 4000, endpoint=False)
 
 
+#: "as-built": her digitised points smoothed with a chosen lam 3e-6; "gcv": the amount set by generalised cross-validation
+#: on the points themselves (Woltring 1986), chosen before any run it affects (SOURCES §232)
+CHANNEL_SMOOTHING = "as-built"
+
+
 def measured_channel(name):
     """Her curve, smoothed as before, normalised; its minimum's phase on her clock; phase grid from that minimum."""
     tt, vv = series(name, BODY, "value")
-    sp = make_smoothing_spline(np.concatenate([tt - T_CR06, tt, tt + T_CR06]), np.concatenate([vv, vv, vv]), lam=3e-6)
+    if CHANNEL_SMOOTHING not in ("as-built", "gcv"):
+        raise ValueError("CHANNEL_SMOOTHING is 'as-built' or 'gcv', got %r" % (CHANNEL_SMOOTHING,))
+    sp = make_smoothing_spline(np.concatenate([tt - T_CR06, tt, tt + T_CR06]), np.concatenate([vv, vv, vv]),
+                               lam=None if CHANNEL_SMOOTHING == "gcv" else 3e-6)
     m = float(FINE[np.argmin(sp(FINE))]) / T_CR06
     s = np.linspace(0.0, 1.0, 4001, endpoint=False)
     curve = sp(np.mod(m + s, 1.0) * T_CR06)

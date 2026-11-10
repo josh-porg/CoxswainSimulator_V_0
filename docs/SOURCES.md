@@ -15556,3 +15556,29 @@ and head follow the model's postures on the warped clock).
   Correcting the body from his hull acceleration would be fitting to him; the fix needs an independent source of a
   rower's centre-of-mass motion, or channels processed by a sourced kinematics practice (and [CR06]'s checked alike).
 - *Next:* that body study (its own goal); stroke-to-stroke averaging sized from a timing-variability source.
+
+## 232. The athletes' channels smoothed by GCV; where the catch-approach push comes from (2026-11-09)
+
+**1. A processing error fixed.** [BR24]'s 50-sample seat (Ls) and trunk (Lt) channels were read with an interpolating
+periodic spline and then differentiated twice; [CR06]'s digitised points with a chosen λ 3e-6. Kinematic data are
+smoothed before they are differentiated, the amount set by the data: Woltring's generalised cross-validation spline
+(Craven & Wahba 1979; Woltring 1986), chosen before any run. On his raw samples GCV removes 1.3 mm rms (0.2–0.3 % of
+the travel) and the channels' acceleration falls from rms 8.9 / 8.0 to 6.4 / 5.1 m/s² (peaks 31 / 32 → 19 / 22).
+`measured_body.CHANNEL_SMOOTHING`, `self_consistent_body_cr06.CHANNEL_SMOOTHING`; rung 2 `--channel-smoothing`
+(default "gcv"; output names carry it). (GCV applied to the *interpolated* warp instead picks less smoothing than the
+chosen 1e-4: it sees an interpolant as noiseless — it belongs on raw samples.)
+
+**2. Rung 2, flexible + κ 0.1, GCV channels:** [BR24] 4.770 m/s, **IVV 52.3 %** (was 53.1; half step 52.2), 422 W;
+[CR06] 4.171, **53.9 %** (unchanged: her points were already smoothed), 259 W; C1 unchanged (10.4 %). D2 still fails
+(+4.5 / +3.2 points; band ±3). Ladder 21 / 23.
+
+**3. The catch-approach push survives smoothing** (`recovery_momentum.py`, GCV): −1245 / −1249 N at 0.95 / 0.00 of
+the cycle against −969 / −1062 N implied by his accelerometer; insensitive to the warp's smoothing (λ 1e-4 → 1e-6:
+−1245 → −1248 at 0.95). His own GCV channels with de Leva segment fractions (upper body on the seat plus half the trunk
+channel, thighs 0.6 and shanks 0.25 of the seat) give −885 / −1133 N — near the accelerometer. By segment at 0.95 the
+model exceeds that crude estimate in the thighs (12.9 m/s² against ~6.8) and the arms (16.5 m/s²: the hands follow the
+handle through the oar's reversal); head and trunk agree. So the excess enters where the model's posture geometry
+(thigh rotation at the catch, the handle-driven arms) carries his seat and trunk channels to the other segments — a
+body-geometry question with no source in hand; the crude fractions cannot arbitrate it.
+- *Next:* a published rower centre-of-mass or segment-kinematics series on water (e.g. motion capture of the legs at
+  the catch) to test the posture geometry; the stroke-to-stroke averaging of the measured cycle.

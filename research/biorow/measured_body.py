@@ -45,6 +45,11 @@ from coxswain.sim.dynamic_oar import DynamicOarSimulator         # noqa: E402
 
 T = 60.0 / L.RATE
 WARP_LAM = 1e-4                        # as the [CR06] study
+#: How his raw 50-sample channels are read before they are differentiated: "interp" -- a periodic cubic spline through
+#: the samples (as built: the noise, ~1.3 mm rms, comes back as ~30 % more body acceleration); "gcv" -- a smoothing
+#: spline whose amount is set by generalised cross-validation on the samples themselves (Craven & Wahba 1979; Woltring
+#: 1986, the biomechanics standard), chosen before any run it affects (SOURCES §232).
+CHANNEL_SMOOTHING = "interp"
 UPPER, REF = [0, 1, 2, 4, 5, 6, 7], 3  # SEGMENT_ORDER: upper body rows, lower trunk
 D = np.genfromtxt(L.DATA, delimiter=",", names=True)
 i_catch = int(np.argmin(D["A1"][:-1]))
@@ -83,7 +88,12 @@ def measured_channel(name):
     t = np.mod(np.arange(n) * T / n - np.arange(n)[i_catch] * T / n, T)
     o = np.argsort(t)
     t, y = t[o], y[o]
-    sp = CubicSpline(np.append(t, t[0] + T), np.append(y, y[0]), bc_type="periodic")
+    if CHANNEL_SMOOTHING == "gcv":                       # Woltring's GCV spline on the raw samples (SOURCES §232)
+        sp = make_smoothing_spline(np.concatenate([t - T, t, t + T]), np.concatenate([y, y, y]))
+    elif CHANNEL_SMOOTHING == "interp":
+        sp = CubicSpline(np.append(t, t[0] + T), np.append(y, y[0]), bc_type="periodic")
+    else:
+        raise ValueError("CHANNEL_SMOOTHING is 'interp' or 'gcv', got %r" % (CHANNEL_SMOOTHING,))
     fine = np.linspace(0.0, T, 4000, endpoint=False)
     m = float(fine[np.argmin(sp(fine))]) / T
     s = np.linspace(0.0, 1.0, 4001, endpoint=False)

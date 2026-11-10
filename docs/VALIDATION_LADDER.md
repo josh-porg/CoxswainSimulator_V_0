@@ -59,3 +59,6 @@ angle. Both athletes are held-out tests: nothing in the model was fitted to eith
 - **2026-11-09, a tank-profiled lift slope (k 1.3, §231)**: B1 fails, D2 moves 0.2–0.4 points. Not adopted. With the
   force matched (C1, rung 1, her own body and oar motion) IVV is still +3.5–4 points: D2's residual is in the hull and
   body dynamics, not the blade. Ladder stands at 21 / 23.
+- **2026-11-09, the athletes' channels smoothed by GCV before differentiation (§232)**, a processing fix chosen before
+  the run: [BR24] IVV 53.1 → 52.3 % (+3.2), [CR06] 53.9 % (+4.5). D2 still fails; 21 / 23. The excess push sits where
+  the model's posture geometry carries the channels to the thighs and arms.

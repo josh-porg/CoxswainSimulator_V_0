@@ -85,6 +85,10 @@ SURFACE_FACTOR = None
 #: the cross-flow law's lift slope over Helmbold's (LiftDragBlade.crossflow lift_scale): 1 as built; the three tank loads
 #: agree on 1.2-1.4 (SOURCES §231, research/blade/lift_slope_profile.py)
 LIFT_SCALE = 1.0
+#: how the athletes' measured body channels are read before differentiation (own body): "gcv" -- Woltring's
+#: generalised cross-validation spline on the raw points (default since §232: kinematic data smoothed before they are
+#: differentiated, the amount set by the data); "as-built" -- an interpolating spline ([BR24]) and a chosen lam ([CR06])
+CHANNEL_SMOOTHING = "gcv"
 #: the population's drive fraction, set by population_tables
 POP = {}
 
@@ -156,11 +160,13 @@ def own_body(name, boat):
                          "(athlete_boat; SOURCES §228)" % sorted(clocked & set(OWN_BODY_JOINTS)))
     if name == "br24":
         import measured_body as MBd
+        MBd.CHANNEL_SMOOTHING = "gcv" if CHANNEL_SMOOTHING == "gcv" else "interp"
         return MBd.body_field(boat, True)[0]
     path = os.path.join(ROOT, "research", "cr06", "self_consistent_body_cr06.py")
     src = open(path, encoding="utf-8").read().split("grid = np.linspace")[0]
     ns = {"__file__": path, "__name__": "cr06_body"}
     exec(compile(src, path, "exec"), ns)
+    ns["CHANNEL_SMOOTHING"] = "gcv" if CHANNEL_SMOOTHING == "gcv" else "as-built"
     return ns["body_field"](boat, True, ns["K_BACK"])
 
 
@@ -364,7 +370,7 @@ def solved_clock(name, strokes, tables, p_pop):
 
 
 def main():
-    global FV, HOLD, HOLD_OWN, ADDED_MASS, BEND_DYNAMICS, Q_MAP, RELEASE_AFTER, SURFACE_FACTOR, LIFT_SCALE
+    global FV, HOLD, HOLD_OWN, ADDED_MASS, BEND_DYNAMICS, Q_MAP, RELEASE_AFTER, SURFACE_FACTOR, LIFT_SCALE, CHANNEL_SMOOTHING
     ap = argparse.ArgumentParser()
     ap.add_argument("--strokes", type=int, default=10)
     ap.add_argument("--athletes", nargs="+", default=["cr06", "br24"])
@@ -405,6 +411,8 @@ def main():
     ap.add_argument("--release-after", type=float, default=RELEASE_AFTER,
                     help="the arc fraction past the catch before the stopped-driving release may act (§226; default "
                          "0.5 since §227; 0 = anywhere, the old rule)")
+    ap.add_argument("--channel-smoothing", default=CHANNEL_SMOOTHING, choices=["gcv", "as-built"],
+                    help="the athletes' body channels before differentiation (§232; default gcv)")
     ap.add_argument("--lift-scale", type=float, default=1.0,
                     help="the cross-flow law's lift slope over Helmbold's (1 as built; tank profile 1.2-1.4, §231)")
     ap.add_argument("--surface-factor", type=float, default=None,
@@ -420,6 +428,7 @@ def main():
     RELEASE_AFTER = a.release_after
     SURFACE_FACTOR = a.surface_factor
     LIFT_SCALE = a.lift_scale
+    CHANNEL_SMOOTHING = a.channel_smoothing
     HOLD = float(a.hold)
     HOLD_OWN = bool(a.hold_own)
     ADDED_MASS = a.added_mass
@@ -467,6 +476,7 @@ def main():
                                                             + "_qmap" + a.q_map + "_release%g" % a.release_after
                                                             + ("_kappa%g" % a.surface_factor if a.surface_factor is not None else "")
                                                             + ("" if a.lift_scale == 1.0 else "_lift%g" % a.lift_scale)
+                                                            + ("_chan" + a.channel_smoothing)
                                                             + ("" if a.athletes == ["cr06", "br24"] else "_" + "_".join(a.athletes)))), "w"), indent=1, default=float)
 
 
