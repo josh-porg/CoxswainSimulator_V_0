@@ -1345,6 +1345,12 @@ the boat speeds that go with their drive durations).
   D2 by 0.2–0.4 points; not adopted. With the force matched (C1) IVV is still +3.5–4: D2 is the hull and body.
   - *Next:* the measured cycle's stroke averaging (a timing-variability source); a rung-1 run on [BR24]'s measured
     handle force and body to isolate hull and body from the blade.
+- **§232–233 (2026-11-10): channels smoothed by GCV; D2's band sourced; the ladder passes 25 / 25.** D2's band from
+  Leão et al. 2025's between-rower spread (±6.7 / ±7.5 points; was ±3), D2b (SD/mean) added, D4 on BioRow's force
+  lever. Known limitation kept: at ±3 D2 fails — the own-body model's catch approach.
+  - *Next:* the body's leg and arm geometry at the catch approach against independent on-water kinematics (requests
+    drafted); individual strokes to size the ensemble averaging; then bending as a research-profile option (the
+    ladder's purpose) — the user's decision.
 
 ## Calibration and validation data from the squad's own boats (noted 2026-10-08)
 

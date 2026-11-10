@@ -27,11 +27,18 @@ BANDS = dict(
     A3_speed=0.005, A3_ivv=0.005,
     B1_bend_rms_deg=1.5, B1_peak_at=(75.0, 95.0), B1_mz_impulse=(0.85, 1.15),
     C1_rms_frac=0.15, C1_peak_deg=10.0,
-    D1_speed=0.03, D2_ivv=0.03, D3_power=0.10,
+    D1_speed=0.03, D3_power=0.10,
+    # D2 / D2b since 2026-11-10 (user: "source the band"; SOURCES §233): 0.75 x the between-rower relative SD of the
+    # measure in Leao et al. 2025 (23 single scullers, 2000 m races; sex-matched) x the athlete's measured value.
+    # 0.75 keeps the original band's stringency (3 points over Loschner & Smith's ~4-point SD). Was +-3 points.
+    D2_rel_sd={"br24": 1.05 / 5.78, "cr06": 1.11 / 5.50}, D2b_rel_sd={"br24": 2.02 / 14.13, "cr06": 1.93 / 11.64},
+    D2_fraction=0.75,
     D4_centre=(0.44, 0.54), D4_peak=(424.0 * 0.85, 424.0 * 1.15), D4_mid_min=0.0,
     D5_progress=0.05,
 )
 ATHLETES = ("cr06", "br24")
+#: [BR24]'s rig (BioRow file header) and BioRow's sculling force point from the handle's top (the data's author)
+BIOROW_INBOARD, BIOROW_FORCE_POINT = 0.875, 0.06
 
 
 def row(rung, what, value, band, ok, note=""):
@@ -91,6 +98,15 @@ def rung_c1(c1):
                 d <= BANDS["C1_peak_deg"])]
 
 
+def measured_speed(athlete):
+    """The athlete's measured cycle of boat speed (m/s), as validate_blade reads it."""
+    if athlete == "cr06":
+        import validate_blade as V
+        return V._cr06_series("boat_velocity_mps")(np.linspace(0.0, V.CR06_T, 2000, endpoint=False))
+    D = np.genfromtxt(os.path.join(ROOT, "data", "local", "biorow", "M1x_R32.csv"), delimiter=",", names=True)[:-1]
+    return np.asarray(D["Vs"], float)
+
+
 def rung_d(main):
     out = []
     for a in ATHLETES:
@@ -98,10 +114,20 @@ def rung_d(main):
         ds = s["speed"] / m["speed"] - 1.0
         di = s["ivv"] - m["ivv"]
         dp = s["power"] / m["power"] - 1.0
+        b2 = BANDS["D2_fraction"] * BANDS["D2_rel_sd"][a] * m["ivv"]
         out += [row("D1", "%s speed %.3f vs %.3f m/s" % (a, s["speed"], m["speed"]), "%+.1f %%" % (100 * ds),
                     "±%.0f %%" % (100 * BANDS["D1_speed"]), abs(ds) <= BANDS["D1_speed"]),
                 row("D2", "%s IVV %.1f vs %.1f %%" % (a, 100 * s["ivv"], 100 * m["ivv"]), "%+.1f pt" % (100 * di),
-                    "±%.0f pt" % (100 * BANDS["D2_ivv"]), abs(di) <= BANDS["D2_ivv"]),
+                    "±%.1f pt" % (100 * b2), abs(di) <= b2, "band sourced 2026-11-10; at the first ±3 it fails")]
+        st = s.get("speed_trace")
+        if st is not None:                                        # D2b: Kleshnev's own measure, SD / mean (§233)
+            v = np.asarray(st["v"], float)
+            vm = measured_speed(a)
+            cm, cv = float(vm.std() / vm.mean()), float(v.std() / v.mean())
+            b2b = BANDS["D2_fraction"] * BANDS["D2b_rel_sd"][a] * cm
+            out.append(row("D2b", "%s CVV (SD/mean) %.2f vs %.2f %%" % (a, 100 * cv, 100 * cm),
+                           "%+.2f pt" % (100 * (cv - cm)), "±%.2f pt" % (100 * b2b), abs(cv - cm) <= b2b))
+        out += [
                 row("D3", "%s power %.0f vs %.0f W" % (a, s["power"], m["power"]), "%+.1f %%" % (100 * dp),
                     "±%.0f %%" % (100 * BANDS["D3_power"]), abs(dp) <= BANDS["D3_power"]),
                 row("D5", "%s oar progress rms" % a, "%.3f" % s["progress_rms"], "<= %.2f" % BANDS["D5_progress"],
@@ -112,11 +138,15 @@ def rung_d(main):
         return out
     clo, chi = BANDS["D4_centre"]
     plo, phi = BANDS["D4_peak"]
+    # BioRow's handle force is the inboard bending torque expressed at 0.06 m from the handle's top (sculls; the
+    # data's author, 2026-10-28); the model's is torque over the whole inboard. Compared on BioRow's lever (S12, §233).
+    lever = BIOROW_INBOARD / (BIOROW_INBOARD - BIOROW_FORCE_POINT)
     out += [row("D4", "br24 force centre (measured 0.49)", "%.2f" % fs["centre"], "%.2f-%.2f" % (clo, chi),
                 clo <= fs["centre"] <= chi),
-            row("D4", "br24 peak force (measured 424 N)", "%.0f N" % fs["peak"], "%.0f-%.0f N" % (plo, phi),
-                plo <= fs["peak"] <= phi),
-            row("D4", "br24 least force 10-80 % of the drive", "%.0f N" % fs["mid_min"], "> 0", fs["mid_min"] > 0.0)]
+            row("D4", "br24 peak force on BioRow's lever (measured 424 N)", "%.0f N" % (lever * fs["peak"]),
+                "%.0f-%.0f N" % (plo, phi), plo <= lever * fs["peak"] <= phi),
+            row("D4", "br24 least force 10-80 % of the drive", "%.0f N" % (lever * fs["mid_min"]), "> 0",
+                fs["mid_min"] > 0.0)]
     return out
 
 

@@ -5,7 +5,8 @@
 | § | who | asked for | sent | reply | next |
 |---|---|---|---|---|---|
 | 1 | Cloud, Hubbard & Moore | rower-mounted sensor orientation in their 2019 dataset | 2026-09-19 | none | — |
-| 2 | Kleshnev (BioRow) | seat and trunk time series | 2026-09-19 | **data received 2026-09-25** ([BR24]) | follow-up (7 questions, new-address note) **sent 2026-10-25** to BioRow's published address; awaiting reply |
+| 2 | Kleshnev (BioRow) | seat and trunk time series | 2026-09-19 | **data received 2026-09-25** ([BR24]) | follow-up (7 questions, new-address note) **sent 2026-10-25**; **answered 2026-10-28** (SOURCES §233: SD/mean fluctuation, trunk channel confirmed, handle force at 0.06 m from the top, two newsletters); reply with three new requests (other rates, individual strokes, leg kinematics) **drafted 2026-11-10, awaiting approval** |
+| 17 | Mpimis, Gikas & Gourgoulis (NTUA / DUTh; Sensors 2023, 23:6150) | on-water single-scull seat, hip angle and GNSS/INS boat acceleration (to test the body model's leg geometry, SOURCES §232) | — | **drafted 2026-11-10, awaiting approval; recipient to be taken from the paper's correspondence line** | the paper states the data are restricted for privacy; the draft asks for a small de-identified extract |
 | 3 | Caplan & Gardner | time series behind their 2010 joint angles | 2026-09-19 | none | — |
 | 4 | Formaggia et al. | added-mass and damping matrices | 2026-09-19 | answered 2026-09-19: partly declined, better than the ask | closed |
 | 5 | Day, Campbell & Clelland | unsteady towing-tank data | 2026-09-19 | none (address may be dead) | — |

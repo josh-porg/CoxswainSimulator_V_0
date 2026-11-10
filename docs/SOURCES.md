@@ -15582,3 +15582,34 @@ handle through the oar's reversal); head and trunk agree. So the excess enters w
 body-geometry question with no source in hand; the crude fractions cannot arbitrate it.
 - *Next:* a published rower centre-of-mass or segment-kinematics series on water (e.g. motion capture of the legs at
   the catch) to test the posture geometry; the stroke-to-stroke averaging of the measured cycle.
+
+## 233. D2's band sourced; the data author's answers; the ladder passes 25 / 25 (2026-11-10)
+
+The user (after §232's question): "known limitation draft data request, source the band and continue".
+
+**1. The data author's reply** (BioRow, 28 Oct, unread until now; `data/local/outreach/gmail_threads.json`): (i) his
+velocity fluctuation is SD / mean, typically 8–15 % — not our (max − min) / mean; (ii) the trunk channel is relative to
+the seat at shoulder height, and a 0.72 m centre-of-mass travel is plausible — both as the model reads them; (iii) the
+handle force is the inboard bending torque calibrated as a normal force **0.06 m from the handle's top** (sculls;
+0.15 m sweep); (iv) his newsletters 2017/12 (data processing) and 2023/12 (catch slip by the database) attached —
+to be filed (the mail tool cannot save attachments). The [BR24] cycle is an ensemble of ~20 strokes (DATA_REQUESTS §2).
+
+**2. D2's band, sourced** (rule stated before the evaluation). **Leão, Cardoso, Abraldes, Soares, Gomes & Fernandes
+(2025)**, *Intracycle velocity variation during a single-sculling 2000 m rowing competition*, Sensors 25(15):4696,
+doi:10.3390/s25154696 (open): 23 experienced single scullers (10 women), 15 Hz GPS + 100 Hz accelerometer on the bow:
+IVV 5.78 ± 1.05 km/h at 15.40 km/h (men), 5.50 ± 1.11 at 13.36 (women); CVV 14.13 ± 2.02 % and 11.64 ± 1.93 %. The
+between-rower relative SD of IVV is 18.2 / 20.2 % of its value. The first band (±3) was 0.75 of Loschner & Smith's
+~4-point SD (three scullers); the same 0.75 of the larger sample's spread, at each athlete's measured IVV, gives
+**±6.7 points ([BR24]) and ±7.5 ([CR06])**. **D2b** added on the same rule for SD / mean (the data author's measure):
+±1.74 / ±2.03 points. **D4** compares the model's force on BioRow's lever (×0.875/0.815; STRUCTURAL_ISSUES S12).
+
+**3. The ladder** (flexible shaft, κ 0.1, GCV channels; `data/local/validation/ladder_2026-11-10.log`): **25 of 25 pass.**
+D2 +4.4 / +3.2 points (bands ±7.5 / ±6.7); D2b +1.47 / +1.73 (±2.03 / ±1.74 — [BR24] by 0.01); D4 centre 0.54 (edge),
+peak 453 N on BioRow's lever (424). **The known limitation stays on record**: at the first ±3 band D2 fails, and the
+cause is the own-body model's catch approach (§231–232). A within-athlete variability source would narrow D2's band
+and re-open it.
+
+**4. Data requests drafted, not sent** (user approval needed): a reply to the data author (other rates; individual
+strokes to size the ensemble averaging; leg kinematics at the catch) in the BioRow thread; a request to Mpimis, Gikas &
+Gourgoulis (Sensors 2023, 23:6150; on-water seat, hip angle and GNSS/INS boat acceleration) — recipient to be filled
+from the paper's correspondence line (PMC showed a CAPTCHA, the publisher refused scripted access).

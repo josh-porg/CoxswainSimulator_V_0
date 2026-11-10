@@ -35,9 +35,10 @@ added mass. Each rung names any setting it changes.
 | **B1** | the shaft and its water in a tank, motion imposed: [RLBQV19]'s full-size trial (`research/blade/bench_dynamic_shaft.py`) at [RLBQV19]'s own face-on regime (1.3, SOURCES §191) | bend rms against the measured bend; bend peak's angle; M_z impulse ratio | ≤ 1.5° (20 % of the 7.5° peak); within 10° of 85°; 0.85–1.15 | chosen |
 | **C1** | in the boat, motion imposed (rung 1), [CR06]'s own body: handle force against oar angle (`research/blade/bending_handle_force.py`) | rms over the drive as a fraction of her peak; peak's angle | ≤ 15 %; within 10° of hers | chosen (the best earlier model, §219, was 12.5 %; the digitised figure's channel offsets dominate below ~10 %, §191) |
 | **D1** | rung 2, both athletes: mean boat speed | model / measured − 1 | within ±3 % | chosen ([CR06]'s own model predicts her speed to 1.9 %; wind and water on the day are unknown) |
-| **D2** | rung 2, both athletes: IVV (max − min) / mean of the last stroke | model − measured | within ±3 points | chosen (below one population SD: three elite women scullers 43 / 46 / 51 %, Loschner & Smith 2000; the muscles are the population's) |
+| **D2** | rung 2, both athletes: IVV (max − min) / mean of the last stroke | model − measured | **within 0.75 × the between-rower relative SD × the measured IVV: ±6.7 points ([BR24]), ±7.5 ([CR06])** — was ±3 until 2026-11-10 | sourced: Leão et al. 2025 (*Sensors* 25:4696; 23 single scullers, 2000 m races): IVV 5.78 ± 1.05 km/h (men), 5.50 ± 1.11 (women), relative SD 18.2 / 20.2 %; 0.75 keeps the first band's stringency (3 points over Loschner & Smith's ~4-point SD). Changed after the first run at the user's instruction ("source the band"); see History |
+| **D2b** | rung 2, both athletes: the velocity coefficient of variation, SD / mean (BioRow's own measure, per the data's author) | model − measured | 0.75 × relative SD × measured: ±1.74 points ([BR24]), ±2.03 ([CR06]) | sourced: Leão et al. 2025, CVV 14.13 ± 2.02 % (men), 11.64 ± 1.93 % (women); added 2026-11-10 with D2's change |
 | **D3** | rung 2, both athletes: handle power | model / measured − 1 | within ±10 % | chosen (power is an output; gate power meters read to a few %) |
-| **D4** | rung 2, [BR24]: handle-force shape against his measured cycle (`research/crew/handle_force_shape.py`) | force centre (fraction of the drive); peak force; least force 10–80 % of the drive | within ±0.05 of 0.49; within ±15 % of 424 N; > 0 | chosen |
+| **D4** | rung 2, [BR24]: handle-force shape against his measured cycle (`research/crew/handle_force_shape.py`) | force centre (fraction of the drive); peak force; least force 10–80 % of the drive | within ±0.05 of 0.49; within ±15 % of 424 N; > 0 | chosen. Since 2026-11-10 the model's force is compared on BioRow's lever: the measured handle force is the inboard bending torque expressed 0.06 m from the handle's top (sculls; the data's author), the model's torque over the full inboard — ×0.875/0.815 (S12) |
 | **D5** | rung 2, both athletes: oar progress against measured (the timing the muscles are scaled to) | rms | ≤ 0.05 | chosen (§201's pass level) |
 | **E1** | regression: the research profile's scorecard (rigid oar; nothing here changes it) | every scorecard target | as `coxswain/validation/targets.py` | sourced there |
 
@@ -62,3 +63,16 @@ angle. Both athletes are held-out tests: nothing in the model was fitted to eith
 - **2026-11-09, the athletes' channels smoothed by GCV before differentiation (§232)**, a processing fix chosen before
   the run: [BR24] IVV 53.1 → 52.3 % (+3.2), [CR06] 53.9 % (+4.5). D2 still fails; 21 / 23. The excess push sits where
   the model's posture geometry carries the channels to the thighs and arms.
+- **2026-11-10, user decision: "known limitation, draft data request, source the band and continue".**
+  - **Known limitation (kept on record):** at the first band (±3 points) D2 fails for both athletes, +3.2 / +4.4.
+    Cause traced (SOURCES §228–232): the own-body model's legs and arms slow the hull ~20–30 % harder at the catch
+    approach than the athletes' accelerometer allows, though their seat and trunk channels are reproduced faithfully.
+  - **Band sourced** (rule stated before the evaluation, SOURCES §233): D2's band is 0.75 × the between-rower relative SD
+    of IVV in Leão et al. 2025 (23 single scullers) × the measured IVV, sex-matched: ±6.7 / ±7.5 points. D2b (SD/mean,
+    the data author's own measure) added on the same rule. D4 compared on BioRow's force lever (the data author's
+    definition). The other bands are unchanged.
+  - **Result: 25 of 25 pass** (`data/local/validation/ladder_2026-11-10.log`). Narrow: [BR24]'s D2b (+1.73 against
+    ±1.74) and D4's force centre (0.54, the band's edge). The ladder passes on a band set by the population's spread,
+    not on the tighter first band; any narrowing of the band (a within-athlete variability source) re-opens D2.
+  - Data requests drafted for approval (the data's author: other rates, per-stroke data; an on-water segment-kinematics
+    group), not sent.
