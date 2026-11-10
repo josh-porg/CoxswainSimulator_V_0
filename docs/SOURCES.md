@@ -15546,6 +15546,13 @@ and head follow the model's postures on the warped clock).
   reaches −12.8 m/s² (flexible and rigid alike) against his measured −10.6 — about 20 % more, which builds the excess
   recovery peak and dip. Through his drive the model also carries a ~5.5 Hz ripple (±0.1 m/s) his accelerometer does not
   show, most likely his 50-sample seat and trunk channels differentiated twice; it does not set the extremes.
-- *Next:* the body's mass motion against the hull at the end of the recovery (segment masses and their relative
-  velocities against an independent source of a rower's centre-of-mass motion); stroke-to-stroke averaging sized from a
-  timing-variability source; the measured-force, measured-body case on today's model.
+- **The crew's push, implied against modelled** (`research/validation/recovery_momentum.py`): with the blade out,
+  −Σ m a_rel = M a_hull + D, so his accelerometer and the model boat's drag give the push his body made. Masses are
+  right (crew field 97.0 kg = his, hull 18.0). At the catch approach the own-body field pushes −1276 / −1284 N (0.95 /
+  0.00 of the cycle) against −969 / −1062 N implied — 20–30 % stronger (head + trunk ~55 %, thighs ~30 %); through the
+  drive it swings ±500–700 N every ~0.05 of the cycle (+487, −648, +735 N at 0.15–0.25), which his accelerometer rules
+  out — his 50-sample seat and trunk channels differentiated twice. **D2's residual is in how the athletes' measured
+  channels become body motion** (the own-body input the IVV test rests on), not in the oar, the blade or the masses.
+  Correcting the body from his hull acceleration would be fitting to him; the fix needs an independent source of a
+  rower's centre-of-mass motion, or channels processed by a sourced kinematics practice (and [CR06]'s checked alike).
+- *Next:* that body study (its own goal); stroke-to-stroke averaging sized from a timing-variability source.
