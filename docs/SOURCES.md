@@ -15613,3 +15613,45 @@ and re-open it.
 strokes to size the ensemble averaging; leg kinematics at the catch) in the BioRow thread; a request to Mpimis, Gikas &
 Gourgoulis (Sensors 2023, 23:6150; on-water seat, hip angle and GNSS/INS boat acceleration) — recipient to be filled
 from the paper's correspondence line (PMC showed a CAPTCHA, the publisher refused scripted access).
+
+## 234. The data author's newsletters: the averaging is not the gap; the catch build-up matches the population (2026-11-10)
+
+The user downloaded the two newsletters attached to the data author's reply and asked for them to be read before the
+reply goes (`data/local/literature/biorow_newsletters/`, notes there; cite as Kleshnev 2020, with the issue).
+
+**1. RBN 2017/12, how the [BR24] cycle was made.** Cycle start at the oar's zero crossing in the recovery; strokes
+filtered by rate; each channel resampled to 50 points per cycle and averaged. His own check: the averaged curve lowers
+the maximum force by 1.1 % and the mean by 0.2 % (peak-timing jitter). **The ensemble averaging cannot carry D2's
+3–4 IVV points**; that candidate (§231 (ii)) is closed.
+
+**2. RBN 2023/12, population reference curves** (>50 000 samples): handle force, % of peak, against drive length —
+13 % at the catch (the oar's inertia), 22 % at 10 %, ~60 % at 20 % (buried at −3°), peak at 40 %, 74 % at 60 %, ~0 at
+90 %. Against it (`research/validation/force_vs_drive_length.py`, [BR24]'s κ 0.1 rung-2 runs):
+
+| drive length | population | [BR24] measured | flexible shaft | rigid |
+|---|---|---|---|---|
+| 0 % | 13 | 13 | 1 | 8 |
+| 10 % | 22 | **52** | 29 | 95 |
+| 20 % | 60 | 72 | 63 | 57 |
+| 40 % | 100 | 96 | 89 | 9 |
+| 60 % | 74 | 92 | **97** | 22 |
+| 90 % | 0 | 12 | **20** | −6 |
+| peak at | 40 % | 47 % | 55 % | 5 % |
+
+- **The flexible shaft's catch build-up matches the population** (29 / 63 % at 10 / 20 % against 22 / 60). §228–231's
+  "the catch loads too slowly" was against [BR24], who loads unusually early (52 % at 10 %) — a single athlete's
+  feature (memory: no single-athlete fits). The two blade candidates rejected in §230–231 were chasing it.
+- **The population exposes a late-drive excess instead**: the model holds 97 % of peak at 60 % of the drive length
+  (74 %) and 20 % at 90 % (~0); its peak falls at 55 % (40 %). That is the shape to work on — and a later peak
+  propels later in the drive, which raises the recovery's speed peak (the D2 residual's other half). The rigid oar's
+  force is wrong throughout (peak at 5 %).
+- The model's 1 % at the catch against 13 % is the oar's inertia at the reversal, which the population includes and the
+  shape metric (from the first wet sample) does not.
+- *Next:* a D6 rung on the population force shape (bands fixed before it is run) to sit beside D4's single athlete;
+  then the late drive: the release rule, the bent blade's unbending, and the blade law past perpendicular ([KK03]'s
+  falling side was the one part of its asymmetry pointing the right way).
+
+**3. Reply to the data author revised** (draft, unsent): answers his questions (his measure gives 16.2 % for this
+stroke; the force-lever correction; the file), reports what the newsletters showed, and asks for the 2023/12 reference
+curves as numbers (sculling R30+), the athlete at other rates, and the per-point SDs of boat velocity — in place of
+the individual-strokes question 2017/12 answered.
