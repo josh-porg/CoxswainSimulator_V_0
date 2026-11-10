@@ -66,3 +66,18 @@ def test_simulator_names_the_crossflow_blade_and_refuses_a_bad_name():
     from coxswain.sim.dynamic_oar import _crossflow_face_on
     assert _crossflow_face_on("crossflow@2.2") == 2.2
     assert _crossflow_face_on("crossflow@x") is None and _crossflow_face_on("cg07") is None
+
+
+def test_crossflow_lift_scale_multiplies_only_the_lift_term():
+    """``lift_scale`` (SOURCES §231): 1 is the law as built; it scales the sin a cos a term, not the face-on one."""
+    from coxswain.crew.liftdrag import LiftDragBlade
+    kw = dict(outboard=1.8, area=0.083, length=0.43, face_on=2.2, tangential=False)
+    base = LiftDragBlade.crossflow(**kw)
+    assert LiftDragBlade.crossflow(lift_scale=1.0, **kw).coefficients(0.4) == base.coefficients(0.4)
+    scaled = LiftDragBlade.crossflow(lift_scale=1.3, **kw)
+    assert scaled.coefficients(np.pi / 2)[0] == pytest.approx(base.coefficients(np.pi / 2)[0])
+    a = 0.4
+    lift = 2.0 * base.lift_amplitude * np.sin(a) * np.cos(a)
+    assert scaled.coefficients(a)[0] - base.coefficients(a)[0] == pytest.approx(0.3 * lift)
+    with pytest.raises(ValueError):
+        LiftDragBlade.crossflow(lift_scale=0.0, **kw)

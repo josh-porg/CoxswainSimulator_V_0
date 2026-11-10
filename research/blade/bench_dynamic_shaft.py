@@ -49,9 +49,10 @@ STRIP_R = RQ.L_E + (np.arange(RQ.STRIPS) + 0.5) * RQ.SPAN / RQ.STRIPS
 COS1 = np.cos(RQ.THETA1)
 
 
-def research_blade(face_on=2.2):
+def research_blade(face_on=2.2, lift_scale=1.0):
     """Rung 2's ``crossflow_normal`` on this blade: the cross-flow form, face-on 2.2, normal load only."""
-    cf = LiftDragBlade.crossflow(outboard=RC, area=RQ.AREA, length=RQ.SPAN, face_on=face_on, density=RQ.RHO)
+    cf = LiftDragBlade.crossflow(outboard=RC, area=RQ.AREA, length=RQ.SPAN, face_on=face_on, density=RQ.RHO,
+                                 lift_scale=lift_scale)
 
     def law(wn, wa, dA):
         q = 0.5 * RQ.RHO * dA * (wn * wn + wa * wa)
@@ -150,12 +151,13 @@ def main():
     ap.add_argument("--face-on", type=float, default=2.2,
                     help="the cross-flow face-on value (2.2 rung 2's; 1.3 [RLBQV19]'s own at Fr 1.0, SOURCES §190-§191)")
     ap.add_argument("--munk", action="store_true", help="add the ideal-flow Munk term (not in the boat model)")
+    ap.add_argument("--lift-scale", type=float, default=1.0, help="the cross-flow lift slope over Helmbold's (§231)")
     a = ap.parse_args()
     D = RQ.load()
     K = RQ.kinematics(D, rigid=True, n=400)                       # the motor's motion
     meas = np.stack([np.interp(K["psi_deg"], *D[k].T) for k in ("Fx_N", "Fy_N", "Mz_Nm")], 1)
     phi_meas = np.abs(meas[:, 2]) / RQ.K_ANG
-    law = research_blade(a.face_on)
+    law = research_blade(a.face_on, a.lift_scale)
     qs_phi, qs_phid = run_quasistatic(K, law)
     K["phi_qs0"] = qs_phi[0]
     m_p = patton_added_mass(RQ.SPAN, RQ.HEIGHT, RQ.RHO)
@@ -188,7 +190,7 @@ def main():
               " | ".join("%14.2f" % np.degrees(cases[n][0][i]) for n in cases))
     os.makedirs(RQ.OUT, exist_ok=True)
     json.dump(dict(results=res, added_mass=dict(patton=m_p, labbe=m_l)),
-              open(os.path.join(RQ.OUT, "bench_dynamic_shaft_faceon%g%s.json" % (a.face_on, "_munk" if a.munk else "")), "w"), indent=1)
+              open(os.path.join(RQ.OUT, "bench_dynamic_shaft_faceon%g%s%s.json" % (a.face_on, "_munk" if a.munk else "", "" if a.lift_scale == 1.0 else "_lift%g" % a.lift_scale)), "w"), indent=1)
 
 
 if __name__ == "__main__":

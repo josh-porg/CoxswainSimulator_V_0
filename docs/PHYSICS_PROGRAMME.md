@@ -1341,6 +1341,10 @@ the boat speeds that go with their drive durations).
   [GTW21] (rms 5.6 → 4.7 N), worse on [RLBQV19] (27.5 → 31.3 N; M_z 62 → 100) and [LJH12] (6.2 → 9.4 N). Not adopted.
   - *Next:* the blade's entry; [GTW21]'s early-drive lift by convective time as a tank-profiled lift slope; a data
     request for [KK03]'s on-water thesis data (on approval).
+- **§231 (2026-11-09): a tank-profiled lift slope (k 1.2–1.4 common to the three tanks)** fails B1 at k 1.3 and moves
+  D2 by 0.2–0.4 points; not adopted. With the force matched (C1) IVV is still +3.5–4: D2 is the hull and body.
+  - *Next:* the measured cycle's stroke averaging (a timing-variability source); a rung-1 run on [BR24]'s measured
+    handle force and body to isolate hull and body from the blade.
 
 ## Calibration and validation data from the squad's own boats (noted 2026-10-08)
 

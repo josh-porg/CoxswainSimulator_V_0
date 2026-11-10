@@ -91,8 +91,9 @@ def main():
     ap.add_argument("--surface-factor", type=float, default=None, help="kappa x the added mass, wetting over 4 deg")
     ap.add_argument("--bend-dynamics", action="store_true", help="the dynamic shaft (BendDynamics; needs added mass)")
     ap.add_argument("--json", default=None, help="write the rms, peak and angles here (the validation ladder)")
+    ap.add_argument("--lift-scale", type=float, default=1.0, help="the cross-flow lift slope over Helmbold's (§231)")
     args = ap.parse_args()
-    RP.ADDED_MASS, RP.SURFACE_FACTOR = args.added_mass, args.surface_factor
+    RP.ADDED_MASS, RP.SURFACE_FACTOR, RP.LIFT_SCALE = args.added_mass, args.surface_factor, args.lift_scale
     if args.bend_dynamics:
         from coxswain.crew.oar_bending import BendDynamics
         RP.BEND_DYNAMICS = BendDynamics()

@@ -15514,3 +15514,26 @@ path. The plate-orientation caveat (§229 (i)) is a likely part. D2 stays failin
   force at the catch includes the oar's reversal); [GTW21]'s own early-drive lift by convective time (their PIV shows
   an LEV at t* 0.33) as a tank-profiled lift slope, the way the face-on was profiled; a request to the [KK03] authors'
   group for the 1998 thesis's on-water data (Kobayashi, U. Tokyo M.Eng.) — drafted only on approval.
+
+## 231. A tank-profiled lift slope; the IVV gap is not the catch force (2026-11-09)
+
+**1. The lift slope, profiled on the tanks** (`research/blade/lift_slope_profile.py`; a multiplier k on the cross-flow
+law's Helmbold slope, each dataset at its own face-on value and its own measure): [GTW21] least F_n rms at k 2.0
+(within 10 %: 1.0–2.6), [RLBQV19] F_x at 1.2 (1.0–1.4), [LJH12] F_x at 1.3 (1.2–1.4) — a common band 1.2–1.4.
+`LiftDragBlade.crossflow(lift_scale=)` added (default 1, nothing changes); rung 2 / C1 / B1 `--lift-scale`.
+
+**2. At k 1.3 (fixed before the athlete runs)** the ladder gets worse, not better: B1 fails (bend rms 1.60° quasi-static,
+1.80° dynamic κ 0.1; M_z impulse 1.26 — the profile scored F_x, and the moment is where the extra lift shows); C1 11.8 %
+(peak at her 12.8°); **D2 barely moves: 53.7 / 52.7 %** (from 53.9 / 53.1; half step identical). Not adopted.
+
+**3. What that says.** Thirty per cent more lift at small angles raises the early force and leaves the fluctuation
+within 0.4 points; and [CR06]'s rung 1 — her own leg and back channels, her oar motion imposed, the flexible shaft's
+force within 11–12 % of hers — already gives 52.8–53.3 % against 49.4 %. **With the force right, the boat still swings
+too much: D2's residual is in the hull and body dynamics, not the blade.** The rigid oar's pass (50.7 / 50.6 %) was a
+wrong force (front-loaded, C1 23–26 %, D4 centre 0.32) cancelling it. Candidates on that side, none sourced yet: (i)
+unsteady hull resistance — [D11]'s hot films show turbulence peaking at peak deceleration (more drag in the dip: the
+wrong sign for D2) and give no law; (ii) the measured IVV is a stroke-averaged cycle (BioRow; [CR06]'s figure),
+the model's one stroke (S12) — a timing jitter's smoothing, not sized; (iii) the own-body mass distribution (the arms
+and head follow the model's postures on the warped clock).
+- *Next:* size (ii) with a source on stroke-to-stroke timing variability; a rung-1 run driven by [BR24]'s measured
+  handle force on his measured body (`research/biorow/measured_body.py`) to isolate the hull and body from the blade.

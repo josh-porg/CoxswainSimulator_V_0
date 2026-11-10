@@ -126,19 +126,22 @@ class LiftDragBlade:
 
     @classmethod
     def crossflow(cls, outboard: float, area: float, length: float, face_on: float,
-                  density: float = 1000.0, tangential: bool = True) -> "CrossflowBlade":
+                  density: float = 1000.0, tangential: bool = True, lift_scale: float = 1.0) -> "CrossflowBlade":
         """The fins' cross-flow law on a blade (:class:`CrossflowBlade`; SOURCES §190-191).
 
         ``length`` is the blade's extent along the shaft; its height is ``area / length``, so the
         aspect ratio the along-shaft flow sees is ``area / length**2``. ``face_on`` is the normal
         coefficient face-on, the law's one open number (~2.2 below Froude ~0.9, ~1.3 at 1.0).
         ``tangential=False``: the normal load only -- what [CG07]'s measured points and [H10] on the water
-        show for a stalled blade (SOURCES §201); the research profile's blade.
+        show for a stalled blade (SOURCES §201); the research profile's blade. ``lift_scale`` multiplies
+        Helmbold's slope: 1 as built; the three tank loads agree on 1.2-1.4 (SOURCES §231, a tank profile).
         """
         from ..hydro.appendages import polhamus_helmbold_slope
+        if not lift_scale > 0.0:
+            raise ValueError("lift_scale must be positive, got %r" % (lift_scale,))
         aspect = float(area) / float(length) ** 2
-        return CrossflowBlade(polhamus_helmbold_slope(aspect) / 2.0, 2.07, float(area), float(outboard),
-                              float(density), None, float(face_on), bool(tangential))
+        return CrossflowBlade(float(lift_scale) * polhamus_helmbold_slope(aspect) / 2.0, 2.07, float(area),
+                              float(outboard), float(density), None, float(face_on), bool(tangential))
 
     @classmethod
     def macon(cls, outboard: float, area: float = 0.11,

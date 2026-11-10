@@ -82,6 +82,9 @@ RELEASE_AFTER = 0.5
 #: the blade's water at the surface as a fraction of Patton's unbounded value (EntryImmersion.surface_factor), with the
 #: blade wetting over BioRow's 4 deg; None: no immersion on the buried catch, the whole added mass (as before §228)
 SURFACE_FACTOR = None
+#: the cross-flow law's lift slope over Helmbold's (LiftDragBlade.crossflow lift_scale): 1 as built; the three tank loads
+#: agree on 1.2-1.4 (SOURCES §231, research/blade/lift_slope_profile.py)
+LIFT_SCALE = 1.0
 #: the population's drive fraction, set by population_tables
 POP = {}
 
@@ -112,7 +115,8 @@ def _blade_law_options(boat):
     from coxswain.crew.liftdrag import LiftDragBlade
     oar = boat.rig.seats[0].oarlocks[0].oar
     area, rho, r = float(oar.blade_area), float(boat.water.density), float(oar.blade_centre_outboard)
-    cf = LiftDragBlade.crossflow(outboard=r, area=area, length=float(oar.blade_length), face_on=2.2, density=rho)
+    cf = LiftDragBlade.crossflow(outboard=r, area=area, length=float(oar.blade_length), face_on=2.2, density=rho,
+                                 lift_scale=LIFT_SCALE)
     blade = ScaledTangential(lift_amplitude=cf.lift_amplitude, drag_amplitude=cf.drag_amplitude, area=area, outboard=r,
                              density=rho, normal_from=cf, tangential_from=cf,
                              tangential_scale=H10_TANGENTIAL if BLADE == "crossflow_h10" else 0.0)
@@ -360,7 +364,7 @@ def solved_clock(name, strokes, tables, p_pop):
 
 
 def main():
-    global FV, HOLD, HOLD_OWN, ADDED_MASS, BEND_DYNAMICS, Q_MAP, RELEASE_AFTER, SURFACE_FACTOR
+    global FV, HOLD, HOLD_OWN, ADDED_MASS, BEND_DYNAMICS, Q_MAP, RELEASE_AFTER, SURFACE_FACTOR, LIFT_SCALE
     ap = argparse.ArgumentParser()
     ap.add_argument("--strokes", type=int, default=10)
     ap.add_argument("--athletes", nargs="+", default=["cr06", "br24"])
@@ -401,6 +405,8 @@ def main():
     ap.add_argument("--release-after", type=float, default=RELEASE_AFTER,
                     help="the arc fraction past the catch before the stopped-driving release may act (§226; default "
                          "0.5 since §227; 0 = anywhere, the old rule)")
+    ap.add_argument("--lift-scale", type=float, default=1.0,
+                    help="the cross-flow law's lift slope over Helmbold's (1 as built; tank profile 1.2-1.4, §231)")
     ap.add_argument("--surface-factor", type=float, default=None,
                     help="the blade wets over 4 deg and carries kappa x Patton of water (§173; §228)")
     ap.add_argument("--q-map", default=Q_MAP, choices=["progress", "time", "split"],
@@ -413,6 +419,7 @@ def main():
     Q_MAP = a.q_map
     RELEASE_AFTER = a.release_after
     SURFACE_FACTOR = a.surface_factor
+    LIFT_SCALE = a.lift_scale
     HOLD = float(a.hold)
     HOLD_OWN = bool(a.hold_own)
     ADDED_MASS = a.added_mass
@@ -459,6 +466,7 @@ def main():
                                                             # always named: the defaults moved in §227 (S4)
                                                             + "_qmap" + a.q_map + "_release%g" % a.release_after
                                                             + ("_kappa%g" % a.surface_factor if a.surface_factor is not None else "")
+                                                            + ("" if a.lift_scale == 1.0 else "_lift%g" % a.lift_scale)
                                                             + ("" if a.athletes == ["cr06", "br24"] else "_" + "_".join(a.athletes)))), "w"), indent=1, default=float)
 
 

@@ -56,3 +56,6 @@ angle. Both athletes are held-out tests: nothing in the model was fitted to eith
 - **2026-11-09, user decision:** research the catch; D2 stays failing until sourced physics closes it, then the whole
   ladder is re-run. First source: Kobayashi & Kinoshita 2003 (SOURCES §229). Its rising/falling asymmetry failed the
   tank test (§230: worse on two of three measured loads); not adopted, D2 unchanged.
+- **2026-11-09, a tank-profiled lift slope (k 1.3, §231)**: B1 fails, D2 moves 0.2–0.4 points. Not adopted. With the
+  force matched (C1, rung 1, her own body and oar motion) IVV is still +3.5–4 points: D2's residual is in the hull and
+  body dynamics, not the blade. Ladder stands at 21 / 23.
