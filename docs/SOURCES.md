@@ -15458,3 +15458,36 @@ than slip on a quasi-steady blade gives. The same deficit is in the blade review
 catch's build-up (STATUS's open item, [G19] / [vV22]), not the shaft or the body.
 - Not closed here: the water's pickup at entry cannot carry it (B1 holds κ below ~0.25); [G19]'s entrainment is
   measured at accelerations ten times below a catch; a stiffer shaft within [BL10]'s range would be a fit.
+
+## 229. The catch's build-up, study begun: a rotating plate's unsteady load (2026-11-09)
+
+The user chose (after §228): "Research the catch" — find unsteady-blade data at catch conditions; keep D2 failing until
+sourced physics closes it, then re-run the whole ladder.
+
+**[KK03] Kobayashi & Kinoshita (2003)**, *Unsteady hydrodynamic load acting on an oar blade*, J. Soc. Naval Arch.
+Japan 194:59–65, doi:10.2534/jjasnaoe1968.2003.194_59 (free; `data/local/literature/kobayashi2003_unsteady_oar/`,
+notes there). A plate of scull-blade area and aspect ratio rotated in a channel flow so its angle of attack runs 0 → π
+as a blade's does through a drive; normal force measured; collapsed by reduced frequency f_r = 2πc/(TU) (on water
+f_r ≈ 1–2). Shielded: C_n(π/2) = −0.065 f_r² + 1.607 f_r + 1.526 (steady 1.53). Top edge at the surface (the rowing
+case): air on the suction face, lower. And the dynamic curve is **asymmetric**: above steady while α rises (to ~1.9×
+near 3π/8), below it past ~5π/8.
+
+**Against the research blade** (cross-flow, face-on 2.2, symmetric in α), [KK03] Case a at f_r 1.07 (read by eye,
+`fig10_caseA.csv`, ±0.1):
+
+| α | 11° | 22° | 34° | 45° | 56° | 67° | 79° | 90° | 101° | 112° | 124° | 135° | 146° | 158° |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| ours / [KK03] | 0.48 | 0.65 | 0.75 | 0.70 | 0.79 | 0.85 | 0.92 | 0.98 | 1.15 | 1.29 | 1.42 | 1.52 | 1.61 | 1.62 |
+
+Low while the angle rises, high while it falls — the shape of D2's residual (the flexible model's [BR24] force 65 N
+against 133 at 10 % of the drive, 132 against 73 at 90 %). The athletes' f_r ≈ 1.1 (c 0.45 m, T 0.85 s, U ≈ 3 m/s).
+**Not yet a law**: (i) [KK03]'s plate has its long side as the span (c = 200 mm), while at the catch a blade's flow runs
+along its long side, so the low-angle lift slope is not like for like; (ii) our 2.2 was profiled on [GTW21]'s realistic
+stroke and already carries the stroke-average unsteady level, so a dynamic/steady ratio cannot go on top unnormalised.
+Also obtained: **Sane & Dickinson (2002)** (`sane2002_rotation/`), the rotational-circulation term
+F_rot = C_rot ρUωc², C_rot = π(0.75 − x̂₀) — a candidate form, but a blade's angle of attack turns mostly with its
+path, not about a chordwise axis, so x̂₀ is undefined for it. [vV22]'s acceleration term (Wagner-like delay) has the
+opposite sign to what D2 needs.
+- *Next:* an asymmetric (rising/falling) angle law from [KK03]'s shape, normalised so its stroke-average equals the
+  symmetric law's (no new level), tested open loop on [GTW21], [LJH12] and [RLBQV19] by fifths before any athlete run;
+  only if it improves all three does it go to rung 2 and the whole ladder.

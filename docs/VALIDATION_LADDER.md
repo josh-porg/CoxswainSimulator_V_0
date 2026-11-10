@@ -53,3 +53,5 @@ angle. Both athletes are held-out tests: nothing in the model was fitted to eith
   +4.1 points.** Cause traced to the catch's build-up (the flexible shaft's quasi-steady blade loads too slowly in the
   first ~0.15 s; SOURCES §228 section 5). Bands unchanged. The rigid oar under the same settings passes D2 (+1.3 /
   +1.5) and fails C1 (22.7 %) and D4 (force centre 0.32).
+- **2026-11-09, user decision:** research the catch; D2 stays failing until sourced physics closes it, then the whole
+  ladder is re-run. First source: Kobayashi & Kinoshita 2003 (SOURCES §229).

@@ -54,8 +54,8 @@ Coppel (full-size CFD corrections), [ST09] Sliasas & Tullis, [LB19] Labbé et al
 **Cited, not obtained** (paywalled or the host refused automated access; to request or read in a library):
 Ringuette, Milano & Gharib (2007) JFM 581 (tip vortex and force on low-AR normal plates; the Caltech thesis host
 refused access); Pullin & Wang (2004) JFM 509 (accelerating plate, vortex-sheet similarity); Fernando & Rival
-(2016) JFM (vortex pinch-off on low-AR propulsors); Kriegseis & Rival (2014) JFM; Sane & Dickinson (2002) J. Exp.
-Biol. (revised quasi-steady model with rotation); Eldredge & Jones (2019) Annu. Rev. Fluid Mech. (LEV models);
+(2016) JFM (vortex pinch-off on low-AR propulsors); Kriegseis & Rival (2014) JFM; [Sane & Dickinson (2002) J. Exp.
+Biol. — obtained 2026-11-09, SOURCES §229; with it Kobayashi & Kinoshita (2003), a rotating plate's unsteady load]; Eldredge & Jones (2019) Annu. Rev. Fluid Mech. (LEV models);
 Barré & Kobus (2010) (towing-tank comparison of blade force models); Leroyer et al. (2008, 2010); Sliasas &
 Tullis (2010, shaft bending); Hofmijster et al. (2010, energy loss at the blades).
 

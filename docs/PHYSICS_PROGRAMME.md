@@ -1331,6 +1331,12 @@ the boat speeds that go with their drive durations).
     ([BR24] 65 N at 10 % of the drive against 133; [CR06] 48 against 99 in her first 10°; the blade review's first
     fifths 0.44 / 0.51). Candidates: an unsteady (entrainment) term with a source at catch accelerations ([G19] stops
     at 1.6 m/s²), or the blade's vertical entry loading the shaft before the slip does. Then the whole ladder again.
+- **§229 (2026-11-09): catch study begun** (user: research the catch). Kobayashi & Kinoshita (2003) rotated a
+  scull-sized plate through α 0 → π in a stream: the unsteady normal force is above steady while α rises and below it
+  as α falls; our symmetric law is 0.5–0.85 of it on the rising side and 1.15–1.6 on the falling side — D2's residual
+  shape. Sane & Dickinson (2002) obtained (rotational circulation; not directly applicable).
+  - *Next:* an asymmetric angle law from [KK03]'s shape at stroke-average-neutral level, tank-tested on [GTW21],
+    [LJH12], [RLBQV19] first; then rung 2 and the whole ladder.
 
 ## Calibration and validation data from the squad's own boats (noted 2026-10-08)
 
