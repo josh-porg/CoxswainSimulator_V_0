@@ -15680,3 +15680,36 @@ blade lagging the gate by the shaft's bend (up to ~9° near the peak, which move
 scale), and the population handle force handed over by drive progress from a population run on the same oar.
 - *Next:* the force peak's position — the bent blade's lag against the gate scale BioRow measures on, then the
   population hand-over; a D6 rung on the population force shape with its bands set before it is run.
+
+## 236. The late force peak is the oar, not the hand-over; the shaft delays the force more than real shafts do (2026-11-10)
+
+`research/validation/population_force_shape.py` (log `data/local/validation/population_force_shape.log`): [K05]'s
+population at rung 1 — their body, rhythm and drive law imposed, hands on the handle — so the handle force is the
+oar's and the blade's response alone. Research blade, κ 0.1; rigid, [L14]'s medium shaft, and its extra-soft shaft
+(`rung2_population.SHAFT_EI`).
+
+| | peak, drive length | peak, time | force at 10 / 20 / 40 / 60 / 90 % of drive length |
+|---|---|---|---|
+| population (RBN 2023/12) | 40 % | — | 22 / 60 / 100 / 74 / 0 |
+| [L14] Table 12 (4 scullers × 20 strokes, oarlock force) | — | **34–47 %** | — |
+| rigid | 40 % | 47.8 % | 81 / 76 / 100 / 50 / −3 |
+| medium shaft | 52 % (46 on the blade's angle) | 56.5 % | 29 / 58 / 91 / 93 / 17 |
+| extra-soft shaft | 54 % | 58.4 % | 26 / 52 / 88 / 97 / 27 |
+
+- **The late peak is in the oar and blade**: the hands are imposed here, so the hand-over is cleared. The rigid oar
+  peaks in the right place but loads at once and drops early; the flexible shaft builds up as the population does but
+  peaks late and holds (93 % at 60 % against 74). The truth lies between.
+- **The shaft moves the force more than real shafts do.** [L14]'s on-water trial (blinded, 4 scullers): extra-soft
+  minus medium, time to peak force +0.2 points of the drive (rowers +1.4 / +0.4 / +0.3 / −1.3, each within its
+  stroke-to-stroke SD of 1–9), with boat-acceleration differences "on the same order as the inter-stroke
+  inconsistencies". The model: **+1.9** for the same change, and +8.7 from rigid to medium. Its stiffness is the
+  measured one (statics, and [BL10]'s frequencies to 0.3 %), so the excess is in how the bent blade couples to the
+  water: early the bending rate absorbs the slip, late the unbending returns it as slip and force. [L14] (ch. 4) argues
+  the water damps that "inverse deflection" so it does not propel; the model's blade returns it.
+- Not fixed: no sourced law for that coupling is in hand, and softening or stiffening the measured shaft would be a
+  fit. Two sourced tests now exist for whichever fix comes: the population force curve by drive length (RBN 2023/12)
+  and the stiffness sensitivity of the time to peak force ([L14] Table 12: within ±2 points of the drive for
+  extra-soft against medium).
+- *Next:* the unbending's coupling — the blade's drag on its own bending motion (the strips' rate uses the centre's
+  bend rate for every strip, §227), the bent blade's angle of attack on the falling side, and the dry blade's mass in
+  the hull rows (§227's noted omission); each tested on these two benchmarks first, then the ladder.

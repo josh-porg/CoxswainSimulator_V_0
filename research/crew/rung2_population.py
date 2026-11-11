@@ -92,6 +92,9 @@ CHANNEL_SMOOTHING = "gcv"
 #: oar travel over which the blade comes out before the finish, deg (EntryImmersion.release_slip_deg; BioRow 16.6,
 #: RBN 2017/12, with the centre out at 90 % of the drive, RBN 2023/12; SOURCES §235). None: buried until the release
 RELEASE_SLIP = None
+#: the scull shaft's flexural rigidity, N m^2; None: [L14]'s medium shaft (oar_bending.L14_MEDIUM_EI). L14_EXTRA_SOFT_EI for
+#: the stiffness-sensitivity test against [L14] Table 12 (SOURCES §236)
+SHAFT_EI = None
 #: the population's drive fraction, set by population_tables
 POP = {}
 
@@ -104,7 +107,8 @@ def blade_options(boat):
     elif BENDING:
         from coxswain.crew.oar_bending import OarBending
         oar = boat.rig.seats[0].oarlocks[0].oar
-        opts["oar_bending"] = OarBending.laschowski2014_scull(float(oar.blade_centre_outboard), float(oar.blade_length))
+        opts["oar_bending"] = OarBending.laschowski2014_scull(float(oar.blade_centre_outboard), float(oar.blade_length),
+                                                              ei=SHAFT_EI)
         if BEND_DYNAMICS is not None:                            # the bend as a dynamic state (SOURCES §224)
             opts["bend_dynamics"] = BEND_DYNAMICS
     if RELEASE_AFTER:                                            # 0 / None: the release anywhere (the old rule)
