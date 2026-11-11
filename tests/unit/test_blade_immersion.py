@@ -75,3 +75,17 @@ def test_the_entrained_water_returns_the_momentum_it_takes(immersed):
     scale = np.trapezoid(np.where(wet, np.abs(force), 0.0), t)
     assert scale > 1.0
     assert abs(impulse) < 0.05 * scale
+
+
+def test_extraction_follows_biorows_release_slip_and_centre_out_at_ninety_percent():
+    """SOURCES §235: buried until 1 - slip / arc, half out at 90 % of the drive, out after; none without a slip."""
+    from coxswain.crew.blade_immersion import BIOROW_RELEASE_SLIP_DEG
+    assert EntryImmersion().extraction(0.99, 105.0) == 1.0                  # as built: buried to the release
+    law = EntryImmersion(release_slip_deg=BIOROW_RELEASE_SLIP_DEG)
+    buried = 1.0 - BIOROW_RELEASE_SLIP_DEG / 105.0
+    assert law.extraction(buried - 0.01, 105.0) == 1.0
+    assert law.extraction(0.90, 105.0) == pytest.approx(0.5)
+    assert law.extraction(0.999, 105.0) == 0.0
+    assert law.key() != EntryImmersion().key()
+    with pytest.raises(ValueError):
+        EntryImmersion(release_slip_deg=4.0).extraction(0.5, 50.0)           # buried past 90 %: no room to come out

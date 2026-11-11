@@ -92,8 +92,10 @@ def main():
     ap.add_argument("--bend-dynamics", action="store_true", help="the dynamic shaft (BendDynamics; needs added mass)")
     ap.add_argument("--json", default=None, help="write the rms, peak and angles here (the validation ladder)")
     ap.add_argument("--lift-scale", type=float, default=1.0, help="the cross-flow lift slope over Helmbold's (§231)")
+    ap.add_argument("--release-slip", type=float, default=None, help="the blade comes out over this much oar travel (§235)")
     args = ap.parse_args()
     RP.ADDED_MASS, RP.SURFACE_FACTOR, RP.LIFT_SCALE = args.added_mass, args.surface_factor, args.lift_scale
+    RP.RELEASE_SLIP = args.release_slip
     if args.bend_dynamics:
         from coxswain.crew.oar_bending import BendDynamics
         RP.BEND_DYNAMICS = BendDynamics()

@@ -848,7 +848,14 @@ class DynamicOarSimulator(RowingSimulator):
         """Wetted fraction of the blade's height; 1 without an immersion law."""
         if self.blade_immersion is None:
             return 1.0
-        return self.blade_immersion.wetted(self._travel_since_entry(slot, angle))
+        entry = self.blade_immersion.wetted(self._travel_since_entry(slot, angle))
+        if getattr(self.blade_immersion, "release_slip_deg", None) is None:
+            return entry
+        # and as it comes out at the finish, on the gate's progress (SOURCES §235)
+        oar = self._oars[slot]
+        span = float(oar.catch_angle) - float(oar.finish_angle)
+        progress = (float(oar.catch_angle) - float(angle)) / span if span else 0.0
+        return entry * self.blade_immersion.extraction(progress, np.degrees(span))
 
     def _blade_mass_now(self, slot, angle, rate):
         """``(m_a, dm_a/dt)`` of one blade's entrained water, kg and kg/s."""

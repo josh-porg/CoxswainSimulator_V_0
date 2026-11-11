@@ -15655,3 +15655,28 @@ the maximum force by 1.1 % and the mean by 0.2 % (peak-timing jitter). **The ens
 stroke; the force-lever correction; the file), reports what the newsletters showed, and asks for the 2023/12 reference
 curves as numbers (sculling R30+), the athlete at other rates, and the per-point SDs of boat velocity — in place of
 the individual-strokes question 2017/12 answered.
+- *Sent by the user 2026-11-10*, with background on the project and an open invitation to advise or collaborate.
+
+## 235. The blade's extraction at the finish; the force peak is late, not long (2026-11-10)
+
+**The physics.** The immersion model wetted the blade over BioRow's 4° at the catch but kept it fully wet until the
+release. Two BioRow numbers fix the extraction: the release slip (fully buried at −3° → the finish) 16.6° (RBN 2017/12,
+Table 1, a JM8+ at 37 spm; sculling's is longer, RBN 2023/12) and the population's blade centre at the water line at
+90 % of the drive length (RBN 2023/12). On a 105° sculling arc they agree with a steady rise (buried to 84 %, half out
+at 90 %). `EntryImmersion(release_slip_deg=, release_half_out=0.90)` (`BIOROW_RELEASE_SLIP_DEG`,
+`BIOROW_CENTRE_OUT_AT`): the loads' wetted fraction falls linearly through ½ at 90 %, on the gate's progress; the
+blade's water is left as built. Rung 2 / C1 / diagnosis `--release-slip`. Test
+`test_blade_immersion.py::test_extraction_follows_biorows_release_slip_and_centre_out_at_ninety_percent`.
+
+**The result** ([BR24], flexible, κ 0.1, GCV channels; `force_vs_drive_length.py`): force at 90 % of drive length 20 →
+17–18 % of peak (population ~0); unchanged elsewhere. Rung 2: [CR06] 4.167 m/s, IVV 53.9 %; [BR24] 4.756, 52.4 %; C1
+10.6 %. Ladder 24 / 25: **[BR24]'s D2b moves +1.73 → +1.75 points against ±1.74** (the narrow pass of §233 tips).
+**Not made a default** (the ladder does not carry it); kept as a sourced option.
+
+**What the trace shows instead.** The late tail is close to the population already (74 % at 70 % of drive length, as
+the population; 43 % at 80 %; 17 % at 90 %); the error is the peak's **position**: at 55 % of the drive length
+against 40 %, with 97 % at 60 % (74 %) and 89 % at 40 % (100 %). So the force is late, not long. Candidates: the
+blade lagging the gate by the shaft's bend (up to ~9° near the peak, which moves a blade-angle peak later on the gate
+scale), and the population handle force handed over by drive progress from a population run on the same oar.
+- *Next:* the force peak's position — the bent blade's lag against the gate scale BioRow measures on, then the
+  population hand-over; a D6 rung on the population force shape with its bands set before it is run.

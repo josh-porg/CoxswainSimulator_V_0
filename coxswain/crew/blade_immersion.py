@@ -41,6 +41,10 @@ import numpy as np
 BIOROW_BURY_DEG = 4.0
 #: Grift's surface / submerged added-mass response, (20-40%) / (50-70%)
 GRIFT_SURFACE_RANGE = (0.3, 0.8)
+#: BioRow's release slip, vertical −3° to the finish, degrees of oar travel (RBN 2017/12, Table 1, JM8+ at 37 spm)
+BIOROW_RELEASE_SLIP_DEG = 16.6
+#: drive length at which the population's blade centre is at the water line (RBN 2023/12)
+BIOROW_CENTRE_OUT_AT = 0.90
 
 
 @dataclass(frozen=True)
@@ -51,6 +55,12 @@ class EntryImmersion:
     bury_deg: float = BIOROW_BURY_DEG
     #: added mass at the surface relative to Patton's unbounded-fluid value
     surface_factor: float = 1.0
+    #: oar travel from fully buried (vertical −3°) to the finish, degrees; ``None``: the blade stays buried until the
+    #: release (as built). Kleshnev, RBN 2017/12, Table 1: 16.6° (a JM8+ at 37 spm); sculling's is longer (RBN 2023/12)
+    release_slip_deg: float = None
+    #: drive length at which the blade centre reaches the water line: 0.90 for the population (RBN 2023/12, >50 000
+    #: samples: "at 90 % of the drive length ... the centre of the blade is slightly above the water level")
+    release_half_out: float = BIOROW_CENTRE_OUT_AT
 
     def __post_init__(self):
         if not self.bury_deg > 0.0:
@@ -78,5 +88,23 @@ class EntryImmersion:
         """d(mass_fraction)/d(travel), 1/rad."""
         return 2.0 * self.surface_factor * self.wetted(travel) * self.wetted_slope(travel)
 
+    def extraction(self, progress: float, arc_deg: float) -> float:
+        """Wetted fraction as the blade comes out at the finish; 1 without ``release_slip_deg``.
+
+        BioRow's convention: fully buried at a vertical angle of −3°, the blade centre at the water line at 0°, half a
+        blade width ≈ 3°. The release slip (fully buried → the finish) is ``release_slip_deg`` of oar travel, so the
+        blade is buried until drive length ``1 − slip / arc``; the population's blade centre reaches the water line at
+        ``release_half_out`` of the drive length. Between, the blade rises steadily, so the wetted height falls
+        linearly through 1/2 there, on to 0 (SOURCES §235)."""
+        if self.release_slip_deg is None:
+            return 1.0
+        buried_until = 1.0 - float(self.release_slip_deg) / float(arc_deg)
+        if not buried_until < self.release_half_out:
+            raise ValueError("a release slip of %.1f deg on a %.1f deg arc leaves no room before the blade centre is "
+                             "out at %.2f of the drive" % (self.release_slip_deg, arc_deg, self.release_half_out))
+        frac = 1.0 - 0.5 * (float(progress) - buried_until) / (self.release_half_out - buried_until)
+        return float(min(max(frac, 0.0), 1.0))
+
     def key(self) -> tuple:
-        return ("entry_immersion", float(self.bury_deg), float(self.surface_factor))
+        return ("entry_immersion", float(self.bury_deg), float(self.surface_factor),
+                None if self.release_slip_deg is None else float(self.release_slip_deg), float(self.release_half_out))

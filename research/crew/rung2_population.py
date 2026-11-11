@@ -89,6 +89,9 @@ LIFT_SCALE = 1.0
 #: generalised cross-validation spline on the raw points (default since §232: kinematic data smoothed before they are
 #: differentiated, the amount set by the data); "as-built" -- an interpolating spline ([BR24]) and a chosen lam ([CR06])
 CHANNEL_SMOOTHING = "gcv"
+#: oar travel over which the blade comes out before the finish, deg (EntryImmersion.release_slip_deg; BioRow 16.6,
+#: RBN 2017/12, with the centre out at 90 % of the drive, RBN 2023/12; SOURCES §235). None: buried until the release
+RELEASE_SLIP = None
 #: the population's drive fraction, set by population_tables
 POP = {}
 
@@ -125,11 +128,12 @@ def _blade_law_options(boat):
                              density=rho, normal_from=cf, tangential_from=cf,
                              tangential_scale=H10_TANGENTIAL if BLADE == "crossflow_h10" else 0.0)
     opts = dict(blade_law="liftdrag", liftdrag_blade=blade, blade_span=float(oar.blade_length))
-    if C2.TAKEOVER_DEG == "entry" or SURFACE_FACTOR is not None:
+    if C2.TAKEOVER_DEG == "entry" or SURFACE_FACTOR is not None or RELEASE_SLIP is not None:
         # the load ramps in over the placement and the blade's water follows the wetted blade, kappa x Patton
         # (SOURCES sec. 173; kappa < 0.1 from the population force curves, and [RLBQV19]'s bend, §228)
         from coxswain.crew.blade_immersion import EntryImmersion
-        opts["blade_immersion"] = EntryImmersion(surface_factor=1.0 if SURFACE_FACTOR is None else SURFACE_FACTOR)
+        opts["blade_immersion"] = EntryImmersion(surface_factor=1.0 if SURFACE_FACTOR is None else SURFACE_FACTOR,
+                                                 release_slip_deg=RELEASE_SLIP)
     return opts
 
 
@@ -370,7 +374,7 @@ def solved_clock(name, strokes, tables, p_pop):
 
 
 def main():
-    global FV, HOLD, HOLD_OWN, ADDED_MASS, BEND_DYNAMICS, Q_MAP, RELEASE_AFTER, SURFACE_FACTOR, LIFT_SCALE, CHANNEL_SMOOTHING
+    global FV, HOLD, HOLD_OWN, ADDED_MASS, BEND_DYNAMICS, Q_MAP, RELEASE_AFTER, SURFACE_FACTOR, LIFT_SCALE, CHANNEL_SMOOTHING, RELEASE_SLIP
     ap = argparse.ArgumentParser()
     ap.add_argument("--strokes", type=int, default=10)
     ap.add_argument("--athletes", nargs="+", default=["cr06", "br24"])
@@ -411,6 +415,8 @@ def main():
     ap.add_argument("--release-after", type=float, default=RELEASE_AFTER,
                     help="the arc fraction past the catch before the stopped-driving release may act (§226; default "
                          "0.5 since §227; 0 = anywhere, the old rule)")
+    ap.add_argument("--release-slip", type=float, default=RELEASE_SLIP,
+                    help="the blade comes out over this much oar travel before the finish, deg (BioRow 16.6; §235)")
     ap.add_argument("--channel-smoothing", default=CHANNEL_SMOOTHING, choices=["gcv", "as-built"],
                     help="the athletes' body channels before differentiation (§232; default gcv)")
     ap.add_argument("--lift-scale", type=float, default=1.0,
@@ -429,6 +435,7 @@ def main():
     SURFACE_FACTOR = a.surface_factor
     LIFT_SCALE = a.lift_scale
     CHANNEL_SMOOTHING = a.channel_smoothing
+    RELEASE_SLIP = a.release_slip
     HOLD = float(a.hold)
     HOLD_OWN = bool(a.hold_own)
     ADDED_MASS = a.added_mass
@@ -477,6 +484,7 @@ def main():
                                                             + ("_kappa%g" % a.surface_factor if a.surface_factor is not None else "")
                                                             + ("" if a.lift_scale == 1.0 else "_lift%g" % a.lift_scale)
                                                             + ("_chan" + a.channel_smoothing)
+                                                            + ("" if a.release_slip is None else "_relslip%g" % a.release_slip)
                                                             + ("" if a.athletes == ["cr06", "br24"] else "_" + "_".join(a.athletes)))), "w"), indent=1, default=float)
 
 
