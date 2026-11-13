@@ -15616,6 +15616,12 @@ from the paper's correspondence line (PMC showed a CAPTCHA, the publisher refuse
 
 ## 234. The data author's newsletters: the averaging is not the gap; the catch build-up matches the population (2026-11-10)
 
+> **Corrected by §237 (2026-11-13).** Sections 2 of this entry, and §235–236's comparisons against "drive length", read
+> RBN 2023/12 Fig. 1a–c on the wrong axis: the figure is against the drive's **time**, not its length. The claims "the
+> flexible shaft's catch build-up matches the population", "the slow catch was [BR24]-specific" and "the rigid oar
+> peaks in the right place" are **withdrawn**; §237 has the comparison on the right axis. Section 1 (the averaging) and
+> the [L14] Table 12 comparison (already by time) stand.
+
 The user downloaded the two newsletters attached to the data author's reply and asked for them to be read before the
 reply goes (`data/local/literature/biorow_newsletters/`, notes there; cite as Kleshnev 2020, with the issue).
 
@@ -15713,3 +15719,80 @@ oar's and the blade's response alone. Research blade, κ 0.1; rigid, [L14]'s med
 - *Next:* the unbending's coupling — the blade's drag on its own bending motion (the strips' rate uses the centre's
   bend rate for every strip, §227), the bent blade's angle of attack on the falling side, and the dry blade's mass in
   the hull rows (§227's noted omission); each tested on these two benchmarks first, then the ladder.
+
+## 237. RBN 2023/12 read as numbers, on the right axis; the population's own hands; the blade and shaft open loop (2026-11-13)
+
+**1. A correction.** RBN 2023/12's text places its landmarks at "10 % / 20 % / 40 % / 60 % / 90 % of the drive length",
+and §234–236 compared the model on drive length. The figure's own axis label is "Time of drive phase (%)", and its
+panels d–e, which are explicitly against drive length, bury the blade (−3°) at ~10 % of length where panels a–c show
+it at 20 %. **Fig. 1a–c is against time.** The figure is vector: each curve is drawn through 11 data points, one per
+10 % of drive time, and `research/validation/extract_rbn2023.py` reads them (every number in the text is reproduced:
+force 13 / 22 / 59 / 94 / 73 at 0 / 10 / 20 / 40 / 60 %; handle velocity 44 / 64 / 83 / 99 / 46; seat 5.6 / 46 / 41 /
+16). The handle velocity's integral gives drive length against time — 3 / 11 / 21 / 33 / 46 / 60 / 74 / 87 / 97 % at
+10 … 90 % of time — and agrees with panel e's joints. Numbers: `data/local/literature/biorow_newsletters/
+rbn2023_fig1.csv`; reader `research/validation/rbn2023.py`. Withdrawn: "the catch build-up matches the population"
+and "the slow catch was [BR24]-specific" (§234); "the rigid oar peaks in the right place" (§236). On the right axis
+[BR24] is close to the population early (force 52 % at 10 % of length against 53; he peaks later, 52 % of time
+against 40) and the K05-driven flexible model is slow to build *and* late (`force_vs_drive_length.py`, rewritten).
+
+**2. The imposed hand motion was part of it** (`population_kinematics.py`). [K05] Fig. 1's handle speed (five
+scullers, a digitised scan) against RBN 2023/12's (>50 000 samples), per 10 % of drive time: 43 / 58 / 67 / 79 / 91 /
+99 / 99 / 88 / 59 against 44 / 64 / 73 / 83 / 93 / 99 / 97 / 81 / 46 — up to 6 points slow at 20–40 %, 7–13 fast at
+80–90 %. The blade's slip is a small difference (at 20 % of the drive the gate moves the blade at 2.75 m/s against the
+boat's 2.01), so 6 points of handle speed is half the slip. **`rbn2023.drive_sweep`**: `PopulationDriveSweep` on the
+reference handle velocity (reproduced within 1 point). The population at rung 1 with it, and the body's legs and
+trunk from the same curves (`k05_body.body_field(drive="rbn2023")`: seat = legs; the upper body split trunk / arms by
+[K05]'s share; the recovery [K05]'s), against the population's own force curve, per 10 % of time (10 … 90 %):
+
+| | force, % of peak | rms | peak at |
+|---|---|---|---|
+| population (RBN 2023/12) | 22 / 59 / 82 / 94 / 92 / 73 / 48 / 18 / −3 | — | 40–50 % |
+| flexible, [K05] hands (as §236) | 3 / 33 / 58 / 77 / 95 / 98 / 67 / 34 / −10 | 17.5 | 57 % |
+| **flexible, population hands and body** | 3 / 42 / 76 / 93 / 100 / 89 / 54 / 16 / −4 | **10.2** | **49 %** |
+| rigid, population hands and body | 9 / 100 / 73 / 63 / 61 / 40 / 25 / −2 / −4 | 23.2 | 19 % |
+
+On the population's own motion the flexible shaft reproduces its force curve and the rigid oar does not (it spikes at
+20 % and collapses). The late drive matches; what is left is the first ~20 % (3 against 22 at 10 %) and 50–60 %.
+
+**3. The same handle law on the two test athletes** (their arcs and rhythm; neither entered it): rung-1 oar progress
+against measured rms 0.035 → **0.014** ([CR06]; angle 3.7° → 1.5°) and 0.025 → **0.009** ([BR24]).
+`handle_rung1.boat_for(drive_law="rbn2023")`; rung 2 `--pop-drive` (`POP_DRIVE`, **default "rbn2023"** from here;
+`population_sim` is the one builder).
+
+**4. The blade and shaft alone, on measured motion** (`open_loop_shaft.py`: each athlete's measured oar angle and
+boat speed imposed, no hull, body or muscles; the simulator's own blade loads; rigid, or [L14]'s shaft as the
+quasi-static hinge; force on each measurement's own lever). Handle force per oar at 10 … 80 % of drive time, N:
+
+| | measured | flexible shaft | rigid |
+|---|---|---|---|
+| [BR24] | 127 / 227 / 297 / 369 / 415 / 410 / 268 / 95 | 38 / 105 / 172 / 261 / 329 / 353 / 258 / 89; rms 18.5 %, impulse 0.71 | 136 / 137 / 265 / 303 / 346 / 229 / 90 / −9; 23.5 %, 0.64 |
+| [CR06] | 82 / 148 / 203 / 251 / 279 / 215 / 137 / 62 | 59 / 141 / 207 / 277 / 308 / 283 / 208 / 119; **13.7 %**, 1.17 | 275 / 174 / 316 / 315 / 248 / 129 / 157 / 13; 21.6 %, 1.14 |
+
+The flexible shaft is the better oar for both athletes. Its residuals are opposite — [BR24] low early and right late,
+[CR06] right early and high late — so across the two the blade-and-shaft law has no common bias to correct (no
+single-athlete fits). [BR24]'s handle power is self-consistent (his handle velocity channel is at BioRow's force point:
+|V_h| / |ω| = 0.82 m), so his 432 W stands.
+
+**5. Where the speed swing is made.** [BR24] rung 2: the peak above the mean matches (1.11 against 1.10 m/s) and the
+dip after the catch is 0.22 m/s too deep; [CR06]: +0.10 above, +0.08 below. A dip that deep is the legs pushing the
+hull back before the blade has loaded: the early-drive force, the one piece still short in §2 and for [BR24] in §4.
+[CG07]'s flume rules out the blade's camber as its source (the curved Big Blade's C_L at 0° is 0.04 ± 0.02).
+
+**6. The ladder on the new default** (flexible shaft, κ 0.1, GCV channels, population RBN 2023/12;
+`data/local/validation/ladder_2026-11-13.log`): **24 of 26.** New comparative rungs B2 (population force curve:
+flexible 10.2 points rms against rigid 23.2; peak at 49 % of drive time, reference 40–50) and C2 (open loop on measured
+motion: 13.7 / 18.5 % against rigid 21.6 / 23.5) pass; they were added after their first runs were seen, so they carry
+no tuned band. Rung 2: [CR06] 4.204 m/s (+0.3 %), IVV 53.0 %, 262 W, oar progress 0.037; [BR24] 4.785 (+3.1 %), 52.5 %,
+428 W, 0.024; half step within 0.05 % / 0.12 points. [BR24]'s force shape: peak 422 N at 0.50 of the drive, centre 0.52
+(measured 424 at 0.58, 0.49; was centre 0.54); D2b +0.86 / +1.32 points (bands ±2.03 / ±1.74; was +1.47 / +1.73).
+**Fails:** C1, [CR06]'s rung-1 handle force, 18.1 % of her peak (band 15 %; 10.4 % on [K05]'s hands) — with hands that
+now follow hers (progress rms 0.014) the model gives her 12 % more power than she measured (293 against 261 W), as it
+does open loop (impulse 1.17): the earlier pass leaned on [K05]'s slow early hands; and D1 for [BR24], +3.1 % (band ±3;
++2.8 before). Both are force-level discrepancies of opposite sign in the two athletes ([CR06] +17 %, [BR24] −29 % open
+loop), which no common blade change can remove.
+- The shaft's stiffness moves the model's force peak more than [L14]'s on-water trial shows: extra-soft minus medium
+  +3.8 points of drive time on the population's hands (`population_force_shape.py`; [L14] Table 12: +0.2, rowers −1.3
+  to +1.4). Their rowers were free to adapt their hands; the model's are imposed. A caution, not a verdict.
+- *Next:* the first 20 % of the drive (the blade's wetting from the population's own vertical angle, RBN 2023/12 Fig.
+  1b, in place of the 4° target; the oar's inertia as the handle sees it through the shaft); the recovery from RBN
+  2023/12 Fig. 2; why rung 2's muscles pull the athletes' oar timing away from rung 1's (0.014 → 0.037, 0.009 → 0.024).

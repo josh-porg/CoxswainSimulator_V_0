@@ -95,6 +95,11 @@ RELEASE_SLIP = None
 #: the scull shaft's flexural rigidity, N m^2; None: [L14]'s medium shaft (oar_bending.L14_MEDIUM_EI). L14_EXTRA_SOFT_EI for
 #: the stiffness-sensitivity test against [L14] Table 12 (SOURCES §236)
 SHAFT_EI = None
+#: the population whose muscles rung 2 borrows: its imposed handle velocity and body timing through the drive
+#: (``population_sim``): "k05" -- [K05] Fig. 1, five scullers (as built); "rbn2023" -- RBN 2023/12's reference curves,
+#: >50 000 samples: the default since §237 (its handle law fits both test athletes' oar timing 2.5x closer, and the
+#: population's own force curve is reproduced to 10 points rms against 17.5)
+POP_DRIVE = "rbn2023"
 #: the population's drive fraction, set by population_tables
 POP = {}
 
@@ -151,7 +156,9 @@ OWN_BODY_JOINTS = ("shank", "thigh", "trunk")
 def athlete_boat(name, m):
     """The athlete's boat; with their own body (``BODY == "own"``) built with no population clock on the joints their
     channels time (``own_joints``; SOURCES §228), as their boat was before the research profile's trunk clock."""
-    return C2.R.boat_for(name, m, "on-water", drive_law=True, own_joints=OWN_BODY_JOINTS if BODY == "own" else ())
+    # the athlete's planned oar motion is the population's drive law on the athlete's own arc (POP_DRIVE; §237)
+    return C2.R.boat_for(name, m, "on-water", drive_law="rbn2023" if POP_DRIVE == "rbn2023" else True,
+                         own_joints=OWN_BODY_JOINTS if BODY == "own" else ())
 
 
 def own_body(name, boat):
@@ -322,13 +329,31 @@ def athlete(name, strokes, s_pop, q_drive, ph, q, p_pop):
     return out
 
 
+def population_sim(drive=None, body_drive=None):
+    """The population at rung 1: ``(boat, simulator)``. ``drive`` (default ``POP_DRIVE``): the imposed handle velocity,
+    "k05" ([K05] Fig. 1, five scullers) or "rbn2023" (RBN 2023/12's reference curve, >50 000 samples;
+    research/validation/rbn2023.py); ``body_drive``: the legs' and trunk's drive timing, the same choices (default: as
+    ``drive``). Rhythm, stature, mass and the recovery are [K05]'s either way (SOURCES §237)."""
+    drive = POP_DRIVE if drive is None else drive
+    kw = dict(timing=OnWaterTiming(KP.K05_RATE), stature=KP.K05_STATURE, mass=KP.K05_MASS)
+    pop_boat = V.cr06_boat(dict(leg_travel=None), drive_law=True, **kw)
+    if drive == "rbn2023":
+        sys.path.insert(0, os.path.join(ROOT, "research", "validation"))
+        import rbn2023
+        sw = pop_boat.oar_sweep
+        pop_boat = V.cr06_boat(dict(leg_travel=None), oar_sweep=rbn2023.drive_sweep(sw.catch_angle, sw.finish_angle),
+                               **kw)
+    elif drive != "k05":
+        raise ValueError("the population's drive is 'k05' or 'rbn2023', got %r" % (drive,))
+    body, _k = k05_body.body_field(pop_boat, leg_travel=0.51, drive=body_drive or drive)
+    return pop_boat, make(pop_boat, "reference", body=body)
+
+
 def population_tables(strokes):
-    """[K05]'s population at rung 1 with its own body and drive law: ``(summary, (s_pop, q_drive, phase, q))``, the
-    muscles' generalised force against drive progress and against cycle phase, as rung 2 carries them to an athlete."""
-    pop_boat = V.cr06_boat(dict(leg_travel=None), timing=OnWaterTiming(KP.K05_RATE), stature=KP.K05_STATURE,
-                           drive_law=True, mass=KP.K05_MASS)
-    body, _k = k05_body.body_field(pop_boat, leg_travel=0.51)
-    pop = make(pop_boat, "reference", body=body)
+    """The population at rung 1 with its own body and drive law (``population_sim``): ``(summary, (s_pop, q_drive,
+    phase, q))``, the muscles' generalised force against drive progress and against cycle phase, as rung 2 carries
+    them to an athlete."""
+    pop_boat, pop = population_sim()
     run_p = pop.run_strokes(strokes, surge_speed=4.3)
     s_p = C2.summary(run_p)
     ph, q = q_table(pop, run_p)
@@ -379,7 +404,10 @@ def solved_clock(name, strokes, tables, p_pop):
 
 def main():
     global FV, HOLD, HOLD_OWN, ADDED_MASS, BEND_DYNAMICS, Q_MAP, RELEASE_AFTER, SURFACE_FACTOR, LIFT_SCALE, CHANNEL_SMOOTHING, RELEASE_SLIP
+    global POP_DRIVE
     ap = argparse.ArgumentParser()
+    ap.add_argument("--pop-drive", default=POP_DRIVE, choices=["k05", "rbn2023"],
+                    help="the population whose muscles are borrowed: [K05] Fig. 1 or RBN 2023/12's curves (§237)")
     ap.add_argument("--strokes", type=int, default=10)
     ap.add_argument("--athletes", nargs="+", default=["cr06", "br24"])
     ap.add_argument("--blade", default="slip", choices=["slip", "crossflow_h10", "crossflow_normal"])
@@ -440,6 +468,7 @@ def main():
     LIFT_SCALE = a.lift_scale
     CHANNEL_SMOOTHING = a.channel_smoothing
     RELEASE_SLIP = a.release_slip
+    POP_DRIVE = a.pop_drive
     HOLD = float(a.hold)
     HOLD_OWN = bool(a.hold_own)
     ADDED_MASS = a.added_mass
@@ -489,6 +518,7 @@ def main():
                                                             + ("" if a.lift_scale == 1.0 else "_lift%g" % a.lift_scale)
                                                             + ("_chan" + a.channel_smoothing)
                                                             + ("" if a.release_slip is None else "_relslip%g" % a.release_slip)
+                                                            + ("_pop" + a.pop_drive)   # always named (S4)
                                                             + ("" if a.athletes == ["cr06", "br24"] else "_" + "_".join(a.athletes)))), "w"), indent=1, default=float)
 
 

@@ -12,7 +12,9 @@ athlete's own body timing, the population's muscles handed over split (own body 
 to the athlete's oar timing), the on-water handle force–velocity (Nordez et al. 2025, V0 4.53 m/s) on the rower's own
 pace, the research cross-flow blade (normal load), the buried catch, the second-half release; the oar is [L14]'s
 measured scull shaft as a dynamic hinge (`BendDynamics`: blade mass, measured structural damping) carrying the blade's
-added mass. Each rung names any setting it changes.
+added mass (κ 0.1 of Patton's since §228). The athletes' body channels are GCV-smoothed (§232). **The population whose
+muscles and planned hand motion are borrowed is RBN 2023/12's reference curves since 2026-11-13** (`POP_DRIVE =
+"rbn2023"`, SOURCES §237; [K05] Fig. 1 before). Each rung names any setting it changes.
 
 ## Rules
 
@@ -33,7 +35,9 @@ added mass. Each rung names any setting it changes.
 | **A3** | step convergence of rung 2 (half the step) | speed / IVV change | < 0.5 % / < 0.5 points | self |
 | **A4** | rigid invariance of the release and blade-track fixes (`test_release_after_...`, `test_the_blade_track_...`) | rigid run unchanged | 1e-9 | self |
 | **B1** | the shaft and its water in a tank, motion imposed: [RLBQV19]'s full-size trial (`research/blade/bench_dynamic_shaft.py`) at [RLBQV19]'s own face-on regime (1.3, SOURCES §191) | bend rms against the measured bend; bend peak's angle; M_z impulse ratio | ≤ 1.5° (20 % of the 7.5° peak); within 10° of 85°; 0.85–1.15 | chosen |
+| **B2** | the population's own stroke (rung 1 on RBN 2023/12's handle velocity and body timing) against the population's own force curve, per 10 % of drive time (`research/validation/population_kinematics.py`) | force rms; the force peak's time | flexible < rigid; peak within the reference's 40–50 % | comparative — added 2026-11-13 after its first run was seen, so no tuned band |
 | **C1** | in the boat, motion imposed (rung 1), [CR06]'s own body: handle force against oar angle (`research/blade/bending_handle_force.py`) | rms over the drive as a fraction of her peak; peak's angle | ≤ 15 %; within 10° of hers | chosen (the best earlier model, §219, was 12.5 %; the digitised figure's channel offsets dominate below ~10 %, §191) |
+| **C2** | the blade and shaft alone on each athlete's measured oar angle and boat speed, open loop (`research/validation/open_loop_shaft.py`) | handle-force rms as a fraction of the measured peak | flexible < rigid, each athlete | comparative — added 2026-11-13 after its first run was seen |
 | **D1** | rung 2, both athletes: mean boat speed | model / measured − 1 | within ±3 % | chosen ([CR06]'s own model predicts her speed to 1.9 %; wind and water on the day are unknown) |
 | **D2** | rung 2, both athletes: IVV (max − min) / mean of the last stroke | model − measured | **within 0.75 × the between-rower relative SD × the measured IVV: ±6.7 points ([BR24]), ±7.5 ([CR06])** — was ±3 until 2026-11-10 | sourced: Leão et al. 2025 (*Sensors* 25:4696; 23 single scullers, 2000 m races): IVV 5.78 ± 1.05 km/h (men), 5.50 ± 1.11 (women), relative SD 18.2 / 20.2 %; 0.75 keeps the first band's stringency (3 points over Loschner & Smith's ~4-point SD). Changed after the first run at the user's instruction ("source the band"); see History |
 | **D2b** | rung 2, both athletes: the velocity coefficient of variation, SD / mean (BioRow's own measure, per the data's author) | model − measured | 0.75 × relative SD × measured: ±1.74 points ([BR24]), ±2.03 ([CR06]) | sourced: Leão et al. 2025, CVV 14.13 ± 2.02 % (men), 11.64 ± 1.93 % (women); added 2026-11-10 with D2's change |
@@ -76,3 +80,15 @@ angle. Both athletes are held-out tests: nothing in the model was fitted to eith
     not on the tighter first band; any narrowing of the band (a within-athlete variability source) re-opens D2.
   - Data requests drafted for approval (the data's author: other rates, per-stroke data; an on-water segment-kinematics
     group), not sent.
+- **2026-11-13, the population re-sourced; 24 of 26** (SOURCES §237; `data/local/validation/ladder_2026-11-13.log`).
+  RBN 2023/12's reference curves were read as numbers from its vector figure (and on the right axis: drive *time* —
+  §234–236 had compared on drive length). Its handle velocity fits both test athletes' oar timing 2.5× closer than
+  [K05]'s and, imposed on the population with its body timing, the flexible shaft reproduces the population's own
+  force curve (10.2 points rms; rigid 23.2), so it is the default population from here. Rungs B2 and C2 added
+  (comparative, no tuned band; both pass). Bands unchanged. **Two rungs now fail:**
+  - **C1**, [CR06]'s rung-1 handle force: 18.1 % (band 15 %; 10.4 % before). With hands that follow hers the model gives
+    12 % more power than she measured; the earlier pass leaned on [K05]'s slow early hands.
+  - **D1** for [BR24]: speed +3.1 % (band ±3; +2.8 before).
+  Both are force-level discrepancies of opposite sign in the two athletes (open loop: [CR06] +17 %, [BR24] −29 % of
+  impulse), so no common change to the blade removes them; they stay failing. Improved: D4 centre 0.52 (0.54), D2b
+  +0.86 / +1.32 points (+1.47 / +1.73), D2 +3.5 / +3.4.

@@ -106,10 +106,20 @@ def boat_for(name, measured, timing_kind, drive_law=False, catch_posture=None, c
     if travel == "own":
         travel = own_travel(name)
     body, chain = body_for(posture, clocks, terms, travel, own_joints)
+    rbn = drive_law == "rbn2023"                                 # RBN 2023/12's handle velocity (SOURCES §237)
+    if rbn and posture == "straight-arms":
+        raise ValueError("the rbn2023 drive law is built for the as-built catch posture")
+
+    def rbn_sweep(built):
+        sys.path.insert(0, os.path.join(ROOT, "research", "validation"))
+        import rbn2023
+        return rbn2023.drive_sweep(built.oar_sweep.catch_angle, built.oar_sweep.finish_angle)
     if name == "br24":
         import like_for_like as L
         timing = OnWaterTiming(L.RATE) if timing_kind == "on-water" else StrokeTiming(L.RATE)
-        boat = L.build("arc", timing=timing, drive_law=drive_law, body=body)
+        boat = L.build("arc", timing=timing, drive_law=bool(drive_law), body=body)
+        if rbn:
+            return L.build("arc", timing=timing, oar_sweep=rbn_sweep(boat), body=body)
         if posture == "straight-arms":
             # like_for_like's footboard_shift is measured from its catalogue work-through; the as-built boat may
             # have moved the oarlock to reach (``work_through``), so the shift is taken relative to that
@@ -123,7 +133,10 @@ def boat_for(name, measured, timing_kind, drive_law=False, catch_posture=None, c
     # her stature is not published: the keyframe body solves it from her leg travel; under a population's travel
     # that would read her legs as the population's ratio (2.05 m), so [LE26]'s women's mean is stated instead
     stature = None if (body is None or body.travel is None) else LE26_WOMEN_STATURE
-    boat = V.cr06_boat(measured, timing, drive_law=drive_law, body=body, stature=stature)
+    boat = V.cr06_boat(measured, timing, drive_law=bool(drive_law), body=body, stature=stature)
+    if rbn:
+        stature = float(boat.crew[0].rower.anthropometry.stature)   # as solved from her leg travel
+        return V.cr06_boat(measured, timing, oar_sweep=rbn_sweep(boat), body=body, stature=stature)
     if posture == "straight-arms":
         stature = float(boat.crew[0].rower.anthropometry.stature)   # her stature as solved from her leg travel
         boat = _straight_arm_boat(lambda sh, sw: V.cr06_boat(measured, timing, drive_law=drive_law, footboard_shift=sh,

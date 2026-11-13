@@ -1351,6 +1351,14 @@ the boat speeds that go with their drive durations).
   - *Next:* the body's leg and arm geometry at the catch approach against independent on-water kinematics (requests
     drafted); individual strokes to size the ensemble averaging; then bending as a research-profile option (the
     ladder's purpose) — the user's decision.
+- **§234–237 (2026-11-10 to 13): the data author's newsletters; the population re-sourced.** RBN 2023/12's reference
+  curves read from its vector figure, against drive *time* (§234–236's drive-length reading corrected). Its handle
+  velocity is rung 2's population from here: both athletes' rung-1 oar timing 2.5× closer, and the flexible shaft
+  reproduces the population's own force curve (10.2 points rms; rigid 23.2). Open loop on measured motion the flexible
+  shaft beats the rigid oar for both athletes, with opposite residuals. Ladder 24 / 26: C1 (18.1 %) and [BR24]'s speed
+  (+3.1 %) fail — force-level discrepancies of opposite sign in the two athletes.
+  - *Next:* the first 20 % of the drive: wetting from the population's vertical angle (Fig. 1b) and the oar's inertia
+    through the shaft; the recovery from Fig. 2; rung 2's muscles pulling the oar timing off rung 1's.
 
 ## Calibration and validation data from the squad's own boats (noted 2026-10-08)
 

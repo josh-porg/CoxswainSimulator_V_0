@@ -150,6 +150,27 @@ def rung_d(main):
     return out
 
 
+def rung_b2(flex, rigid):
+    """The population's own stroke against its own force curve (RBN 2023/12; SOURCES §237). Added 2026-11-13 after the
+    first run was seen, so the criterion is comparative, not a tuned band: the flexible shaft must beat the rigid oar."""
+    return [row("B2", "population force curve, rms vs RBN 2023/12 (rigid %.1f)" % rigid["force_rms"],
+                "%.1f pt" % flex["force_rms"], "< rigid", flex["force_rms"] < rigid["force_rms"],
+                "comparative (added after the first run)"),
+            row("B2", "population force peak, % of drive time", "%.0f %%" % flex["force_peak_time"], "40-50 %",
+                40.0 <= flex["force_peak_time"] <= 50.0, "the reference curve's own peak span")]
+
+
+def rung_c2(open_loop):
+    """The blade and shaft alone on each athlete's measured motion (open_loop_shaft.py; §237): comparative, as B2."""
+    out = []
+    for a in ATHLETES:
+        r = open_loop[a]
+        out.append(row("C2", "%s open-loop handle force rms / measured peak (rigid %.1f %%)"
+                       % (a, 100 * r["rigid"]["rms_frac"]), "%.1f %%" % (100 * r["hinge"]["rms_frac"]), "< rigid",
+                       r["hinge"]["rms_frac"] < r["rigid"]["rms_frac"], "comparative (added after the first run)"))
+    return out
+
+
 def rung_e1(log):
     lines = [l for l in open(log, encoding="utf-8", errors="replace") if l[:3] in ("ok ", "FAI")]
     fails = [l.split()[1] + " " + l.split()[2] for l in lines if l.startswith("FAIL")]
@@ -165,6 +186,9 @@ def main():
     ap.add_argument("--bench-case", required=True)
     ap.add_argument("--c1", required=True)
     ap.add_argument("--scorecard", default=None)
+    ap.add_argument("--population", nargs=2, default=None, metavar=("FLEXIBLE", "RIGID"),
+                    help="population_kinematics JSONs, flexible then rigid (rung B2)")
+    ap.add_argument("--open-loop", default=None, help="open_loop_shaft.json (rung C2)")
     ap.add_argument("--tests", action="store_true")
     ap.add_argument("--label", default="")
     a = ap.parse_args()
@@ -174,7 +198,11 @@ def main():
         rows += rung_tests()
     rows += rung_a3(main_r, half_r)
     rows += rung_b1(json.load(open(a.bench)), a.bench_case)
+    if a.population:
+        rows += rung_b2(*[json.load(open(p)) for p in a.population])
     rows += rung_c1(json.load(open(a.c1)))
+    if a.open_loop:
+        rows += rung_c2(json.load(open(a.open_loop)))
     rows += rung_d(main_r)
     if a.scorecard:
         rows += rung_e1(a.scorecard)
