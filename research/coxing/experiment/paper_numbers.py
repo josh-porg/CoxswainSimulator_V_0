@@ -138,6 +138,46 @@ def main():
     print("TWO COXSWAINS gearing:", json.dumps(t["gearing"]))
     print("COUNT ANCHOR (0.55):", json.dumps({k: (v["shift_phase"], v["n"], v["phase"], v["R"], v["anchored"])
                                                for k, v in json.load(open(os.path.join(HERE, "..", "sync", "count_anchor.json")))["0.55"].items()}))
+    c = J("review/checks.json")                                 # examiner_checks.py (CODEBOOK addendum of 14 Nov 2026)
+    mm1 = lambda x: round(1000 * x, 1)
+    bhr = {r["test"]: r for r in c["bh"]["rows"]}
+    print("REVIEW 1 BH: %d tests; q<0.05 both nulls: %s; power speed q %.3f / local %.3f; technique q %.3f / %.3f; second-half power q %.3f / %.3f" % (
+        c["bh"]["n_tests"], c["bh"]["survive_both"], bhr["H7_power_calls_speed_3_5"]["q"], bhr["H7_power_calls_speed_3_5"]["q_local"],
+        bhr["H7_technique_calls_speed_3_5"]["q"], bhr["H7_technique_calls_speed_3_5"]["q_local"],
+        bhr["H4_power_3_5_second_half"]["q"], bhr["H4_power_3_5_second_half"]["q_local"]))
+    for k in ("power_speed_3_5", "power_speed_3_5_course", "rate_rate_1_3", "length_dps_3_5"):
+        sc = (lambda x: round(x, 2)) if k.startswith("rate") else mm1
+        for null in ("global", "local"):
+            m = c["meta"][k][null]
+            print("REVIEW 2 META %s %s: k=%d RE %s CI [%s, %s] p %.3f tau %s I2 %.0f%% PI [%s, %s] LOO %s..%s positive %d/%d sign p %.3f; without PRR %s (p %.3f); without HOTL four %s (p %.3f)" % (
+                k, null, m["k"], sc(m["mu"]), sc(m["ci"][0]), sc(m["ci"][1]), m["p"], sc(m["tau"]), 100 * m["I2"], sc(m["prediction"][0]), sc(m["prediction"][1]),
+                sc(m["loo_range"][0]), sc(m["loo_range"][1]), m["n_positive"], m["k"], m["sign_p"], sc(m["without_pink_ribbon"]["mu"]), m["without_pink_ribbon"]["p"],
+                sc(m["without_hotl_four"]["mu"]), m["without_hotl_four"]["p"]))
+    print("REVIEW 2 occasions (global):", [(o["label"], mm1(o["est"]), mm1(o["se"]), o["n"]) for o in c["meta"]["power_speed_3_5"]["global"]["occasions"]])
+    for k in ("pooled_all", "pooled_without_pink_ribbon", "pooled_without_hotl_four"):
+        v = c["meta"][k]
+        print("REVIEW 2 %s: n=%d %s (sd %s) p %.4f | local %s p %.4f" % (k, v["n"], mm1(v["est"]), mm1(v["sd"]), v["p"], mm1(v["est_local"]), v["p_local"]))
+    for tag in ("momentum", "course"):
+        e = c["event_study"][tag]
+        print("REVIEW 3 EVENT STUDY %s n=%d: strokes %s global %s | local %s" % (tag, e["curve"]["n"], e["strokes"], [mm1(x) for x in e["curve"]["est"]], [mm1(x) for x in e["curve"]["est_local"]]))
+        print("REVIEW 3 windows %s: %s" % (tag, {w: (mm1(v["est"]), mm1(v["sd"]), round(v["p"], 4), mm1(v["est_local"]), mm1(v["sd_local"]), round(v["p_local"], 4)) for w, v in e["windows"].items()}))
+        sl = c["stroke_level"][tag]
+        print("REVIEW 4 STROKE LEVEL %s (%d strokes): %s" % (tag, sl["n_strokes"], {m: {cl: (mm1(sl[m]["global"][cl]["est"]), mm1(sl[m]["global"][cl]["sd"]), round(sl[m]["global"][cl]["p"], 3),
+                                                                                    mm1(sl[m]["local"][cl]["est"]), round(sl[m]["local"][cl]["p"], 3))
+                                                                               for cl in ("power", "tech", "steer")} for m in ("alone", "with_neighbours", "before_only_unplanned", "after_only_unplanned")}))
+        t = c["template"][tag]
+        print("REVIEW 5 TEMPLATE %s: %s (sd %s) p %.4f | local %s (sd %s) p %.4f" % (tag, mm1(t["est"]), mm1(t["sd"]), t["p"], mm1(t["est_local"]), mm1(t["sd_local"]), t["p_local"]))
+    sp = c["spec_curve"]
+    print("REVIEW 6 SPEC CURVE: n=%d median %s 5-95%% %s..%s range %s..%s positive %.0f%% p<0.05 %.0f%%; windows only median %s p<0.05 %.0f%%; paper spec %s p %.4f" % (
+        sp["n"], mm1(sp["median"]), mm1(sp["q05"]), mm1(sp["q95"]), mm1(sp["min"]), mm1(sp["max"]), 100 * sp["share_positive"], 100 * sp["share_sig"],
+        mm1(sp["windows_only"]["median"]), 100 * sp["windows_only"]["share_sig"], mm1(sp["paper"]["est"]), sp["paper"]["p"]))
+    print("REVIEW 6 by dimension:", {k: (mm1(v["median"]), round(100 * v["share_sig"])) for k, v in sp["by_dimension"].items()})
+    f = c["forecast"]["summary"]
+    print("REVIEW 7 FORECAST: BIC orders %s; Ljung-Box rejected %d/15; OOS R2 %s" % ({k: v for k, v in f["bic_orders"].items() if v}, f["ljung_box_rejected"],
+          {k: (round(v["median"], 2), [round(x, 2) for x in v["range"]]) for k, v in f.items() if k.startswith("oos")}))
+    print("REVIEW 8 MDE primary (global, local):", {k: (mm1(v["mde80"]), mm1(v["mde80_local"])) for k, v in c["mde"]["primary"].items()})
+    print("REVIEW 8 MDE coxswain differences:", {k: round(v["mde80"], 3) for k, v in c["mde"]["coxswain_difference"].items()})
+    print("REVIEW 9 SAMPLE SIZE:", json.dumps(c["sample_size"]))
     g = J("guide/results.json")                                 # guide_validation.py
     r, c, rep = g["rule_coder_on_guide"], g["guide_classifier_on_calls"], g["repertoire_first_coxswain"]
     coded = sum(v["n"] - v["rule_targets"].get("other", 0) for v in r["by_heading"].values())
