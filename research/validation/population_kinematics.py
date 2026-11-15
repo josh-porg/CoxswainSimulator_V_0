@@ -86,8 +86,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--shaft", default="medium", choices=["rigid", "medium"])
     ap.add_argument("--strokes", type=int, default=10)
-    ap.add_argument("--drive", default="k05", choices=["k05", "rbn2023"],
-                    help="the imposed handle velocity: [K05] Fig. 1 (as built) or RBN 2023/12's reference curve")
+    ap.add_argument("--drive", default="k05", choices=["k05", "rbn2023", "rbn2023-scull"],
+                    help="the imposed handle velocity: [K05] Fig. 1 (as built), RBN 2023/12's reference curve, or its "
+                         "Fig. 2 scullers at the population's rate (drive and recovery)")
     a = ap.parse_args()
     from coxswain.crew.handle_fv import HandleForceVelocity
     from coxswain.crew.oar_bending import BendDynamics

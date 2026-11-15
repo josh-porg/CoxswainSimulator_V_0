@@ -157,7 +157,7 @@ def athlete_boat(name, m):
     """The athlete's boat; with their own body (``BODY == "own"``) built with no population clock on the joints their
     channels time (``own_joints``; SOURCES §228), as their boat was before the research profile's trunk clock."""
     # the athlete's planned oar motion is the population's drive law on the athlete's own arc (POP_DRIVE; §237)
-    return C2.R.boat_for(name, m, "on-water", drive_law="rbn2023" if POP_DRIVE == "rbn2023" else True,
+    return C2.R.boat_for(name, m, "on-water", drive_law=POP_DRIVE if POP_DRIVE.startswith("rbn2023") else True,
                          own_joints=OWN_BODY_JOINTS if BODY == "own" else ())
 
 
@@ -337,14 +337,15 @@ def population_sim(drive=None, body_drive=None):
     drive = POP_DRIVE if drive is None else drive
     kw = dict(timing=OnWaterTiming(KP.K05_RATE), stature=KP.K05_STATURE, mass=KP.K05_MASS)
     pop_boat = V.cr06_boat(dict(leg_travel=None), drive_law=True, **kw)
-    if drive == "rbn2023":
+    if drive in ("rbn2023", "rbn2023-scull"):
         sys.path.insert(0, os.path.join(ROOT, "research", "validation"))
         import rbn2023
         sw = pop_boat.oar_sweep
-        pop_boat = V.cr06_boat(dict(leg_travel=None), oar_sweep=rbn2023.drive_sweep(sw.catch_angle, sw.finish_angle),
-                               **kw)
+        sweep = (rbn2023.scull_sweep(sw.catch_angle, sw.finish_angle, KP.K05_RATE) if drive == "rbn2023-scull"
+                 else rbn2023.drive_sweep(sw.catch_angle, sw.finish_angle))
+        pop_boat = V.cr06_boat(dict(leg_travel=None), oar_sweep=sweep, **kw)
     elif drive != "k05":
-        raise ValueError("the population's drive is 'k05' or 'rbn2023', got %r" % (drive,))
+        raise ValueError("the population's drive is 'k05', 'rbn2023' or 'rbn2023-scull', got %r" % (drive,))
     body, _k = k05_body.body_field(pop_boat, leg_travel=0.51, drive=body_drive or drive)
     return pop_boat, make(pop_boat, "reference", body=body)
 
@@ -406,7 +407,7 @@ def main():
     global FV, HOLD, HOLD_OWN, ADDED_MASS, BEND_DYNAMICS, Q_MAP, RELEASE_AFTER, SURFACE_FACTOR, LIFT_SCALE, CHANNEL_SMOOTHING, RELEASE_SLIP
     global POP_DRIVE
     ap = argparse.ArgumentParser()
-    ap.add_argument("--pop-drive", default=POP_DRIVE, choices=["k05", "rbn2023"],
+    ap.add_argument("--pop-drive", default=POP_DRIVE, choices=["k05", "rbn2023", "rbn2023-scull"],
                     help="the population whose muscles are borrowed: [K05] Fig. 1 or RBN 2023/12's curves (§237)")
     ap.add_argument("--strokes", type=int, default=10)
     ap.add_argument("--athletes", nargs="+", default=["cr06", "br24"])

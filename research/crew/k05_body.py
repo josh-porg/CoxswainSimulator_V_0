@@ -108,25 +108,52 @@ def half_strokes(drive="k05"):
     return out
 
 
-def channel(seg, drive_fraction, n=4001, drive="k05"):
+def _rbn_scull_positions(rate):
+    """Scullers' legs and trunk through the drive and the recovery from RBN 2023/12 Fig. 2 at ``rate`` (rbn2023.
+    scull_cycle; SOURCES §238): per phase ``(time fraction, {segment: position along the phase, arbitrary scale})``.
+    The seat is the legs; the upper body is split trunk / arms by [K05]'s share at the same drive length."""
+    sys.path.insert(0, os.path.join(ROOT, "research", "validation"))
+    import rbn2023
+    cyc = rbn2023.scull_cycle(rate)
+    out = {}
+    for ph, path in (("drive", DRIVE), ("recovery", RECOVERY)):
+        k05 = _read(path)
+        c = cyc[ph]
+        length = c["progress"] if ph == "drive" else 1.0 - c["progress"]      # handle path fraction from the catch
+        share = np.clip(_ratio(k05["trunk_velocity"], k05["handle_speed"] - k05["legs_velocity"]), 0.0, 1.0)
+        o = np.argsort(k05["length_pct"])
+        share = np.interp(length, k05["length_pct"][o] / 100.0, share[o])
+        dt = np.diff(c["tau"])
+        cum = lambda v: np.concatenate([[0.0], np.cumsum(0.5 * (v[1:] + v[:-1]) * dt)])   # noqa: E731
+        out[ph] = (c["tau"], {"legs_velocity": cum(c["seat"]), "trunk_velocity": cum(c["upper"] * share)})
+    return out
+
+
+def channel(seg, drive_fraction, n=4001, drive="k05", rate=None):
     """``(phase of the minimum, phase grid since it, normalised curve, travel)`` on the catch
     clock, as measured_body.measured_channel returns for [BR24]."""
-    halves = half_strokes(drive)
-    sd, hd, pd = halves["drive"]
-    sr, hr, pr = halves["recovery"]
-    if drive == "rbn2023":                                        # the same time law as rbn2023.drive_sweep
-        import rbn2023
-        prog_d = turning_progress(sd, hd, edge=float(sd[1]) - 1e-9, error=rbn2023.SPEED_ERROR)[0]
-    else:
-        prog_d = turning_progress(sd, hd)[0]
-    prog_r = turning_progress(sr, hr)[0]
     phase = np.linspace(0.0, 1.0, n, endpoint=False)
     D = float(drive_fraction)
     c = np.empty(n)
     on = phase < D
-    xd = np.interp(prog_d(phase[on] / D), sd, pd[seg])
+    if drive == "rbn2023-scull":                                  # drive and recovery from Fig. 2, on its own clock
+        tabs = _rbn_scull_positions(rate)
+        (tau_d, pd), (tau_r, pr) = tabs["drive"], tabs["recovery"]
+        xd = np.interp(phase[on] / D, tau_d, pd[seg])
+        xr = np.interp((phase[~on] - D) / (1.0 - D), tau_r, pr[seg])
+    else:
+        halves = half_strokes(drive)
+        sd, hd, pd = halves["drive"]
+        sr, hr, pr = halves["recovery"]
+        if drive == "rbn2023":                                    # the same time law as rbn2023.drive_sweep
+            import rbn2023
+            prog_d = turning_progress(sd, hd, edge=float(sd[1]) - 1e-9, error=rbn2023.SPEED_ERROR)[0]
+        else:
+            prog_d = turning_progress(sd, hd)[0]
+        prog_r = turning_progress(sr, hr)[0]
+        xd = np.interp(prog_d(phase[on] / D), sd, pd[seg])
+        xr = np.interp(prog_r((phase[~on] - D) / (1.0 - D)), sr, pr[seg])
     travel_d = float(pd[seg][-1])
-    xr = np.interp(prog_r((phase[~on] - D) / (1.0 - D)), sr, pr[seg])
     # close the loop: the recovery returns the segment by the drive's travel
     c[on] = xd / travel_d
     c[~on] = 1.0 - xr / float(pr[seg][-1])
@@ -149,7 +176,8 @@ def leg_weights(boat):
 
 def body_field(boat, leg_travel=None, trunk_travel=K05_TRUNK_TRAVEL, drive="k05"):
     """The model's body re-timed onto [K05]'s legs and trunk, back travel scaled to [K05]'s.
-    ``drive="rbn2023"``: the drive's legs and trunk from RBN 2023/12's population curves (``half_strokes``).
+    ``drive="rbn2023"``: the drive's legs and trunk from RBN 2023/12's population curves (``half_strokes``);
+    ``"rbn2023-scull"``: drive and recovery from its Fig. 2, scullers at the boat's rate (``_rbn_scull_positions``).
 
     ``leg_travel`` (m): also scale the seat's travel to it, each segment's fore-aft motion by its
     share of the seat's (``leg_weights``), about the cycle mean. Linear in the motion, so the
@@ -157,7 +185,8 @@ def body_field(boat, leg_travel=None, trunk_travel=K05_TRUNK_TRAVEL, drive="k05"
     keeps the model's own leg travel (0.60 m for a 1.80 m body, against [K05]'s 0.51).
     ``trunk_travel`` (m): the back's travel, shoulder on seat; [K05]'s 0.48 by default."""
     D = float(boat.timing.drive_fraction)
-    m_l, s_l, c_l, _ = channel("legs_velocity", D, drive=drive)
+    rate = 60.0 / float(boat.timing.period)
+    m_l, s_l, c_l, _ = channel("legs_velocity", D, drive=drive, rate=rate)
     mm_l, tau_l, cm_l, model_leg = MB.model_channel(boat, lambda j: j["hip"][0] - j["ankle"][0])
     leg_raw = MB.channel_field(boat, MB.warp(s_l, c_l, tau_l, cm_l), m_l, mm_l)
     if leg_travel is None:
@@ -178,7 +207,7 @@ def body_field(boat, leg_travel=None, trunk_travel=K05_TRUNK_TRAVEL, drive="k05"
                     vel[off + i, 0] -= (1.0 - k_leg) * w[off + i] * dv
                     acc[off + i, 0] -= (1.0 - k_leg) * w[off + i] * da
             return mass, pos, vel, acc
-    m_b, s_b, c_b, _ = channel("trunk_velocity", D, drive=drive)
+    m_b, s_b, c_b, _ = channel("trunk_velocity", D, drive=drive, rate=rate)
     mm_b, tau_b, cm_b, model_travel = MB.model_channel(boat, lambda j: j["shoulder"][0] - j["hip"][0])
     bk = MB.channel_field(boat, MB.warp(s_b, c_b, tau_b, cm_b), m_b, mm_b)
     K = float(trunk_travel) / model_travel

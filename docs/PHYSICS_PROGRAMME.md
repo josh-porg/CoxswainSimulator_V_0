@@ -1359,6 +1359,17 @@ the boat speeds that go with their drive durations).
   (+3.1 %) fail — force-level discrepancies of opposite sign in the two athletes.
   - *Next:* the first 20 % of the drive: wetting from the population's vertical angle (Fig. 1b) and the oar's inertia
     through the shaft; the recovery from Fig. 2; rung 2's muscles pulling the oar timing off rung 1's.
+- **§238 (2026-11-14): the catch.** (1) Bug: `_catch` zeroed the dynamic shaft's bend at every stroke; fixed (the oar
+  arrives bent by its own inertia; B2 9.5 points). (2) RBN 2023/12 Fig. 2 as numbers (`rbn2023_fig2.csv`); a
+  sculling-specific whole-cycle population, `--pop-drive rbn2023-scull`: an option, not adopted ([CR06] worse,
+  population force curve 20.7 points on a comparison that is not like for like). (3) `open_loop_shaft.py --bound`: a
+  blade that does not slip, on [L14]'s shaft and the measured motion, carries 73 N where [BR24] measured 127 N at 10 %
+  of the drive (220 / 227 at 20 %); [CR06] is inside her bound and matched. His early drive is an inputs question (oar
+  stiffness, angle zero, channel filtering). (4) His in-air handle force: oar inertia 2.1–2.3 kg m² (model 1.22);
+  hers points the other way. Ladder 24 / 26, unchanged.
+  - *Next:* the population's 10–20 % (the shaft's lag against the blade's grip: blade water inertia near the surface,
+    wetting from Fig. 1b); a sourced oar mass and balance; ask the data's author about [BR24]'s oars and channels
+    (user's call); C1 and D1.
 
 ## Calibration and validation data from the squad's own boats (noted 2026-10-08)
 

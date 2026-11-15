@@ -92,3 +92,12 @@ angle. Both athletes are held-out tests: nothing in the model was fitted to eith
   Both are force-level discrepancies of opposite sign in the two athletes (open loop: [CR06] +17 %, [BR24] −29 % of
   impulse), so no common change to the blade removes them; they stay failing. Improved: D4 centre 0.52 (0.54), D2b
   +0.86 / +1.32 points (+1.47 / +1.73), D2 +3.5 / +3.4.
+- **2026-11-14, the bend carried through the catch; 24 of 26** (SOURCES §238;
+  `data/local/validation/ladder_2026-11-14.log`). A bug fix, not a change of model: the dynamic shaft's bend was zeroed
+  at every catch (`DynamicOarSimulator._catch`), unloading the handle of the oar's inertia for ~50 ms. B2 9.5 points
+  (10.2); C1 18.1 % (still failing; peak 8.6° from hers, was 4.3°, band 10°); D1 [BR24] +3.1 % (still failing); D4
+  centre 0.51, least mid-drive force 96 N; the rest within rounding. Bands unchanged. A sculling-specific population
+  (RBN 2023/12 Fig. 2, `--pop-drive rbn2023-scull`) was built and not adopted (worse for [CR06], population force curve
+  20.7 points). A no-slip bound on the measured motion (`open_loop_shaft.py --bound`) shows [BR24]'s first 10–20 % of
+  the drive is beyond any blade law on the assumed shaft (bound 73 N, measured 127 N at 10 %): an inputs question,
+  recorded as such, not a rung.

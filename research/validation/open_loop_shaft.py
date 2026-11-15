@@ -61,22 +61,30 @@ def measured(name):
     return T, fine, ang(tt), ang(tt, 1), ang(tt, 2), vel(tt), frc(tt), lever
 
 
-def predict(name, shaft):
-    """The handle force through the cycle on the athlete's measured motion; ``shaft`` "rigid" or "hinge"."""
+def predict(name, shaft, ei_scale=1.0, shift=0.0, inertia_value=None):
+    """The handle force through the cycle on the athlete's measured motion; ``shaft`` "rigid", "hinge", or "locked":
+    the hinge with a blade that does not slip at all (its normal velocity through the water held at zero from the
+    entry, the shaft already bent there by the oar's own inertia under the hands' turn-round), which is the most
+    force a shaft of that stiffness can carry on that motion whatever the blade's law -- a bound on the inputs, not
+    a model (SOURCES §238). ``ei_scale``: the shaft's stiffness over [L14]'s medium; ``shift`` (s): the boat-speed
+    channel delayed by this against the oar angle; ``inertia_value`` (kg m^2): the oar's inertia about the pin in
+    place of the model's (sensitivities)."""
     RP.BLADE, RP.BODY = "crossflow_normal", "own"
     RP.C2.TAKEOVER_DEG = RP.C2.BIOROW_CATCH_TO_BURIED_DEG
     RP.ADDED_MASS, RP.SURFACE_FACTOR, RP.BEND_DYNAMICS = "none", 0.1, None
-    RP.BENDING, RP.RIGID = shaft == "hinge", shaft == "rigid"
+    RP.BENDING, RP.RIGID = shaft != "rigid", shaft == "rigid"
     m = RP.V.ATHLETES[name][0]()
     boat = RP.athlete_boat(name, m)
     sim = RP.make(boat, "reference")
     lock = boat.rig.seats[sim._seats[0]].oarlocks[0]
     oar = sim._oars[0]
-    inertia = float(getattr(oar.inertia, "oar_inertia", 0.0))
+    inertia = float(getattr(oar.inertia, "oar_inertia", 0.0)) if inertia_value is None else float(inertia_value)
     T, t, ang, rate, acc, v, f_meas, lever = measured(name)
     dt = T / N
-    k = float(sim.oar_bending.k_ang) if shaft == "hinge" else None
-    if shaft == "hinge":
+    if shift:
+        v = np.interp((t - float(shift)) % T, t, v, period=T)
+    k = float(sim.oar_bending.k_ang) * float(ei_scale) if shaft != "rigid" else None
+    if shaft != "rigid":
         arm0 = float(oar.outboard)
         blever = (arm0 - sim.oar_bending.hinge_radius(arm0, float(lock.oar.blade_length))) / arm0
     span = ang.max() - ang.min()
@@ -93,10 +101,20 @@ def predict(name, shaft):
             if not wet and i > 0 and sim._normal_velocity(0, a, r, state) <= 0.0:
                 wet = True                                        # entry at zero normal velocity ([CR06] eq. 16)
                 sim._entry_angle[0] = a
+                if shaft == "locked":                             # the shaft arrives bent by the oar's inertia
+                    phi = max(0.0, -inertia * float(acc[i]) / k)
             if wet:
                 if shaft == "rigid":
                     f_n, _ft, arm = sim._blade_loads_arm_rigid(0, a, r, state, lock)
                     moment = arm * f_n
+                elif shaft == "locked":
+                    slip = lambda pd: sim._normal_velocity(0, a + phi + dt * pd, r + blever * pd, state)  # noqa: E731
+                    lo, hi = -60.0, 60.0
+                    pd = brentq(slip, lo, hi, xtol=1e-7) if slip(lo) * slip(hi) < 0.0 else 0.0
+                    phi = phi + dt * pd
+                    moment = k * phi
+                    if (ang[0] - a) / span > 0.5 and phi <= 0.0:
+                        wet, done, phi, moment = False, True, 0.0, 0.0
                 else:
                     def g(pd):
                         f_n, _ft, arm = sim._blade_loads_arm_rigid(0, a + phi + dt * pd, r + blever * pd, state, lock,
@@ -113,7 +131,8 @@ def predict(name, shaft):
                 if shaft == "rigid" and (ang[0] - a) / span > 0.5 and sim._normal_velocity(0, a, r, state) >= 0.0:
                     wet, done, moment = False, True, 0.0
         bend[i] = phi
-        force[i] = (moment - inertia * acc[i]) / lever
+        # a locked blade holds the outboard oar, so its inertia no longer loads the handle separately
+        force[i] = moment / lever if (shaft == "locked" and wet) else (moment - inertia * acc[i]) / lever
     return dict(T=T, t=t, force=force, measured=f_meas, bend=bend, finish=finish, angle=ang, lever=lever)
 
 
@@ -144,13 +163,26 @@ def report(name, runs):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--athletes", nargs="+", default=["br24", "cr06"])
+    ap.add_argument("--bound", action="store_true",
+                    help="the no-slip bound instead: the locked blade at shaft stiffness x 1, 1.5, 2, with the "
+                         "boat-speed channel shifted +-20 ms, and with an oar inertia of 2.2 kg m^2 (nothing is written)")
     a = ap.parse_args()
     import json
     res = {}
     for name in a.athletes:
+        if a.bound:
+            runs = {"hinge": predict(name, "hinge"), "locked": predict(name, "locked")}
+            for s in (1.5, 2.0):
+                runs["lock x%g" % s] = predict(name, "locked", ei_scale=s)
+            for d in (-0.02, 0.02):
+                runs["lock%+.0fms" % (1e3 * d)] = predict(name, "locked", shift=d)
+            runs["lock I2.2"] = predict(name, "locked", inertia_value=2.2)
+            report(name, runs)
+            continue
         runs = {s: predict(name, s) for s in ("rigid", "hinge")}
         res[name] = report(name, runs)
-    json.dump(res, open(os.path.join(ROOT, "data", "local", "validation", "open_loop_shaft.json"), "w"), indent=1)
+    if not a.bound:
+        json.dump(res, open(os.path.join(ROOT, "data", "local", "validation", "open_loop_shaft.json"), "w"), indent=1)
 
 
 if __name__ == "__main__":

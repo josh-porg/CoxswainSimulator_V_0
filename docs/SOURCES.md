@@ -15796,3 +15796,93 @@ loop), which no common blade change can remove.
 - *Next:* the first 20 % of the drive (the blade's wetting from the population's own vertical angle, RBN 2023/12 Fig.
   1b, in place of the 4° target; the oar's inertia as the handle sees it through the shaft); the recovery from RBN
   2023/12 Fig. 2; why rung 2's muscles pull the athletes' oar timing away from rung 1's (0.014 → 0.037, 0.009 → 0.024).
+
+## 238. The catch: scullers' own hands (RBN 2023/12 Fig. 2), the bend carried through the catch, and a no-slip bound (2026-11-14)
+
+Three pieces of work on §237's open item, the first 20 % of the drive. One is a bug fix, one an option that is not
+adopted, one a diagnostic that moves the question from the blade to the inputs.
+
+**1. RBN 2023/12 Fig. 2 as numbers** (`research/validation/extract_rbn2023.py::fig2` →
+`data/local/literature/biorow_newsletters/rbn2023_fig2.csv`). Handle, seat and upper-body velocity (% of the peak drive
+handle velocity) against drive length, sweep and sculling at rates 20 and 40, drive *and* recovery: each curve is a
+closed loop of 21 joints, one per 10 % of each phase's time. Read as §237 read Fig. 1 (joints of the vector curve,
+axes from the tick labels). `rbn2023.py`: `fig2(group)`, `scull_cycle(rate)` (rate 20 and 40 interpolated linearly in
+rate, held outside), `scull_sweep(catch, finish, rate)`. The handle's path is a cubic Hermite spline through the
+joints' positions with their speeds as slopes; the joints carry both, and the spline keeps what a ramp between speed
+samples loses: scullers cover 4.0 % of the drive in its first tenth of time where a steady acceleration to the same
+speed covers 3.5 %. Hand acceleration at the catch on the two athletes' arcs: −14.5 / −12.9 m/s² (Fig. 1 law with the
+raised-cosine recovery: −10 / −9; measured −17 / −21).
+
+**2. A third population option, `rbn2023-scull`** (`k05_body.body_field(drive=)`, `handle_rung1.boat_for(drive_law=)`,
+`rung2_population.population_sim`, `--pop-drive`; also `bending_handle_force.py`, `population_kinematics.py`,
+`population_force_shape.py`): the hands' whole cycle from Fig. 2's scullers at the boat's own rate, the legs from its
+seat curve and the trunk from its upper-body curve split by [K05]'s trunk share at the same drive length, for the
+drive and the recovery. **Not adopted** (the default stays `rbn2023`, Fig. 1's drive):
+
+| | `rbn2023` (default) | `rbn2023-scull` |
+|---|---|---|
+| population force curve against RBN 2023/12 Fig. 1, rms (flexible shaft) | 9.5 points; peak at 49 % of drive time | 20.7; peak at 57 % |
+| [CR06] rung 1 oar progress rms / rung 2 / rung-2 IVV | 0.014 / 0.036 / 52.9 % | 0.022 / 0.047 / 54.0 % |
+| [BR24] rung 1 oar progress rms / rung 2 / rung-2 speed | 0.009 / 0.024 / +3.1 % | 0.011 / 0.017 / +2.8 % |
+
+The force comparison is not like for like (Fig. 1's force curve is all boat types; the newsletter gives no sculling
+force curve), so it does not condemn the option; the athletes do not favour it either (worse for [CR06] everywhere,
+better for [BR24] in rung 2 only). The sharper catch does not bring the early force: on the population the model has
+8 % of peak force at 10 % of the drive's time and 33 % at 20 % (reference 22 / 59; Fig. 1 hands 5 / 42).
+
+**3. Bug: the shaft's bend was zeroed at every catch.** `DynamicOarSimulator._catch` cleared every state after the oar
+angles, the dynamic shaft's bend and bend rate among them. The hands' acceleration is continuous through the catch
+(−12 rad/s² on Fig. 1's law either side of it), so the oar arrives there bent by its own inertia; zeroing it took the
+oar's inertial load off the handle for the first ~50 ms of each drive (5 N at the catch where I α / inboard is 17–30 N).
+Fix: with `bend_dynamics` the reset keeps the bend states (test `test_bend_dynamics.py::
+test_the_bend_carries_through_the_catch`; STRUCTURAL_ISSUES S15). Effect: population force at the catch 7 % of peak
+(reference 13; was 2), B2 rms 10.2 → 9.5 points; rung 2 unchanged within 0.001 m/s and 0.1 IVV point.
+
+**4. The oar's inertia, measured in the air.** [BR24]'s handle force over the five samples before the catch, blade in
+the air (vertical angle +3 to +7°), is 18–54 N per oar and follows his oar's angular acceleration at
+I / lever ≈ 2.6–2.9 kg m, i.e. an inertia about the pin of **2.1–2.3 kg m²**; the model's scull has 1.22. [CR06]'s
+digitised force at the catch (24 N; model 38) points the other way, and the population's 13 % of peak at the catch sits
+between (model 7 %). One athlete each way: recorded, nothing changed. A sourced oar mass and balance point would settle
+it (DATA_REQUESTS).
+
+**5. A no-slip bound on the measured motion** (`research/validation/open_loop_shaft.py --bound`;
+`data/local/validation/open_loop_bound.log`). §237's open loop imposes each athlete's measured oar angle and boat speed
+on the blade and the shaft. The bound replaces the blade's law with a blade that does not slip at all from the entry
+(its normal velocity through the water held at zero, the shaft pre-bent there by the oar's inertia): the most handle
+force a shaft of [L14]'s stiffness can carry on that motion, whatever the blade. Handle force per oar, N:
+
+| | 10 % of the drive's time | 20 % | 30 % |
+|---|---|---|---|
+| [BR24] measured | 127 | 227 | 297 |
+| [BR24] model (hinge, research blade) | 38 | 105 | 172 |
+| [BR24] no-slip bound | **73** | 220 | 437 |
+| — shaft × 1.5 / × 2 | 98 / 123 | 316 / 412 | |
+| — boat-speed channel ∓ 20 ms | 78 / 66 | 225 / 211 | |
+| — oar inertia 2.2 kg m² (item 4) | 90 | 243 | |
+| [CR06] measured | 82 | 148 | 203 |
+| [CR06] model (hinge) | 59 | 141 | 207 |
+| [CR06] no-slip bound | 101 | 288 | 521 |
+
+[BR24]'s raw samples say the same without any model: 74 ms after the oar's turning point his handles carry 97 / 130 N
+with the blades half in (vertical angle +0.2 / +1.0°; BioRow's buried is −3°) and at most ~1 cm of driving travel
+through the water behind them (slip +0.06 m/s at 37 ms, +0.45 at 74 ms; the shaft needs ~5 cm of blade lag for that
+load). **His first 10–20 % cannot be reached by any blade law on these inputs**: a perfect blade on the measured shaft
+gives 73 N where he measured 127, and still falls short on a shaft twice as stiff. [CR06]'s early drive lies inside her
+bound and the model already matches it (59 / 141 / 207 against 82 / 148 / 203). So §237's "[BR24] low early" is an
+inputs question — his oar's stiffness (unknown; [L14]'s medium is assumed), the oar-angle zero (3° more catch angle is
++0.2 m/s of slip there), how the 27 Hz channels are filtered and aligned — not a blade defect, and tuning the blade to
+him would be a single-athlete fit of the wrong thing. The population's early force (22 / 59 %) is nearer [CR06]'s
+(29 / 53 % of her peak) than the model's 5 / 42; its bound cannot be computed without absolute numbers.
+
+**6. Ladder** (`data/local/validation/ladder_2026-11-14.log`): **24 of 26**, as §237. B2 9.5 points (10.2); C1 18.1 %
+(fail; its peak now 8.6° from hers, band 10°, was 4.3°: the pre-bent shaft moves a flat-topped peak); D1 [BR24] +3.1 %
+(fail); D4 centre 0.51 (0.52), least mid-drive force 96 N (85); everything else within rounding.
+
+**What it means / next.**
+- The early-drive gap is now three separate things: the bend reset (fixed), [BR24]'s inputs (item 5; a question for
+  the data's author: oars used, where the angle is sensed, channel filtering), and the population's 10–20 % (open; the
+  flexible shaft's first-order lag — the blade as a damper of ~300 N s/m in series with a ~1000 N/m shaft, ~0.3 s —
+  is the suspect, and the blade's own water inertia near the surface (κ 0.1, §228) is what would shorten it).
+- C1 and D1 remain failing, opposite in sign (§237); nothing here moves them and no band is touched.
+- Not tried yet: blade wetting from the population's vertical angle (Fig. 1b) in place of the 4° target; a sourced oar
+  mass and balance.

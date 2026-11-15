@@ -59,6 +59,22 @@ def test_the_measured_scull_shaft_bends_dynamically():
     assert 1.0 < bend.max() < 20.0                             # [L14]'s shafts bend 4-5 degrees at their test load
 
 
+def test_the_bend_carries_through_the_catch():
+    """The bend is the shaft's state, not the stroke's: the catch reset leaves it, so the oar arrives at the catch
+    bent by its own inertia under the hands' turn-round (SOURCES §238; zeroing it unloaded the handle there)."""
+    from coxswain.core.state import STATE_SIZE
+    sim = _sim(_scull_law(), BendDynamics())
+    n = sim.n_oar_states
+    y = np.zeros(STATE_SIZE + 4 * n)
+    y[STATE_SIZE + n] = 1.0                                    # a rate, which the reset does clear
+    y[STATE_SIZE + 2 * n], y[STATE_SIZE + 3 * n] = 0.01, -0.2
+    after = sim._catch(0.0, y, 1)
+    assert after[STATE_SIZE + n] == 0.0
+    assert after[STATE_SIZE + 2 * n] == 0.01 and after[STATE_SIZE + 3 * n] == -0.2
+    sim.run_strokes(3, surge_speed=4.2)
+    assert abs(float(sim._bend_history[0, 0, 0])) > 1e-4       # the last stroke starts bent
+
+
 def test_the_blade_track_is_the_gate_plus_the_bend():
     """One place forms the bent blade's angle and rate (SOURCES §227); a rigid oar's blade is the gate."""
     rigid = _sim(False, None)

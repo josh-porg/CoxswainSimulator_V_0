@@ -106,14 +106,19 @@ def boat_for(name, measured, timing_kind, drive_law=False, catch_posture=None, c
     if travel == "own":
         travel = own_travel(name)
     body, chain = body_for(posture, clocks, terms, travel, own_joints)
-    rbn = drive_law == "rbn2023"                                 # RBN 2023/12's handle velocity (SOURCES §237)
+    # RBN 2023/12's handle velocity: "rbn2023" -- Fig. 1's drive, all boats (SOURCES §237); "rbn2023-scull" -- Fig. 2's
+    # scullers at the athlete's rate, drive and recovery (§238)
+    rbn = drive_law in ("rbn2023", "rbn2023-scull")
     if rbn and posture == "straight-arms":
         raise ValueError("the rbn2023 drive law is built for the as-built catch posture")
 
     def rbn_sweep(built):
         sys.path.insert(0, os.path.join(ROOT, "research", "validation"))
         import rbn2023
-        return rbn2023.drive_sweep(built.oar_sweep.catch_angle, built.oar_sweep.finish_angle)
+        sw = built.oar_sweep
+        if drive_law == "rbn2023-scull":
+            return rbn2023.scull_sweep(sw.catch_angle, sw.finish_angle, 60.0 / float(built.timing.period))
+        return rbn2023.drive_sweep(sw.catch_angle, sw.finish_angle)
     if name == "br24":
         import like_for_like as L
         timing = OnWaterTiming(L.RATE) if timing_kind == "on-water" else StrokeTiming(L.RATE)

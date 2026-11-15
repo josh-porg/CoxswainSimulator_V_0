@@ -46,7 +46,7 @@ def shape(sim, run):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--strokes", type=int, default=10)
-    ap.add_argument("--drive", default=RP.POP_DRIVE, choices=["k05", "rbn2023"])
+    ap.add_argument("--drive", default=RP.POP_DRIVE, choices=["k05", "rbn2023", "rbn2023-scull"])
     a = ap.parse_args()
     from coxswain.crew.handle_fv import HandleForceVelocity
     from coxswain.crew.oar_bending import L14_EXTRA_SOFT_EI, L14_MEDIUM_EI, BendDynamics

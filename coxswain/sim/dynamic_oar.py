@@ -1261,6 +1261,12 @@ class DynamicOarSimulator(RowingSimulator):
         after = np.array(y, dtype=float)
         after[STATE_SIZE:STATE_SIZE + n] = self._catch_angles()
         after[STATE_SIZE + n:] = 0.0
+        if self.bend_dynamics is not None:
+            # the shaft's bend is a physical state, not the stroke's: the hands' acceleration is continuous through
+            # the catch, so the oar arrives there bent by its own inertia. Zeroing it took the oar's inertial load
+            # off the handle for the first ~50 ms of every drive (SOURCES §238)
+            base = STATE_SIZE + 2 * n
+            after[base:base + 2 * n] = before[base:base + 2 * n]
         if index == 0:
             self.entries = []
         # The sweep is at the catch angle with zero rate at tau = 0, so the

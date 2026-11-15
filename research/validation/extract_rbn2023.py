@@ -50,8 +50,50 @@ def chains(page, colour, box, width=0.6):
     return [np.array(c) for c in out]
 
 
+#: Fig. 2 (page 2): curve colours and each panel's axes -- (box, x at 0 %, x at 100 %, y at 0 %, points per %)
+GROUPS = {"sweep20": (0.0, 1.0, 0.0), "sweep40": BLUE, "scull20": (1.0, 0.6, 0.0), "scull40": RED}
+PANELS = {"handle": ((50, 45, 282, 170), 53.0, 278.9, 108.1, (163.4 - 52.3) / 200.0),
+          "seat": ((319, 28, 556, 150), 322.3, 552.4, 89.1, (144.4 - 33.2) / 120.0),
+          "upper": ((318, 152, 555, 273), 321.2, 551.4, 213.3, (269.1 - 157.5) / 200.0)}
+
+
+def fig2():
+    """Fig. 2a-c: handle, seat and upper-body velocity (% of the peak drive handle velocity) against drive length,
+    for sweep and sculling at rates 20 and 40. Each curve is a closed loop of 21 joints: 11 through the drive (one
+    per 10 % of its time, catch to finish) and 11 through the recovery (finish to catch). Writes rbn2023_fig2.csv."""
+    import pymupdf
+    page = pymupdf.open(os.path.join(DIR, "2023_12_BioRowNews.pdf"))[1]
+    rows = []
+    for quantity, (box, x0, x1, y0, scale) in PANELS.items():
+        for group, colour in GROUPS.items():
+            loop = max(chains(page, colour, box), key=len)
+            if len(loop) != 21:
+                raise ValueError("%s %s: %d joints, expected 21" % (quantity, group, len(loop)))
+            length = (loop[:, 0] - x0) / (x1 - x0) * 100.0
+            value = (y0 - loop[:, 1]) / scale
+            for k in range(11):
+                rows.append((group, quantity, "drive", k, length[k], value[k]))
+            for k in range(11):
+                rows.append((group, quantity, "recovery", k, length[10 + k], value[10 + k]))
+    out = os.path.join(DIR, "rbn2023_fig2.csv")
+    with open(out, "w", encoding="utf-8") as fh:
+        fh.write("# Kleshnev, RBN 2023/12 (No 273) Fig. 2: handle, seat and upper-body (trunk + arms) velocity, % of the\n"
+                 "# peak drive handle velocity, against drive length %; sweep and sculling at rates 20 and 40; read from\n"
+                 "# the newsletter's vector figure (research/validation/extract_rbn2023.py; SOURCES §238). k: the sample,\n"
+                 "# one per 10 % of the phase's time (drive: catch to finish; recovery: finish to catch).\n"
+                 "group,quantity,phase,k,length_pct,value_pct\n")
+        for r in rows:
+            fh.write("%s,%s,%s,%d,%.2f,%.2f\n" % r)
+    print("wrote", out)
+    for group in ("scull20", "scull40"):
+        for phase in ("drive", "recovery"):
+            sel = [r for r in rows if r[0] == group and r[1] == "handle" and r[2] == phase]
+            print("%s handle %s: " % (group, phase) + " ".join("(%.1f, %.0f)" % (r[4], r[5]) for r in sel))
+
+
 def main():
     import pymupdf
+    fig2()
     page = pymupdf.open(os.path.join(DIR, "2023_12_BioRowNews.pdf"))[0]
     # Fig. 1a: force %, y axis 0 % at 194.6, 100 % at 130.0 (the axis line's ends); x 50.5 .. 278.8
     force = max(chains(page, RED, (48, 128, 282, 199)), key=len)
