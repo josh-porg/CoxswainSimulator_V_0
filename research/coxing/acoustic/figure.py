@@ -49,7 +49,7 @@ for off, key, col, lab in ((-0.17, "V1", INK, "all ten voice features"), (0.17, 
 ax[1].set_xticks(x)
 ax[1].set_xticklabels([l for _, l in tasks], fontsize=7.5)
 ax[1].set_ylabel("balanced accuracy")
-ax[1].legend(frameon=False, fontsize=7, loc="upper left")
+ax[1].legend(frameon=False, fontsize=7, loc="center", bbox_to_anchor=(0.5, 0.42))
 ax[1].set_title("Kind of call from the voice alone", fontsize=8.5)
 for ext in ("pdf", "png"):
     fig.savefig(os.path.join(LOCAL, "experiment", "fig_acoustic." + ext), dpi=200)
