@@ -173,11 +173,64 @@ def main():
         mm1(sp["windows_only"]["median"]), 100 * sp["windows_only"]["share_sig"], mm1(sp["paper"]["est"]), sp["paper"]["p"]))
     print("REVIEW 6 by dimension:", {k: (mm1(v["median"]), round(100 * v["share_sig"])) for k, v in sp["by_dimension"].items()})
     f = c["forecast"]["summary"]
-    print("REVIEW 7 FORECAST: BIC orders %s; Ljung-Box rejected %d/15; OOS R2 %s" % ({k: v for k, v in f["bic_orders"].items() if v}, f["ljung_box_rejected"],
-          {k: (round(v["median"], 2), [round(x, 2) for x in v["range"]]) for k, v in f.items() if k.startswith("oos")}))
+    print("REVIEW 7 FORECAST: BIC orders %s; Ljung-Box (lag 12) rejected at order four %d/15, at the selected order %d/15; one-step error sd %.1f -> %.1f mm/s; OOS R2 %s" % (
+        {k: v for k, v in f["bic_orders"].items() if v}, f["ljung_box_rejected_ar4"], f["ljung_box_rejected_selected"], 1000 * f["resid_sd_ar4"], 1000 * f["resid_sd_selected"],
+        {k: (round(v["median"], 2), [round(x, 2) for x in v["range"]]) for k, v in f.items() if k.startswith("oos")}))
+    print("REVIEW 7 orders by piece:", J("results.json").get("ar_order"))
+    for tag in ("momentum_global", "course_local"):
+        m = c["crossfit"][tag]
+        print("REVIEW 11 CROSSFIT %s: windows %s; RE %s CI [%s, %s] p %.3f tau %s; positive %d/%d; Stouffer z %.2f p %.4f; rows %s" % (
+            tag, m["windows_chosen"], mm1(m["mu"]), mm1(m["ci"][0]), mm1(m["ci"][1]), m["p"], mm1(m["tau"]), m["n_positive"], m["k"], m["stouffer_z"], m["stouffer_p"],
+            [(r["occasion"][:18], r["window"], mm1(r["est"]), mm1(r["sd"])) for r in m["rows"]]))
+    for lab, v in c["labellers"].items():
+        print("REVIEW 12 LABELLER %s: n=%d, %.0f%% at a primary power call; %s" % (lab, v["n"], 100 * v["share_at_a_primary_power_call"], {
+            k: (mm1(x["est"]), mm1(x["sd"]), round(x["p"], 4), mm1(x["est_local"]), round(x["p_local"], 4)) for k, x in v.items() if isinstance(x, dict)}))
+    ha = c["human_agreement"]
+    print("REVIEW 13 HUMAN AGREEMENT:", json.dumps(ha)[:1800])
+    # the originally specified order four beside the order-selected main analysis (CODEBOOK decision of 15 Nov 2026)
+    for fa, fb in (("results.json", "results_ar4.json"), ("results_course.json", "results_course_ar4.json")):
+        A, B = J(fa), J(fb)
+        print("ORDER SENSITIVITY %s vs %s" % (fa, fb))
+        for k in ("H7_power_calls_speed_3_5", "H7_power_calls_rate_1_3", "H7_rate_calls_rate_1_3", "H7_rate_calls_dps_3_5", "H7_rate_calls_speed_3_5",
+                  "H7_length_calls_dps_3_5", "H7_length_calls_speed_3_5", "H7_technique_calls_speed_3_5", "H7_steer_calls_speed_3_5", "H3_contingency"):
+            sc = 1.0 if "rate_1_3" in k else 1000.0
+            x, y = A["hypotheses"][k], B["hypotheses"][k]
+            print("  %-30s selected %+.2f (sd %.2f) p %.4f; local %+.2f p %.4f | order four %+.2f (sd %.2f) p %.4f; local %+.2f p %.4f" % (
+                k, sc * x["est"][0], sc * x["sd"][0], x["p"][0], sc * x["est_local"][0], x["p_local"][0],
+                sc * y["est"][0], sc * y["sd"][0], y["p"][0], sc * y["est_local"][0], y["p_local"][0]))
+        for x, y in zip(A["primary"], B["primary"]):
+            print("  %-36s selected %+6.1f p %.3f (%.2f); local %+6.1f p %.3f (%.2f) | order four %+6.1f p %.3f (%.2f); local %+6.1f p %.3f (%.2f)" % (
+                x["label"], mm1(x["est"]), x["p"], x["p_holm"], mm1(x["est_local"]), x["p_local"], x["p_local_holm"],
+                mm1(y["est"]), y["p"], y["p_holm"], mm1(y["est_local"]), y["p_local"], y["p_local_holm"]))
+        print("  per-call sd: selected %.1f (call-free %.1f), order four %.1f (%.1f)" % (
+            mm(A["heterogeneity"]["sd_calls"]), mm(A["heterogeneity"]["sd_noise"]), mm(B["heterogeneity"]["sd_calls"]), mm(B["heterogeneity"]["sd_noise"])))
     print("REVIEW 8 MDE primary (global, local):", {k: (mm1(v["mde80"]), mm1(v["mde80_local"])) for k, v in c["mde"]["primary"].items()})
     print("REVIEW 8 MDE coxswain differences:", {k: round(v["mde80"], 3) for k, v in c["mde"]["coxswain_difference"].items()})
     print("REVIEW 9 SAMPLE SIZE:", json.dumps(c["sample_size"]))
+    ac = json.load(open(os.path.join(HERE, "..", "acoustic", "results.json")))     # research/coxing/acoustic (CODEBOOK addendum of 15 Nov 2026)
+    q = ac["qc"]
+    print("ACOUSTIC pieces: background %d locked of %d; calls %d; speech share median %.2f (%.2f-%.2f); thump talking minus quiet dB %s" % (
+        len(ac["pieces_background"]), len(ac["pieces_voice"]), ac["n_calls"], float(np.median([v["speech_share"] for v in q.values()])),
+        min(v["speech_share"] for v in q.values()), max(v["speech_share"] for v in q.values()),
+        {k: round(v["thump_when_talking"] - v["thump_when_quiet"], 1) for k, v in q.items()}))
+    print("ACOUSTIC A1: out-of-sample gain %.4f (null %.4f sd %.4f) p %.3f; correlations %s" % (
+        ac["A1"]["oos_gain"], ac["A1"]["null_mean"], ac["A1"]["null_sd"], ac["A1"]["p"],
+        [(r["feature"], r["with_"], round(r["r"], 3), round(r["p"], 4), round(r["q"], 3), round(r["p_local"], 4), round(r["q_local"], 3)) for r in ac["A1"]["correlations"]]))
+    for name in ("A2", "A3"):
+        rows = ac[name]
+        print("ACOUSTIC %s: %d tests; q<0.05 both nulls %s; expected rows and p<0.01 rows: %s" % (
+            name, len(rows), [(r["cls"], r["feature"]) for r in rows if r["q"] < 0.05 and r["q_local"] < 0.05],
+            [(r["cls"], r["feature"], r["n"], round(r["est"], 3), round(r["p"], 4), round(r["q"], 3), round(r["est_local"], 3), round(r["p_local"], 4), round(r["q_local"], 3), r["expected"])
+             for r in rows if r["expected"] or min(r["p"], r["p_local"]) < 0.01]))
+    for key in ("V1", "V1_sound_only_unplanned"):
+        print("ACOUSTIC %s: %s" % (key, {k: (v["n"], v["classes"], round(v["balanced_accuracy"], 3), round(v["null_mean"], 3), round(v["null_sd"], 3), round(v["p"], 4))
+                                         for k, v in ac[key].items() if k != "means"}))
+    print("ACOUSTIC V1 means (blind arousal raised):", {c: {f: round(x, 2) for f, x in v.items()} for c, v in ac["V1"]["means"]["blind arousal raised"].items()})
+    print("ACOUSTIC V2: n tests %d; survive both %s; q<0.05 either: %s" % (
+        len(ac["V2"]), [(r["state"], r["feature"]) for r in ac["V2"] if r["q"] < 0.05 and r["q_local"] < 0.05],
+        [(r["state"], r["feature"], round(r["est"], 3), round(r["p"], 4), round(r["q"], 3), round(r["est_local"], 3), round(r["p_local"], 4), round(r["q_local"], 3))
+         for r in ac["V2"] if r["q"] < 0.05 or r["q_local"] < 0.05]))
+    print("ACOUSTIC V3:", ac["V3"])
     g = J("guide/results.json")                                 # guide_validation.py
     r, c, rep = g["rule_coder_on_guide"], g["guide_classifier_on_calls"], g["repertoire_first_coxswain"]
     coded = sum(v["n"] - v["rule_targets"].get("other", 0) for v in r["by_heading"].values())

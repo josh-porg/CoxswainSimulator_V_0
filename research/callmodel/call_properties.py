@@ -13,7 +13,8 @@ Per session folder: ``phrases.json`` ([{i, t, t_end, text}]), ``boat.csv`` (t, s
 Phrases without a code line are counts (bare numbers) and become ``target = count``.
 
 Responses are read from a precomputed matrix, so a permutation is an index shift: for every
-stroke j, ``R[j, h-1] = y[j+h-1] - forecast_h(y[j-4:j])`` with an AR(4) fitted on the session.
+stroke j, ``R[j, h-1] = y[j+h-1] - forecast_h(y[j-p:j])`` with an AR(p) fitted on the session; p is
+the order BIC selects on the session's speed (orders 1-8), or AR_ORDER from the environment.
 """
 from __future__ import annotations
 
@@ -180,20 +181,44 @@ def course_exog(session, min_spread=45.0):
     return np.column_stack(cols)
 
 
-def prepare(session, course=False):
+def bic_order(y, max_p=8):
+    """Autoregressive order (1..max_p) with the lowest BIC, all orders fitted on the same strokes."""
+    n, best = len(y) - max_p, (np.inf, AR_P)
+    for p in range(1, max_p + 1):
+        X = np.column_stack([np.ones(n)] + [y[max_p - j - 1:len(y) - j - 1] for j in range(p)])
+        b, *_ = np.linalg.lstsq(X, y[max_p:], rcond=None)
+        bic = n * np.log(np.sum((y[max_p:] - X @ b) ** 2) / n) + (p + 1) * np.log(n)
+        best = min(best, (bic, p))
+    return best[1]
+
+
+def forecast_order(session):
+    """The order BIC selects on the piece's speed series (no call enters the choice), unless the environment sets
+    AR_ORDER to an integer: AR_ORDER=4 is the originally specified order, kept as a sensitivity analysis. Order four
+    left autocorrelated one-step errors in every piece and BIC preferred five to eight in every piece (CODEBOOK
+    addendum of 15 Nov 2026), so the selected order is the main analysis."""
+    env = os.environ.get("AR_ORDER", "")
+    if env in ("", "bic"):
+        return bic_order(session["speed"])
+    return int(env)
+
+
+def prepare(session, course=False, order=None):
     """Residual matrices for speed, rate and distance per stroke, and the valid stroke range.
     ``course=True`` adds the session's course covariates (course_exog) to the forecast, if it has a track."""
     out = {}
     ex = course_exog(session) if course else None
     session["course_terms"] = 0 if ex is None else ex.shape[1]
+    p = order or forecast_order(session)
+    session["ar_order"] = p
     for ch in ("speed", "rate", "dps"):
         y = session[ch]
-        out[ch] = residual_matrix(y, ar_fit(y, exog=ex), exog=ex)
+        out[ch] = residual_matrix(y, ar_fit(y, p, exog=ex), K_POST, p, exog=ex)
     d = np.abs(np.diff(session["speed"], prepend=session["speed"][0]))
     out["absdiff"] = d
     n = len(session["t"])
     session["R"] = out
-    session["valid"] = (AR_P + 5, n - K_POST)        # 5 extra strokes for the variance window
+    session["valid"] = (max(p, AR_P) + 5, n - K_POST)        # 5 extra strokes for the variance window
     one = out["speed"][:, 0]
     sd = np.nanstd(one)
     session["adverse"] = np.flatnonzero(one < -2 * sd)

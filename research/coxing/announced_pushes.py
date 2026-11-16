@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
-sys.path.insert(0, os.path.join(ROOT, "research", "callmodel"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "callmodel"))   # this checkout's copy
 import call_properties as CP  # noqa: E402
 
 COURSE = os.environ.get("COURSE") == "1"          # the course (bends, heading) in the boat's own forecast

@@ -1,4 +1,5 @@
-"""Robustness and inference checks from the examiner's review (CODEBOOK addendum of 14 Nov 2026, items 1-9).
+"""Robustness and inference checks from the examiner's review (CODEBOOK addenda of 14 and 15 Nov 2026, items 1-13;
+item 10, the forecast order, is call_properties.forecast_order with run_experiment.py AR_ORDER=4 as the sensitivity run).
 
     .venv/Scripts/python.exe research/coxing/experiment/examiner_checks.py
 
@@ -61,9 +62,19 @@ class Data:
     def __init__(self):
         self.s = {sid: CP.load_session(os.path.join(SDIR, sid)) for sid in SES}
         self.codes = {sid: CP.load_codes(os.path.join(EXP, "codes_%s.txt" % sid)) for sid in SES}
-        self._R, self._E = {}, {}
+        self._R, self._E, self._O = {}, {}, {}
 
-    def R(self, sid, ch="speed", p=4, course=False):
+    def order(self, sid):
+        """The piece's main forecast order (BIC on its speed series, or AR_ORDER from the environment)."""
+        if sid not in self._O:
+            self._O[sid] = CP.forecast_order(self.s[sid])
+        return self._O[sid]
+
+    def valid(self, sid):
+        return max(self.order(sid), CP.AR_P) + 5, self.n(sid) - K
+
+    def R(self, sid, ch="speed", p=None, course=False):
+        p = p or self.order(sid)
         key = (sid, ch, p, course)
         if key not in self._R:
             s = self.s[sid]
@@ -189,11 +200,11 @@ def check2(D, out):
     for name, cls, ch, win, course in specs:
         piece = {}
         for sid in SES:
-            lo, hi = 9, D.n(sid) - K
+            lo, hi = D.valid(sid)
             js = calls_of(D, sid, cls, lo, hi)
             if len(js) < 5:
                 continue
-            piece[sid] = both([window_stat(D.R(sid, ch, 4, course), win)], [js], [(lo, hi)], 300 + SES.index(sid))
+            piece[sid] = both([window_stat(D.R(sid, ch, None, course), win)], [js], [(lo, hi)], 300 + SES.index(sid))
         r = dict(pieces=piece)
         for null, e_, s_ in (("global", "est", "sd"), ("local", "est_local", "sd_local")):
             occ = {}
@@ -231,7 +242,7 @@ def check2(D, out):
     # pooled call-level estimate without each of the two pieces (the paper's estimator)
     for tag, drop in (("pooled_all", None), ("pooled_without_pink_ribbon", "race_01"), ("pooled_without_hotl_four", "race_09")):
         sel = [s_ for s_ in SES if s_ != drop]
-        rng_ = [(9, D.n(s_) - K) for s_ in sel]
+        rng_ = [D.valid(s_) for s_ in sel]
         res[tag] = both([window_stat(D.R(s_), (3, 5)) for s_ in sel], [calls_of(D, s_, "power", lo, hi) for s_, (lo, hi) in zip(sel, rng_)], rng_, 350)
         print("     %-28s n=%d %+.1f (sd %.1f) p %.4f | local %+.1f p %.4f" % (tag, res[tag]["n"], 1000 * res[tag]["est"], 1000 * res[tag]["sd"], res[tag]["p"],
                                                                          1000 * res[tag]["est_local"], res[tag]["p_local"]))
@@ -244,8 +255,8 @@ def check3(D, out):
     for course in (False, True):
         V, JS, RNG = [], [], []
         for sid in SES:
-            lo, hi = 9 + 10, D.n(sid) - K
-            R = D.R(sid, "speed", 4, course)
+            lo, hi = D.valid(sid)[0] + 10, D.n(sid) - K
+            R = D.R(sid, "speed", None, course)
             V.append(np.vstack([np.full((10, K), np.nan), R[:-10]]))        # row j holds the residuals from origin j-10
             JS.append(calls_of(D, sid, "power", lo, hi))
             RNG.append((lo, hi))
@@ -276,8 +287,8 @@ def check4(D, out):
         Y, base, DD, spans = [], [], [], []
         for q, sid in enumerate(SES):
             s, n = D.s[sid], D.n(sid)
-            lo, hi = 9, n - K
-            y = window_stat(D.R(sid, "speed", 4, course), (3, 5))[lo:hi]
+            lo, hi = D.valid(sid)
+            y = window_stat(D.R(sid, "speed", None, course), (3, 5))[lo:hi]
             pre = np.array([CP.contingency(s, j) for j in range(lo, hi)])
             fe = np.zeros((hi - lo, len(SES)))
             fe[:, q] = 1
@@ -337,9 +348,9 @@ def check4(D, out):
 def check5(D, out):
     res = {}
     for course in (False, True):
-        RNG = [(9, D.n(s_) - K) for s_ in SES]
+        RNG = [D.valid(s_) for s_ in SES]
         JS = [calls_of(D, s_, "power", lo, hi) for s_, (lo, hi) in zip(SES, RNG)]
-        res["course" if course else "momentum"] = both([window_stat(D.R(s_, "speed", 4, course), "template") for s_ in SES], JS, RNG, 600)
+        res["course" if course else "momentum"] = both([window_stat(D.R(s_, "speed", None, course), "template") for s_ in SES], JS, RNG, 600)
         r = res["course" if course else "momentum"]
         print("5. template plateau (%s): %+.1f (sd %.1f) p %.4f | local %+.1f (sd %.1f) p %.4f" % (
             "course" if course else "momentum", 1000 * r["est"], 1000 * r["sd"], r["p"], 1000 * r["est_local"], 1000 * r["sd_local"], r["p_local"]))
@@ -348,9 +359,9 @@ def check5(D, out):
 
 # ------------------------------------------------------------------ 6
 def check6(D, out):
-    dims = dict(ar=[2, 4, 6, 8], course=[False, True], null=["global", "local"], window=[(3, 5), (2, 6), (4, 8), "template"],
+    dims = dict(ar=[2, 4, 6, 8, "bic"], course=[False, True], null=["global", "local"], window=[(3, 5), (2, 6), (4, 8), "template"],
                 definition=["directive", "any power"], gap=[2.0, 3.0, 5.0], sync=["recorded", "counts"], start=["all", "no first 20"])
-    paper = dict(ar=4, course=False, null="global", window=(3, 5), definition="directive", gap=3.0, sync="recorded", start="all")
+    paper = dict(ar="bic", course=False, null="global", window=(3, 5), definition="directive", gap=3.0, sync="recorded", start="all")
     rows, cache = [], {}
     for q, vals in enumerate(product(*dims.values())):
         sp = dict(zip(dims, vals))
@@ -358,7 +369,7 @@ def check6(D, out):
         RNG = [(lo0, D.n(s_) - K) for s_ in SES]
         kV = (sp["ar"], sp["course"], sp["window"])
         if kV not in cache:
-            cache[kV] = [window_stat(D.R(s_, "speed", sp["ar"], sp["course"]), sp["window"]) for s_ in SES]
+            cache[kV] = [window_stat(D.R(s_, "speed", None if sp["ar"] == "bic" else sp["ar"], sp["course"]), sp["window"]) for s_ in SES]
         JS = [calls_of(D, s_, "power", lo, hi, sp["gap"], sp["sync"] == "counts", sp["definition"] == "any power") for s_, (lo, hi) in zip(SES, RNG)]
         e, s, p = perm(cache[kV], JS, RNG, sp["null"] == "local", 7000 + q, 1000)
         rows.append(dict(sp, window="template" if sp["window"] == "template" else "%d-%d" % sp["window"], n=int(sum(len(j) for j in JS)),
@@ -398,18 +409,18 @@ def check7(D, out):
             rss = float(np.sum((y[8:] - Xp @ b) ** 2))
             bic[p] = (n - 8) * np.log(rss / (n - 8)) + (p + 1) * np.log(n - 8)
         r = dict(n=n, bic_order=int(min(bic, key=bic.get)))
-        e = D.R(sid)[:, 0]
-        e = e[~np.isnan(e)]
-        e = e - e.mean()
-        ac = np.array([np.sum(e[k_:] * e[:-k_]) / np.sum(e * e) for k_ in range(1, 11)])
-        Q = len(e) * (len(e) + 2) * np.sum(ac ** 2 / (len(e) - np.arange(1, 11)))
-        r["ljung_box_p"] = float(stats.chi2.sf(Q, 10 - 4))
-        r["resid_sd"] = float(e.std())
-        for course in (False, True):
+        for tag_, p_ in (("ar4", 4), ("selected", D.order(sid))):
+            e = D.R(sid, "speed", p_)[:, 0]
+            e = e[~np.isnan(e)]
+            e = e - e.mean()
+            ac = np.array([np.sum(e[k_:] * e[:-k_]) / np.sum(e * e) for k_ in range(1, 13)])
+            Q = len(e) * (len(e) + 2) * np.sum(ac ** 2 / (len(e) - np.arange(1, 13)))
+            r["ljung_box_p_" + tag_] = float(stats.chi2.sf(Q, 12 - p_))          # lag 12, so that order eight keeps 4 df
+            r["resid_sd_" + tag_] = float(e.std())
+        for course, p in ((False, 4), (True, 4), (False, D.order(sid)), (True, D.order(sid))):
             ex = CP.course_exog(s) if course else None
             if course and ex is None:
                 continue
-            p = 4
             e1, e35, t1, t35 = [], [], [], []
             edges = np.linspace(p, n, 6).astype(int)
             for a, b_ in zip(edges[:-1], edges[1:]):
@@ -432,19 +443,24 @@ def check7(D, out):
                     t1.append(y[j] - mean_tr)
                     e35.append(np.mean(y[j + 2:j + 5]) - np.mean(f[2:5]))
                     t35.append(np.mean(y[j + 2:j + 5]) - mean_tr)
-            tag = "course" if course else "momentum"
+            tag = ("course" if course else "momentum") + ("_ar4" if p == 4 else "")
             r["oos_r2_1_" + tag] = float(1 - np.sum(np.square(e1)) / np.sum(np.square(t1)))
             r["oos_r2_3_5_" + tag] = float(1 - np.sum(np.square(e35)) / np.sum(np.square(t35)))
         res[sid] = r
     med = lambda k_: float(np.median([v[k_] for v in res.values() if k_ in v]))
     rng_ = lambda k_: [float(min(v[k_] for v in res.values() if k_ in v)), float(max(v[k_] for v in res.values() if k_ in v))]
     summ = dict(bic_orders={str(o): int(sum(v["bic_order"] == o for v in res.values())) for o in range(1, 9)},
-                ljung_box_rejected=int(sum(v["ljung_box_p"] < 0.05 for v in res.values())),
-                **{k_: dict(median=med(k_), range=rng_(k_)) for k_ in ("oos_r2_1_momentum", "oos_r2_3_5_momentum", "oos_r2_1_course", "oos_r2_3_5_course")})
+                ljung_box_rejected_ar4=int(sum(v["ljung_box_p_ar4"] < 0.05 for v in res.values())),
+                ljung_box_rejected_selected=int(sum(v["ljung_box_p_selected"] < 0.05 for v in res.values())),
+                resid_sd_ar4=med("resid_sd_ar4"), resid_sd_selected=med("resid_sd_selected"),
+                **{k_: dict(median=med(k_), range=rng_(k_)) for k_ in ("oos_r2_1_momentum", "oos_r2_3_5_momentum", "oos_r2_1_course", "oos_r2_3_5_course",
+                                                                       "oos_r2_1_momentum_ar4", "oos_r2_3_5_momentum_ar4")})
     out["forecast"] = dict(pieces=res, summary=summ)
-    print("7. forecast: BIC orders %s; Ljung-Box p<0.05 in %d of %d pieces; out-of-sample R2 one-step median %.2f (%.2f..%.2f), 3-5 strokes %.2f (%.2f..%.2f); with course %.2f and %.2f" % (
-        {k_: v for k_, v in summ["bic_orders"].items() if v}, summ["ljung_box_rejected"], len(res), summ["oos_r2_1_momentum"]["median"], *summ["oos_r2_1_momentum"]["range"],
-        summ["oos_r2_3_5_momentum"]["median"], *summ["oos_r2_3_5_momentum"]["range"], summ["oos_r2_1_course"]["median"], summ["oos_r2_3_5_course"]["median"]))
+    print("7. forecast: BIC orders %s; Ljung-Box (lag 12) p<0.05 in %d of %d pieces at order four, %d at the selected order; out-of-sample R2 one-step median %.2f (%.2f..%.2f), 3-5 strokes %.2f (%.2f..%.2f); order four %.2f and %.2f; with course %.2f and %.2f" % (
+        {k_: v for k_, v in summ["bic_orders"].items() if v}, summ["ljung_box_rejected_ar4"], len(res), summ["ljung_box_rejected_selected"],
+        summ["oos_r2_1_momentum"]["median"], *summ["oos_r2_1_momentum"]["range"],
+        summ["oos_r2_3_5_momentum"]["median"], *summ["oos_r2_3_5_momentum"]["range"], summ["oos_r2_1_momentum_ar4"]["median"], summ["oos_r2_3_5_momentum_ar4"]["median"],
+        summ["oos_r2_1_course"]["median"], summ["oos_r2_3_5_course"]["median"]))
 
 
 # ------------------------------------------------------------------ 8, 9
@@ -481,6 +497,95 @@ def check9(out):
         print("9. sample size (%s): sigma %.0f, delta %.0f, tau %.1f mm/s: %d calls per arm ignoring clustering; occasions needed at 20/40/80 calls per arm per occasion: %s; floor from tau alone %d" % (
             tag, 1000 * sigma, 1000 * delta, 1000 * tau, per_arm_iid, "/".join("%d" % occ[k_] for k_ in ("20", "40", "80")), res[tag]["occasions_floor_from_tau"]))
     out["sample_size"] = res
+
+
+# ------------------------------------------------------------------ 11-13 (CODEBOOK addendum of 15 Nov 2026)
+def check11(D, out):
+    """Cross-fitted window: each occasion is scored on the window chosen from the other eight."""
+    WINS = [(1, 2), (3, 5), (2, 6), (4, 8), (6, 10)]
+    occs = list(dict.fromkeys(OCC[s_] for s_ in SES))
+    res = {}
+    for tag, course, local in (("momentum_global", False, False), ("course_local", True, True)):
+        RNG = {s_: D.valid(s_) for s_ in SES}
+        JS = {s_: calls_of(D, s_, "power", *RNG[s_]) for s_ in SES}
+        V = {w: {s_: window_stat(D.R(s_, "speed", None, course), w) for s_ in SES} for w in WINS}
+        rows = []
+        for q, occ in enumerate(occs):
+            train = [s_ for s_ in SES if OCC[s_] != occ]
+            test = [s_ for s_ in SES if OCC[s_] == occ and len(JS[s_])]
+            zs = {}
+            for w in WINS:
+                e, sd, _ = perm([V[w][s_] for s_ in train], [JS[s_] for s_ in train], [RNG[s_] for s_ in train], local, 1100 + q, 1000)
+                zs[w] = float(e[0] / sd[0])
+            w = max(zs, key=zs.get)
+            e, sd, p_ = perm([V[w][s_] for s_ in test], [JS[s_] for s_ in test], [RNG[s_] for s_ in test], local, 1200 + q, NPERM)
+            rows.append(dict(occasion=occ, window="%d-%d" % w, train_z=zs[w], est=float(e[0]), sd=float(sd[0]), p=float(p_[0]),
+                             n=int(sum(len(JS[s_]) for s_ in test))))
+        m = random_effects([r["est"] for r in rows], [r["sd"] for r in rows])
+        z = float(sum(r["est"] / r["sd"] for r in rows) / np.sqrt(len(rows)))
+        m.update(rows=rows, n_positive=int(sum(r["est"] > 0 for r in rows)), stouffer_z=z, stouffer_p=float(2 * stats.norm.sf(abs(z))),
+                 windows_chosen={w_: int(sum(r["window"] == w_ for r in rows)) for w_ in sorted({r["window"] for r in rows})})
+        res[tag] = m
+        print("11. cross-fitted window (%s): windows chosen %s; held-out RE %+.1f [%+.1f, %+.1f] p %.3f, tau %.1f; positive %d/%d; Stouffer z %.2f p %.4f" % (
+            tag, m["windows_chosen"], 1000 * m["mu"], 1000 * m["ci"][0], 1000 * m["ci"][1], m["p"], 1000 * m["tau"], m["n_positive"], m["k"], z, m["stouffer_p"]))
+    out["crossfit"] = res
+
+
+def check12(D, out):
+    """Power calls identified without the primary coder: lexical rule coder, practitioner guide, and both coders."""
+    sys.path.insert(0, CODE)
+    import guide_validation as GV
+    import rulecoder as RC
+    from sklearn.metrics.pairwise import cosine_similarity
+    guide, _ = GV.load_guide()
+    coded = {s_: [p for p in D.s[s_]["phrases"] if p["i"] in D.codes[s_]] for s_ in SES}      # every phrase that is not a bare count
+    vec = GV.vectoriser([g["phrase"] for g in guide] + [p["text"] for s_ in SES for p in coded[s_]])
+    G = vec([g["phrase"] for g in guide])
+    drive = np.array([g["section"] == "Drive" for g in guide])
+    blank = dict(stage="-", level="-", action="n", function="-", focus="-", ref="n", discrep="n", appraisal="neu", form="-", arousal="-")
+    JS = {k_: {} for k_ in ("primary", "rule", "guide", "both")}
+    for s_ in SES:
+        st = D.s[s_]
+        lo, hi = D.valid(s_)
+        keep = lambda js, lo=lo, hi=hi: np.array(sorted(j for j in js if lo <= j < hi), int)
+        JS["primary"][s_] = calls_of(D, s_, "power", lo, hi)
+        rule = {p["i"]: dict(blank, target=RC.code(p["text"])["target"]) for p in coded[s_]}
+        JS["rule"][s_] = keep(int(np.searchsorted(st["t"], e["t"])) for e in CP.episodes(st["phrases"], rule) if e["target"] == "power")
+        S = cosine_similarity(vec([p["text"] for p in coded[s_]]), G)
+        lab = [p for p, row in zip(coded[s_], S) if drive[row.argmax()] and row.max() >= 0.5]
+        starts, last = [], -1e9
+        for p in lab:                                             # an episode: a run of such phrases within 3 s
+            if p["t"] - last > 3.0:
+                starts.append(p["t"])
+            last = max(p["t"], p.get("t_end") or p["t"])
+        JS["guide"][s_] = keep(int(np.searchsorted(st["t"], t_)) for t_ in starts)
+        JS["both"][s_] = keep(e["j"] for e in D.episodes(s_) if e["cls"] == "power" and any(RC.code(t_)["target"] == "power" for t_ in e["texts"]))
+    res = {}
+    RNG = [D.valid(s_) for s_ in SES]
+    for lab_, js in JS.items():
+        prim = JS["primary"]
+        tot = sum(len(js[s_]) for s_ in SES)
+        near = float(np.mean([np.min(np.abs(prim[s_] - j)) <= 1 if len(prim[s_]) else False for s_ in SES for j in js[s_]])) if tot else float("nan")
+        r = dict(n=int(tot), share_at_a_primary_power_call=near)
+        for tag, course in (("momentum", False), ("course", True)):
+            for wname, w in (("3_5", (3, 5)), ("template", "template")):
+                r["%s_%s" % (tag, wname)] = both([window_stat(D.R(s_, "speed", None, course), w) for s_ in SES], [js[s_] for s_ in SES], RNG, 1300)
+        res[lab_] = r
+        a, b_, c_, d_ = r["momentum_3_5"], r["course_3_5"], r["momentum_template"], r["course_template"]
+        print("12. power calls by %-8s n=%3d (%.0f%% at a primary power call): 3-5 %+.1f (sd %.1f) p %.3f / local %+.1f p %.3f | course %+.1f p %.3f / local %+.1f p %.3f | template %+.1f p %.4f / local %+.1f p %.4f | course template %+.1f p %.4f" % (
+            lab_, r["n"], 100 * near, 1000 * a["est"], 1000 * a["sd"], a["p"], 1000 * a["est_local"], a["p_local"], 1000 * b_["est"], b_["p"], 1000 * b_["est_local"], b_["p_local"],
+            1000 * c_["est"], c_["p"], 1000 * c_["est_local"], c_["p_local"], 1000 * d_["est"], d_["p"]))
+    out["labellers"] = res
+
+
+def check13(out):
+    """Human agreement so far: the human coding tool's own analysis (analysis.json beside its log)."""
+    import subprocess
+    hc = os.path.join(CODE, "..", "human_coding", "analyse.py")
+    r = subprocess.run([sys.executable, hc], check=True, capture_output=True, text=True)
+    a = json.load(open(os.path.join(EXP, "..", "human_coding", "analysis.json")))
+    out["human_agreement"] = a
+    print("13. human agreement so far:\n" + "\n".join("    " + l for l in r.stdout.splitlines()[:16]))
 
 
 # ------------------------------------------------------------------ figure
@@ -537,6 +642,12 @@ def main():
     os.makedirs(OUTDIR, exist_ok=True)
     if "--figure" in sys.argv:              # redraw the figure from the saved results
         return figure(json.load(open(os.path.join(OUTDIR, "checks.json"))))
+    if "--confirm" in sys.argv:             # only the confirmation analyses of 15 Nov, added to the saved results
+        D, out = Data(), json.load(open(os.path.join(OUTDIR, "checks.json")))
+        check11(D, out)
+        check12(D, out)
+        check13(out)
+        return json.dump(out, open(os.path.join(OUTDIR, "checks.json"), "w"), indent=1)
     D, out = Data(), {}
     check1(out)
     check2(D, out)
@@ -547,6 +658,9 @@ def main():
     check7(D, out)
     check8(out)
     check9(out)
+    check11(D, out)
+    check12(D, out)
+    check13(out)
     json.dump(out, open(os.path.join(OUTDIR, "checks.json"), "w"), indent=1)
     figure(out)
     print("written", os.path.join(OUTDIR, "checks.json"))

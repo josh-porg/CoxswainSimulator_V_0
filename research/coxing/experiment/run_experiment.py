@@ -18,7 +18,7 @@ import pandas as pd
 from scipy.io import wavfile
 
 ROOT = r"C:\Users\satur\PycharmProjects\CoxswainSimulator_V_0"
-sys.path.insert(0, os.path.join(ROOT, "research", "callmodel"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "callmodel"))   # this checkout's copy
 import call_properties as CP  # noqa: E402
 
 CODE = os.path.dirname(os.path.abspath(__file__))   # this script (committed, research/)
@@ -69,7 +69,10 @@ ALT_SRC = os.environ.get("ALT_SRC", "rule")
 # the within-stroke sync. The audio offset moves with the words, so delivery measures read the same audio.
 SYNC = os.environ.get("SYNC", "")
 COUNT_PHASE = os.environ.get("COUNT_PHASE", "0.55")
-SUF = ("_course" if COURSE else "") + (("_%sarousal_" % ALT_SRC) + ALT_AROUSAL if ALT_AROUSAL else "") + \
+# AR_ORDER=<n>: force the forecast's autoregressive order (AR_ORDER=4: the originally specified order, a sensitivity
+# run written with the suffix _ar4). Default: the order BIC selects on each piece's speed (call_properties.forecast_order).
+AR_ORDER = os.environ.get("AR_ORDER", "")
+SUF = ("_course" if COURSE else "") + ("_ar" + AR_ORDER if AR_ORDER else "") + (("_%sarousal_" % ALT_SRC) + ALT_AROUSAL if ALT_AROUSAL else "") + \
     ("_countsync" + COUNT_PHASE.replace(".", "") if SYNC == "counts" else "") + ("" if SET == "all" else "_set_" + SET)
 ANCHOR = json.load(open(os.path.join(SDIR, "..", "sync", "count_anchor.json")))[COUNT_PHASE] if SYNC == "counts" else {}
 # drilled cues (CODEBOOK addendum): regex on the lead phrase, piece number from which the drill had been taught
@@ -538,5 +541,6 @@ if len(tod):                                # the 7 Oct pieces are in this set
             k, v["note"][:60], v["calls_per_min"], 100 * v["info_share"], v["avg_split"], v["mean_rate"], 1000 * v["resid_sd"], v["rate_sd"]))
 
 OUT["course_terms"] = {k: sessions[k].get("course_terms", 0) for k in SES}
+OUT["ar_order"] = {k: int(sessions[k].get("ar_order", CP.AR_P)) for k in SES}
 json.dump(OUT, open(os.path.join(HERE, "results%s.json" % SUF), "w"), indent=1)
 log("\nwritten results.json, episodes.csv")

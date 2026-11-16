@@ -19,7 +19,7 @@ import numpy as np
 import pandas as pd
 
 ROOT = r"C:\Users\satur\PycharmProjects\CoxswainSimulator_V_0"
-sys.path.insert(0, os.path.join(ROOT, "research", "callmodel"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "callmodel"))   # this checkout's copy
 import call_properties as CP  # noqa: E402
 
 EXP = os.path.join(ROOT, "data", "local", "coxing", "experiment")

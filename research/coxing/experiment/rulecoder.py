@@ -11,7 +11,7 @@ import sys
 import numpy as np
 
 ROOT = r"C:\Users\satur\PycharmProjects\CoxswainSimulator_V_0"
-sys.path.insert(0, os.path.join(ROOT, "research", "callmodel"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "callmodel"))   # this checkout's copy
 import call_properties as CP  # noqa: E402
 
 CODE = os.path.dirname(os.path.abspath(__file__))   # this script (committed, research/)
