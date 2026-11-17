@@ -65,6 +65,11 @@ const INSTR = '<a href="/instructions" target="_blank">Instructions</a>';
 
 async function load() {
   S = await (await fetch("/api/state")).json();
+  if (S.text.fields) {                                  // a pack that asks for some fields only (e.g. target and stage)
+    const keep = new Set(S.text.fields);
+    for (let i = F.length - 1; i >= 0; i--) if (!keep.has(F[i][0])) F.splice(i, 1);
+    if (!keep.has("function")) MULTI.delete("function");
+  }
   done = new Set(S.voice_unlocked ? S.done_voice : S.done_text);
   mode = S.voice_unlocked ? "voice" : "text";
   items = (mode === "voice" ? S.voice : S.text).items;
@@ -75,7 +80,7 @@ async function load() {
 }
 function welcome() {
   mode = "welcome"; help.textContent = "";
-  app.innerHTML = `<div class="big">Before you start</div><div>Read the <a href="/instructions" target="_blank">instructions</a> once (they open in a new tab and stay one click away on every screen). Then press Enter to begin.</div>`;
+  app.innerHTML = `<div class="big">Before you start</div>${S.text.intro ? `<div style="margin-bottom:10px">${S.text.intro}</div>` : ""}<div>Read the <a href="/instructions" target="_blank">instructions</a> once (they open in a new tab and stay one click away on every screen). Then press Enter to begin.</div>`;
 }
 function finished() { app.innerHTML = '<div class="big">All done</div><div>Every item is logged and locked. Tell Claude, who will run the agreement analysis.</div>'; help.textContent = ""; }
 function progress() {
@@ -87,7 +92,7 @@ function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"
 // ---------------- text coding
 function startText() {
   cur = { target: [], function: [] }; field = 0; flags = new Set(); note = ""; noting = false; t0 = performance.now();
-  help.textContent = "Target and Function: letters toggle values (first = main), Space moves on. Other fields: one letter each. Backspace: back. Shift+F/U/X/S: flags. Shift+N: note. Enter: save and next.";
+  help.textContent = (MULTI.has("function") ? "Target and Function" : "Target") + ": letters toggle values (first = main), Space moves on. Other fields: one letter each. Backspace: back. Shift+F/U/X/S: flags. Shift+N: note. Enter: save and next.";
   renderText();
 }
 function skipped() { return cur.target.length > 0 && cur.target.every(t => t === "count" || t === "other"); }

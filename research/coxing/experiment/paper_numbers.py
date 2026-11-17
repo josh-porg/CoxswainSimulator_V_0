@@ -204,6 +204,20 @@ def main():
                 mm1(y["est"]), y["p"], y["p_holm"], mm1(y["est_local"]), y["p_local"], y["p_local_holm"]))
         print("  per-call sd: selected %.1f (call-free %.1f), order four %.1f (%.1f)" % (
             mm(A["heterogeneity"]["sd_calls"]), mm(A["heterogeneity"]["sd_noise"]), mm(B["heterogeneity"]["sd_calls"]), mm(B["heterogeneity"]["sd_noise"])))
+    for tag in ("momentum", "course"):
+        pl = c["placebo"][tag]
+        print("REVIEW 14 PLACEBO planned (clear 10) %s: n power %d, placebo %.0f, eligible %.0f%%, pre-change %.1f, gap %.1f; %s" % (
+            tag, pl["n_power"], pl["n_placebo_mean"], 100 * c["placebo"]["eligible_share_clear10"], 1000 * pl["real_pre_change"], 1000 * pl["match_gap"],
+            {k: (mm1(v["real"]), mm1(v["placebo_mean"]), mm1(v["placebo_lo"]), mm1(v["placebo_hi"]), round(v["p_real_vs_placebo"], 3)) for k, v in pl.items() if isinstance(v, dict) and "real" in v}))
+    for k, v in c["placebo"]["diagnostics_unplanned"].items():
+        print("REVIEW 14 PLACEBO unplanned %s: eligible %.0f%%, placebo %.0f, gap %.1f; %s" % (
+            k, 100 * v["eligible_share"], v["n_placebo_mean"], 1000 * v["match_gap"],
+            {a: (mm1(x["real"]), mm1(x["placebo_mean"]), mm1(x["placebo_lo"]), mm1(x["placebo_hi"]), round(x["p_real_vs_placebo"], 3)) for a, x in v.items() if isinstance(x, dict)}))
+    for tag in ("momentum", "course"):
+        ij = c["injection"][tag]
+        print("REVIEW 15 INJECTION %s: %.0f strokes per draw; plateau %s, 3-5 truth %s; recovered 3-5 %s (%.0f%%), template %s (%.0f%%)" % (
+            tag, ij["n_injected_mean"], mm1(ij["injected_plateau"]), mm1(ij["injected_3_5"]), mm1(ij["recovered_3_5"]), 100 * ij["share_3_5"],
+            mm1(ij["recovered_template"]), 100 * ij["share_template"]))
     print("REVIEW 8 MDE primary (global, local):", {k: (mm1(v["mde80"]), mm1(v["mde80_local"])) for k, v in c["mde"]["primary"].items()})
     print("REVIEW 8 MDE coxswain differences:", {k: round(v["mde80"], 3) for k, v in c["mde"]["coxswain_difference"].items()})
     print("REVIEW 9 SAMPLE SIZE:", json.dumps(c["sample_size"]))

@@ -1,4 +1,4 @@
-"""Robustness and inference checks from the examiner's review (CODEBOOK addenda of 14 and 15 Nov 2026, items 1-13;
+"""Robustness and inference checks from the examiner's review (CODEBOOK addenda of 14, 15 and 16 Nov 2026, items 1-15;
 item 10, the forecast order, is call_properties.forecast_order with run_experiment.py AR_ORDER=4 as the sensitivity run).
 
     .venv/Scripts/python.exe research/coxing/experiment/examiner_checks.py
@@ -588,6 +588,158 @@ def check13(out):
     print("13. human agreement so far:\n" + "\n".join("    " + l for l in r.stdout.splitlines()[:16]))
 
 
+# ------------------------------------------------------------------ 14, 15 (CODEBOOK addendum of 16 Nov 2026)
+def fast_residual_matrix(y, beta, p, exog=None):
+    """call_properties.residual_matrix, vectorised over forecast origins (same values)."""
+    n = len(y)
+    R = np.full((n, K), np.nan)
+    J = np.arange(p, n - K + 1)
+    H = np.column_stack([y[J - l - 1] for l in range(p)])            # most recent stroke first
+    for h in range(K):
+        f = beta[0] + H @ beta[1:1 + p]
+        if exog is not None:
+            f = f + exog[J + h] @ beta[1 + p:]
+        R[J, h] = y[J + h] - f
+        H = np.column_stack([f, H[:, :-1]])
+    return R
+
+
+def placebo_draw(rng, pool, matched=True):
+    """One dip-matched placebo set: for every power call a stroke of the same piece, at least ten strokes from any
+    power call, within 15% of the piece's length, among the five nearest in pre-call speed change; none used twice."""
+    out, gap = {}, []
+    for sid, (js, cand, cont, n) in pool.items():
+        used, pick = set(), []
+        for j in rng.permutation(js):
+            c = [k for k in cand if abs(k - j) <= 0.15 * n and k not in used]
+            if not c:
+                continue
+            if matched:
+                c = sorted(c, key=lambda k: abs(cont[k] - cont[j]))[:5]
+            k = int(c[int(rng.integers(len(c)))])
+            used.add(k)
+            pick.append(k)
+            gap.append(cont[k] - cont[j])
+        out[sid] = np.array(sorted(pick), int)
+    return out, float(np.mean(gap))
+
+
+def placebo_pool(D, clear=10):
+    pool = {}                                    # clear: placebo strokes lie more than this many strokes from every power call
+    for sid in SES:
+        lo, hi = D.valid(sid)
+        js = calls_of(D, sid, "power", lo, hi)
+        s = D.s[sid]
+        cont = np.array([CP.contingency(s, j) if j >= 6 else np.nan for j in range(D.n(sid))])
+        cand = [k for k in range(max(lo, 6), hi) if len(js) == 0 or np.min(np.abs(js - k)) > clear]
+        if len(js):
+            pool[sid] = (js, cand, cont, D.n(sid))
+    return pool
+
+
+def check14(D, out):
+    pool = placebo_pool(D)
+    res = {}
+    for tag, course in (("momentum", False), ("course", True)):
+        V = {w: {sid: window_stat(D.R(sid, "speed", None, course), w) for sid in pool} for w in ((3, 5), (6, 10), "template")}
+        real = {w: float(np.nanmean(np.concatenate([V[w][sid][pool[sid][0]] for sid in pool]))) for w in V}
+        rng = np.random.default_rng(1400 + course)
+        draws, gaps, nplac = {w: [] for w in V}, [], []
+        for _ in range(500):
+            pl, g = placebo_draw(rng, pool)
+            gaps.append(g)
+            nplac.append(sum(len(v) for v in pl.values()))
+            for w in V:
+                draws[w].append(float(np.nanmean(np.concatenate([V[w][sid][pl[sid]] for sid in pool]))))
+        r = dict(n_power=int(sum(len(v[0]) for v in pool.values())), n_placebo_mean=float(np.mean(nplac)), match_gap=float(np.mean(gaps)),
+                 real_pre_change=float(np.nanmean(np.concatenate([pool[sid][2][pool[sid][0]] for sid in pool]))))
+        for w, name in (((3, 5), "3_5"), ((6, 10), "6_10"), ("template", "template")):
+            d = np.array(draws[w])
+            r[name] = dict(real=real[w], placebo_mean=float(d.mean()), placebo_lo=float(np.percentile(d, 2.5)), placebo_hi=float(np.percentile(d, 97.5)),
+                           p_real_vs_placebo=float((np.sum(d >= real[w]) + 1) / (len(d) + 1)))
+        res[tag] = r
+        print("14. dip-matched placebo (%s): %d power calls, %.0f placebo strokes per draw, pre-call change %.1f (match gap %+.1f) mm/s" % (
+            tag, r["n_power"], r["n_placebo_mean"], 1000 * r["real_pre_change"], 1000 * r["match_gap"]))
+        for name in ("3_5", "6_10", "template"):
+            x = r[name]
+            print("      %-8s real %+.1f | placebo %+.1f (95%% of draws %+.1f to %+.1f) | p(real <= placebo) %.3f" % (
+                name, 1000 * x["real"], 1000 * x["placebo_mean"], 1000 * x["placebo_lo"], 1000 * x["placebo_hi"], x["p_real_vs_placebo"]))
+    # unplanned diagnostics (CODEBOOK notes of 16 Nov): unmatched placebo, and dip-matched with a one-stroke exclusion
+    diag = {}
+    span = lambda pl_: sum(D.valid(sid)[1] - max(D.valid(sid)[0], 6) for sid in pl_)
+    for name, clear, matched in (("unmatched_clear10", 10, False), ("matched_clear1", 1, True), ("unmatched_clear1", 1, False)):
+        pl_pool = placebo_pool(D, clear)
+        elig = sum(len(v[1]) for v in pl_pool.values()) / span(pl_pool)
+        for tag, course in (("momentum", False), ("course", True)):
+            V = {w: {sid: window_stat(D.R(sid, "speed", None, course), w) for sid in pl_pool} for w in ((3, 5), (6, 10), "template")}
+            rng = np.random.default_rng(1450 + clear + 7 * matched + course)
+            draws, gaps, npl = {w: [] for w in V}, [], []
+            for _ in range(500):
+                pl, g = placebo_draw(rng, pl_pool, matched)
+                gaps.append(g)
+                npl.append(sum(len(v) for v in pl.values()))
+                for w in V:
+                    draws[w].append(float(np.nanmean(np.concatenate([V[w][sid][pl[sid]] for sid in pl_pool]))))
+            real = {w: float(np.nanmean(np.concatenate([V[w][sid][pl_pool[sid][0]] for sid in pl_pool]))) for w in V}
+            x = dict(eligible_share=float(elig), n_placebo_mean=float(np.mean(npl)), match_gap=float(np.mean(gaps)))
+            for w, nm in (((3, 5), "3_5"), ((6, 10), "6_10"), ("template", "template")):
+                d = np.array(draws[w])
+                x[nm] = dict(real=real[w], placebo_mean=float(d.mean()), placebo_lo=float(np.percentile(d, 2.5)), placebo_hi=float(np.percentile(d, 97.5)),
+                             p_real_vs_placebo=float((np.sum(d >= real[w]) + 1) / 501))
+            diag["%s_%s" % (name, tag)] = x
+            print("14 (unplanned) %-18s %-8s eligible %.0f%% of strokes, %.0f placebo, match gap %+.1f: 3-5 %+.1f (%+.1f to %+.1f) | 6-10 %+.1f (%+.1f to %+.1f) | template %+.1f | p(real<=placebo) %.3f/%.3f" % (
+                name, tag, 100 * elig, x["n_placebo_mean"], 1000 * x["match_gap"], 1000 * x["3_5"]["placebo_mean"], 1000 * x["3_5"]["placebo_lo"], 1000 * x["3_5"]["placebo_hi"],
+                1000 * x["6_10"]["placebo_mean"], 1000 * x["6_10"]["placebo_lo"], 1000 * x["6_10"]["placebo_hi"], 1000 * x["template"]["placebo_mean"],
+                x["3_5"]["p_real_vs_placebo"], x["6_10"]["p_real_vs_placebo"]))
+    res["eligible_share_clear10"] = float(sum(len(v[1]) for v in pool.values()) / span(pool))
+    res["diagnostics_unplanned"] = diag
+    out["placebo"] = res
+
+
+def check15(D, out):
+    # Injection at random strokes at least 25 apart; recovery = the estimate with the injection minus the estimate at
+    # the same strokes without it (CODEBOOK notes of 16 Nov 2026: the first version let injections overlap).
+    A = 0.030
+    step = np.r_[1 - np.exp(-np.arange(1, K + 1) / 3.6)]
+    truth35 = A * float(step[2:5].mean())
+    res = {}
+    for tag, course in (("momentum", False), ("course", True)):
+        rng = np.random.default_rng(1500 + course)
+        base = {sid: {w: window_stat(D.R(sid, "speed", None, course), w) for w in ((3, 5), "template")} for sid in SES}
+        rec35, recT, nin = [], [], []
+        for _ in range(200):
+            d35, dT, n_ = [], [], 0
+            for sid in SES:
+                s, p = D.s[sid], D.order(sid)
+                lo, hi = D.valid(sid)
+                js, k = [], lo + int(rng.integers(0, 25))
+                while k < hi:
+                    js.append(k)
+                    k += 25 + int(rng.integers(0, 11))
+                js = np.array(js, int)
+                n_ += len(js)
+                ex = CP.course_exog(s) if course else None
+                y = s["speed"].copy()
+                for q in js:
+                    m = min(K, len(y) - q)
+                    y[q:q + m] += A * step[:m]
+                R = fast_residual_matrix(y, CP.ar_fit(y, p, ex), p, ex)
+                for w, acc in (((3, 5), d35), ("template", dT)):
+                    st = window_stat(R, w)
+                    acc.append((st[js] - np.nanmean(st[lo:hi])) - (base[sid][w][js] - np.nanmean(base[sid][w][lo:hi])))
+            rec35.append(np.nanmean(np.concatenate(d35)))
+            recT.append(np.nanmean(np.concatenate(dT)))
+            nin.append(n_)
+        res[tag] = dict(injected_plateau=A, injected_3_5=truth35, n_injected_mean=float(np.mean(nin)), recovered_3_5=float(np.mean(rec35)),
+                        recovered_3_5_sd=float(np.std(rec35)), recovered_template=float(np.mean(recT)), recovered_template_sd=float(np.std(recT)),
+                        share_3_5=float(np.mean(rec35) / truth35), share_template=float(np.mean(recT) / A))
+        r = res[tag]
+        print("15. injection and recovery (%s): %.0f strokes per draw; injected plateau %.0f (3-5 mean %.1f) mm/s; recovered 3-5 %.1f (sd %.1f) = %.0f%%; template %.1f (sd %.1f) = %.0f%%" % (
+            tag, r["n_injected_mean"], 1000 * A, 1000 * truth35, 1000 * r["recovered_3_5"], 1000 * r["recovered_3_5_sd"], 100 * r["share_3_5"],
+            1000 * r["recovered_template"], 1000 * r["recovered_template_sd"], 100 * r["share_template"]))
+    out["injection"] = res
+
+
 # ------------------------------------------------------------------ figure
 def figure(out):
     import matplotlib
@@ -642,6 +794,11 @@ def main():
     os.makedirs(OUTDIR, exist_ok=True)
     if "--figure" in sys.argv:              # redraw the figure from the saved results
         return figure(json.load(open(os.path.join(OUTDIR, "checks.json"))))
+    if "--controls" in sys.argv:            # only the control tests of 16 Nov, added to the saved results
+        D, out = Data(), json.load(open(os.path.join(OUTDIR, "checks.json")))
+        check14(D, out)
+        check15(D, out)
+        return json.dump(out, open(os.path.join(OUTDIR, "checks.json"), "w"), indent=1)
     if "--confirm" in sys.argv:             # only the confirmation analyses of 15 Nov, added to the saved results
         D, out = Data(), json.load(open(os.path.join(OUTDIR, "checks.json")))
         check11(D, out)
@@ -661,6 +818,8 @@ def main():
     check11(D, out)
     check12(D, out)
     check13(out)
+    check14(D, out)
+    check15(D, out)
     json.dump(out, open(os.path.join(OUTDIR, "checks.json"), "w"), indent=1)
     figure(out)
     print("written", os.path.join(OUTDIR, "checks.json"))
