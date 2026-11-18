@@ -79,6 +79,22 @@ def main():
         implied = abs(d) + M_total * a_meas              # -sum m a_rel = M a_hull + D (blade out)
         print("  %.2f | %7.2f     %8.0f       |  %7.0f  " % (q, a_meas, implied, -per.sum()) +
               "  ".join("%8.0f" % x for x in groups))
+    if "--fine" in sys.argv:
+        # the model's push finely (the 0.05 table alternates sign through the drive: real ripple or numerics? §240),
+        # with the parts carried by the two measured channels' own second derivatives for comparison
+        k = 400
+        push = np.zeros(k)
+        for j in range(k):
+            mm, _pp, _vv, aa = body(j * P / k)
+            push[j] = -float(np.sum(np.asarray(mm, float) * np.asarray(aa, float)[:, 0]))
+        spec = np.abs(np.fft.rfft(push - push.mean())) / k * 2
+        f = np.fft.rfftfreq(k, d=P / k)
+        print("\nmodel push, N, every 0.01 of the cycle:")
+        for j in range(0, k, 4):
+            print("  %.2f %7.0f" % (j / k, push[j]))
+        print("largest harmonics (Hz: amplitude N): " + ", ".join(
+            "%.1f: %.0f" % (f[i], spec[i]) for i in np.argsort(spec)[::-1][:8]))
+        print("rms of the push above 3 Hz: %.0f N" % np.sqrt(np.sum(spec[f > 3.0] ** 2) / 2))
 
 
 if __name__ == "__main__":

@@ -15936,3 +15936,71 @@ measured vertical angle, which is now available by rate.
 **Email.** Reply drafted 2026-11-17 (unsent; user's approval): thanks, the drive-length correction to the 10 November
 message, the M1x file identified, three questions (oars; angle zero; channel timing — with §238 item 4's corrected
 observation), the two earlier requests repeated.
+
+## 240. Code or physics: the shaft coupling verified, the population test ill-conditioned, two own-body input errors (2026-11-17)
+
+The user asked which failures could be code errors rather than modelling assumptions, and to test and fix them.
+
+**1. The closed-loop shaft coupling is right** (`research/validation/shaft_coupling_check.py`;
+`data/local/validation/shaft_coupling_check_scull.log`). The population stroke's own last stroke — gate angle, rate,
+acceleration and the hull's full state at every sample — fed through the open-loop path (`open_loop_shaft.kinematic`,
+refactored out of `predict`: the same blade loads, the quasi-static hinge, no hull) reproduces the closed loop's handle
+force to 1–3 N through the drive (peak 317 / 314 N, both at 57.5 % of the drive's time; impulse 145.7 / 144.0 N s). Two
+independent implementations agree: the dynamic bend's row in the added-mass system, the monolithic solve and the
+bookkeeping are not the source of the flexible shaft's lag.
+
+**2. The negative force after the release is the imposed hands, not a bug.** After release the dry blade rings on the
+shaft at ~9 Hz (−1.2° → +0.4° → −1.0°), damped only by the shaft's 3.4 % structural damping, because the handle's
+motion is prescribed (infinitely stiff hands); a real grip absorbs it. It reaches the force comparison only at the 90 /
+100 % samples (−19 / −17 % of peak; open loop, which unbends the shaft at release, −6 %), ~1 point of B2's rms. Recorded;
+not changed (a sourced hand impedance would be needed).
+
+**3. The population force test is ill-conditioned** (`research/validation/lag_decomposition.py`;
+`data/local/validation/lag_decomposition_scull.log`). The blade and shaft alone on four motions, swapping the hands
+(population's imposed vs each athlete's measured, mapped onto the population arc by drive progress at equal drive-time
+fraction) and the hull (population's simulated surge vs each athlete's measured boat speed, shape kept):
+- the hull is not the cause: the population's simulated speed through the drive has the athletes' measured shape
+  within ~0.03 of the mean (0.77 / 0.74 / 0.76 at 10 / 20 / 30 % against 0.75–0.77 / 0.74–0.76 / 0.73–0.77), and
+  swapping it in leaves the force unchanged;
+- the hands decide the early force: at 10 % of the drive [CR06]'s hands are at 0.53 of peak speed, the population's
+  0.43, [BR24]'s 0.41; on the flexible shaft these give 19 / 5 / 3 % of peak force at 10 % and 47 / 30 / 14 % at 20 %.
+  A few points of early hand speed move the early force by 15–30 points.
+
+So imposing a population-mean hand curve and comparing with the population-mean force curve tests the hands' mean as
+much as the oar, and cannot arbitrate the shaft — not B2's "flexible wins" (§237, all-boat hands) nor §239's "rigid
+wins" (sculling hands). The well-conditioned shaft tests are an individual's measured stroke in, the same individual's
+force out: C2 (open loop) and D4 (closed loop). On those the flexible shaft is right for [CR06] (flexible 9 / 19 / 47 /
+69 / 92 / 100 / 86 % against her 8 / 29 / 53 / 73 / 90 / 100 / 77; rigid spikes to 85 % at 10 %); [BR24] stays an
+inputs question (§238). **Recommendation (user's decision): B2 kept as a diagnostic, not a pass/fail rung.**
+
+**4. A structured artefact in [BR24]'s body channels** (`research/validation/own_body_ripple.py`; `recovery_momentum.py
+--fine`). The own-body crew field pushes the hull ±400–700 N at ~6 Hz through the drive (212 N rms above 3 Hz). It is
+in his measured seat (Ls) and trunk (Lt) channels after GCV smoothing (4.3 m/s² rms above 3 Hz each; 7.0 Hz the
+largest), and the warp passes most of it (2.7 / 3.2). His hull accelerometer rules it out as body motion: above 6 Hz
+the seat channel alone would shake the hull 1.09 m/s² rms, and the hull shows 0.17 (handle force 1.9 N); in 3–6 Hz,
+1.22 against 0.77. GCV removes white noise and keeps a coherent ripple. **Fix:** the rowing-kinematics standard
+low-pass, a 4th-order zero-lag Butterworth at 6 Hz (2nd order run forward and back; "previously verified for kinematics
+studies in rowing", Urbanczyk 2021 thesis citing Buckeridge, Bull & McGregor 2015 and Pollock et al. 2009), chosen from
+the literature before the run: `research/crew/kinematic_filter.py`, `CHANNEL_SMOOTHING = "butter6"` (rung 2 default;
+measured_body and self_consistent_body_cr06). Above-3 Hz content of the channels 4.3 → 2.6 m/s². Effect on rung 2:
+IVV 52.5 → 52.3 % ([BR24]), 52.9 → 53.0 % ([CR06]) — a correct input, not the IVV bias.
+
+**5. Bug: [BR24]'s own body scaled his trunk travel but not his legs'** (STRUCTURAL_ISSUES S16). `measured_body.body_field`
+put his trunk channel at his measured travel (K = 0.436 / 0.549) but left the legs at the model posture's 0.622 m
+against his seat channel's 0.597 m (+4 %) — the model compressed 25 mm deeper into the catch. ([CR06]'s stature is
+solved from her leg travel, so hers matched by construction.) Fix: `measured_body.LEG_TRAVEL = "measured"` through one
+shared scaling, `k05_body.scaled_legs` (factored out of the population's own leg-travel scaling). Catch-approach push
+−1245 → −1197 N at 0.95 of the cycle (his accelerometer: −969); rung 2 [BR24] **IVV 52.3 → 50.4 %** (measured 49.1),
+speed 4.785 → 4.779 m/s.
+
+**6. Ladder** (`data/local/validation/ladder_2026-11-17.log`): **25 of 26.** D1 [BR24] now passes at +2.97 % (band
+±3 %; narrow); D2 [BR24] +1.3 points (passes even the first ±3 band); D2b +0.79; D4 centre 0.51, peak 450 N; half step
+0.07 % / 0.01 point. **C1** still fails (18.2 %). [CR06]'s D2 +3.5 points unchanged (fails at the first ±3 band; passes
+the sourced band).
+
+**What is now known to be code-correct / what remains.**
+- Verified by independent paths: the bend coupling (item 1), the numerics (A2, A3), the shaft (A1, B1), the blade on
+  known motion (tank loads, C2), the data extraction (§239).
+- Open, modelling not code: [CR06]'s speed-swing excess (+3.5 points; her catch-approach push against her digitised
+  boat speed is the next check), C1's force level (opposite in sign to [BR24]'s; inputs), the post-release ringing
+  (imposed hands), the remaining [BR24] catch push excess (~230 N; thigh and arm kinematics at the catch, no source yet).

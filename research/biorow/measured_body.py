@@ -90,10 +90,16 @@ def measured_channel(name):
     t, y = t[o], y[o]
     if CHANNEL_SMOOTHING == "gcv":                       # Woltring's GCV spline on the raw samples (SOURCES §232)
         sp = make_smoothing_spline(np.concatenate([t - T, t, t + T]), np.concatenate([y, y, y]))
-    elif CHANNEL_SMOOTHING == "interp":
+    elif CHANNEL_SMOOTHING in ("interp", "butter6"):
         sp = CubicSpline(np.append(t, t[0] + T), np.append(y, y[0]), bc_type="periodic")
+        if CHANNEL_SMOOTHING == "butter6":               # the rowing-kinematics standard low-pass (SOURCES §240)
+            sys.path.insert(0, os.path.join(os.path.dirname(HERE), "crew"))
+            from kinematic_filter import lowpass_periodic
+            grid = np.linspace(0.0, T, 2000, endpoint=False)
+            yf = lowpass_periodic(sp(grid), T)
+            sp = CubicSpline(np.append(grid, T), np.append(yf, yf[0]), bc_type="periodic")
     else:
-        raise ValueError("CHANNEL_SMOOTHING is 'interp' or 'gcv', got %r" % (CHANNEL_SMOOTHING,))
+        raise ValueError("CHANNEL_SMOOTHING is 'interp', 'gcv' or 'butter6', got %r" % (CHANNEL_SMOOTHING,))
     fine = np.linspace(0.0, T, 4000, endpoint=False)
     m = float(fine[np.argmin(sp(fine))]) / T
     s = np.linspace(0.0, 1.0, 4001, endpoint=False)
@@ -140,10 +146,21 @@ def channel_field(boat, spline, meas_min, model_min):
     return field
 
 
+#: The legs' travel in his own body: "measured" -- his seat channel's travel (as his trunk channel's travel already is,
+#: ``K`` below; SOURCES §240); "model" -- the model posture's own (as built until §240: 0.622 m against his 0.597).
+LEG_TRAVEL = "measured"
+
+
 def body_field(boat, back):
-    m_l, s_l, c_l, _ = measured_channel("Ls")
-    mm_l, tau_l, cm_l, _ = model_channel(boat, lambda j: j["hip"][0] - j["ankle"][0])
+    m_l, s_l, c_l, his_leg = measured_channel("Ls")
+    mm_l, tau_l, cm_l, model_leg = model_channel(boat, lambda j: j["hip"][0] - j["ankle"][0])
     leg = channel_field(boat, warp(s_l, c_l, tau_l, cm_l), m_l, mm_l)
+    if LEG_TRAVEL == "measured":
+        sys.path.insert(0, os.path.join(os.path.dirname(HERE), "crew"))
+        import k05_body
+        leg = k05_body.scaled_legs(boat, leg, his_leg / model_leg)
+    elif LEG_TRAVEL != "model":
+        raise ValueError("LEG_TRAVEL is 'measured' or 'model', got %r" % (LEG_TRAVEL,))
     if not back:
         return lambda t, exact=False: leg(t), None
     m_b, s_b, c_b, his_travel = measured_channel("Lt")

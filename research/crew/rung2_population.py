@@ -88,7 +88,7 @@ LIFT_SCALE = 1.0
 #: how the athletes' measured body channels are read before differentiation (own body): "gcv" -- Woltring's
 #: generalised cross-validation spline on the raw points (default since §232: kinematic data smoothed before they are
 #: differentiated, the amount set by the data); "as-built" -- an interpolating spline ([BR24]) and a chosen lam ([CR06])
-CHANNEL_SMOOTHING = "gcv"
+CHANNEL_SMOOTHING = "butter6"                                     # the rowing-kinematics low-pass (SOURCES §240; was "gcv")
 #: oar travel over which the blade comes out before the finish, deg (EntryImmersion.release_slip_deg; BioRow 16.6,
 #: RBN 2017/12, with the centre out at 90 % of the drive, RBN 2023/12; SOURCES §235). None: buried until the release
 RELEASE_SLIP = None
@@ -175,13 +175,13 @@ def own_body(name, boat):
                          "(athlete_boat; SOURCES §228)" % sorted(clocked & set(OWN_BODY_JOINTS)))
     if name == "br24":
         import measured_body as MBd
-        MBd.CHANNEL_SMOOTHING = "gcv" if CHANNEL_SMOOTHING == "gcv" else "interp"
+        MBd.CHANNEL_SMOOTHING = CHANNEL_SMOOTHING if CHANNEL_SMOOTHING in ("gcv", "butter6") else "interp"
         return MBd.body_field(boat, True)[0]
     path = os.path.join(ROOT, "research", "cr06", "self_consistent_body_cr06.py")
     src = open(path, encoding="utf-8").read().split("grid = np.linspace")[0]
     ns = {"__file__": path, "__name__": "cr06_body"}
     exec(compile(src, path, "exec"), ns)
-    ns["CHANNEL_SMOOTHING"] = "gcv" if CHANNEL_SMOOTHING == "gcv" else "as-built"
+    ns["CHANNEL_SMOOTHING"] = CHANNEL_SMOOTHING if CHANNEL_SMOOTHING in ("gcv", "butter6") else "as-built"
     return ns["body_field"](boat, True, ns["K_BACK"])
 
 
@@ -450,7 +450,7 @@ def main():
                          "0.5 since §227; 0 = anywhere, the old rule)")
     ap.add_argument("--release-slip", type=float, default=RELEASE_SLIP,
                     help="the blade comes out over this much oar travel before the finish, deg (BioRow 16.6; §235)")
-    ap.add_argument("--channel-smoothing", default=CHANNEL_SMOOTHING, choices=["gcv", "as-built"],
+    ap.add_argument("--channel-smoothing", default=CHANNEL_SMOOTHING, choices=["gcv", "as-built", "butter6"],
                     help="the athletes' body channels before differentiation (§232; default gcv)")
     ap.add_argument("--lift-scale", type=float, default=1.0,
                     help="the cross-flow law's lift slope over Helmbold's (1 as built; tank profile 1.2-1.4, §231)")

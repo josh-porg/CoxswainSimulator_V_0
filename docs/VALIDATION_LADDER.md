@@ -101,3 +101,11 @@ angle. Both athletes are held-out tests: nothing in the model was fitted to eith
   20.7 points). A no-slip bound on the measured motion (`open_loop_shaft.py --bound`) shows [BR24]'s first 10–20 % of
   the drive is beyond any blade law on the assumed shaft (bound 73 N, measured 127 N at 10 %): an inputs question,
   recorded as such, not a rung.
+- **2026-11-17, two own-body input errors fixed; 25 of 26** (SOURCES §240; `data/local/validation/ladder_2026-11-17.log`).
+  Not model changes: (a) [BR24]'s body channels carried a 6–7 Hz artefact his accelerometer rules out; they are now
+  low-passed at the rowing-kinematics standard 6 Hz (chosen from the literature before the run); (b) his legs ran on
+  the model's travel while his trunk ran on his own (STRUCTURAL_ISSUES S16). D1 [BR24] passes at +2.97 % (narrow);
+  D2 [BR24] +1.3 points. C1 still fails (18.2 %). Bands unchanged. Also tested: the closed-loop shaft coupling agrees
+  with an independent open-loop path to 1–3 N, so the flexible lag on the population is physics, and the population
+  test is ill-conditioned (early force is set by a few points of early hand speed). **Proposed, awaiting the user:**
+  B2 becomes a diagnostic rather than a pass/fail rung.

@@ -174,6 +174,27 @@ def leg_weights(boat):
     return w, float(x[:, MB.REF].mean())
 
 
+def scaled_legs(boat, leg_raw, k_leg):
+    """A leg field whose seat travel is ``k_leg`` times the model's: each segment's fore-aft motion scaled by its share
+    of the seat's (``leg_weights``), about the cycle mean. The one place this is done ([K05]'s population and the
+    athletes' own bodies, measured_body.body_field; SOURCES §240)."""
+    w, ref_mean = leg_weights(boat)
+
+    def leg(t):
+        mass, pos, vel, acc = leg_raw(t)
+        pos, vel, acc = np.array(pos, float), np.array(vel, float), np.array(acc, float)
+        n = pos.shape[0] - pos.shape[0] % 12
+        for off in range(0, n, 12):
+            r = off + MB.REF
+            d, dv, da = pos[r, 0] - ref_mean, vel[r, 0], acc[r, 0]
+            for i in range(12):
+                pos[off + i, 0] -= (1.0 - k_leg) * w[off + i] * d
+                vel[off + i, 0] -= (1.0 - k_leg) * w[off + i] * dv
+                acc[off + i, 0] -= (1.0 - k_leg) * w[off + i] * da
+        return mass, pos, vel, acc
+    return leg
+
+
 def body_field(boat, leg_travel=None, trunk_travel=K05_TRUNK_TRAVEL, drive="k05"):
     """The model's body re-timed onto [K05]'s legs and trunk, back travel scaled to [K05]'s.
     ``drive="rbn2023"``: the drive's legs and trunk from RBN 2023/12's population curves (``half_strokes``);
@@ -189,24 +210,7 @@ def body_field(boat, leg_travel=None, trunk_travel=K05_TRUNK_TRAVEL, drive="k05"
     m_l, s_l, c_l, _ = channel("legs_velocity", D, drive=drive, rate=rate)
     mm_l, tau_l, cm_l, model_leg = MB.model_channel(boat, lambda j: j["hip"][0] - j["ankle"][0])
     leg_raw = MB.channel_field(boat, MB.warp(s_l, c_l, tau_l, cm_l), m_l, mm_l)
-    if leg_travel is None:
-        leg = leg_raw
-    else:
-        k_leg = float(leg_travel) / model_leg
-        w, ref_mean = leg_weights(boat)
-
-        def leg(t):
-            mass, pos, vel, acc = leg_raw(t)
-            pos, vel, acc = np.array(pos, float), np.array(vel, float), np.array(acc, float)
-            n = pos.shape[0] - pos.shape[0] % 12
-            for off in range(0, n, 12):
-                r = off + MB.REF
-                d, dv, da = pos[r, 0] - ref_mean, vel[r, 0], acc[r, 0]
-                for i in range(12):
-                    pos[off + i, 0] -= (1.0 - k_leg) * w[off + i] * d
-                    vel[off + i, 0] -= (1.0 - k_leg) * w[off + i] * dv
-                    acc[off + i, 0] -= (1.0 - k_leg) * w[off + i] * da
-            return mass, pos, vel, acc
+    leg = leg_raw if leg_travel is None else scaled_legs(boat, leg_raw, float(leg_travel) / model_leg)
     m_b, s_b, c_b, _ = channel("trunk_velocity", D, drive=drive, rate=rate)
     mm_b, tau_b, cm_b, model_travel = MB.model_channel(boat, lambda j: j["shoulder"][0] - j["hip"][0])
     bk = MB.channel_field(boat, MB.warp(s_b, c_b, tau_b, cm_b), m_b, mm_b)

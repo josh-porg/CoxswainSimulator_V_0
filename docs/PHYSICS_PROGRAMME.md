@@ -1372,6 +1372,12 @@ the boat speeds that go with their drive durations).
   (21.3); on Fig. 1's all-boat hands the reverse (11.7 vs 24.5). B2 and the rung-2 default unchanged: user's decision.
   - *Next:* the shaft's lag (stiffness of real sculls, blade water inertia early, wetting from the measured vertical
     angle by rate); B2's reference.
+- **§240 (2026-11-17): code or physics.** Shaft coupling verified against an independent open-loop path (1–3 N);
+  population force test ill-conditioned (early hand speed dominates) → B2 proposed as a diagnostic. [BR24]'s body
+  channels low-passed at 6 Hz (artefact ruled out by his accelerometer) and his legs put on his own travel (S16): IVV
+  50.4 % (49.1). Ladder 25 / 26 (C1 fails).
+  - *Next:* [CR06]'s speed-swing excess (+3.5) — her catch-approach push against her digitised boat speed; the
+    post-release ringing (a sourced hand impedance); C1.
   - *Next:* the population's 10–20 % (the shaft's lag against the blade's grip: blade water inertia near the surface,
     wetting from Fig. 1b); a sourced oar mass and balance; ask the data's author about [BR24]'s oars and channels
     (user's call); C1 and D1.

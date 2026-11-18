@@ -50,10 +50,17 @@ CHANNEL_SMOOTHING = "as-built"
 def measured_channel(name):
     """Her curve, smoothed as before, normalised; its minimum's phase on her clock; phase grid from that minimum."""
     tt, vv = series(name, BODY, "value")
-    if CHANNEL_SMOOTHING not in ("as-built", "gcv"):
-        raise ValueError("CHANNEL_SMOOTHING is 'as-built' or 'gcv', got %r" % (CHANNEL_SMOOTHING,))
+    if CHANNEL_SMOOTHING not in ("as-built", "gcv", "butter6"):
+        raise ValueError("CHANNEL_SMOOTHING is 'as-built', 'gcv' or 'butter6', got %r" % (CHANNEL_SMOOTHING,))
     sp = make_smoothing_spline(np.concatenate([tt - T_CR06, tt, tt + T_CR06]), np.concatenate([vv, vv, vv]),
                                lam=None if CHANNEL_SMOOTHING == "gcv" else 3e-6)
+    if CHANNEL_SMOOTHING == "butter6":                   # the rowing-kinematics standard low-pass (SOURCES §240)
+        import sys as _sys
+        _sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "crew"))
+        from kinematic_filter import lowpass_periodic
+        from scipy.interpolate import CubicSpline as _CS
+        yf = lowpass_periodic(sp(FINE), T_CR06)
+        sp = _CS(np.append(FINE, T_CR06), np.append(yf, yf[0]), bc_type="periodic")
     m = float(FINE[np.argmin(sp(FINE))]) / T_CR06
     s = np.linspace(0.0, 1.0, 4001, endpoint=False)
     curve = sp(np.mod(m + s, 1.0) * T_CR06)

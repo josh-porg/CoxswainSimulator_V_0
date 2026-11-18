@@ -76,13 +76,24 @@ def predict(name, shaft, ei_scale=1.0, shift=0.0, inertia_value=None):
     m = RP.V.ATHLETES[name][0]()
     boat = RP.athlete_boat(name, m)
     sim = RP.make(boat, "reference")
-    lock = boat.rig.seats[sim._seats[0]].oarlocks[0]
-    oar = sim._oars[0]
-    inertia = float(getattr(oar.inertia, "oar_inertia", 0.0)) if inertia_value is None else float(inertia_value)
     T, t, ang, rate, acc, v, f_meas, lever = measured(name)
-    dt = T / N
     if shift:
         v = np.interp((t - float(shift)) % T, t, v, period=T)
+    out = kinematic(sim, shaft, t, ang, rate, acc, lever, speeds=v, ei_scale=ei_scale, inertia_value=inertia_value)
+    return dict(out, T=T, t=t, measured=f_meas, angle=ang, lever=lever)
+
+
+def kinematic(sim, shaft, t, ang, rate, acc, lever, speeds=None, states=None, ei_scale=1.0, inertia_value=None):
+    """The blade and shaft alone on an imposed motion (the one load path, ``_blade_loads_arm_rigid``): ``t`` from the
+    catch (``ang[0]`` its angle, the largest), gate ``ang`` / ``rate`` / ``acc``, and the hull as ``speeds`` (surge
+    only) or as ``states`` (a full ``State`` per sample, e.g. a closed-loop run's own; SOURCES §240). Returns
+    ``force`` (handle force on ``lever``), ``bend``, ``wet`` and ``finish``. With ``shaft`` "hinge" the shaft is the
+    quasi-static hinge solved implicitly per sample, and it unbends at once when the blade leaves."""
+    lock = sim.boat.rig.seats[sim._seats[0]].oarlocks[0]
+    oar = sim._oars[0]
+    inertia = float(getattr(oar.inertia, "oar_inertia", 0.0)) if inertia_value is None else float(inertia_value)
+    n_s = len(t)
+    dt = float(t[1] - t[0])
     k = float(sim.oar_bending.k_ang) * float(ei_scale) if shaft != "rigid" else None
     if shaft != "rigid":
         arm0 = float(oar.outboard)
@@ -91,10 +102,12 @@ def predict(name, shaft, ei_scale=1.0, shift=0.0, inertia_value=None):
     finish = int(np.argmin(ang))
     wet, phi, done = False, 0.0, False
     sim._entry_angle = np.array([np.nan])
-    force = np.zeros(N)
-    bend = np.zeros(N)
-    for i in range(N):
-        state = State.from_vector(sim.augmented_initial_state(float(v[i]))[:STATE_SIZE])
+    force = np.zeros(n_s)
+    bend = np.zeros(n_s)
+    wet_mask = np.zeros(n_s, dtype=bool)
+    for i in range(n_s):
+        state = (states[i] if states is not None
+                 else State.from_vector(sim.augmented_initial_state(float(speeds[i]))[:STATE_SIZE]))
         a, r = float(ang[i]), float(rate[i])
         moment = 0.0
         if i <= finish and not done:
@@ -131,9 +144,10 @@ def predict(name, shaft, ei_scale=1.0, shift=0.0, inertia_value=None):
                 if shaft == "rigid" and (ang[0] - a) / span > 0.5 and sim._normal_velocity(0, a, r, state) >= 0.0:
                     wet, done, moment = False, True, 0.0
         bend[i] = phi
+        wet_mask[i] = wet
         # a locked blade holds the outboard oar, so its inertia no longer loads the handle separately
         force[i] = moment / lever if (shaft == "locked" and wet) else (moment - inertia * acc[i]) / lever
-    return dict(T=T, t=t, force=force, measured=f_meas, bend=bend, finish=finish, angle=ang, lever=lever)
+    return dict(force=force, bend=bend, finish=finish, wet=wet_mask)
 
 
 def report(name, runs):
