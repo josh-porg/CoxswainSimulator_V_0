@@ -59,9 +59,10 @@ def table(sim, run):
     return tt / tt[-1], (R[0, 0] - R[:, 0]) / (R[0, 0] - R[-1, 0]), R
 
 
-def compare(tf, dl, R, label):
-    """Print the model against RBN 2023/12 per 10 % of drive time; returns the rms differences (force, handle v)."""
-    ref = reference()
+def compare(tf, dl, R, label, ref=None):
+    """Print the model against the reference per 10 % of drive time (default RBN 2023/12 Fig. 1; ``ref``: another
+    with the same keys, e.g. sculling_averages.reference(32)); returns the rms differences (force, handle v)."""
+    ref = reference() if ref is None else ref
     vh, vs, F = R[:, 1], R[:, 2], R[:, 3]
     q = ref["time"] / 100.0
     g = lambda x: np.interp(q, tf, x)                            # noqa: E731
@@ -103,6 +104,11 @@ def main():
     tf, dl, R = table(sim, run)
     print("population, rung 1, %s shaft, %s hands: %s" % (a.shaft, a.drive, RP.C2.summary(run)))
     out = compare(tf, dl, R, "population, %s shaft, %s hands" % (a.shaft, a.drive))
+    # like for like: the data author's sculling averages at rate 32 (the population rows at 32.3; SOURCES §239)
+    import sculling_averages
+    print("\n-- the same run against the sculling averages at rate 32 (reference columns: sculling, not Fig. 1) --")
+    out["sculling32"] = compare(tf, dl, R, "population, %s shaft, %s hands" % (a.shaft, a.drive),
+                                ref=sculling_averages.reference(32))
     import json
     json.dump(dict(out, shaft=a.shaft, drive=a.drive, summary=RP.C2.summary(run)),
               open(os.path.join(ROOT, "data", "local", "validation", "population_kinematics_%s_%s.json"

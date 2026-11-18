@@ -15838,12 +15838,14 @@ Fix: with `bend_dynamics` the reset keeps the bend states (test `test_bend_dynam
 test_the_bend_carries_through_the_catch`; STRUCTURAL_ISSUES S15). Effect: population force at the catch 7 % of peak
 (reference 13; was 2), B2 rms 10.2 → 9.5 points; rung 2 unchanged within 0.001 m/s and 0.1 IVV point.
 
-**4. The oar's inertia, measured in the air.** [BR24]'s handle force over the five samples before the catch, blade in
-the air (vertical angle +3 to +7°), is 18–54 N per oar and follows his oar's angular acceleration at
-I / lever ≈ 2.6–2.9 kg m, i.e. an inertia about the pin of **2.1–2.3 kg m²**; the model's scull has 1.22. [CR06]'s
-digitised force at the catch (24 N; model 38) points the other way, and the population's 13 % of peak at the catch sits
-between (model 7 %). One athlete each way: recorded, nothing changed. A sourced oar mass and balance point would settle
-it (DATA_REQUESTS).
+**4. The handle force in the air before the catch.** *(Corrected 2026-11-17, §239: this item first read the force as
+the oar's inertia, "2.1–2.3 kg m²"; it is not one.)* Over the last 0.2 s before [BR24]'s catch, blades in the air
+(vertical angle +3 to +7°), his handle force rises from 16 to 52 N per oar while the oar's angular acceleration stays
+near −11 rad/s² until the last 60 ms (smoothed channels, `open_loop_shaft.measured`). Force × lever / acceleration
+climbs from 1.3 kg m² (the model's scull: 1.22) to 2.7 and back to 2.1: not a constant, so not inertia alone — a lag
+of the force channel against the angle channel, or a load other than the oar's own, would do it. [CR06]'s digitised
+force at the catch (24 N; model 38) points the other way; the population's 13 % of peak sits between (model 7 %).
+Nothing changed; asked of the data's author (DATA_REQUESTS #2).
 
 **5. A no-slip bound on the measured motion** (`research/validation/open_loop_shaft.py --bound`;
 `data/local/validation/open_loop_bound.log`). §237's open loop imposes each athlete's measured oar angle and boat speed
@@ -15886,3 +15888,51 @@ him would be a single-athlete fit of the wrong thing. The population's early for
 - C1 and D1 remain failing, opposite in sign (§237); nothing here moves them and no band is touched.
 - Not tried yet: blade wetting from the population's vertical angle (Fig. 1b) in place of the 4° target; a sourced oar
   mass and balance.
+
+## 239. The data author's sculling averages: like for like, the rigid oar fits the population's force curve (2026-11-17)
+
+**Source.** Kleshnev's reply of 12 November (DATA_REQUESTS #2) attached the BioRow database's sculling means as a
+spreadsheet (`data/local/literature/biorow_sculling_averages/Sculling averages.xls`; reader
+`research/validation/sculling_averages.py` → `sculling_averages.csv`): at stroke rates 32, 36 and 40, per 10 % of the
+drive's and the recovery's time, the stroke length (fraction of the arc), handle force (fraction of peak), handle, seat
+and upper-body velocity (fractions of the peak drive handle velocity) and the vertical oar angle. He also asked which
+athlete the earlier requests meant (he did not recall sending the M1x file).
+
+**Check on the figure reading.** §238's reading of RBN 2023/12 Fig. 2 (sculling, rates 20 and 40, interpolated to 40)
+agrees with the spreadsheet's rate-40 handle velocity to within one point at every sample (0 49 62 71 83 93 99 97 83 51 0
+against 0 48 61 71 83 93 99 97 83 51 0). The extraction is confirmed.
+
+**What the sculling numbers add.** Scullers build force faster than Fig. 1's all-boat curve: 29 / 67 % of peak at
+10 / 20 % of the drive's time at rate 32 (Fig. 1: 22 / 59), peak 95 % at 40 %. The blade buries (−3°) at ~17 % of the
+drive's time (vertical +0.4° at 10 %, −4.2° at 20 %); deepest −7.5° at 40 %.
+
+**Like for like** (`population_kinematics.py`, now also scored against the sculling averages at rate 32 — the population
+rows at 32.3; logs `data/local/validation/population_kinematics_*_s239.log`). Force per 10 % of the drive's time, % of
+peak:
+
+| hands imposed | shaft | 10 % | 20 % | 30 % | 40 % | 60 % | 80 % | rms vs sculling 32 | peak at |
+|---|---|---|---|---|---|---|---|---|---|
+| reference (sculling, 32) | — | 29 | 67 | 84 | 95 | 78 | 22 | — | 40 % |
+| `rbn2023-scull` (Fig. 2 scullers; handle v rms 0.6) | rigid | 14 | 69 | 84 | 99 | 66 | −11 | **12.4** | 39 % |
+| `rbn2023-scull` | medium (default) | 8 | 33 | 49 | 74 | 99 | 39 | 21.3 | 57 % |
+| `rbn2023` (Fig. 1 all boats; handle v rms 3.0) | rigid | 9 | 100 | 73 | 63 | 40 | −2 | 24.5 | 19 % |
+| `rbn2023` | medium (default) | 5 | 42 | 76 | 93 | 89 | 16 | 11.7 | 49 % |
+
+With the scullers' own hand motion — the one that matches the sculling reference's handle velocity to 0.6 points — the
+rigid oar reproduces the sculling force curve's build-up and peak, and the flexible shaft lags it by ~15 % of the drive's
+time. With Fig. 1's all-boat hands the verdict reverses, because the rigid oar's force follows the hands' speed closely
+(a 7-point excess in handle velocity at 20 % spikes it to 100 %) while the flexible shaft filters it. **So B2's
+"flexible beats rigid" (§237) holds only on the all-boat hands; on the like-for-like sculling comparison it is the
+other way.** The rung was comparative and added after its first run (VALIDATION_LADDER.md); it is not changed here —
+whether B2 should move to the sculling reference is the user's decision, and so is what this means for the flexible
+shaft as the rung-2 default (it still wins C2, the athletes' own measured motion open loop: 13.7 / 18.5 % against rigid
+21.6 / 23.5, §237).
+
+**Reading.** The shaft's lag is the open item §238 pointed to (the blade as a damper in series with the shaft's spring,
+~0.3 s). Candidates, none fitted: the shaft is stiffer than [L14]'s medium for these oars (asked); the blade's water
+inertia near the surface (κ 0.1, §228) is too small early; the wetting law (BioRow's 4° target) should follow the
+measured vertical angle, which is now available by rate.
+
+**Email.** Reply drafted 2026-11-17 (unsent; user's approval): thanks, the drive-length correction to the 10 November
+message, the M1x file identified, three questions (oars; angle zero; channel timing — with §238 item 4's corrected
+observation), the two earlier requests repeated.

@@ -1365,8 +1365,13 @@ the boat speeds that go with their drive durations).
   population force curve 20.7 points on a comparison that is not like for like). (3) `open_loop_shaft.py --bound`: a
   blade that does not slip, on [L14]'s shaft and the measured motion, carries 73 N where [BR24] measured 127 N at 10 %
   of the drive (220 / 227 at 20 %); [CR06] is inside her bound and matched. His early drive is an inputs question (oar
-  stiffness, angle zero, channel filtering). (4) His in-air handle force: oar inertia 2.1–2.3 kg m² (model 1.22);
-  hers points the other way. Ladder 24 / 26, unchanged.
+  stiffness, angle zero, channel filtering). (4) His in-air handle force is not inertia alone (corrected §239). Ladder
+  24 / 26, unchanged.
+- **§239 (2026-11-17): the sculling averages as numbers.** Like for like (scullers' hands, sculling force at rate 32)
+  the rigid oar fits the population's force curve (12.4 points rms) and the flexible shaft lags by ~15 % of the drive
+  (21.3); on Fig. 1's all-boat hands the reverse (11.7 vs 24.5). B2 and the rung-2 default unchanged: user's decision.
+  - *Next:* the shaft's lag (stiffness of real sculls, blade water inertia early, wetting from the measured vertical
+    angle by rate); B2's reference.
   - *Next:* the population's 10–20 % (the shaft's lag against the blade's grip: blade water inertia near the surface,
     wetting from Fig. 1b); a sourced oar mass and balance; ask the data's author about [BR24]'s oars and channels
     (user's call); C1 and D1.
