@@ -37,12 +37,24 @@ BANDS = dict(
     D5_progress=0.05,
 )
 ATHLETES = ("cr06", "br24")
+#: Expected failures (pytest's xfail): a criterion that fails for a recorded reason not yet resolvable, with the data
+#: that would resolve it. Reported XFAIL (still failing, not counted as a fail) or XPASS (now passing: re-examine).
+#: Each entry was marked by the user's decision; removing one is the default once its data arrive.
+XFAIL = {
+    ("C1", "[CR06] rung 1 handle force rms / her peak"): (
+        "user 2026-11-18: force level +12-17 % on her own blade area, mass and oar lengths, opposite in sign to [BR24]'s "
+        "-29 % (his blade assumed); pending her original 51.9 Hz recordings (digitising error) and both athletes' oar "
+        "specification (blade type, shaft stiffness) -- DATA_REQUESTS #2; SOURCES 241"),
+}
 #: [BR24]'s rig (BioRow file header) and BioRow's sculling force point from the handle's top (the data's author)
 BIOROW_INBOARD, BIOROW_FORCE_POINT = 0.875, 0.06
 
 
 def row(rung, what, value, band, ok, note=""):
-    return dict(rung=rung, what=what, value=value, band=band, ok=bool(ok), note=note)
+    xf = XFAIL.get((rung, what))
+    status = ("ok" if ok else "FAIL") if xf is None else ("XPASS" if ok else "XFAIL")
+    return dict(rung=rung, what=what, value=value, band=band, ok=bool(ok), status=status, xfail=xf,
+                note=note if xf is None else (note + "; " if note else "") + "expected fail: " + xf.split(";")[0])
 
 
 def rung_a1():
@@ -209,11 +221,14 @@ def main():
     print("validation ladder %s (docs/VALIDATION_LADDER.md)\n" % a.label)
     w = max(len(r["what"]) for r in rows)
     for r in rows:
-        print("%-4s %-4s %-*s  %-16s %-16s %s" % ("ok" if r["ok"] else "FAIL", r["rung"], w, r["what"], r["value"],
-                                                r["band"], r["note"]))
-    n_fail = sum(not r["ok"] for r in rows)
-    print("\n%d criteria, %d fail" % (len(rows), n_fail))
-    json.dump(dict(label=a.label, inputs=vars(a), bands=BANDS, rows=rows, passed=n_fail == 0),
+        print("%-5s %-4s %-*s  %-16s %-16s %s" % (r["status"], r["rung"], w, r["what"], r["value"], r["band"], r["note"]))
+    n_fail = sum(r["status"] == "FAIL" for r in rows)
+    n_xfail = sum(r["status"] == "XFAIL" for r in rows)
+    n_xpass = sum(r["status"] == "XPASS" for r in rows)
+    print("\n%d criteria, %d fail, %d expected fail%s" % (len(rows), n_fail, n_xfail,
+                                                         ", %d unexpectedly pass" % n_xpass if n_xpass else ""))
+    json.dump(dict(label=a.label, inputs=vars(a), bands=BANDS, xfail={"%s | %s" % k: v for k, v in XFAIL.items()},
+                   rows=rows, passed=n_fail == 0, n_fail=n_fail, n_xfail=n_xfail, n_xpass=n_xpass),
               open(os.path.join(ROOT, "data", "local", "validation", "ladder.json"), "w"), indent=1)
 
 

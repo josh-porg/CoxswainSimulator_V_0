@@ -50,6 +50,25 @@ def main():
         print("  cycle | " + " ".join("%7s" % n[0][:7] for n in traces))
         for q in np.arange(0.0, 1.0, 0.05):
             print("  %.2f  | " % q + " ".join("%7.2f" % np.interp(q, ph, v, period=1.0) for _n, ph, v in traces))
+        # the two catches are defined differently (model: first wet sample; measured: the oar's turning point), so
+        # also: the model shifted by the lag that best overlays it on the measured trace, and the residual by part of
+        # the cycle (§241). The swing's excess is read from that residual, not from a phase offset.
+        q = np.linspace(0.0, 1.0, 400, endpoint=False)
+        vm = np.interp(q, *traces[0][1:], period=1.0)
+        for name, ph, v in traces[1:]:
+            lags = np.linspace(-0.1, 0.1, 201)
+            err = [np.sqrt(np.mean((np.interp(q + d, ph, v, period=1.0) - vm) ** 2)) for d in lags]
+            d = float(lags[int(np.argmin(err))])
+            vs = np.interp(q + d, ph, v, period=1.0)
+            res = vs - vm
+            print("  %s: best overlay with the model lagged %+.3f of the cycle; rms %.3f m/s (unshifted %.3f)"
+                  % (name, d, min(err), err[100]))
+            for lo, hi, lab in ((0.0, 0.15, "catch to speed minimum"), (0.15, 0.45, "drive"), (0.45, 0.55, "finish"),
+                                (0.55, 0.85, "recovery to speed maximum"), (0.85, 1.0, "approach to the catch")):
+                m = (q >= lo) & (q < hi)
+                print("     %-27s mean residual %+.3f m/s, rms %.3f" % (lab, res[m].mean(), np.sqrt(np.mean(res[m] ** 2))))
+            print("     aligned extremes: least %+.3f, greatest %+.3f m/s against measured" % (vs.min() - vm.min(),
+                                                                                         vs.max() - vm.max()))
 
 
 if __name__ == "__main__":

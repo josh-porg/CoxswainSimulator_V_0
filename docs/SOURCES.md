@@ -16004,3 +16004,40 @@ the sourced band).
 - Open, modelling not code: [CR06]'s speed-swing excess (+3.5 points; her catch-approach push against her digitised
   boat speed is the next check), C1's force level (opposite in sign to [BR24]'s; inputs), the post-release ringing
   (imposed hands), the remaining [BR24] catch push excess (~230 N; thigh and arm kinematics at the catch, no source yet).
+
+## 241. C1 marked an expected failure; the data that would resolve it; [CR06]'s speed swing localised (2026-11-18)
+
+**1. C1 is an expected failure** (user decision 2026-11-18: "mark the xfail"). `research/validation/ladder.py` gains an
+`XFAIL` list (as pytest's): a criterion that fails for a recorded reason, with the data that would resolve it, reports
+`XFAIL` and is not counted as a fail; if it starts passing it reports `XPASS` and is re-examined. C1's rms (18.2 % of her
+peak; band 15 %) is the one entry. Ladder (`data/local/validation/ladder_2026-11-18.log`): **26 criteria, 0 fail, 1
+expected fail.** The band is not moved.
+
+**2. What C1 is, corrected.** In the previous answer to the user, a blade-area difference was offered as a likely
+cause. It is not, for [CR06]: the model already uses her paper's measured blade area (0.0903 m²), oar mass (1.2 kg),
+inboard (0.89 m, 0.83 m to the force point) and outboard (2.02 m) — Cabrera, Ruina & Kleshnev (2006) Table 1 and §2.7;
+Dreissigacker (Concept2) oars, and [L14]'s medium shaft is Concept2's "skinny" scull. What is still unknown for her:
+the shaft category and blade type of those oars, and the digitising and alignment of her published curves (oar angle,
+force and boat speed from separate figure panels). For [BR24] the blade area (0.083 m²) is assumed, so his oars matter
+more. **Data that would resolve it:** her original recordings at the native 51.9 Hz (the data's author measured them),
+both athletes' oar specifications. Added to the unsent reply to the data's author (DATA_REQUESTS #2).
+
+**3. [CR06]'s speed swing (+3.5 points), localised.** `speed_trace_compare.py` now also overlays the model's trace on
+the measured one at the best lag (the two catches are defined differently: the model's first wet sample, the oar's
+turning point in the data) and splits the residual by part of the cycle (`data/local/validation/speed_trace_s241.log`):
+- [CR06]: best overlay at a lag of −0.038 of the cycle, **rms 0.057 m/s** (unshifted 0.230). The excess sits in the two
+  extremes: the speed minimum after the catch 0.062 m/s low, the maximum in the recovery 0.092 m/s high; the residual
+  is mostly in the recovery (+0.072 mean), the drive −0.028.
+- [BR24]: lag −0.045, rms 0.177 m/s, most of it his +3 % mean speed; after the mean, the dip after the catch is
+  ~0.17 m/s too deep and the recovery +0.05.
+
+`recovery_momentum.py cr06` (her digitised boat speed, GCV-differentiated, as the hull acceleration): with the blade out
+her body's push matches the implied push through the recovery and the catch approach (sum over 0.55–0.80 of the cycle
+1159 against 1148 N; at 0.95, −363 against −401 N); the one gap is at the catch itself (−836 against −570 N at 0.00),
+where her curves from separate panels are least certain. Crew centre-of-mass travel relative to the boat: [BR24] 0.721 m
+(the data's author agreed ~0.72 m), [CR06] 0.696 m. So her remaining swing excess cannot be pinned on the body model
+within the uncertainty of her digitised curves; the same original recordings that would resolve C1 would resolve this.
+Not changed. (Older entries quoting 0.33–0.55 m crew travel were early misreadings, withdrawn at the time.)
+
+**Next:** [BR24]'s dip after the catch (catch-approach push ~120–220 N above his accelerometer's; thighs and arms; no
+on-water leg kinematics source yet — a literature search for one is the next data step).

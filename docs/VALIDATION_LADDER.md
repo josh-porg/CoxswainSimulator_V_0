@@ -109,3 +109,9 @@ angle. Both athletes are held-out tests: nothing in the model was fitted to eith
   with an independent open-loop path to 1–3 N, so the flexible lag on the population is physics, and the population
   test is ill-conditioned (early force is set by a few points of early hand speed). **Proposed, awaiting the user:**
   B2 becomes a diagnostic rather than a pass/fail rung.
+- **2026-11-18, C1 marked an expected failure** (user decision; SOURCES §241; `ladder_2026-11-18.log`): **26 criteria,
+  0 fail, 1 expected fail.** `ladder.py` `XFAIL`: reported XFAIL while failing, XPASS if it passes (then re-examined);
+  the band is unchanged. Reason: [CR06]'s handle force level is +12–17 % on her paper's own blade area, oar mass and
+  lengths, opposite in sign to [BR24]'s −29 % (his blade assumed). **Resolving data:** her original 51.9 Hz recordings
+  (digitising) and both athletes' oar specifications (blade type, shaft stiffness) — requested in the unsent reply to the
+  data's author (DATA_REQUESTS #2). The entry is removed when they arrive and C1 is re-run.

@@ -30,12 +30,33 @@ GROUPS = {"head + trunk": ("head", "upper_trunk", "mid_trunk", "lower_trunk"),
           "thighs": ("thigh_port", "thigh_starboard"), "shanks + feet": ("shank_foot_port", "shank_foot_starboard")}
 
 
+def measured_hull(athlete, P, n=200):
+    """``(t, hull acceleration, hull speed)`` over one cycle from the catch. [BR24]: BioRow's As / Vs (catch at the least
+    oar angle, BioRow's sign); [CR06]: her digitised boat velocity (catch at the largest oar angle, the paper's sign),
+    smoothed by GCV and differentiated (§241)."""
+    if athlete == "br24":
+        D = np.genfromtxt(os.path.join(ROOT, "data", "local", "biorow", "M1x_R32.csv"), delimiter=",", names=True)[:-1]
+        k = int(np.argmin(0.5 * (D["A1"] + D["A2"])))
+        return np.arange(len(D)) * P / len(D), np.roll(D["As"], -k), np.roll(D["Vs"], -k)
+    from scipy.interpolate import make_smoothing_spline
+    V = RP.V
+    T = V.CR06_T
+    g = np.linspace(0.0, T, 400, endpoint=False)
+    t0 = g[int(np.argmax(V._cr06_series("oar_angle_deg")(g)))]
+    v = V._cr06_series("boat_velocity_mps")(np.mod(g + t0, T))
+    sp = make_smoothing_spline(np.concatenate([g - T, g, g + T]), np.concatenate([v, v, v]))
+    tm = np.linspace(0.0, T, n, endpoint=False)
+    return tm * P / T, sp(tm, 1), sp(tm)
+
+
 def main():
+    athlete = "cr06" if "cr06" in sys.argv else "br24"
     RP.BODY, RP.BLADE = "own", "crossflow_normal"
     RP.C2.TAKEOVER_DEG = RP.C2.BIOROW_CATCH_TO_BURIED_DEG
-    m = RP.V.ATHLETES["br24"][0]()
-    boat = RP.athlete_boat("br24", m)
-    body = RP.own_body("br24", boat)
+    m = RP.V.ATHLETES[athlete][0]()
+    boat = RP.athlete_boat(athlete, m)
+    body = RP.own_body(athlete, boat)
+    print("athlete:", athlete)
     P = float(boat.timing.period)
     mass, _p, _v, _a = body(0.0)
     mass = np.asarray(mass, float)
@@ -48,12 +69,7 @@ def main():
     except Exception:                                             # noqa: BLE001 -- name differs by build
         M_total = crew + (hull if np.isfinite(hull) else 18.0)
     print("system mass used: %.1f kg" % M_total)
-    # measured: catch at the least oar angle
-    D = np.genfromtxt(os.path.join(ROOT, "data", "local", "biorow", "M1x_R32.csv"), delimiter=",", names=True)[:-1]
-    n = len(D)
-    k = int(np.argmin(0.5 * (D["A1"] + D["A2"])))
-    ah, vh = np.roll(D["As"], -k), np.roll(D["Vs"], -k)
-    tm = np.arange(n) * P / n
+    tm, ah, vh = measured_hull(athlete, P)
     sim = RP.make(boat, "reference", body=body)
 
 
@@ -79,6 +95,19 @@ def main():
         implied = abs(d) + M_total * a_meas              # -sum m a_rel = M a_hull + D (blade out)
         print("  %.2f | %7.2f     %8.0f       |  %7.0f  " % (q, a_meas, implied, -per.sum()) +
               "  ".join("%8.0f" % x for x in groups))
+    # the crew's centre of mass relative to the boat: its travel and its greatest speeds (the data author agreed [BR24]'s
+    # travels ~0.72 m, from the seat and trunk channels with segment fractions; 2026-10-28, SOURCES §233)
+    k = 400
+    xc, vc = np.zeros(k), np.zeros(k)
+    for j in range(k):
+        mm, pp, vv, _aa = body(j * P / k)
+        mm = np.asarray(mm, float)
+        xc[j] = float(np.sum(mm * np.asarray(pp, float)[:, 0]) / mm.sum())
+        vc[j] = float(np.sum(mm * np.asarray(vv, float)[:, 0]) / mm.sum())
+    print("\ncrew centre of mass relative to the boat: travel %.3f m; greatest speeds %+.2f / %+.2f m/s"
+          % (np.ptp(xc), vc.max(), vc.min()))
+    seat = np.array([np.asarray(body(j * P / k)[1], float)[3, 0] for j in range(k)])
+    print("seat (lower trunk) travel %.3f m; centre of mass travel / seat travel %.3f" % (np.ptp(seat), np.ptp(xc) / np.ptp(seat)))
     if "--fine" in sys.argv:
         # the model's push finely (the 0.05 table alternates sign through the drive: real ripple or numerics? §240),
         # with the parts carried by the two measured channels' own second derivatives for comparison

@@ -1378,6 +1378,10 @@ the boat speeds that go with their drive durations).
   50.4 % (49.1). Ladder 25 / 26 (C1 fails).
   - *Next:* [CR06]'s speed-swing excess (+3.5) — her catch-approach push against her digitised boat speed; the
     post-release ringing (a sourced hand impedance); C1.
+- **§241 (2026-11-18):** C1 → expected failure (`ladder.py XFAIL`; user decision), resolving data requested. [CR06]'s
+  swing excess localised to the extremes (aligned rms 0.057 m/s); her recovery push matches her implied push; left
+  pending her original recordings.
+  - *Next:* [BR24]'s dip after the catch (catch-approach push excess; a source for on-water leg kinematics).
   - *Next:* the population's 10–20 % (the shaft's lag against the blade's grip: blade water inertia near the surface,
     wetting from Fig. 1b); a sourced oar mass and balance; ask the data's author about [BR24]'s oars and channels
     (user's call); C1 and D1.
