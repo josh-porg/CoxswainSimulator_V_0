@@ -100,11 +100,46 @@ def scull_sweep(catch_angle, finish_angle, rate):
     return BodyCoupledDriveSweep(catch_angle=catch_angle, finish_angle=finish_angle, drive=drive, recovery=recovery)
 
 
-def drive_sweep(catch_angle, finish_angle):
-    """The oar sweep whose drive follows the population's handle velocity (the recovery is the parent's)."""
-    from coxswain.crew.drive_law import PopulationDriveSweep
+def sculling_recovery(rate, n=201):
+    """``(tau, progress)`` through the recovery from the data author's sculling averages (sculling_averages.py; rates
+    32 / 36 / 40, interpolated linearly in rate, held outside): the handle's path fraction from the finish against the
+    recovery's time fraction, a cubic Hermite through the samples' positions with their speeds as slopes (``_progress``;
+    SOURCES §242)."""
+    import sculling_averages as SA
+    rates = SA.RATES
+    r = float(np.clip(rate, rates[0], rates[-1]))
+    j = int(np.clip(np.searchsorted(rates, r) - 1, 0, len(rates) - 2))
+    w = (r - rates[j]) / (rates[j + 1] - rates[j])
+    lo, hi = SA.reference(rates[j], "recovery"), SA.reference(rates[j + 1], "recovery")
+    length = (1 - w) * lo["length"] + w * hi["length"]
+    speed = -((1 - w) * lo["handle_v"] + w * hi["handle_v"])     # towards the stern, positive along the recovery
+    prog = _progress(100.0 - length, speed)
+    tau = np.linspace(0.0, 1.0, int(n))
+    return tau, prog(tau)
+
+
+def drive_sweep(catch_angle, finish_angle, recovery="cosine", rate=None):
+    """The oar sweep whose drive follows the population's handle velocity. ``recovery``: "cosine" -- the parent sweep's
+    raised-cosine recovery (as built); "sculling" -- the data author's sculling averages at ``rate`` (strokes/min;
+    ``sculling_recovery``; SOURCES §242), the drive unchanged."""
+    from coxswain.crew.drive_law import BodyCoupledDriveSweep, PopulationDriveSweep
     s, v = drive_profile()
     # the first and last samples sit inside PopulationDriveSweep's default turning edge; here the turning spans are
     # the first and last 10 % of the drive's time, which the data resolve, so the edge is their path (3.2 %)
-    return PopulationDriveSweep(catch_angle=catch_angle, finish_angle=finish_angle, profile=(s, v),
+    base = PopulationDriveSweep(catch_angle=catch_angle, finish_angle=finish_angle, profile=(s, v),
                                 speed_error=SPEED_ERROR, turning_edge=float(s[1]) - 1e-9)
+    if recovery == "cosine":
+        return base
+    if recovery != "sculling":
+        raise ValueError("recovery is 'cosine' or 'sculling', got %r" % (recovery,))
+    if rate is None:
+        raise ValueError("the sculling recovery needs the stroke rate")
+    from coxswain.crew.stroke import OnWaterTiming
+    timing = OnWaterTiming(float(rate))
+    P, D = float(timing.period), float(timing.drive_fraction)
+    x = np.linspace(0.0, 1.0, 401)
+    drive = (tuple(x), tuple(float(base(u * D * P, timing)) for u in x))   # the drive's angle by its time fraction
+    tau, prog = sculling_recovery(rate)
+    span = float(finish_angle) - float(catch_angle)
+    rec = (tuple(tau), tuple(float(finish_angle) - span * prog))
+    return BodyCoupledDriveSweep(catch_angle=catch_angle, finish_angle=finish_angle, drive=drive, recovery=rec)

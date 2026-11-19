@@ -100,6 +100,9 @@ SHAFT_EI = None
 #: >50 000 samples: the default since §237 (its handle law fits both test athletes' oar timing 2.5x closer, and the
 #: population's own force curve is reproduced to 10 points rms against 17.5)
 POP_DRIVE = "rbn2023"
+#: the planned recovery under the rbn2023 drive (athletes and population): "cosine" -- the parent sweep's raised cosine
+#: (as built); "sculling" -- the data author's sculling averages at the boat's rate (SOURCES §242)
+POP_RECOVERY = "cosine"
 #: the population's drive fraction, set by population_tables
 POP = {}
 
@@ -157,6 +160,7 @@ def athlete_boat(name, m):
     """The athlete's boat; with their own body (``BODY == "own"``) built with no population clock on the joints their
     channels time (``own_joints``; SOURCES §228), as their boat was before the research profile's trunk clock."""
     # the athlete's planned oar motion is the population's drive law on the athlete's own arc (POP_DRIVE; §237)
+    C2.R.RBN_RECOVERY = POP_RECOVERY
     return C2.R.boat_for(name, m, "on-water", drive_law=POP_DRIVE if POP_DRIVE.startswith("rbn2023") else True,
                          own_joints=OWN_BODY_JOINTS if BODY == "own" else ())
 
@@ -342,7 +346,7 @@ def population_sim(drive=None, body_drive=None):
         import rbn2023
         sw = pop_boat.oar_sweep
         sweep = (rbn2023.scull_sweep(sw.catch_angle, sw.finish_angle, KP.K05_RATE) if drive == "rbn2023-scull"
-                 else rbn2023.drive_sweep(sw.catch_angle, sw.finish_angle))
+                 else rbn2023.drive_sweep(sw.catch_angle, sw.finish_angle, recovery=POP_RECOVERY, rate=KP.K05_RATE))
         pop_boat = V.cr06_boat(dict(leg_travel=None), oar_sweep=sweep, **kw)
     elif drive != "k05":
         raise ValueError("the population's drive is 'k05', 'rbn2023' or 'rbn2023-scull', got %r" % (drive,))
@@ -405,8 +409,10 @@ def solved_clock(name, strokes, tables, p_pop):
 
 def main():
     global FV, HOLD, HOLD_OWN, ADDED_MASS, BEND_DYNAMICS, Q_MAP, RELEASE_AFTER, SURFACE_FACTOR, LIFT_SCALE, CHANNEL_SMOOTHING, RELEASE_SLIP
-    global POP_DRIVE
+    global POP_DRIVE, POP_RECOVERY
     ap = argparse.ArgumentParser()
+    ap.add_argument("--pop-recovery", default=POP_RECOVERY, choices=["cosine", "sculling"],
+                    help="the planned recovery under the rbn2023 drive: raised cosine or the sculling averages (§242)")
     ap.add_argument("--pop-drive", default=POP_DRIVE, choices=["k05", "rbn2023", "rbn2023-scull"],
                     help="the population whose muscles are borrowed: [K05] Fig. 1 or RBN 2023/12's curves (§237)")
     ap.add_argument("--strokes", type=int, default=10)
@@ -470,6 +476,7 @@ def main():
     CHANNEL_SMOOTHING = a.channel_smoothing
     RELEASE_SLIP = a.release_slip
     POP_DRIVE = a.pop_drive
+    POP_RECOVERY = a.pop_recovery
     HOLD = float(a.hold)
     HOLD_OWN = bool(a.hold_own)
     ADDED_MASS = a.added_mass
@@ -520,6 +527,7 @@ def main():
                                                             + ("_chan" + a.channel_smoothing)
                                                             + ("" if a.release_slip is None else "_relslip%g" % a.release_slip)
                                                             + ("_pop" + a.pop_drive)   # always named (S4)
+                                                            + ("" if a.pop_recovery == "cosine" else "_rec" + a.pop_recovery)
                                                             + ("" if a.athletes == ["cr06", "br24"] else "_" + "_".join(a.athletes)))), "w"), indent=1, default=float)
 
 

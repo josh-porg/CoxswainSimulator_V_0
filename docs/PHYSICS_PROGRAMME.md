@@ -1382,6 +1382,10 @@ the boat speeds that go with their drive durations).
   swing excess localised to the extremes (aligned rms 0.057 m/s); her recovery push matches her implied push; left
   pending her original recordings.
   - *Next:* [BR24]'s dip after the catch (catch-approach push excess; a source for on-water leg kinematics).
+- **§242 (2026-11-19):** [BR24]'s dip = catch-approach momentum (model −0.196 m/s vs accelerometer; [CR06] +0.007).
+  Sculling-averages recovery hand law: option (better for him, worse for her, no material effect). Remaining excess
+  waits on his oar mass / channel alignment (asked) or an on-water segment source.
+  - *Next:* rung 2's muscles pulling the athletes' oar timing off rung 1's (0.014 → 0.036, 0.009 → 0.026).
   - *Next:* the population's 10–20 % (the shaft's lag against the blade's grip: blade water inertia near the surface,
     wetting from Fig. 1b); a sourced oar mass and balance; ask the data's author about [BR24]'s oars and channels
     (user's call); C1 and D1.

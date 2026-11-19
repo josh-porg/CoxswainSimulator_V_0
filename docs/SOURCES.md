@@ -16041,3 +16041,34 @@ Not changed. (Older entries quoting 0.33–0.55 m crew travel were early misread
 
 **Next:** [BR24]'s dip after the catch (catch-approach push ~120–220 N above his accelerometer's; thighs and arms; no
 on-water leg kinematics source yet — a literature search for one is the next data step).
+
+## 242. [BR24]'s dip after the catch is the catch approach's momentum; a sourced recovery hand law tried (2026-11-19)
+
+**1. The dip is made before the catch** (`recovery_momentum.py`: the impulse of the body's push on the hull over the
+catch approach, 0.80–1.03 of the cycle, blade out, against the impulse his accelerometer implies, M a + D; impulses
+are robust to sampling and small timing offsets that pointwise values near the steep catch peak are not). [BR24]: the
+model's body takes **22.5 N s more** (−231 against −209 N s) = **−0.196 m/s of hull speed**, the size of his post-catch
+dip excess (§241: ~0.17 m/s). Robust to where the window ends (−0.14 at 0.99, −0.17 at 1.00, −0.196 from 1.02 on).
+[CR06]: +0.6 N s = +0.007 m/s (±0.04 over the window ends) — her catch approach is right.
+
+By segment group (impulse over the window, per kg of crew): [BR24] head + trunk −132.6 N s (1.37 m/s), arms −34.2
+(0.35), thighs −56.4 (0.58), shanks + feet −8.0 (0.08); [CR06] −86.0 (1.15), −17.4 (0.23), −33.7 (0.45), −4.9 (0.07).
+His bigger, faster stroke decelerates more per kg everywhere, so the split does not single out a segment. The earlier
+"thighs carry the excess" (§232) came from a crude fraction (thigh at 0.6 of the seat): two-link knee geometry gives a
+thigh centre at ~0.8 of the seat near the catch, as the model has (0.86) — withdrawn as evidence.
+
+**2. The recovery hand law** (`handle_recovery_compare.py`). The imposed recovery is the parent sweep's raised cosine;
+its handle speed peaks at 1.28 × the drive's peak on [BR24]'s arc, against his measured 1.12 and the data author's
+sculling averages 0.98. A sourced alternative, the sculling averages' recovery at the boat's rate on the athlete's arc
+(`rbn2023.sculling_recovery`, `drive_sweep(recovery="sculling")`; `rung2_population --pop-recovery sculling`,
+`handle_rung1.RBN_RECOVERY`; the drive unchanged), against each athlete's measured recovery hands (rms of handle speed /
+drive peak, per 10 % of the recovery): [BR24] 0.098 → 0.062, [CR06] 0.051 → 0.062. Rung 2: [BR24] 4.775 m/s, IVV 50.4 %
+(unchanged), [CR06] 4.202, 52.7 % (53.0); catch-approach excess −0.196 → −0.177 m/s (arms −34.2 → −32.0 N s); half step
+within 0.05 % / 0.1 point. Better for one athlete, worse for the other, and no material effect: **kept as an option, not
+adopted.** The arms are not the excess.
+
+**3. What is left of [BR24]'s excess** (~0.12–0.18 m/s): (a) the system mass the implied impulse uses, 115 kg (hull 18 +
+crew 97), leaves out his oars (~2.5–3 kg; their mass is asked of the data's author), which alone would cut the gap by
+about a third; (b) the alignment of his body channels against his boat channels (asked: question 3); (c) the posture
+mapping of his seat and trunk channels onto the model's segments. (a) and (b) wait on the data request (DATA_REQUESTS
+#2); (c) has no on-water segment source yet. Recorded as open, not fitted.

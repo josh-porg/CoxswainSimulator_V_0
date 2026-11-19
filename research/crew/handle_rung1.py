@@ -38,6 +38,9 @@ from coxswain.sim.dynamic_oar import DynamicOarSimulator         # noqa: E402
 #: Moving the footboard alone over-stretches the arms by ~1/3 a quarter of the way into the drive.
 LE26_WOMEN_STATURE = 1.787     # m, world-class women's mean ([LE26]; onwater_body.LE26_WOMEN_STATURE)
 CATCH_POSTURE = "as-built"
+#: the recovery of the rbn2023 drive law: "cosine" (the parent sweep's raised cosine, as built) or "sculling" (the data
+#: author's sculling averages at the boat's rate; rbn2023.drive_sweep, SOURCES §242). Set by rung2_population.POP_RECOVERY.
+RBN_RECOVERY = "cosine"
 #: The body's segment clocks, by name (coxswain.crew.body_options.CLOCKS), e.g. ("pitto2024_trunk",): the trunk on
 #: the population's on-water timing (SOURCES §211). Empty: the ergometer keyframes' own timing.
 BODY_CLOCKS = ()
@@ -118,7 +121,8 @@ def boat_for(name, measured, timing_kind, drive_law=False, catch_posture=None, c
         sw = built.oar_sweep
         if drive_law == "rbn2023-scull":
             return rbn2023.scull_sweep(sw.catch_angle, sw.finish_angle, 60.0 / float(built.timing.period))
-        return rbn2023.drive_sweep(sw.catch_angle, sw.finish_angle)
+        return rbn2023.drive_sweep(sw.catch_angle, sw.finish_angle, recovery=RBN_RECOVERY,
+                                   rate=60.0 / float(built.timing.period))
     if name == "br24":
         import like_for_like as L
         timing = OnWaterTiming(L.RATE) if timing_kind == "on-water" else StrokeTiming(L.RATE)

@@ -51,6 +51,8 @@ def measured_hull(athlete, P, n=200):
 
 def main():
     athlete = "cr06" if "cr06" in sys.argv else "br24"
+    RP.POP_RECOVERY = "sculling" if "sculling" in sys.argv else RP.POP_RECOVERY
+    print("planned recovery:", RP.POP_RECOVERY)
     RP.BODY, RP.BLADE = "own", "crossflow_normal"
     RP.C2.TAKEOVER_DEG = RP.C2.BIOROW_CATCH_TO_BURIED_DEG
     m = RP.V.ATHLETES[athlete][0]()
@@ -108,6 +110,41 @@ def main():
           % (np.ptp(xc), vc.max(), vc.min()))
     seat = np.array([np.asarray(body(j * P / k)[1], float)[3, 0] for j in range(k)])
     print("seat (lower trunk) travel %.3f m; centre of mass travel / seat travel %.3f" % (np.ptp(seat), np.ptp(xc) / np.ptp(seat)))
+    # the momentum the body takes out of the hull over the catch approach, model against implied: impulses are robust
+    # to the sampling and to small timing offsets that pointwise values near a steep peak are not (§242). Window: from
+    # the recovery's speed maximum region to just after the oar's turning point, the blade out throughout.
+    lo, hi = (0.80, 1.03)
+    q = np.linspace(lo, hi, 300)
+    tq = np.mod(q, 1.0) * P
+    pm = np.array([-float(np.sum(np.asarray(body(float(u))[0], float) * np.asarray(body(float(u))[3], float)[:, 0]))
+                   for u in tq])
+    am = np.interp(tq, tm, ah, period=P)
+    vm = np.interp(tq, tm, vh, period=P)
+    dm = np.array([abs(float(_drag_at(sim, boat, float(v)))) for v in vm])
+    imp = M_total * am + dm
+    dt_q = (hi - lo) * P / (q.size - 1)
+    neg = lambda x: np.trapezoid(np.minimum(x, 0.0), dx=dt_q)    # noqa: E731
+    print("\ncatch approach, %.2f-%.2f of the cycle: impulse of the push, N s: model %.1f, implied %.1f (decelerating "
+          "part: model %.1f, implied %.1f); model - implied = %.1f N s = %+.3f m/s of hull speed"
+          % (lo, hi, np.trapezoid(pm, dx=dt_q), np.trapezoid(imp, dx=dt_q), neg(pm), neg(imp),
+             np.trapezoid(pm - imp, dx=dt_q), np.trapezoid(pm - imp, dx=dt_q) / M_total))
+    print("  greatest decelerating push: model %.0f N at %.3f, implied %.0f N at %.3f of the cycle"
+          % (pm.min(), q[np.argmin(pm)] % 1.0, imp.min(), q[np.argmin(imp)] % 1.0))
+    for end in (0.99, 1.00, 1.01, 1.02, 1.03, 1.04):            # the window's end on a steep part: its sensitivity
+        m_ = q <= end
+        d_ = np.trapezoid((pm - imp)[m_], dx=dt_q)
+        print("  window %.2f-%.2f: model - implied %+.1f N s = %+.3f m/s" % (lo, end, d_, d_ / M_total))
+    names = list(SEGMENT_ORDER)
+    parts = {g: np.zeros(q.size) for g in GROUPS}
+    for j, u in enumerate(tq):
+        mm, _pp, _vv, aa = body(float(u))
+        per = np.asarray(mm, float) * np.asarray(aa, float)[:, 0]
+        for g, segs in GROUPS.items():
+            parts[g][j] = -sum(per[i] for i in range(per.size) if names[i % len(names)] in segs)
+    crew_mass = float(np.asarray(body(0.0)[0], float).sum())
+    print("  by segment group, impulse N s (per kg of crew, m/s): " + "; ".join(
+        "%s %.1f (%.3f)" % (g, np.trapezoid(parts[g], dx=dt_q), np.trapezoid(parts[g], dx=dt_q) / crew_mass)
+        for g in GROUPS))
     if "--fine" in sys.argv:
         # the model's push finely (the 0.05 table alternates sign through the drive: real ripple or numerics? §240),
         # with the parts carried by the two measured channels' own second derivatives for comparison
