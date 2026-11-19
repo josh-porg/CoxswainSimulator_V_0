@@ -1395,6 +1395,11 @@ the boat speeds that go with their drive durations).
   B2 → sculling reference awaits sign-off.
   - *Next:* the flexible shaft's early-drive deficit on physics grounds (entry grip / blade water inertia κ; wetting
     from the measured vertical angle by rate; the population's oar stiffness; lumped hinge vs distributed shaft).
+- **§245 (2026-11-19):** early-drive deficit: κ, lift slope, catch angle, sourced stiffness (≤ ~1.2×) — none closes it;
+  population, both athletes and [L14]'s rowers agree the model's flexible shaft delays force too much. Hypothesis: the
+  angle sensor includes part of the bend (double-counted compliance) — testable when the sensor position is known
+  (asked). Grip impedance deferred (sources recorded). Sensors 2023 request: recipient found, awaiting approval.
+  - *Next:* wait for the data author; if the sensor is on the shaft, a measured-angle-at-sensor variant of the bend.
   - *Next:* the population's 10–20 % (the shaft's lag against the blade's grip: blade water inertia near the surface,
     wetting from Fig. 1b); a sourced oar mass and balance; ask the data's author about [BR24]'s oars and channels
     (user's call); C1 and D1.

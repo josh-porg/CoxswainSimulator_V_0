@@ -16142,3 +16142,67 @@ well-posed, like-for-like failure on the population, consistent in direction wit
 investigate on physics grounds (candidates, none fitted: the blade's grip during entry and its water inertia near the
 surface, κ; the wetting from the measured vertical angle, now available by rate; the stiffness of the population's
 oars; the lumped hinge against a distributed shaft).
+
+## 245. The flexible shaft's slow early loading: no sourced change closes it; three tests agree it delays force too much (2026-11-19)
+
+Work while the data author's reply is awaited (user's goal, 2026-11-19).
+
+**1. Candidates on the like-for-like population** (`research/validation/early_drive_candidates.py`; population at
+rung 1 on the scullers' hands, scored against the sculling averages at rate 32; `early_drive_candidates.jsonl`). Force
+at 10 / 20 / 30 % of the drive's time (reference 29 / 67 / 84), rms over the drive:
+
+| candidate | 10 / 20 / 30 % | rms | source for the value |
+|---|---|---|---|
+| flexible ([L14] medium), κ 0.1 | 8 / 33 / 49 | 21.3 | as built |
+| κ 0.3 / 0.5 (blade water near the surface) | 7 / 35–37 / 52–56 | 21.0 / 22.4 | B1 rejects 0.5 (§228); worsens the finish |
+| lift slope × 1.3 | 8 / 32 / 50 | 20.6 | tank profiles (§231, not adopted) |
+| shaft EI × 1.5 / × 2 | 5–6 / 41–49 / 56–60 | 15.8 / 12.8 | none: Concept2's stiffest scull is 4.0 cm against medium 4.5 (× 1.125) |
+| rigid | 14 / 69 / 84 | 12.4 | — |
+
+`catch_angle_check.py` (the population's arc, [CR06]'s rig 60.5 / −44.3°, rotated towards the catch as [BR24]'s
+67.8 / −37.3°): the rigid oar's early force rises (24–26 % at 10 % for +6–7°); the flexible shaft's barely (5 → 7 %).
+
+**2. The shaft's stiffness, sourced.** Concept2 (shafts-and-flex pages, 2026-11-19): sculls deflect under 10 kg at the
+neck — Ultralight soft 5.0 / medium 4.5 / stiff 4.0 cm; Skinny extra-soft 6.5 / soft 5.5 / medium 4.5 cm. The model's
+EI ([L14]'s end slope as a uniform beam, 2099 N m²) is ~17 % softer than Concept2's medium as a uniform beam on its
+1.50 m span (2453 N m²); [L14] found its fixture's deflections 22 % below Concept2's (attributed to a compliant sleeve
+region and the shorter span). So the sourced stiffness range is about × 1.0–1.2, not × 1.5–2.
+
+**3. The athletes' own strokes, by stiffness** (`open_loop_shaft.py --ei-scales`; `open_loop_stiffness.log`): rms of
+handle force / measured peak — [BR24] 18.5 (× 1) / 17.3 (× 1.17) / 16.2 (× 1.5) / 16.2 (× 2); [CR06] 13.7 / 13.0 /
+12.3 / 12.5; rigid 23.5 / 21.6. Both prefer a stiffer shaft than the model's, flattening at × 1.5–2.
+
+**4. [L14]'s on-water rowers** (thesis Table 12): with Concept2 medium sculls the force peaked at 34–47 % of the drive,
+and extra-soft moved it by +0.2 points (rowers −1.3 to +1.4); the model moves it by +3.8 (§236) and peaks at 57 %.
+
+**Reading.** Three independent tests — the population (like for like), both athletes' measured strokes, and [L14]'s
+rowers — agree that the model's flexible shaft delays the force far more than real shafts do; within the sourced
+values of stiffness, κ, lift slope and arc, nothing closes it. Not adopted: any value outside its source. The leading
+explanation needs data already asked of the data's author (DATA_REQUESTS #2, question 2, "where is the horizontal
+oar angle measured"): if the angle is sensed on the shaft outboard of the pin ([CR06]'s paper: "servo potentiometers
+connected with a light arm and bracket to the oar shaft"), the measured angle already contains part of the bend and
+the model, adding the full bend to it, counts the shaft's compliance twice — a late, low early force and a high late
+one, which is the pattern [CR06] shows (§237: 59 against 82 N at 10 %, 283 against 215 N at 60 %). This is a hypothesis
+with a definite test once the sensor's position is known; nothing is changed now.
+
+**5. Grip impedance for the post-release ringing** (§240 item 2). Sources found: ISO 10068 (driving-point impedance
+of the hand-arm system, 10–500 Hz, by grip and push force; via the BSI listing) and Liang & Griffin's measurements
+(grip force dominates the low-frequency impedance). The ringing (~9 Hz) sits at the standard's lower edge, and a grip
+impedance acts only if the inner oar is free to rotate against the hands — a change to the simulator's hand constraint.
+Its only effect is the handle force after the release (the two last samples of the population comparison, ~1 point of
+rms; the in-air bend is not coupled to the hull). **Deferred** as poor cost against benefit; the sources are recorded
+here for when the hand constraint is revisited.
+
+**6. On-water leg kinematics.** Mpimis, Gikas & Gourgoulis (2023, Sensors, CC BY; PMC10346604;
+`data/local/literature/mpimis2023_sensors/`): seat potentiometer, hip and elbow electrogoniometers, GNSS/INS at
+400 Hz; no knee or trunk angle; Fig. 10 (seat displacement 0–45 cm against hip angle −15 to 48°, one rower) saved but
+not usable for the thigh question; data restricted. The request to them (DATA_REQUESTS #17) now has its recipient from
+the paper's correspondence line (ampimis@central.ntua.gr) and asks for a de-identified extract with seat, hip angle,
+oar angle, surge acceleration and the masses — a third athlete for the catch-approach momentum test (§242). Draft
+updated, **unsent pending the user's approval**.
+
+*Addendum (same day).* In the quasi-static hinge on a measured angle, a sensor that captures a fraction *f* of the
+bend makes the blade's angle θ_meas + (1 − f)φ: the same as a shaft 1 / (1 − f) times stiffer. The athletes' and the
+population's preference (× 1.5–2) corresponds to *f* ≈ 0.33–0.5 — one number, the same for both, testable from the
+sensor's position and the shaft's compliance distribution ([L14]: most compliant near the sleeve). Until then the
+stiffer fits stay unsourced and are not adopted.
