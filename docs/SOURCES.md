@@ -16206,3 +16206,25 @@ bend makes the blade's angle θ_meas + (1 − f)φ: the same as a shaft 1 / (1 �
 population's preference (× 1.5–2) corresponds to *f* ≈ 0.33–0.5 — one number, the same for both, testable from the
 sensor's position and the shaft's compliance distribution ([L14]: most compliant near the sleeve). Until then the
 stiffer fits stay unsourced and are not adopted.
+
+## 246. How much bend an angle sensor captures, by where it reads the shaft (2026-11-19)
+
+A quantitative test of §245's hypothesis that can be made before the data's author replies
+(`research/blade/sensor_bend_capture.py`; `data/local/validation/sensor_bend_capture.log`). The fraction *f* of the
+blade-centre bend displacement that a sensor reading the shaft's slope at distance *d* from the pin accounts for
+(f = l·slope(d) / δ(l), the outboard shaft as a cantilever from the pin under the blade load), for three EI profiles —
+uniform; [L14]-like (stiffest at the blade end, ×1.644); a more compliant sleeve region (×2):
+
+| d from the pin | 0.02 m | 0.05 m | 0.10 m | 0.20 m | 0.30 m | d for f = 0.33 | d for f = 0.5 |
+|---|---|---|---|---|---|---|---|
+| f (over the three profiles) | 0.03–0.04 | 0.08–0.10 | 0.16–0.20 | 0.31–0.37 | 0.46–0.52 | 0.18–0.21 m | 0.28–0.33 m |
+
+On a measured angle, *f* is equivalent to a shaft 1 / (1 − f) stiffer (§245 addendum). So:
+- a sensor on the gate (the swivel; 2–5 cm of shaft outboard of the pin) captures 3–10 %, × 1.03–1.11 — little;
+- a sensor reading the shaft 0.18–0.33 m out captures the third to half the fits want (× 1.5–2).
+
+For [CR06] (1999-era telemetry: "servo potentiometers connected with a light arm and bracket to the oar shaft") the
+hypothesis is plausible if the bracket sat ~0.2–0.3 m out; for [BR24] it explains his × 1.5 preference only if his
+system reads the shaft, not the gate. The data author's answer to "where is the horizontal oar angle measured"
+(DATA_REQUESTS #2, sent 2026-11-19) decides it; if it is the shaft at a known *d*, the model's bend can be referenced to
+the sensor's point (an option: the imposed angle read as the shaft's angle at *d*). Nothing changed.

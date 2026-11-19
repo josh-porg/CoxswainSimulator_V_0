@@ -1400,6 +1400,8 @@ the boat speeds that go with their drive durations).
   angle sensor includes part of the bend (double-counted compliance) — testable when the sensor position is known
   (asked). Grip impedance deferred (sources recorded). Sensors 2023 request: recipient found, awaiting approval.
   - *Next:* wait for the data author; if the sensor is on the shaft, a measured-angle-at-sensor variant of the bend.
+- **§246 (2026-11-19):** sensor capture f(d): 0.33–0.5 at d 0.18–0.33 m; gate sensor 0.03–0.10. Decided by the
+  data author's answer on the sensor's position.
   - *Next:* the population's 10–20 % (the shaft's lag against the blade's grip: blade water inertia near the surface,
     wetting from Fig. 1b); a sourced oar mass and balance; ask the data's author about [BR24]'s oars and channels
     (user's call); C1 and D1.
