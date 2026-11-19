@@ -1386,6 +1386,10 @@ the boat speeds that go with their drive durations).
   Sculling-averages recovery hand law: option (better for him, worse for her, no material effect). Remaining excess
   waits on his oar mass / channel alignment (asked) or an on-water segment source.
   - *Next:* rung 2's muscles pulling the athletes' oar timing off rung 1's (0.014 → 0.036, 0.009 → 0.026).
+- **§243 (2026-11-19):** reply to the data's author sent. Rung 2's timing drift = the force-level mismatch through the
+  free clock (rates 0.968 / 1.052 against 0.950 / 1.122 predicted at fixed power). Waits on the same data.
+  - *Next while waiting:* the post-release ringing (a sourced grip impedance for the imposed hands); B2's status
+    (user's decision).
   - *Next:* the population's 10–20 % (the shaft's lag against the blade's grip: blade water inertia near the surface,
     wetting from Fig. 1b); a sourced oar mass and balance; ask the data's author about [BR24]'s oars and channels
     (user's call); C1 and D1.

@@ -16072,3 +16072,29 @@ crew 97), leaves out his oars (~2.5–3 kg; their mass is asked of the data's au
 about a third; (b) the alignment of his body channels against his boat channels (asked: question 3); (c) the posture
 mapping of his seat and trunk channels onto the model's segments. (a) and (b) wait on the data request (DATA_REQUESTS
 #2); (c) has no on-water segment source yet. Recorded as open, not fitted.
+
+## 243. Rung 2's oar-timing drift is the force-level mismatch, seen through the clock; the reply sent (2026-11-19)
+
+**1. The reply to the data's author was sent** (user: "go for it", 2026-11-19), in his thread: the sculling averages
+acknowledged; the 10 November drive-length statement corrected; the M1x file identified; questions on his oars (make,
+blade type and area, shaft stiffness, mass and balance point), the oar-angle zero, and channel timing and filtering
+(with the 6–7 Hz ripple and the in-air force observation); the original 51.9 Hz recordings of the Cabrera, Ruina &
+Kleshnev (2006) women's single sculler and those oars' shaft and blade type; requests 2–3 repeated. DATA_REQUESTS #2:
+awaiting answer. Its answer bears on C1 (expected failure), [CR06]'s swing (§241) and [BR24]'s dip (§242).
+
+**2. Where rung 2 pulls the oar timing off rung 1** (`research/validation/rung2_timing.py`; rebuilds the clock tau(t)
+from the last stroke's tau' trace and scores drive progress against each athlete's measured oar angle, per 10 % of the
+measured drive's time; `data/local/validation/rung2_timing_s243.log`). The trace stops at the hand-over to the finish
+(progress 0.93 / 0.94), and the comparison is read only up to there (as `rung2_population.compare` is).
+- [CR06]: rung 1 tracks her within 0.02 (from −0.022 at 10 % to −0.016 at 80 %); rung 2's clock runs **slow**,
+  tau' 0.89–0.99 (mean 0.968), and her oar falls progressively behind, −0.025 at 20 % to −0.050 at 70–80 %.
+- [BR24]: rung 1 within 0.02; rung 2's clock runs **fast**, tau' 1.03–1.11 (mean 1.052), his oar ahead, +0.015 at
+  30 % to +0.037 at 60 %.
+
+The signs are those of the force-level mismatch on each athlete's measured stroke (open loop, §237: impulse ratio
+1.168 for [CR06], 0.707 for [BR24]). With the muscles scaled to the athlete's power, a blade whose load is too heavy
+for the motion slows the hands and one too light speeds them; for a load ~v² at fixed power the rate would scale as
+ratio^(−1/3): 0.950 and 1.122. Rung 2 gives 0.968 and 1.052 — same direction and order, smaller in size (the hand's
+force–velocity law and the hold on the athlete's own pace resist the change). So the drift is not a separate defect of
+the muscle transfer: it is C1's mismatch expressed through the free clock, and it should shrink when the force level
+is resolved. D5 (≤ 0.05) still passes (0.036 / 0.026). Nothing changed.
