@@ -16248,3 +16248,34 @@ two are the same, so it cannot touch the 20–40 % deficit that dominates §244�
 blade in while its normal velocity still brakes (+0.57 m/s at 5 %). **A minor, early contributor; not adopted on its
 own.** The candidates of §244 are now all tested (§245–247); what remains waits on the data author (the angle sensor's
 position, the oars) and on the user's decisions (B2's reference; the Sensors 2023 request).
+
+## 248. The ladder under the sensor hypothesis, prepared before the answer; a script bug (2026-11-19)
+
+**1. A what-if, ready for the data author's answer.** `rung2_population.py --sensor-capture f` (the measured angle
+already contains a fraction f of the bend; quasi-statically the shaft acts 1 / (1 − f) stiffer on it, §245–246; the
+output named `_cap<f>`), `population_kinematics.py --ei-scale`, `open_loop_shaft.py --ei-scale` (each what-if writes
+its own file and never the ladder's default inputs). The full ladder at f = 0.33 (a sensor ~0.2 m out on the shaft;
+`data/local/validation/ladder_whatif_cap0.33.log`; **not adopted**):
+
+| rung | default (§241) | what-if f = 0.33 |
+|---|---|---|
+| D2 IVV [CR06] / [BR24] | +3.5 / +1.3 points | **+2.8 / +0.4** (both inside the first ±3 band) |
+| D2b CVV | +0.88 / +0.79 | +0.41 / +0.35 |
+| D1 speed | +0.3 / +2.97 % | +0.4 / +2.7 % |
+| D5 oar progress | 0.036 / 0.026 | 0.031 / 0.030 |
+| D4 [BR24] centre / peak | 0.51 / 450 N | 0.48 / 486 N (band ≤ 488) |
+| B2 population (Fig. 1) rms / peak | 9.5 / 49 % | 8.4 / **39 % (fails 40–50 %)** |
+| C1 [CR06] rms / peak angle | 18.2 % (expected fail) / 4.3° | 24.4 % / **13.0° (fails ≤ 10°)** |
+| C2 open loop | 13.7 / 18.5 % | 12.4 / 16.2 % |
+| ladder | 0 fail, 1 expected fail | 2 fail, 1 expected fail |
+
+So the hypothesis, if the answer supports it, improves the speed swing (the quantity the steering work needs) and
+both athletes' open-loop force, and costs two shape criteria: the population's peak moves just early of its span, and
+on the population's hands imposed on [CR06]'s rig her peak moves 13° early. It is not a free win; the decision waits on
+the sensor's position. The default ladder output was restored after the run (`ladder.json`: 0 fail, 1 expected fail).
+
+**2. Bug: `bending_handle_force.py --ei-scale` was ignored with `--bend-dynamics`.** The dynamic shaft is built by
+rung 2's own options (`RP.blade_options` reads `RP.SHAFT_EI`), and the script passed the scaled law only to the
+quasi-static path; a run at × 1.49 returned the default's numbers exactly. Fixed (the script sets `RP.SHAFT_EI`). No
+earlier result used `--ei-scale` with `--bend-dynamics` (§218's `--ei-scale` runs predate the dynamic shaft).
+STRUCTURAL_ISSUES S1 (one path): an option that reaches only one of two paths that build the same thing.

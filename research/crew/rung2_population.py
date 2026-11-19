@@ -409,8 +409,12 @@ def solved_clock(name, strokes, tables, p_pop):
 
 def main():
     global FV, HOLD, HOLD_OWN, ADDED_MASS, BEND_DYNAMICS, Q_MAP, RELEASE_AFTER, SURFACE_FACTOR, LIFT_SCALE, CHANNEL_SMOOTHING, RELEASE_SLIP
-    global POP_DRIVE, POP_RECOVERY
+    global POP_DRIVE, POP_RECOVERY, SHAFT_EI
     ap = argparse.ArgumentParser()
+    ap.add_argument("--sensor-capture", type=float, default=0.0,
+                    help="a what-if (SOURCES §248): the fraction f of the shaft's bend that the measured oar angle "
+                         "already contains (a sensor reading the shaft outboard of the pin, research/blade/"
+                         "sensor_bend_capture.py); quasi-statically the shaft acts 1 / (1 - f) stiffer on that angle")
     ap.add_argument("--pop-recovery", default=POP_RECOVERY, choices=["cosine", "sculling"],
                     help="the planned recovery under the rbn2023 drive: raised cosine or the sculling averages (§242)")
     ap.add_argument("--pop-drive", default=POP_DRIVE, choices=["k05", "rbn2023", "rbn2023-scull"],
@@ -477,6 +481,11 @@ def main():
     RELEASE_SLIP = a.release_slip
     POP_DRIVE = a.pop_drive
     POP_RECOVERY = a.pop_recovery
+    if a.sensor_capture:
+        if not 0.0 < a.sensor_capture < 1.0:
+            raise ValueError("--sensor-capture is a fraction in (0, 1)")
+        from coxswain.crew.oar_bending import L14_MEDIUM_EI
+        SHAFT_EI = L14_MEDIUM_EI / (1.0 - a.sensor_capture)
     HOLD = float(a.hold)
     HOLD_OWN = bool(a.hold_own)
     ADDED_MASS = a.added_mass
@@ -528,6 +537,7 @@ def main():
                                                             + ("" if a.release_slip is None else "_relslip%g" % a.release_slip)
                                                             + ("_pop" + a.pop_drive)   # always named (S4)
                                                             + ("" if a.pop_recovery == "cosine" else "_rec" + a.pop_recovery)
+                                                            + ("" if not a.sensor_capture else "_cap%g" % a.sensor_capture)
                                                             + ("" if a.athletes == ["cr06", "br24"] else "_" + "_".join(a.athletes)))), "w"), indent=1, default=float)
 
 

@@ -1402,6 +1402,8 @@ the boat speeds that go with their drive durations).
   - *Next:* wait for the data author; if the sensor is on the shaft, a measured-angle-at-sensor variant of the bend.
 - **§246 (2026-11-19):** sensor capture f(d): 0.33–0.5 at d 0.18–0.33 m; gate sensor 0.03–0.10. Decided by the
   data author's answer on the sensor's position.
+- **§247–248 (2026-11-19):** wetting a minor early factor; what-if ladder at f 0.33 (IVV +2.8 / +0.4, two shape
+  criteria fail) ready for the answer. Nothing else actionable before the reply or the user's decisions.
   - *Next:* the population's 10–20 % (the shaft's lag against the blade's grip: blade water inertia near the surface,
     wetting from Fig. 1b); a sourced oar mass and balance; ask the data's author about [BR24]'s oars and channels
     (user's call); C1 and D1.

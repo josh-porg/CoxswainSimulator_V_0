@@ -180,6 +180,8 @@ def main():
     ap.add_argument("--bound", action="store_true",
                     help="the no-slip bound instead: the locked blade at shaft stiffness x 1, 1.5, 2, with the "
                          "boat-speed channel shifted +-20 ms, and with an oar inertia of 2.2 kg m^2 (nothing is written)")
+    ap.add_argument("--ei-scale", type=float, default=1.0,
+                    help="the flexible shaft's EI over [L14]'s medium for the ladder's C2 file (a what-if, §248)")
     ap.add_argument("--ei-scales", nargs="+", type=float, default=None,
                     help="a stiffness sensitivity instead: the flexible shaft at these multiples of [L14]'s medium EI, "
                          "beside rigid (§245; nothing is written)")
@@ -203,10 +205,12 @@ def main():
             runs["lock I2.2"] = predict(name, "locked", inertia_value=2.2)
             report(name, runs)
             continue
-        runs = {s: predict(name, s) for s in ("rigid", "hinge")}
+        runs = {"rigid": predict(name, "rigid"), "hinge": predict(name, "hinge", ei_scale=a.ei_scale)}
         res[name] = report(name, runs)
     if not a.bound:
-        json.dump(res, open(os.path.join(ROOT, "data", "local", "validation", "open_loop_shaft.json"), "w"), indent=1)
+        tag = "" if a.ei_scale == 1.0 else "_ei%g" % a.ei_scale    # a what-if never overwrites the ladder's input
+        json.dump(res, open(os.path.join(ROOT, "data", "local", "validation", "open_loop_shaft%s.json" % tag), "w"),
+                  indent=1)
 
 
 if __name__ == "__main__":

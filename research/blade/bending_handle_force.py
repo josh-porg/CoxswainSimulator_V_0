@@ -100,6 +100,11 @@ def main():
     RP.ADDED_MASS, RP.SURFACE_FACTOR, RP.LIFT_SCALE = args.added_mass, args.surface_factor, args.lift_scale
     RP.RELEASE_SLIP = args.release_slip
     RP.POP_DRIVE = args.pop_drive
+    if args.ei_scale != 1.0:
+        # the dynamic shaft is built by rung 2's own options (RP.blade_options reads SHAFT_EI): without this the scale
+        # reached only the quasi-static law and was silently ignored with --bend-dynamics (found 2026-11-19, §248)
+        from coxswain.crew.oar_bending import L14_MEDIUM_EI as _EI
+        RP.SHAFT_EI = _EI * args.ei_scale
     if args.bend_dynamics:
         from coxswain.crew.oar_bending import BendDynamics
         RP.BEND_DYNAMICS = BendDynamics()

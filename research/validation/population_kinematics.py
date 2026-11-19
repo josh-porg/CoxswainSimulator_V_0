@@ -90,7 +90,13 @@ def main():
     ap.add_argument("--drive", default="k05", choices=["k05", "rbn2023", "rbn2023-scull"],
                     help="the imposed handle velocity: [K05] Fig. 1 (as built), RBN 2023/12's reference curve, or its "
                          "Fig. 2 scullers at the population's rate (drive and recovery)")
+    ap.add_argument("--ei-scale", type=float, default=1.0,
+                    help="the shaft's EI over [L14]'s medium (a what-if, e.g. the sensor-capture equivalence, §248); "
+                         "the output's name carries it")
     a = ap.parse_args()
+    if a.ei_scale != 1.0:
+        from coxswain.crew.oar_bending import L14_MEDIUM_EI
+        RP.SHAFT_EI = L14_MEDIUM_EI * a.ei_scale
     from coxswain.crew.handle_fv import HandleForceVelocity
     from coxswain.crew.oar_bending import BendDynamics
     RP.FV = HandleForceVelocity(4.53, "--fv")
@@ -111,8 +117,9 @@ def main():
                                 ref=sculling_averages.reference(32))
     import json
     json.dump(dict(out, shaft=a.shaft, drive=a.drive, summary=RP.C2.summary(run)),
-              open(os.path.join(ROOT, "data", "local", "validation", "population_kinematics_%s_%s.json"
-                                % (a.shaft, a.drive)), "w"), indent=1)
+              open(os.path.join(ROOT, "data", "local", "validation", "population_kinematics_%s_%s%s.json"
+                                % (a.shaft, a.drive, "" if a.ei_scale == 1.0 else "_ei%g" % a.ei_scale)), "w"),
+              indent=1)
     print("\n time | gate deg | blade speed from the gate | boat's part | unbending | slip w_n | incidence deg | boat "
           "m/s | bend deg | force N")
     for q in np.arange(0.0, 1.01, 0.1):
