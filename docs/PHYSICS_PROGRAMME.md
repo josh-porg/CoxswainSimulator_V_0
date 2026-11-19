@@ -1390,6 +1390,11 @@ the boat speeds that go with their drive durations).
   free clock (rates 0.968 / 1.052 against 0.950 / 1.122 predicted at fixed power). Waits on the same data.
   - *Next while waiting:* the post-release ringing (a sourced grip impedance for the imposed hands); B2's status
     (user's decision).
+- **§244 (2026-11-19):** B2 well-posed (averaging gap 1–4 pts vs shafts' 9): stays pass/fail; §240's "ill-conditioned"
+  withdrawn. Like for like (sculling) rigid 13.0 vs flexible 21.6: the flexible shaft's early-drive deficit is real.
+  B2 → sculling reference awaits sign-off.
+  - *Next:* the flexible shaft's early-drive deficit on physics grounds (entry grip / blade water inertia κ; wetting
+    from the measured vertical angle by rate; the population's oar stiffness; lumped hinge vs distributed shaft).
   - *Next:* the population's 10–20 % (the shaft's lag against the blade's grip: blade water inertia near the surface,
     wetting from Fig. 1b); a sourced oar mass and balance; ask the data's author about [BR24]'s oars and channels
     (user's call); C1 and D1.

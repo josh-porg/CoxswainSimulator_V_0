@@ -15939,6 +15939,11 @@ observation), the two earlier requests repeated.
 
 ## 240. Code or physics: the shaft coupling verified, the population test ill-conditioned, two own-body input errors (2026-11-17)
 
+> **Corrected by §244 (2026-11-19).** Item 3's conclusion — "the population force test is ill-conditioned and cannot
+> arbitrate the shaft", and the proposal to make B2 a diagnostic — is **withdrawn**. Individual strokes' early force is
+> steeply sensitive to early hand speed (that measurement stands), but the force of the mean hands and the mean of the
+> forces agree to 1–4 points against a 9-point difference between the shafts, so the population test is well-posed.
+
 The user asked which failures could be code errors rather than modelling assumptions, and to test and fix them.
 
 **1. The closed-loop shaft coupling is right** (`research/validation/shaft_coupling_check.py`;
@@ -16098,3 +16103,42 @@ ratio^(−1/3): 0.950 and 1.122. Rung 2 gives 0.968 and 1.052 — same direction
 force–velocity law and the hold on the athlete's own pace resist the change). So the drift is not a separate defect of
 the muscle transfer: it is C1's mismatch expressed through the free clock, and it should shrink when the force level
 is resolved. D5 (≤ 0.05) still passes (0.036 / 0.026). Nothing changed.
+
+## 244. B2 is well-posed: it stays pass/fail; on the like-for-like sculling reference the flexible shaft loads too slowly (2026-11-19)
+
+The user's rule (2026-11-19): make B2 a diagnostic **only if the science backs it**, not to make progress. The case
+for it (§240 item 3) rested on one testable claim: the population's reference force curve is the *mean of individual
+strokes' forces*, each normalised to its own peak (RBN 2023/12), while B2 imposes the *mean hands*; with a steeply
+nonlinear early force, the two need not agree (Jensen's inequality), and B2 would test the averaging, not the oar.
+
+**Test** (`research/validation/b2_wellposed.py`; `data/local/validation/b2_wellposed.log`). On the blade and shaft
+alone (the population's simulated hull speed), an ensemble of the hand motions at hand — the population's sculling
+hands and both athletes' measured hands on the population's arc — for each shaft: F(mean hands) against the mean of the
+members' peak-normalised forces, both scored against the sculling averages at rate 32.
+
+| shaft | F(mean hands), rms | mean F, rms | gap between them, rms (largest) |
+|---|---|---|---|
+| flexible ([L14] medium) | 22.6 | 21.6 | 1.0 (2 points at 10 %) |
+| rigid | 13.4 | 13.0 | 3.9 (12 points at 10 %) |
+
+The averaging gap (1–4 points) is small against the shafts' difference (9.1 points), and the verdict is the same both
+ways. **The claim is not supported: B2 is a valid test and stays pass/fail.** The ensemble is three members (two
+athletes and the population): it bounds the effect, it does not estimate the population's spread; the per-point SDs
+asked of the data's author would.
+
+**What the valid test says.** Against the like-for-like reference — sculling hands and the sculling force curve, both
+from the data author's database at the boat's rate — the rigid oar fits (13.0) and the flexible shaft does not (21.6):
+the flexible model loads too slowly early in the drive (5–8 % of peak at 10 % and 27–30 % at 20 %, against 29 / 67).
+The athletes agree in direction: on [CR06]'s own hands the flexible shaft gives 18 / 44 % at 10 / 20 % against her
+measured 29 / 53 % (`lag_decomposition_scull.log`), [BR24] far lower (inputs, §238). The rigid oar's early force is
+erratic (it spikes to 78 % at 10 % on her hands). The ladder's B2 as written uses RBN 2023/12 Fig. 1 — **all boat
+types**, including sweep oars ~2.6× stiffer with larger blades — and on it the flexible shaft passes (9.5 vs 23.2). The
+sculling averages are the better source for a single scull (same author, sculling only, by rate). **Proposed, for the
+user's sign-off (a change of a rung's reference needs it):** B2 against the sculling averages at the boat's rate; on it
+the flexible shaft fails B2 as the ladder stands today. Not changed until then.
+
+**Consequence.** The flexible shaft's early-drive deficit — §237's open item "the first 20 % of the drive" — is now a
+well-posed, like-for-like failure on the population, consistent in direction with [CR06]; it is the next thing to
+investigate on physics grounds (candidates, none fitted: the blade's grip during entry and its water inertia near the
+surface, κ; the wetting from the measured vertical angle, now available by rate; the stiffness of the population's
+oars; the lumped hinge against a distributed shaft).

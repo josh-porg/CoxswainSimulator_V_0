@@ -115,3 +115,9 @@ angle. Both athletes are held-out tests: nothing in the model was fitted to eith
   lengths, opposite in sign to [BR24]'s −29 % (his blade assumed). **Resolving data:** her original 51.9 Hz recordings
   (digitising) and both athletes' oar specifications (blade type, shaft stiffness) — requested in the unsent reply to the
   data's author (DATA_REQUESTS #2). The entry is removed when they arrive and C1 is re-run.
+- **2026-11-19, B2 stays pass/fail** (SOURCES §244). The user allowed B2 to become a diagnostic only if the science
+  backed it. Tested: the force of the mean hands and the mean of the forces agree to 1–4 points against a 9-point
+  difference between the shafts, so B2 is well-posed; the 2026-11-17 proposal is withdrawn. **Proposed, awaiting the
+  user's sign-off:** B2's reference moved from RBN 2023/12 Fig. 1 (all boat types) to the data author's sculling
+  averages at the boat's rate (like for like for a single scull). On that reference the flexible shaft fails B2
+  (21.6 against rigid 13.0 points). Until signed off, B2 stays as written (passing, 9.5 against 23.2).
