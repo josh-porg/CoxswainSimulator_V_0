@@ -16228,3 +16228,23 @@ hypothesis is plausible if the bracket sat ~0.2–0.3 m out; for [BR24] it expla
 system reads the shaft, not the gate. The data author's answer to "where is the horizontal oar angle measured"
 (DATA_REQUESTS #2, sent 2026-11-19) decides it; if it is the shaft at a known *d*, the model's bend can be referenced to
 the sensor's point (an option: the imposed angle read as the shaft's angle at *d*). Nothing changed.
+
+## 247. The blade's wetting through the catch against the population's measured vertical angle (2026-11-19)
+
+The last untested candidate from §244 (`research/validation/wetting_check.py`; `data/local/validation/wetting_check.log`;
+population at rung 1, scullers' hands, flexible shaft). The population's wetted fraction from the sculling averages'
+vertical angle (centre at the water at 0°, covered at −3°: clip(0.5 − vertical / 6°, 0, 1)) against the model's
+(entry when the blade's normal velocity turns driving, then BioRow's 4° of travel):
+
+| drive time | 5 % | 10 % | 15 % | 20 % on |
+|---|---|---|---|---|
+| population: vertical → wetted | +3.0° → 0 | +0.4° → 0.44 | −1.9° → 0.82 | ≤ −4.2° → 1 |
+| model wetted (entry at 8.8 %) | 0 | 0.20 | 1.00 | 1 |
+| model's blade slip, m/s (< 0 drives) | +0.57 | −0.24 | −0.52 | −0.65 and more |
+
+The model's blade enters ~3 % of the drive later than the population's and wets faster after it. Following the
+measured wetting would roughly double the wetted area at 10 % (some early force) and lower it at 15 %; from 20 % the
+two are the same, so it cannot touch the 20–40 % deficit that dominates §244–245. Entering at ~6 % would also put the
+blade in while its normal velocity still brakes (+0.57 m/s at 5 %). **A minor, early contributor; not adopted on its
+own.** The candidates of §244 are now all tested (§245–247); what remains waits on the data author (the angle sensor's
+position, the oars) and on the user's decisions (B2's reference; the Sensors 2023 request).
