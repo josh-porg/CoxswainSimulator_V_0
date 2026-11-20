@@ -45,6 +45,10 @@ XFAIL = {
         "user 2026-11-18: force level +12-17 % on her own blade area, mass and oar lengths, opposite in sign to [BR24]'s "
         "-29 % (his blade assumed); pending her original 51.9 Hz recordings (digitising error) and both athletes' oar "
         "specification (blade type, shaft stiffness) -- DATA_REQUESTS #2; SOURCES 241"),
+    ("B2s", "population force curve, rms vs sculling averages (like for like)"): (
+        "user 2026-11-19: keep both B2 tests, this one to follow up later; on the like-for-like sculling reference the "
+        "flexible shaft loads too slowly early (SOURCES 244-245); pending the oar-angle sensor's position (the "
+        "double-counted-bend hypothesis, 246/248) -- DATA_REQUESTS #2"),
 }
 #: [BR24]'s rig (BioRow file header) and BioRow's sculling force point from the handle's top (the data's author)
 BIOROW_INBOARD, BIOROW_FORCE_POINT = 0.875, 0.06
@@ -172,6 +176,15 @@ def rung_b2(flex, rigid):
                 40.0 <= flex["force_peak_time"] <= 50.0, "the reference curve's own peak span")]
 
 
+def rung_b2s(flex, rigid):
+    """B2 against the like-for-like reference (user 2026-11-19: keep both B2 tests, the sculling one to follow up): the
+    population rowed on the scullers' own hands (``rbn2023-scull``) against the data author's sculling averages at rate
+    32 (``sculling32`` in population_kinematics' output; SOURCES §239, §244). Comparative, as B2."""
+    f, r = flex["sculling32"]["force_rms"], rigid["sculling32"]["force_rms"]
+    return [row("B2s", "population force curve, rms vs sculling averages (like for like)", "%.1f pt (rigid %.1f)" % (f, r),
+                "< rigid", f < r, "comparative")]
+
+
 def rung_c2(open_loop):
     """The blade and shaft alone on each athlete's measured motion (open_loop_shaft.py; §237): comparative, as B2."""
     out = []
@@ -200,6 +213,8 @@ def main():
     ap.add_argument("--scorecard", default=None)
     ap.add_argument("--population", nargs=2, default=None, metavar=("FLEXIBLE", "RIGID"),
                     help="population_kinematics JSONs, flexible then rigid (rung B2)")
+    ap.add_argument("--population-scull", nargs=2, default=None, metavar=("FLEXIBLE", "RIGID"),
+                    help="population_kinematics JSONs on the scullers' hands, flexible then rigid (rung B2s)")
     ap.add_argument("--open-loop", default=None, help="open_loop_shaft.json (rung C2)")
     ap.add_argument("--tests", action="store_true")
     ap.add_argument("--label", default="")
@@ -212,6 +227,8 @@ def main():
     rows += rung_b1(json.load(open(a.bench)), a.bench_case)
     if a.population:
         rows += rung_b2(*[json.load(open(p)) for p in a.population])
+    if a.population_scull:
+        rows += rung_b2s(*[json.load(open(p)) for p in a.population_scull])
     rows += rung_c1(json.load(open(a.c1)))
     if a.open_loop:
         rows += rung_c2(json.load(open(a.open_loop)))

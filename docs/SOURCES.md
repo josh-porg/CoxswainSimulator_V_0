@@ -16279,3 +16279,17 @@ rung 2's own options (`RP.blade_options` reads `RP.SHAFT_EI`), and the script pa
 quasi-static path; a run at × 1.49 returned the default's numbers exactly. Fixed (the script sets `RP.SHAFT_EI`). No
 earlier result used `--ei-scale` with `--bend-dynamics` (§218's `--ei-scale` runs predate the dynamic shaft).
 STRUCTURAL_ISSUES S1 (one path): an option that reaches only one of two paths that build the same thing.
+
+## 249. B2 against both references; the Sensors 2023 request sent (2026-11-19)
+
+**1. User decision on B2** (2026-11-19: "note it, keep both tests mark one as something to follow up on later"). B2
+keeps its all-boat criterion (RBN 2023/12 Fig. 1; passing, 9.5 against rigid 23.2) and gains **B2s**, the
+like-for-like criterion: the population on the scullers' own hands against the data author's sculling averages at
+rate 32 (`ladder.py rung_b2s`, `--population-scull`; flexible 21.3 against rigid 12.4 — failing). B2s is listed in
+`XFAIL` as the follow-up item: reported XFAIL while it fails, XPASS if it starts passing. Its resolution waits on the
+oar-angle sensor's position (§246, §248). Ladder (`data/local/validation/ladder_2026-11-19.log`): **27 criteria,
+0 fail, 2 expected fail (C1, B2s).**
+
+**2. The Sensors 2023 request was sent** (user approved, 2026-11-19) to the corresponding author from the paper
+(DATA_REQUESTS #17; outreach record added): a small de-identified extract (seat, hip angle, oar angle, GNSS/INS surge
+acceleration, masses) for a third athlete in the catch-approach momentum test.

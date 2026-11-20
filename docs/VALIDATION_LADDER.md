@@ -121,3 +121,8 @@ angle. Both athletes are held-out tests: nothing in the model was fitted to eith
   user's sign-off:** B2's reference moved from RBN 2023/12 Fig. 1 (all boat types) to the data author's sculling
   averages at the boat's rate (like for like for a single scull). On that reference the flexible shaft fails B2
   (21.6 against rigid 13.0 points). Until signed off, B2 stays as written (passing, 9.5 against 23.2).
+- **2026-11-19, B2s added as a follow-up item** (user: "keep both tests, mark one as something to follow up on later";
+  SOURCES §249; `ladder_2026-11-19.log`). B2 (all-boat) unchanged and passing; **B2s** — the population on the
+  scullers' hands against the sculling averages at rate 32, comparative (flexible must beat rigid) — fails (21.3
+  against 12.4) and is listed as an expected failure to follow up, pending the oar-angle sensor's position.
+  **27 criteria, 0 fail, 2 expected fail (C1, B2s).**
