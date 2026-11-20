@@ -126,3 +126,7 @@ angle. Both athletes are held-out tests: nothing in the model was fitted to eith
   scullers' hands against the sculling averages at rate 32, comparative (flexible must beat rigid) — fails (21.3
   against 12.4) and is listed as an expected failure to follow up, pending the oar-angle sensor's position.
   **27 criteria, 0 fail, 2 expected fail (C1, B2s).**
+- **2026-11-19, the research default updated under the user's rule** (SOURCES §252; `ladder_2026-11-19.log`):
+  physically motivated, sourced changes that do not fail validation go into the research default. The grip damping
+  (ζ 0.14 out of the water, Dong et al. 2007) and the blade's extraction over BioRow's release slip (16.6°) are now
+  default. **27 criteria, 0 fail, 2 expected fail** (C1, B2s). Bands unchanged.

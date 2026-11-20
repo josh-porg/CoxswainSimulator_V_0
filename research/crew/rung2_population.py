@@ -91,7 +91,7 @@ LIFT_SCALE = 1.0
 CHANNEL_SMOOTHING = "butter6"                                     # the rowing-kinematics low-pass (SOURCES §240; was "gcv")
 #: oar travel over which the blade comes out before the finish, deg (EntryImmersion.release_slip_deg; BioRow 16.6,
 #: RBN 2017/12, with the centre out at 90 % of the drive, RBN 2023/12; SOURCES §235). None: buried until the release
-RELEASE_SLIP = None
+RELEASE_SLIP = 16.6        # BioRow's release slip (EntryImmersion; §235), the research default since §252 (was None)
 #: the scull shaft's flexural rigidity, N m^2; None: [L14]'s medium shaft (oar_bending.L14_MEDIUM_EI). L14_EXTRA_SOFT_EI for
 #: the stiffness-sensitivity test against [L14] Table 12 (SOURCES §236)
 SHAFT_EI = None
@@ -455,14 +455,15 @@ def main():
                     help="the shaft's structural damping ratio for --bend-dynamics (default BendDynamics')")
     ap.add_argument("--grip-damping", type=float, default=None,
                     help="the bend's damping ratio with the blade out, the hands gripping (BendDynamics."
-                         "grip_damping_ratio; a sourced hand model gives 0.14-0.28, SOURCES §250)")
+                         "grip_damping_ratio; default 0.14 since §252, a sourced hand model gives 0.14-0.28, §250; "
+                         "a negative value: structural damping only)")
     ap.add_argument("--dt", type=float, default=None,
                     help="fixed integration step, s (default: integrators.estimate_step): a convergence test")
     ap.add_argument("--release-after", type=float, default=RELEASE_AFTER,
                     help="the arc fraction past the catch before the stopped-driving release may act (§226; default "
                          "0.5 since §227; 0 = anywhere, the old rule)")
     ap.add_argument("--release-slip", type=float, default=RELEASE_SLIP,
-                    help="the blade comes out over this much oar travel before the finish, deg (BioRow 16.6; §235)")
+                    help="the blade comes out over this much oar travel before the finish, deg (BioRow 16.6; §235; default since §252; 0 or less: none)")
     ap.add_argument("--channel-smoothing", default=CHANNEL_SMOOTHING, choices=["gcv", "as-built", "butter6"],
                     help="the athletes' body channels before differentiation (§232; default gcv)")
     ap.add_argument("--lift-scale", type=float, default=1.0,
@@ -481,7 +482,7 @@ def main():
     SURFACE_FACTOR = a.surface_factor
     LIFT_SCALE = a.lift_scale
     CHANNEL_SMOOTHING = a.channel_smoothing
-    RELEASE_SLIP = a.release_slip
+    RELEASE_SLIP = a.release_slip if (a.release_slip is not None and a.release_slip > 0) else None   # <= 0: none
     POP_DRIVE = a.pop_drive
     POP_RECOVERY = a.pop_recovery
     if a.sensor_capture:
@@ -495,8 +496,8 @@ def main():
     if a.bend_dynamics:
         from coxswain.crew.oar_bending import BendDynamics
         kw = {} if a.structural_damping is None else dict(damping_ratio=a.structural_damping)
-        if a.grip_damping is not None:
-            kw["grip_damping_ratio"] = a.grip_damping
+        if a.grip_damping is not None:                           # negative: structural damping only (as before §252)
+            kw["grip_damping_ratio"] = a.grip_damping if a.grip_damping >= 0.0 else None
         BEND_DYNAMICS = BendDynamics(**kw)
     if a.fv is not None:
         from coxswain.crew.handle_fv import HandleForceVelocity
@@ -543,7 +544,9 @@ def main():
                                                             + ("_pop" + a.pop_drive)   # always named (S4)
                                                             + ("" if a.pop_recovery == "cosine" else "_rec" + a.pop_recovery)
                                                             + ("" if not a.sensor_capture else "_cap%g" % a.sensor_capture)
-                                                            + ("" if a.grip_damping is None else "_grip%g" % a.grip_damping)
+                                                            + (("_grip%g" % BEND_DYNAMICS.grip_damping_ratio
+                                                                if BEND_DYNAMICS.grip_damping_ratio is not None else "_gripnone")
+                                                               if BEND_DYNAMICS is not None else "")
                                                             + ("" if a.athletes == ["cr06", "br24"] else "_" + "_".join(a.athletes)))), "w"), indent=1, default=float)
 
 

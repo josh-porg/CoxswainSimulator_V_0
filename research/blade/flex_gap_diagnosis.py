@@ -112,7 +112,8 @@ def main():
     ap.add_argument("--fv", type=float, default=4.53)
     ap.add_argument("--added-mass", default="patton", choices=["patton", "labbe"])
     ap.add_argument("--surface-factor", type=float, default=None, help="kappa x the added mass, wetting over 4 deg (§228)")
-    ap.add_argument("--release-slip", type=float, default=None, help="the blade comes out over this much oar travel (§235)")
+    ap.add_argument("--release-slip", type=float, default=RP.RELEASE_SLIP,
+                    help="the blade comes out over this much oar travel (§235); default rung 2's own (§252); 0 or less: none")
     ap.add_argument("--strokes", type=int, default=10)
     ap.add_argument("--step", type=float, default=0.05)
     a = ap.parse_args()
@@ -123,7 +124,7 @@ def main():
     RP.BLADE, RP.BODY = "crossflow_normal", "own"
     RP.C2.TAKEOVER_DEG = RP.C2.BIOROW_CATCH_TO_BURIED_DEG
     RP.ADDED_MASS, RP.Q_MAP, RP.RELEASE_AFTER, RP.SURFACE_FACTOR = a.added_mass, "split", 0.5, a.surface_factor
-    RP.RELEASE_SLIP = a.release_slip
+    RP.RELEASE_SLIP = a.release_slip if (a.release_slip is not None and a.release_slip > 0) else None
     out = {}
     for label in ("rigid", "dynamic"):
         RP.BENDING = label == "dynamic"

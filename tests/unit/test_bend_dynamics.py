@@ -76,12 +76,15 @@ def test_the_bend_carries_through_the_catch():
 
 
 def test_the_grip_damping_applies_only_with_the_blade_out():
-    """``grip_damping_ratio`` (SOURCES §250) changes the bend's damping out of the water only, and enters the key; the
-    default is the structural ratio everywhere (the as-built runs unchanged)."""
-    base, grip = BendDynamics(), BendDynamics(grip_damping_ratio=0.2)
-    assert base.ratio(True) == base.ratio(False) == base.damping_ratio
-    assert grip.ratio(True) == base.damping_ratio and grip.ratio(False) == 0.2
-    assert base.key() != grip.key()
+    """``grip_damping_ratio`` (SOURCES §250, default since §252: 0.14, Dong et al. 2007) changes the bend's damping out
+    of the water only, and enters the key; ``None`` is the structural ratio everywhere (the as-built runs)."""
+    from coxswain.crew.oar_bending import GRIP_DAMPING_DONG2007
+    structural, default, grip = BendDynamics(grip_damping_ratio=None), BendDynamics(), BendDynamics(grip_damping_ratio=0.2)
+    assert structural.ratio(True) == structural.ratio(False) == structural.damping_ratio
+    assert default.ratio(True) == structural.damping_ratio and default.ratio(False) == GRIP_DAMPING_DONG2007
+    assert grip.ratio(True) == structural.damping_ratio and grip.ratio(False) == 0.2
+    assert len({structural.key(), default.key(), grip.key()}) == 3
+    base = structural
     with pytest.raises(ValueError):
         BendDynamics(grip_damping_ratio=-0.1)
     sim = _sim(_scull_law(), grip)

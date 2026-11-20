@@ -95,10 +95,11 @@ def main():
     ap.add_argument("--pop-drive", default=RP.POP_DRIVE, choices=["k05", "rbn2023", "rbn2023-scull"],
                     help="the imposed handle law on her arc: [K05] Fig. 1 or RBN 2023/12's curve (§237)")
     ap.add_argument("--lift-scale", type=float, default=1.0, help="the cross-flow lift slope over Helmbold's (§231)")
-    ap.add_argument("--release-slip", type=float, default=None, help="the blade comes out over this much oar travel (§235)")
+    ap.add_argument("--release-slip", type=float, default=RP.RELEASE_SLIP,
+                    help="the blade comes out over this much oar travel (§235); default rung 2's own (§252); 0 or less: none")
     args = ap.parse_args()
     RP.ADDED_MASS, RP.SURFACE_FACTOR, RP.LIFT_SCALE = args.added_mass, args.surface_factor, args.lift_scale
-    RP.RELEASE_SLIP = args.release_slip
+    RP.RELEASE_SLIP = args.release_slip if (args.release_slip is not None and args.release_slip > 0) else None
     RP.POP_DRIVE = args.pop_drive
     if args.ei_scale != 1.0:
         # the dynamic shaft is built by rung 2's own options (RP.blade_options reads SHAFT_EI): without this the scale

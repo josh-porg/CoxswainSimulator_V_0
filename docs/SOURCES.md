@@ -16338,3 +16338,44 @@ Sought before the data author's answer, to test §246's hypothesis now (`data/lo
 
 So the sources make the hypothesis possible for [CR06] (shaft-mounted bracket) and leave [BR24] open; neither gives
 *d*. The question stays with the data's author (DATA_REQUESTS #2, sent 2026-11-19). Nothing changed.
+
+## 252. Methodology: physically motivated improvements into the research default; a hypothesis register; assumption classes audited (2026-11-19)
+
+**The user's points (2026-11-19).** (1) A tested, positive, physically motivated change (the grip damping) should be in
+the research default, not an option; how many such changes were tested and then abandoned? (2) Is there a record of
+each hypothesis and the outcome of its test, for PhD auditability? (3) When an assumption class is found (rigid hands),
+is the rest of the model checked for the same class? Memory `adopt-physical-improvements` records the rule.
+
+**1. The audit** (docs/HYPOTHESIS_REGISTER.md, new; 35 hypotheses of the validation era with their source, test,
+outcome, decision, status and a re-review flag; earlier withdrawals listed for back-filling). Decisions that did not meet
+the rule:
+- **H35, grip damping** (§250): made the research default at the conservative end of its sourced range,
+  `BendDynamics.grip_damping_ratio = GRIP_DAMPING_DONG2007 = 0.14` (rung 2's output names carry `_grip0.14`).
+- **H18, the blade's extraction over BioRow's release slip** (§235): dropped then because [BR24]'s D2b tipped its band
+  by 0.01 while two input errors (§240) were still in the model. Re-tested now: ladder 0 fail; D2 [BR24] +1.3 → +0.9
+  points; C2 [CR06] 13.7 → 13.5 %; B2s (already an expected fail) 21.5 → 22.4. **Made the research default**
+  (`rung2_population.RELEASE_SLIP = 16.6`); `bending_handle_force.py` and `flex_gap_diagnosis.py` had hard-coded "none"
+  as their own default and would have overridden it — fixed to take rung 2's (one default, one place; S1).
+- H05 (population leg/trunk travel), H34 (wetting from the measured vertical angle) and the synchronisation options of
+  §194–195 are flagged for re-review; H14, H15, H32 were rejected on validation failures, H22 and H29 are mixed between
+  the athletes, H06–H08 have no deciding source — those decisions stand, each with its reason in the register.
+
+**2. An audit finding: the validated configuration is not the research profile.** `PROFILES["research"]`
+(`coxswain/physics.py`) still has a prescribed crew and a rigid oar, without the added mass (κ 0.1), the buried-catch
+handover, `release_after`, the on-water force–velocity, the flexible shaft and bend dynamics, the grip damping, the
+extraction or the RBN 2023/12 population — all validated in the ladder's script configuration. Studies on the profile
+(the scorecard, route work) run older physics. Several of these were validated together with the flexible oar, whose
+like-for-like population test (B2s) fails, so moving them into the profile is **the user's decision (R1 in the
+register)**.
+
+**3. Assumption classes** (docs/MODELLING_ASSUMPTIONS.md, new). Class A1, *a prescribed rigid constraint where reality
+has a finite impedance*, searched model-wide: the recovery grip (addressed), the drive hands (rung 2's force–velocity),
+**the body's segments relative to the hull (open, priority H: the catch-approach excess of §242; the multi-clock body is
+the planned remedy)**, the feet, the oarlock and pin, the rigger, the seat, the hull, the blade face, the shaft's vertical
+bending and torsion (each with evidence and priority). Classes A2 (definition mismatches), A3 (partial use of a measured
+input; [CR06]'s boat mass checked consistent: 19.7 = 15.8 rigged + 3.9 kg telemetry) and A4 (synthetic references)
+listed with their instances.
+
+**4. Ladder on the new default** (`data/local/validation/ladder_2026-11-19.log`): **27 criteria, 0 fail, 2 expected
+fail** (C1, B2s). Rung 2: [CR06] 4.203 m/s, IVV 52.9 %, 262 W; [BR24] 4.774, 50.0 %, 427 W; half step within 0.1 % /
+0.3 point. Tests: `test_bend_dynamics.py` (grip default), `test_blade_immersion.py` — 15 passed.

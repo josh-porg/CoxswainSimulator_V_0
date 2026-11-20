@@ -43,6 +43,8 @@ Updated as results arrive; they are the record the management set points into.
 | [SOURCES.md](SOURCES.md) | the evidence: every source, derivation and result, in numbered sections (§1–§179 as of this review; §120a and §169a are second sections that once shared a number, and 144–151 were never assigned). New work appends a section; nothing is rewritten silently |
 | [CALIBRATION_REGISTER.md](CALIBRATION_REGISTER.md) | every value fitted or calibrated to data, the model state it was fitted under, its re-check triggers and re-checks (created 2026-10-27; memory `calibration-register`) |
 | [STRUCTURAL_ISSUES.md](STRUCTURAL_ISSUES.md) | classes of code defect, every instance found, the structural fix and its status (created 2026-10-27; memory `structural-issues`) |
+| [HYPOTHESIS_REGISTER.md](HYPOTHESIS_REGISTER.md) | every physical hypothesis tested: source, test, outcome, decision, status, re-review flag — the PhD audit trail (created 2026-11-19; memory `adopt-physical-improvements`) |
+| [MODELLING_ASSUMPTIONS.md](MODELLING_ASSUMPTIONS.md) | physics assumptions by class, every instance searched model-wide, with evidence, priority and status (created 2026-11-19) |
 | [BLADE_HYDRODYNAMICS_REVIEW.md](BLADE_HYDRODYNAMICS_REVIEW.md) | the literature review of the rowing blade's load (started 2026-10-27): sources, what measured loads say about quasi-steady and unsteady blade laws, our tests on them, and the models to build. A living review; numbers in SOURCES §183– |
 | [PROVENANCE.md](PROVENANCE.md) | where each data file came from |
 | [REPRODUCIBILITY.md](REPRODUCIBILITY.md) | how every result is regenerated: rules, the public and private repositories, environments, a register of results with their commands, the checklist for new work |

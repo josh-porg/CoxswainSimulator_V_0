@@ -127,6 +127,9 @@ BLADE_MASS_ASSUMED = 0.3
 #: 3.4 % (their first frequencies, 8.1-8.4 Hz, are reproduced by [L14]'s EI to 0.3 % on average: research/blade/
 #: oar_modes.py). In the water the blade's drag damps the mode far above this.
 STRUCTURAL_DAMPING_BL2010 = 0.034
+#: The bend's damping ratio with the blade out and the hands gripping, the conservative end of 0.14-0.28 from Dong et
+#: al. (2007)'s 4-DOF hand-arm model (50 N grip) coupled to the oar (research/blade/grip_damping.py; SOURCES §250, §252).
+GRIP_DAMPING_DONG2007 = 0.14
 
 
 @dataclass(frozen=True)
@@ -149,11 +152,12 @@ class BendDynamics:
     blade_mass: float = BLADE_MASS_ASSUMED
     damping_ratio: float = STRUCTURAL_DAMPING_BL2010
     source: str = "assumed blade mass; structural damping measured (Breitschädel & Løset 2010; SOURCES §224)"
-    #: The damping ratio of the bend while the blade is out of the water, with the hands holding the handle. None: the
-    #: structural ``damping_ratio`` (as built). The hands are imposed as a rigid motion, so a real grip's damping of the
-    #: oar's in-air mode is otherwise absent; a sourced hand model (Dong et al. 2007, J. Biomech. 40:2335, 4-DOF, 50 N)
-    #: coupled to the oar gives 0.14-0.28 for its low modes (research/blade/grip_damping.py; SOURCES §250). An option.
-    grip_damping_ratio: float = None
+    #: The damping ratio of the bend while the blade is out of the water, with the hands holding the handle. The hands
+    #: are imposed as a rigid motion, so a real grip's damping of the oar's in-air mode is otherwise absent; a sourced
+    #: hand model (Dong et al. 2007, J. Biomech. 40:2335, 4-DOF, 50 N grip) coupled to the oar gives 0.14-0.28 for its
+    #: low modes (research/blade/grip_damping.py; SOURCES §250). Default since §252: the conservative end, 0.14 (the
+    #: user, 2026-11-19: physically motivated, tested improvements go into the research default). None: structural only.
+    grip_damping_ratio: float = GRIP_DAMPING_DONG2007
 
     def __post_init__(self):
         if not self.blade_mass > 0.0 or not self.damping_ratio >= 0.0:

@@ -90,6 +90,9 @@ def main():
     ap.add_argument("--drive", default="k05", choices=["k05", "rbn2023", "rbn2023-scull"],
                     help="the imposed handle velocity: [K05] Fig. 1 (as built), RBN 2023/12's reference curve, or its "
                          "Fig. 2 scullers at the population's rate (drive and recovery)")
+    ap.add_argument("--release-slip", type=float, default=None,
+                    help="the blade's extraction over this many degrees before the finish (EntryImmersion; BioRow "
+                         "16.6, §235); default rung 2's own; negative: none; the output's name carries it")
     ap.add_argument("--ei-scale", type=float, default=1.0,
                     help="the shaft's EI over [L14]'s medium (a what-if, e.g. the sensor-capture equivalence, §248); "
                          "the output's name carries it")
@@ -106,6 +109,8 @@ def main():
     RP.ADDED_MASS, RP.SURFACE_FACTOR = "patton", 0.1
     RP.BENDING = a.shaft == "medium"
     RP.BEND_DYNAMICS = BendDynamics() if RP.BENDING else None
+    if a.release_slip is not None:                               # negative: no extraction (as before §252)
+        RP.RELEASE_SLIP = a.release_slip if a.release_slip > 0 else None
     sim, run = population_run(a.strokes, a.drive)
     tf, dl, R = table(sim, run)
     print("population, rung 1, %s shaft, %s hands: %s" % (a.shaft, a.drive, RP.C2.summary(run)))
@@ -118,7 +123,8 @@ def main():
     import json
     json.dump(dict(out, shaft=a.shaft, drive=a.drive, summary=RP.C2.summary(run)),
               open(os.path.join(ROOT, "data", "local", "validation", "population_kinematics_%s_%s%s.json"
-                                % (a.shaft, a.drive, "" if a.ei_scale == 1.0 else "_ei%g" % a.ei_scale)), "w"),
+                                % (a.shaft, a.drive, ("" if a.ei_scale == 1.0 else "_ei%g" % a.ei_scale)
+                                   + ("" if a.release_slip is None else "_relslip%g" % a.release_slip))), "w"),
               indent=1)
     print("\n time | gate deg | blade speed from the gate | boat's part | unbending | slip w_n | incidence deg | boat "
           "m/s | bend deg | force N")
