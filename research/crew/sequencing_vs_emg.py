@@ -47,10 +47,10 @@ def main():
         s = d[a]["series"]
         t = np.asarray(s["t"], float)
         F = np.asarray(s["F"], float)
-        # the drive: from the catch (t = 0) to where the handle force last falls through zero after its peak
-        kp = int(np.argmax(F))
-        after = np.flatnonzero(F[kp:] <= 0.0)
-        t_drive = float(t[kp + after[0]]) if after.size else float(t[-1])
+        # the drive: from the catch (t = 0) to the last time the handle force exceeds 5 % of its peak (robust to an early
+        # spike and dip at the catch, which a first-zero-after-peak rule mistakes for the finish)
+        live = np.flatnonzero(F > 0.05 * F.max())
+        t_drive = float(t[live[-1]]) if live.size else float(t[-1])
         print("\n%s: drive %.2f s (from the handle force)" % (a, t_drive))
         print("  %-36s | demand peak / 50 %% rise (of drive) | EMG peak / 50 %% rise | EMG lead at peak" % "group")
         for key, mod, label in PAIRS:

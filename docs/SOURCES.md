@@ -16413,3 +16413,37 @@ With force following EMG by ~50–100 ms, the model's body loads the trunk ~150�
 and girdle kinematics; B4 module amplitudes (placeholder: power-matched, as rung 2); B5 auditory delay; B6 the data
 author's answers. **Next:** the arms on step 4 (elbow driven by the arm modules, gate: Pitto et al.'s measured elbow
 flexion), then the trunk's feedforward from its modules.
+
+## 254. Step 4's arm gate: the arms work ~0.22 s too early because the default body rows with bent elbows (2026-11-20)
+
+**1. The straight-arm posture does not fix the timing** (`muscle_capacity.py --rung2 --catch-posture straight-arms`;
+`data/local/crew/muscle_capacity_rung2_straightarms_s254.json`; `sequencing_vs_emg.py`, whose drive end is now the last
+time the handle force exceeds 5 % of its peak, robust to a catch spike). The straight-arm body (§208–209: arms held by
+the arm clock from Pitto et al.'s measured elbow) spikes the handle force at the catch (638 N for [CR06], 1242 N for
+[BR24] at 0.1 s; knee activation 15, stretcher 2408 / 2870 N) — §215's over-drive — and its trunk and arm demands peak at
+14–15 % of the drive, earlier still (EMG lead −185 to −340 ms). On the default (as-built) posture: −73 to −83 ms (trunk),
+−210 to −234 ms (arms).
+
+**2. The arm gate, open loop** (`research/crew/module_feedforward.py`; `data/local/validation/module_feedforward_s254.log`):
+on today's stroke, the elbow flexors' **needed** activation (the moment over Frey-Law et al.'s maximum at the elbow's
+angle and speed) against the **predicted** one (the arm-puller module on the stroke's phase through Zajac's activation
+dynamics, scaled to the needed mean — placeholder B4; timing tested, not level):
+
+| | correlation at zero lag | best correlation | the need, relative to the EMG-driven activation |
+|---|---|---|---|
+| [CR06] | 0.12 | 0.89 | 215 ms earlier |
+| [BR24] | −0.34 | 0.95 | 220 ms earlier |
+
+The shape is right and the timing ~0.22 s early. The cause is geometric: the default body's elbow is flexed 65–100°
+through the drive ([CR06]; [BR24] 1–73°), so the handle's force needs elbow-flexor moment from the start; rowers hold the
+elbow at 7–13° until mid-drive (Pitto et al.'s measured flexion, `data/literature/pitto2024_elbow_drive.csv`), their
+triceps holding it (peak 35 %) and the arm pullers waiting until ~55 %. The hip extensors cannot be scored: the model's
+hip-plus-lumbar angle lies outside Anderson et al.'s tested range for the whole drive (blocker B1).
+
+**3. What follows.** Holding the arms straight as a rigid link (the straight-arm posture) is another instance of
+MODELLING_ASSUMPTIONS A1 — a rigid constraint where reality has an impedance (the triceps' activation-scaled stiffness
+and the shoulder girdle, B3) — and it produces the catch spike. The arm step is therefore **step 2 for the arms**: the
+elbow as a degree of freedom held near straight by the arm-extensor module's activation and its intrinsic stiffness,
+drawn by the arm pullers, in place of the kinematic arm clock. Gates: the elbow angle against Pitto et al.'s measured
+flexion, and the arm demand's timing against the EMG (this section's baseline: 215–220 ms early). Blocker B3 (the
+girdle) remains; the elbow can be built now.

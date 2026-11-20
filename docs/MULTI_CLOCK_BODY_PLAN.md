@@ -48,9 +48,12 @@ stored file of that run, `muscle_capacity_rung2.json`, is superseded.)
 
 1. Re-run the sequencing check on today's rung 2 (`muscle_capacity.py --rung2` on the current defaults) — the baseline
    for step 4's gate.
-2. The arms on step 4: the elbow driven by the arm-puller and arm-extensor modules on the oscillator (activation
-   dynamics, Frey-Law's elbow), the triceps holding the arms straight early; gate: the elbow angle against Pitto et
-   al.'s measured elbow flexion (already digitised, `data/literature/pitto2024_elbow_*.csv`), nothing fitted.
+2. The arms on steps 2 and 4: the elbow as a degree of freedom, held near straight by the arm-extensor module's
+   activation and intrinsic stiffness and drawn by the arm pullers (activation dynamics, Frey-Law's elbow), replacing
+   the kinematic arm clock; gates: the elbow angle against Pitto et al.'s measured flexion
+   (`data/literature/pitto2024_elbow_*.csv`) and the arm demand's timing against the EMG — **baseline (§254): the default
+   bent-arm body needs the elbow flexors 215–220 ms before rowers fire them (best correlation 0.89 / 0.95); the rigid
+   straight-arm body spikes at the catch.** Nothing fitted.
 3. The trunk on step 4: the trunk-extensor and flexor modules as the trunk's feedforward in `rung2_trunk_layers.py`
    (replacing the reference run's hip moment), with steps 2, 3 and 5 as built; gate: wander < 5°, IVV on the shared
    clock.
