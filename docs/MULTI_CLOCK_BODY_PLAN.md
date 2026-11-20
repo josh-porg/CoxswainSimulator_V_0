@@ -40,7 +40,7 @@ stored file of that run, `muscle_capacity_rung2.json`, is superseded.)
 | B1 | hip and knee strength beyond the tested angles (the catch flexes the knee 138–145°; data stop at ~100°; hip at 75°) | strength at deep flexion (a data request; Kukić et al. 2022 give 62 % of peak at 100° only) | hold the angle factor at its value at the last tested angle (no extrapolation to zero) | step 1's gate is reported "inside the tested angles"; catch activations flagged extrapolated |
 | B2 | no on-water knee-extensor EMG (Pitto et al. recorded none) | **resolved with a flag (§255)**: Vieira et al. 2020 (CC BY), vasti on an indoor rower | the leg module is the ergometer vasti, drive and recovery mapped onto the on-water cycle; flagged ERGOMETER in `Modules.sources` | leg-timing results carry "ergometer EMG" |
 | B3 | shoulder strength and scapular (girdle) kinematics unsourced | a rowing scapular-kinematics series; shoulder extension strength by angle | the arm pullers are driven at the elbow (Frey-Law), the shoulder taking the rest kinematically | arm forces are elbow-limited |
-| B4 | the module amplitudes (how hard each group is driven) | step 5's estimator, or LQG (step 6) | matched to the athlete's measured power, as rung 2 scales its muscles (one scale per athlete, not a fit of shape) | the same status as rung 2's scale |
+| B4 | the module amplitudes (how hard each group is driven), including the antagonists' co-contraction level (§257) | step 5's estimator, or LQG (step 6); for the antagonists a rowing %MVC source | matched to the athlete's measured power, as rung 2 scales its muscles (one scale per athlete, not a fit of shape); antagonists off by default | the same status as rung 2's scale; H37's level open |
 | B5 | the auditory delay (for coxswain calls) | a sourced auditory-motor delay in rowing | not needed until calls drive the crew | none yet |
 | B6 | the data author's answers (oars, angle sensor, original recordings) | DATA_REQUESTS #2 | — | C1, B2s, the sensor hypothesis |
 
@@ -59,6 +59,16 @@ carries no elbow moment); the arm-chain stretch placeholder halves it.
 population force on the same (model) body: oar timing better for both (rms 0.035 / 0.016 against 0.039 / 0.019), speed
 better for [BR24], IVV better for [CR06], worse for [BR24]. The segments still move on their clocks along τ; making each
 a degree of freedom is next.
+
+## The late-drive spike and the antagonists (§257)
+
+The clock's rate spike (1.52 / 1.77) is in the last 5 % of the drive's progress, and it comes from the module force,
+not the single clock: the population force on the same body stays ≤ 1.15. At the finish the agonist modules are low and
+the trunk flexors are at peak (Pitto et al. 2024; their eccentric braking of the layback is the documented role). With
+the trunk flexors and triceps added at the same amplitude (`--antagonists`), [CR06]'s spike is gone and [BR24]'s is
+reduced, but the IVV worsens (+4.8 / +1.6 points). The mechanism is confirmed but the level is not (H37). The
+antagonists' level joins B4. Power matching (`--iterate-power 2`) reaches the measured power exactly; [BR24]'s IVV gap
+(+7 points) is not the amplitude.
 
 ## Next (in order)
 

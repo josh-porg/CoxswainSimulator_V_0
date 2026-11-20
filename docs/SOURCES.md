@@ -16521,3 +16521,48 @@ population-driven rung 2 on the **same model body** (`logs/rung2_population_mode
 
 **Next:** the clock-rate spike (where in the drive; whether the hand-over or a group's strength clamp), the amplitude
 by group (B4: from the reference's joint demands rather than one scale), then the segments as degrees of freedom.
+
+## §257 — Step 4: the clock's late-drive spike is the missing antagonists; power-matched amplitude (2026-11-20)
+
+`research/crew/rung2_modules.py` now saves the last stroke's clock trace (`clock_trace`, `clock_peak`), iterates the
+amplitude to the measured power (`--iterate-power N`), takes per-group multipliers (`--group-scales`), and can add the
+antagonists (`--antagonists`).
+
+**Where the spike is.** On §256's configuration the clock's rate stays at 0.85–1.18 through 90 % of the drive's oar
+progress, then rises to 1.52 ([CR06]) and 1.77 ([BR24]) in the last 5 % before the hand-over at 0.95
+(`data/local/crew/rung2_modules_delay0.075_pow2.json`). The population-driven run on the same body stays at 0.89–1.00 /
+1.00–1.15, so the spike is the module force's and not the single clock's turning point. At the finish the agonist
+modules are low (legs 0.16–0.20, trunk extensors 0.10–0.14, arm pullers 0.04–0.05 of peak; the athletes' drive fractions
+0.531 / 0.541 match Pitto et al.'s 0.521, so it is not a time-normalisation mismatch). The trunk flexors are at peak,
+0.89–0.99 (Pitto et al. 2024: rectus abdominis and obliques peak at 88 % of the drive). A review of rowing EMG describes
+their role: an eccentric contraction of the trunk flexors slows the trunk to its maximum extension at the finish
+(late abdominal activation also in Pollock et al. 2009, cited there). The module-driven body had no antagonists, so
+nothing braked the layback.
+
+**Test (H37): add the antagonists.** Trunk flexors at the hip (Anderson et al. 2007 HF; eccentric eq. 8) and the triceps
+at the elbow (Frey-Law et al. 2012 extension; eccentric held isometric). Under B4's placeholder they take the same
+amplitude as every module (the EMG is peak-normalised; no source gives the abdominals' level in %MVC). Two power
+iterations each (`_pow2`, `_pow2_antag`; logs `rung2_modules_s257_pow2.log`, `rung2_modules_s257_antag.log`):
+
+| | speed (meas.) | IVV (meas.) | power | oar progress rms | clock rate at 85 / 90 / 95 % of progress |
+|---|---|---|---|---|---|
+| [CR06] agonists, power-matched | 4.176 (4.191) | 51.8 % (49.4) | 261 W | 0.032 | 0.95 / 1.18 / 1.47 (peak 1.52) |
+| [CR06] + antagonists | 4.181 | 56.6 % | 261 W | **0.027** | 0.88 / 1.02 / 1.02 (peak 1.16 at 10 %) |
+| [BR24] agonists, power-matched | 4.772 (4.641) | 56.4 % (49.1) | 432 W | 0.022 | 1.21 / 1.29 / 1.77 |
+| [BR24] + antagonists | 4.786 | 58.0 % | 432 W | 0.031 | 1.04 / 1.24 / 1.63 |
+
+- **The mechanism is confirmed:** with the trunk flexors braking the layback, [CR06]'s finish spike is gone; [BR24]'s is
+  reduced. The trunk-flexor torque peaks 14–20 ms *before* its EMG peak, as an eccentric brake shaped by the strength's
+  angle and speed should. The 50–100 ms gate applies to the agonists.
+- **Not adopted:** at equal amplitude the IVV worsens for both athletes (+4.8 / +1.6 points) and [BR24]'s oar timing
+  worsens (0.022 → 0.031). Under the adopt rule a change that degrades validated quantities does not go in. The
+  antagonists' level is unsourced (B4), and equal amplitude is the strongest co-contraction the placeholder allows. So
+  the test confirms the mechanism but cannot set the level. Kept as an option; it is revisited once the amplitudes come
+  from the joint demands (B4) or a %MVC source.
+- **Power matching (B4's placeholder made exact):** two iterations reach the measured power (261 / 432 W). [BR24]'s speed
+  then overshoots (+2.8 %, inside ±3 %) and his IVV stays 7 points high, so his gap is not the amplitude. His agonist
+  torque peaks follow the EMG by 151 (knee), 58–74 (hip) and 41–57 ms (elbow): the knee is late, the others inside or
+  near the gate.
+
+**Next:** per-group amplitudes from the reference stroke's joint demands (B4, which also sets the antagonists' level),
+then the segments as degrees of freedom; the finish's turning point stays on HANDOVER 0.95.

@@ -45,20 +45,31 @@ import rung2_population as RP                                    # noqa: E402
 from coxswain.crew import joint_muscles as J                     # noqa: E402
 from coxswain.crew.excitation import Modules                     # noqa: E402
 
-GROUPS = (("knee", "leg_extensors", -1.0), ("hip", "trunk_extensors", -1.0), ("elbow", "arm_pullers", +1.0))
+# (key, joint, module, sign): sign makes the group's concentric work positive (extensors: flexion falling)
+AGONISTS = (("knee", "knee", "leg_extensors", -1.0), ("hip", "hip", "trunk_extensors", -1.0),
+            ("elbow", "elbow", "arm_pullers", +1.0))
+# the antagonists Pitto et al. (2024) record firing in the drive: the trunk flexors (rectus abdominis, obliques; peak
+# at 88 % of the drive, braking the layback) and the arm extensor (triceps long head; 35 %, holding the arms straight).
+# Off by default until tested (§257); under B4's placeholder they take the same amplitude as every other module.
+ANTAGONISTS = (("hip_flex", "hip", "trunk_flexors", +1.0), ("elbow_ext", "elbow", "arm_extensors", -1.0))
+GROUPS = AGONISTS
 TESTED = {"knee": (0.0, 1.8), "hip": (-0.5, 1.3), "elbow": (0.0, 2.6)}   # rad, flexion + (Anderson; Frey-Law)
 
 
 class Strength:
-    """The three groups' maximal torque at (angle, speed), with B1's clamp on the tested angles."""
+    """Each group's maximal torque at (angle, speed), with B1's clamp on the tested angles. Eccentric speeds: Anderson
+    et al.'s eq. 8 at the hip and knee; the elbow held at isometric (Frey-Law has no eccentric cells)."""
 
     def __init__(self, name, mass, stature):
         self.gen = {"knee": J.anderson("KE", MC.GROUP[name], mass, stature),
                     "hip": J.anderson("HE", MC.GROUP[name], mass, stature, passive=False),
-                    "elbow": J.elbow("flexion", MC.SEX[name])}
+                    "elbow": J.elbow("flexion", MC.SEX[name]),
+                    "hip_flex": J.anderson("HF", MC.GROUP[name], mass, stature, passive=False),
+                    "elbow_ext": J.elbow("extension", MC.SEX[name])}
+        self.joint = {k: j for k, j, _m, _s in AGONISTS + ANTAGONISTS}
 
     def __call__(self, g, theta, omega):
-        lo, hi = TESTED[g]
+        lo, hi = TESTED[self.joint[g]]
         return float(np.asarray(self.gen[g].max_active(np.clip(theta, lo, hi), omega)).ravel()[0])
 
 
@@ -68,20 +79,30 @@ def tables(boat):
     return P, grid, th, w
 
 
-def module_force(tau, td, c, P, grid, th, w, strength, mods, delay, amp, parts=None):
+def module_force(tau, td, c, P, grid, th, w, strength, mods, delay, amp, parts=None, gscale=None):
     phase = ((c - delay) / P) % 1.0
     q = 0.0
-    for g, mod, sign in GROUPS:
-        theta = float(np.interp(tau % P, grid, th[g], period=P))
-        r = sign * float(np.interp(tau % P, grid, w[g], period=P))   # d(angle)/d(tau), concentric positive
-        torque = float(mods(mod, phase)) * strength(g, theta, r * td)
+    for g, joint, mod, sign in GROUPS:
+        theta = float(np.interp(tau % P, grid, th[joint], period=P))
+        r = sign * float(np.interp(tau % P, grid, w[joint], period=P))   # d(angle)/d(tau), concentric positive
+        torque = float(mods(mod, phase)) * strength(g, theta, r * td) * float((gscale or {}).get(g, 1.0))
         if parts is not None:
             parts[g] = torque
         q += torque * r
     return amp * q
 
 
-def athlete(name, strokes, delay):
+def athlete(name, strokes, delay, iterate_power=0, amps=None):
+    """``iterate_power``: re-run that many times, rescaling the amplitude by measured / model power each time (B4's
+    placeholder made to hit the power it is defined by). ``amps``: per-group multipliers on the amplitude."""
+    out = _athlete(name, strokes, delay, amps=amps)
+    for _ in range(int(iterate_power)):
+        meas, got = out["measured"]["power"], out["free"]["power"]
+        out = _athlete(name, strokes, delay, amp_override=out["amp"] * meas / got, amps=amps)
+    return out
+
+
+def _athlete(name, strokes, delay, amp_override=None, amps=None):
     m = RP.V.ATHLETES[name][0]()
     boat = RP.athlete_boat(name, m)
     ref = RP.make(boat, "reference")
@@ -99,8 +120,9 @@ def athlete(name, strokes, delay):
     lg = lg[np.argsort(lg[:, 0])]
     e_ref = float(np.trapezoid(lg[:, 1], lg[:, 0]))
     cs = np.linspace(0.0, D, 400)
-    e_mod = float(np.trapezoid([module_force(c, 1.0, c, P, grid, th, w, strength, mods, delay, 1.0) for c in cs], cs))
-    amp = e_ref / e_mod * (m["power"] / s_r["power"])
+    e_mod = float(np.trapezoid([module_force(c, 1.0, c, P, grid, th, w, strength, mods, delay, 1.0, gscale=dict(amps or {})) for c in cs], cs))
+    amp = e_ref / e_mod * (m["power"] / s_r["power"]) if amp_override is None else float(amp_override)
+    gscale = dict(amps or {})
     free_boat = RP.athlete_boat(name, m)
     free = RP.make(free_boat, "free", Q=lambda tau: 0.0)
     free.fv, free.hold = None, 0.0
@@ -109,9 +131,9 @@ def athlete(name, strokes, delay):
     def muscle(self, tau, td):
         c = float(getattr(self, "_t_now", 0.0)) - self._stroke_start
         parts = {}
-        q = module_force(tau, td, c, P, grid, th, w, strength, mods, delay, amp, parts)
+        q = module_force(tau, td, c, P, grid, th, w, strength, mods, delay, amp, parts, gscale)
         if c >= 0.0:
-            log.append((c, tau, td, parts["knee"], parts["hip"], parts["elbow"]))
+            log.append((c, tau, td) + tuple(parts[g[0]] for g in GROUPS))
         return q
     free._muscle = types.MethodType(muscle, free)
     orig = free.derivative
@@ -130,20 +152,29 @@ def athlete(name, strokes, delay):
     last = tl[tl[:, 0] >= float(run_f.last_time[0])]
     over = sum(1 for r in free.rlog if r[4] != "ok")
     # each group's torque peak in the last stroke's drive, against its EMG module's peak (fractions of the drive)
-    L = np.array([r for r in log if True])
-    t0 = float(run_f.last_time[0]) - free._stroke_start if False else None
-    out = dict(name=name, amp=amp, reference=s_r, free=s_f, progress_rms=prog[0], progress_max=prog[1],
+    L = np.array(log)
+    out = dict(name=name, amp=amp, group_scales=gscale, reference=s_r, free=s_f, progress_rms=prog[0],
+               progress_max=prog[1],
                tau_dot=[float(last[:, 2].min()), float(last[:, 2].max())] if last.size else None, overruns=over,
                measured=dict(speed=m["speed"], ivv=m["ivv"], power=m["power"]))
+    if last.size:
+        # the clock through the last free drive: where the rate peaks, as drive progress (the spike diagnosis, §257)
+        sw, tm = free_boat.oar_sweep, free_boat.timing
+        prog_l = [(sw.catch_angle - float(sw(float(r[1]), tm))) / (sw.catch_angle - sw.finish_angle) for r in last]
+        k = int(np.argmax(last[:, 2]))
+        out["clock_trace"] = dict(t=(last[:, 0] - float(run_f.last_time[0])).tolist(), tau_dot=last[:, 2].tolist(),
+                                  tau_ddot=last[:, 3].tolist(), progress=prog_l)
+        out["clock_peak"] = dict(tau_dot=float(last[k, 2]), progress=float(prog_l[k]),
+                                 t=float(last[k, 0] - float(run_f.last_time[0])))
     if L.size:
         # the last stroke's samples: the log's clock restarts at each catch; take the final run of increasing c
         k0 = int(np.flatnonzero(np.diff(L[:, 0]) < -0.5)[-1] + 1) if np.any(np.diff(L[:, 0]) < -0.5) else 0
         Ls = L[k0:]
         drive_end = float(np.max(Ls[:, 0][Ls[:, 1] <= D])) if np.any(Ls[:, 1] <= D) else D
         timing = {}
-        for j, (g, mod, _s) in enumerate(GROUPS):
+        for j, (g, _joint, mod, _s) in enumerate(GROUPS):
             on = Ls[:, 0] <= drive_end
-            kpk = int(np.argmax(Ls[on, 3 + j]))
+            kpk = int(np.argmax(np.abs(Ls[on, 3 + j])))
             emg = mods.peak_phase(mod) * P
             timing[g] = dict(torque_peak_s=float(Ls[on, 0][kpk]), emg_peak_s=float(emg),
                              lag_ms=float(1000 * (Ls[on, 0][kpk] - emg)))
@@ -156,6 +187,10 @@ def athlete(name, strokes, delay):
     for g, v in out.get("timing", {}).items():
         print("   %-5s torque peak %.3f s, EMG peak %.3f s: torque %+.0f ms after the EMG (gate 50-100)"
               % (g, v["torque_peak_s"], v["emg_peak_s"], v["lag_ms"]))
+    if "clock_peak" in out:
+        cp = out["clock_peak"]
+        print("   the clock's rate peaks at %.2f, %.3f s into the stroke, at %.0f %% of the oar's drive progress"
+              % (cp["tau_dot"], cp["t"], 100 * cp["progress"]))
     return out
 
 
@@ -164,7 +199,17 @@ def main():
     ap.add_argument("--athletes", nargs="+", default=["cr06", "br24"])
     ap.add_argument("--strokes", type=int, default=10)
     ap.add_argument("--delay", type=float, default=0.075, help="excitation to force, s (placeholder)")
+    ap.add_argument("--iterate-power", type=int, default=0, help="rescale the amplitude to the measured power N times")
+    ap.add_argument("--group-scales", nargs=3, type=float, default=None, metavar=("KNEE", "HIP", "ELBOW"),
+                    help="per-group multipliers on the amplitude (B4)")
+    ap.add_argument("--antagonists", action="store_true",
+                    help="add the trunk flexors and the arm extensor (Pitto et al. 2024 modules), same amplitude")
+    ap.add_argument("--tag", default="")
     a = ap.parse_args()
+    global GROUPS
+    if a.antagonists:
+        GROUPS = AGONISTS + ANTAGONISTS
+        a.tag = "_antag" + a.tag
     # rung 2's research configuration, the body the model's own (its postures are the joint tables')
     RP.BODY, RP.BLADE = "model", "crossflow_normal"
     RP.C2.TAKEOVER_DEG = RP.C2.BIOROW_CATCH_TO_BURIED_DEG
@@ -173,8 +218,10 @@ def main():
     from coxswain.crew.oar_bending import BendDynamics
     RP.BEND_DYNAMICS = BendDynamics()
     RP.FV, RP.HOLD = None, 0.0
-    res = {n: athlete(n, a.strokes, a.delay) for n in a.athletes}
-    out = os.path.join(ROOT, "data", "local", "crew", "rung2_modules_delay%g.json" % a.delay)
+    amps = dict(zip(("knee", "hip", "elbow"), a.group_scales)) if a.group_scales else None
+    res = {n: athlete(n, a.strokes, a.delay, a.iterate_power, amps) for n in a.athletes}
+    out = os.path.join(ROOT, "data", "local", "crew", "rung2_modules_delay%g%s%s.json"
+                       % (a.delay, "_pow%d" % a.iterate_power if a.iterate_power else "", a.tag))
     json.dump(res, open(out, "w"), indent=1, default=float)
     print("wrote", out)
 
