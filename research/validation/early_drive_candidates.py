@@ -40,9 +40,14 @@ def main():
     ap.add_argument("--surface-factor", type=float, default=0.1, help="kappa: the blade's water near the surface")
     ap.add_argument("--lift-scale", type=float, default=1.0, help="the cross-flow lift slope over Helmbold's")
     ap.add_argument("--drive", default="rbn2023-scull", choices=["rbn2023", "rbn2023-scull"])
+    ap.add_argument("--grip-damping", type=float, default=None,
+                    help="the bend's damping ratio with the blade out (BendDynamics.grip_damping_ratio; §250)")
     ap.add_argument("--label", required=True)
     a = ap.parse_args()
     SCC.setup(a.shaft)
+    if a.grip_damping is not None and RP.BEND_DYNAMICS is not None:
+        from coxswain.crew.oar_bending import BendDynamics
+        RP.BEND_DYNAMICS = BendDynamics(grip_damping_ratio=a.grip_damping)
     RP.SURFACE_FACTOR, RP.LIFT_SCALE = a.surface_factor, a.lift_scale
     if a.ei_scale != 1.0:
         from coxswain.crew.oar_bending import L14_MEDIUM_EI

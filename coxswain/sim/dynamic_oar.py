@@ -1473,13 +1473,14 @@ class DynamicOarSimulator(RowingSimulator):
         h = np.concatenate([normal_dot_abs, np.cross(point_abs, normal_dot_abs)])
         return mass, arm, g, c, w_n, h
 
-    def _bend_constants(self, slot):
-        """``(l, e, k_h, c_h, m_dry)`` for one blade on its hinge (``BendDynamics``; SOURCES §224)."""
+    def _bend_constants(self, slot, wet=True):
+        """``(l, e, k_h, c_h, m_dry)`` for one blade on its hinge (``BendDynamics``; SOURCES §224). ``wet``: whether the
+        blade is in the water; out of it the grip's damping ratio applies if one is set (``BendDynamics.ratio``, §250)."""
         arm = float(self._oars[slot].outboard)
         e = arm * float(self._bend_lever[slot])
         k_h = float(self.oar_bending.k_ang) * float(self._bend_lever[slot])
         m_dry = float(self.bend_dynamics.blade_mass)
-        c_h = 2.0 * float(self.bend_dynamics.damping_ratio) * np.sqrt(k_h * m_dry * e * e)
+        c_h = 2.0 * self.bend_dynamics.ratio(bool(wet)) * np.sqrt(k_h * m_dry * e * e)
         return arm, e, k_h, c_h, m_dry
 
     def _add_bend_rows(self, system, rhs, slot, seat, angle, rate, state, rot, omega_abs, omega_hull, known, wet):
@@ -1496,7 +1497,7 @@ class DynamicOarSimulator(RowingSimulator):
         """
         n = self.n_oar_states
         row = 6 + n + slot
-        arm, e, k_h, c_h, m_dry = self._bend_constants(slot)
+        arm, e, k_h, c_h, m_dry = self._bend_constants(slot, wet)
         phi, phid = float(self._bend[slot]), float(self._bend_rate[slot])
         angle_b, rate_b = self._blade_track(slot, angle, rate)
         for lock in self.boat.rig.seats[seat].oarlocks:
@@ -1562,7 +1563,8 @@ class DynamicOarSimulator(RowingSimulator):
             # hinge: T = (I_oar - m_blade l^2) theta_ddot - K_ang phi - (l / e) c_h phi_dot (SOURCES §224)
             phi_all, phid_all = self._bend_states(y)
             for slot, seat in enumerate(self._seats):
-                arm, e, k_h, c_h, m_dry = self._bend_constants(slot)
+                wet_now = not air[slot] and angle > self._oars[slot].finish_angle
+                arm, e, k_h, c_h, m_dry = self._bend_constants(slot, wet_now)
                 inertia = float(getattr(self._oars[slot].inertia, "oar_inertia", 0.0)) - m_dry * arm * arm
                 for j, _lock in enumerate(self.boat.rig.seats[seat].oarlocks):
                     out[slot, j] = (inertia * accel - float(self.oar_bending.k_ang) * float(phi_all[slot])

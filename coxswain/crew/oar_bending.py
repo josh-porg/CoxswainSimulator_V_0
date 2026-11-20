@@ -149,13 +149,27 @@ class BendDynamics:
     blade_mass: float = BLADE_MASS_ASSUMED
     damping_ratio: float = STRUCTURAL_DAMPING_BL2010
     source: str = "assumed blade mass; structural damping measured (Breitschädel & Løset 2010; SOURCES §224)"
+    #: The damping ratio of the bend while the blade is out of the water, with the hands holding the handle. None: the
+    #: structural ``damping_ratio`` (as built). The hands are imposed as a rigid motion, so a real grip's damping of the
+    #: oar's in-air mode is otherwise absent; a sourced hand model (Dong et al. 2007, J. Biomech. 40:2335, 4-DOF, 50 N)
+    #: coupled to the oar gives 0.14-0.28 for its low modes (research/blade/grip_damping.py; SOURCES §250). An option.
+    grip_damping_ratio: float = None
 
     def __post_init__(self):
         if not self.blade_mass > 0.0 or not self.damping_ratio >= 0.0:
             raise ValueError("the blade needs a positive mass and a non-negative damping ratio")
+        if self.grip_damping_ratio is not None and not self.grip_damping_ratio >= 0.0:
+            raise ValueError("the grip's damping ratio must be non-negative")
+
+    def ratio(self, wet: bool) -> float:
+        """The bend's damping ratio: structural in the water, the grip's (if set) out of it."""
+        if wet or self.grip_damping_ratio is None:
+            return float(self.damping_ratio)
+        return float(self.grip_damping_ratio)
 
     def key(self) -> tuple:
-        return ("bend-dynamics", float(self.blade_mass), float(self.damping_ratio))
+        base = ("bend-dynamics", float(self.blade_mass), float(self.damping_ratio))
+        return base if self.grip_damping_ratio is None else base + ("grip", float(self.grip_damping_ratio))
 
 
 def beam_hinge_ratio(root: float, tip: float) -> float:

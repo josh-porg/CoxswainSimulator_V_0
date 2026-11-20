@@ -16293,3 +16293,31 @@ oar-angle sensor's position (§246, §248). Ladder (`data/local/validation/ladde
 **2. The Sensors 2023 request was sent** (user approved, 2026-11-19) to the corresponding author from the paper
 (DATA_REQUESTS #17; outreach record added): a small de-identified extract (seat, hip angle, oar angle, GNSS/INS surge
 acceleration, masses) for a third athlete in the catch-approach momentum test.
+
+## 250. A real grip damps the post-release ringing; a sourced option (2026-11-19)
+
+The post-release ringing (§240 item 2) was put down to the imposed, rigid hands and deferred (§245 item 5). A sourced
+quantitative check (`research/blade/grip_damping.py`; `data/local/validation/grip_damping.log`): the oar free to rotate
+about the pin against **Dong, Dong, Wu & Rakheja (2007), J. Biomech. 40:2335–2340**, Table 1 — the 4-DOF NIOSH model of
+fingers, palm-wrist-arm and skin masses gripping a handle with 50 N, identified from driving-point responses along the
+forearm axis (`data/local/literature/dong2007_hand_arm/`, author copy via CDC Stacks) — coupled to the simulator's
+dry-blade hinge ([L14] law: e 1.219 m, k_h 1593 N m, blade 0.3 kg, structural ζ 0.034):
+
+| hands | low modes (Hz, damping ratio) | ringing decays to 10 % in |
+|---|---|---|
+| rigid (the simulator) | 9.5, 0.034 | 1.13 s |
+| grip 50 N | 4.7, 0.19; 12.9, 0.14 | 0.20–0.41 s |
+| grip + push 50 N | 5.4, 0.28; 13.0, 0.21 | 0.13–0.25 s |
+
+So a real grip damps the oar's in-air bending 4–8× faster: the persistent ringing is an artefact of the rigid hands,
+as stated. (The handle's motion is taken along the model's forearm axis — an assumption; the recovery grip is lighter
+than 50 N, so the true damping lies between the structural 0.034 and these values.)
+
+**Option** `BendDynamics(grip_damping_ratio=)` (`coxswain/crew/oar_bending.py`; used by `DynamicOarSimulator.
+_bend_constants(slot, wet)` in the bend rows and the handle torque, out of the water only; in the key; test
+`test_bend_dynamics.py::test_the_grip_damping_applies_only_with_the_blade_out`); `rung2_population.py --grip-damping`,
+`early_drive_candidates.py --grip-damping`. Effect (`early_drive_candidates_grip*.log`, `rung2_benddyn_s250_grip0.14.log`):
+the population's force after the finish −19 / −16 % of peak → −18 / −11 (ζ 0.14) and −16 / −8 (0.28); at 10 % of the
+drive 8 → 4–5 % (less ringing is carried into the next catch, so the shaft enters less pre-bent); rung 2 unchanged
+(speed within 0.001 m/s, IVV within 0.1 point). Cosmetic for every rung; **kept an option, not a default** (no
+sourced recovery grip force). The deferred item is closed.

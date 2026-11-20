@@ -75,6 +75,21 @@ def test_the_bend_carries_through_the_catch():
     assert abs(float(sim._bend_history[0, 0, 0])) > 1e-4       # the last stroke starts bent
 
 
+def test_the_grip_damping_applies_only_with_the_blade_out():
+    """``grip_damping_ratio`` (SOURCES §250) changes the bend's damping out of the water only, and enters the key; the
+    default is the structural ratio everywhere (the as-built runs unchanged)."""
+    base, grip = BendDynamics(), BendDynamics(grip_damping_ratio=0.2)
+    assert base.ratio(True) == base.ratio(False) == base.damping_ratio
+    assert grip.ratio(True) == base.damping_ratio and grip.ratio(False) == 0.2
+    assert base.key() != grip.key()
+    with pytest.raises(ValueError):
+        BendDynamics(grip_damping_ratio=-0.1)
+    sim = _sim(_scull_law(), grip)
+    sim._bend_lever[:] = 0.675
+    c_wet, c_dry = sim._bend_constants(0, True)[3], sim._bend_constants(0, False)[3]
+    assert c_dry == pytest.approx(c_wet * 0.2 / base.damping_ratio)
+
+
 def test_the_blade_track_is_the_gate_plus_the_bend():
     """One place forms the bent blade's angle and rate (SOURCES §227); a rigid oar's blade is the gate."""
     rigid = _sim(False, None)

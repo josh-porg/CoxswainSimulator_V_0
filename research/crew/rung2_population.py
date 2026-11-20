@@ -453,6 +453,9 @@ def main():
                     help="with --bending: the bend as a dynamic state with the blade's mass and added mass (§224)")
     ap.add_argument("--structural-damping", type=float, default=None,
                     help="the shaft's structural damping ratio for --bend-dynamics (default BendDynamics')")
+    ap.add_argument("--grip-damping", type=float, default=None,
+                    help="the bend's damping ratio with the blade out, the hands gripping (BendDynamics."
+                         "grip_damping_ratio; a sourced hand model gives 0.14-0.28, SOURCES §250)")
     ap.add_argument("--dt", type=float, default=None,
                     help="fixed integration step, s (default: integrators.estimate_step): a convergence test")
     ap.add_argument("--release-after", type=float, default=RELEASE_AFTER,
@@ -491,8 +494,10 @@ def main():
     ADDED_MASS = a.added_mass
     if a.bend_dynamics:
         from coxswain.crew.oar_bending import BendDynamics
-        BEND_DYNAMICS = BendDynamics() if a.structural_damping is None else BendDynamics(
-            damping_ratio=a.structural_damping)
+        kw = {} if a.structural_damping is None else dict(damping_ratio=a.structural_damping)
+        if a.grip_damping is not None:
+            kw["grip_damping_ratio"] = a.grip_damping
+        BEND_DYNAMICS = BendDynamics(**kw)
     if a.fv is not None:
         from coxswain.crew.handle_fv import HandleForceVelocity
         FV = HandleForceVelocity(a.fv, "--fv")
@@ -538,6 +543,7 @@ def main():
                                                             + ("_pop" + a.pop_drive)   # always named (S4)
                                                             + ("" if a.pop_recovery == "cosine" else "_rec" + a.pop_recovery)
                                                             + ("" if not a.sensor_capture else "_cap%g" % a.sensor_capture)
+                                                            + ("" if a.grip_damping is None else "_grip%g" % a.grip_damping)
                                                             + ("" if a.athletes == ["cr06", "br24"] else "_" + "_".join(a.athletes)))), "w"), indent=1, default=float)
 
 
