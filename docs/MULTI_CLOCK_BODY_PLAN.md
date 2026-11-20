@@ -38,11 +38,19 @@ stored file of that run, `muscle_capacity_rung2.json`, is superseded.)
 | | blocker | what would remove it | placeholder (named in code) | effect on claims |
 |---|---|---|---|---|
 | B1 | hip and knee strength beyond the tested angles (the catch flexes the knee 138–145°; data stop at ~100°; hip at 75°) | strength at deep flexion (a data request; Kukić et al. 2022 give 62 % of peak at 100° only) | hold the angle factor at its value at the last tested angle (no extrapolation to zero) | step 1's gate is reported "inside the tested angles"; catch activations flagged extrapolated |
-| B2 | **no on-water knee-extensor EMG** (Pitto et al. recorded none) | an open on-water or ergometer quadriceps envelope (Turpin et al. 2011ab are paywalled ergometer synergies; a request or an open alternative) | the leg module is **not provided**; the legs keep their sourced clock until a module exists, or a caller states a placeholder waveform explicitly | the legs' timing is not an output yet |
+| B2 | no on-water knee-extensor EMG (Pitto et al. recorded none) | **resolved with a flag (§255)**: Vieira et al. 2020 (CC BY), vasti on an indoor rower | the leg module is the ergometer vasti, drive and recovery mapped onto the on-water cycle; flagged ERGOMETER in `Modules.sources` | leg-timing results carry "ergometer EMG" |
 | B3 | shoulder strength and scapular (girdle) kinematics unsourced | a rowing scapular-kinematics series; shoulder extension strength by angle | the arm pullers are driven at the elbow (Frey-Law), the shoulder taking the rest kinematically | arm forces are elbow-limited |
 | B4 | the module amplitudes (how hard each group is driven) | step 5's estimator, or LQG (step 6) | matched to the athlete's measured power, as rung 2 scales its muscles (one scale per athlete, not a fit of shape) | the same status as rung 2's scale |
 | B5 | the auditory delay (for coxswain calls) | a sourced auditory-motor delay in rowing | not needed until calls drive the crew | none yet |
 | B6 | the data author's answers (oars, angle sensor, original recordings) | DATA_REQUESTS #2 | — | C1, B2s, the sensor hypothesis |
+
+## Step 4's gate, fully specified (§255)
+
+With legs, trunk and arms excited by the modules on the phase oscillator, each group's demand peak must follow its EMG
+peak by ~50–100 ms (excitation to force), nothing fitted. **Today's body: legs −55, trunk −80, arms −220 ms** (the
+demands peak at 25–31 % of the drive against EMG at 33 / 40 / 56 %): every group early, the sequence compressed toward the
+catch. The straight-arm catch spike is the shoulder girdle's missing compliance (B3), not the elbow's (a straight arm
+carries no elbow moment); the arm-chain stretch placeholder halves it.
 
 ## Next (in order)
 

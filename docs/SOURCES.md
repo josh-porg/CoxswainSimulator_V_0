@@ -16447,3 +16447,40 @@ elbow as a degree of freedom held near straight by the arm-extensor module's act
 drawn by the arm pullers, in place of the kinematic arm clock. Gates: the elbow angle against Pitto et al.'s measured
 flexion, and the arm demand's timing against the EMG (this section's baseline: 215–220 ms early). Blocker B3 (the
 girdle) remains; the elbow can be built now.
+
+## 255. The leg module found (indoor rowing); the girdle, not the elbow; the whole body loads too early (2026-11-20)
+
+**1. A correction to §254's plan.** With the arm straight the handle's force runs through the elbow, so the elbow carries
+no moment: a locked straight arm transmits force through bone and ligament, and elbow muscle stiffness has nothing to
+act on. The compliance that should absorb the straight-arm catch spike is the **shoulder girdle** (the scapula
+protracting under the handle's load: §208's measured reach of 1.12 arm lengths at peak force). Its stiffness is
+unsourced (blocker B3; the nearest open measurement found, Borsa, Sauers & Herling 2002, J. Athl. Train. 37:240, is
+glenohumeral translation, not scapular protraction). The force-proportional arm-chain stretch (H08) is the model's
+placeholder for it — derived from the two test athletes (not independent). With it (`muscle_capacity.py --rung2
+--catch-posture straight-arms --hand-terms stretch`; `muscle_capacity_rung2_straightarms_stretch_s255.json`) the catch
+spike halves (stretcher peak 2408 / 2870 → 1347 / 1795 N; knee activation 15 / ∞ → 4.8 / 7.3) but the timing does not
+improve ([BR24]: trunk and arm demands still 170–300 ms early). **The early loading is the body's and hands' time law, not
+the arm's construction** — step 4's job, which needs all three modules.
+
+**2. Blocker B2 resolved, with a flag.** Vieira, Cerone, Stocchi, Lalli, Andrews & Gazzoni (2020), Sensors 20(6):1666
+(CC BY 4.0, PMC7147320): eight leg muscles on an indoor rower at 18–28 spm, envelopes averaged over cycles (Fig. 2;
+figures fetched from the PMC image server after the page was read in the browser; the publisher refuses scripts).
+`research/crew/vieira2020_emg.py` → `data/literature/vieira2020_leg_emg.csv` (vastus lateralis and medialis, right side,
+min–max normalised; the drive 37.9 % of their cycle). Vastus lateralis peaks at 32 % of the drive and medialis at 34 %,
+both above half from ~0–8 % to 61 % — matching the text ("recruited just before catch", "silenced just before finish").
+`coxswain/crew/excitation.vieira2020_leg_extensors` (drive and recovery mapped separately onto the on-water cycle);
+`Modules.pitto2024()` now includes `leg_extensors`, flagged **ERGOMETER** in `Modules.sources` (`legs=False` gives the
+on-water set alone); test updated. The modules' peaks on the on-water phase: legs 33 %, arm extensors 35 %, trunk
+extensors 40 %, arm pullers 56 %, trunk flexors 88 % of the drive, arm return in the recovery — **legs → trunk → arms,
+from data**.
+
+**3. The whole body against the muscles** (`sequencing_vs_emg.py`, `module_feedforward.py` with the knee; logs
+`*_s255.log`): the model's demand peaks — knee 25–26 %, hip 30–31 %, elbow 27 % of the drive — against EMG peaks of 33,
+40 and 56 %. With force following EMG by ~50–100 ms, the model loads the **legs ~105–160 ms, the trunk ~125–180 ms and the
+arms ~260–330 ms too early**: every group, the error growing from legs to arms (the sequence compressed toward the catch).
+The knee's open-loop check is limited by B1 (37 % of the drive beyond the tested knee angles) and shows the model's knee
+moment turning flexor at 50–60 % of the drive, where the vasti are still active — a point to examine (the stretcher
+force's derivation, frictionless seat, MODELLING_ASSUMPTIONS).
+
+**Step 4's gate, now fully specified:** with all three groups excited by these modules on the phase oscillator, the
+demand peaks should follow the EMG by 50–100 ms, with nothing fitted. Today: −55 / −80 / −220 ms.

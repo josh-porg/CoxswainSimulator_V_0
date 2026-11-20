@@ -19,9 +19,16 @@ def test_the_modules_reproduce_the_sources_own_timing():
         assert w.max() == pytest.approx(1.0, abs=0.01) and w.min() >= -0.05
 
 
-def test_the_leg_extensors_are_not_invented():
-    with pytest.raises(KeyError, match="leg extensors were not recorded"):
-        Modules.pitto2024()("leg_extensors", 0.1)
+def test_the_leg_extensors_come_from_a_flagged_ergometer_source_and_lead_the_sequence():
+    """The leg module is Vieira et al. (2020)'s indoor-rowing vasti (§255), flagged as an ergometer source; on the
+    on-water phase it peaks before the trunk extensors, which peak before the arm pullers: legs -> trunk -> arms."""
+    m = Modules.pitto2024()
+    assert "ERGOMETER" in m.sources["leg_extensors"]
+    drive = lambda name: m.peak_phase(name) / PITTO2024_FINISH  # noqa: E731
+    assert drive("leg_extensors") == pytest.approx(0.33, abs=0.04)
+    assert drive("leg_extensors") < drive("trunk_extensors") < drive("arm_pullers")
+    with pytest.raises(KeyError):
+        Modules.pitto2024(legs=False)("leg_extensors", 0.1)
 
 
 def test_the_oscillator_entrains_to_the_boats_stroke():

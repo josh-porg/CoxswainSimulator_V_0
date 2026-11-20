@@ -30,7 +30,7 @@ from coxswain.crew.excitation import Modules, PITTO2024_FINISH    # noqa: E402
 
 GROUP = {"cr06": "F18-25", "br24": "M18-25"}                      # as muscle_capacity.py
 SEX = {"cr06": "F", "br24": "M"}
-TESTED = {"hip": (-0.5, 1.3)}                                      # Anderson et al.'s tested hip range, rad (flexion +)
+TESTED = {"hip": (-0.5, 1.3), "knee": (0.0, 1.8)}                # Anderson et al.'s tested ranges, rad (flexion +)
 
 
 def activation_from_excitation(t, u, dyn):
@@ -67,8 +67,11 @@ def main():
         T_cycle = t_drive / PITTO2024_FINISH                       # the drive scaled onto the EMG's cycle
         phase = t / T_cycle
         HE = J.anderson("HE", GROUP[a], d[a]["mass"], d[a]["stature"], passive=False)
+        KE = J.anderson("KE", GROUP[a], d[a]["mass"], d[a]["stature"])
         EF = J.elbow("flexion", SEX[a])
         groups = {
+            "knee extensors": (KE.activation_needed(s["knee"], s["th_knee"], s["w_knee"]), "leg_extensors",
+                               (s["th_knee"] >= TESTED["knee"][0]) & (s["th_knee"] <= TESTED["knee"][1])),
             "hip extensors": (HE.activation_needed(s["hip_ext"], s["th_hip"], s["w_hip"]), "trunk_extensors",
                               (s["th_hip"] >= TESTED["hip"][0]) & (s["th_hip"] <= TESTED["hip"][1])),
             "elbow flexors": (EF.activation_needed(np.maximum(s["elbow"], 0.0), s["th_elbow"], s["w_elbow"]), "arm_pullers",

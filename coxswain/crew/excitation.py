@@ -7,9 +7,10 @@ sequence comes out of the segments' own dynamics (docs/NEUROMUSCULAR_CONTROL_REV
   (2024), Appl. Sci. 14:9055 (CC BY), 12 national-level male scullers at race rate, digitised from Fig. 3 to
   ``data/literature/pitto2024_emg.csv`` (research/crew/pitto2024_emg.py; ±0.02). Each module is the mean of its
   muscles' peak-normalised envelopes, renormalised to peak 1, as a periodic function of the stroke's phase. **The leg
-  extensors are absent**: Pitto et al. recorded no knee extensor, and no open on-water knee-extensor EMG has been found
-  (docs/MULTI_CLOCK_BODY_PLAN.md, blocker B2). ``LEG_EXTENSORS`` is therefore not provided; a caller must state its
-  placeholder explicitly.
+  extensors** are not in Pitto et al.'s set (no knee extensor recorded; blocker B2): since §255 they come from Vieira et
+  al. (2020), Sensors 20:1666 (CC BY), the vasti on an **indoor rower** (``data/literature/vieira2020_leg_emg.csv``),
+  drive and recovery mapped separately onto the on-water cycle. ``Modules.sources`` carries each module's provenance;
+  ``Modules.pitto2024(legs=False)`` gives the on-water modules alone.
 * **The phase oscillator** — one phase variable for the stroke, advancing at its own rate and pulled towards zero by
   sensed events (the catch: the handle's load), a CPG used as a feedback predictor (Kuo 2002; Dzeladini, van den Kieboom &
   Ijspeert 2014). Phase resetting, ``phi <- phi - g * wrap(phi - phi_event)``, with gain ``g`` in [0, 1] (0: free
@@ -42,6 +43,25 @@ MODULE_MUSCLES: Dict[str, Tuple[str, ...]] = {
 }
 
 
+VIEIRA2020_FILE = os.path.join(_LIT, "vieira2020_leg_emg.csv")
+#: the finish's cycle fraction on Vieira et al.'s indoor rower (18-28 spm)
+VIEIRA2020_FINISH = 0.379
+
+
+def vieira2020_leg_extensors(cycle, path: str = VIEIRA2020_FILE) -> np.ndarray:
+    """The leg extensors' module on ``cycle`` (the on-water phase, finish at ``PITTO2024_FINISH``): the mean of Vieira et
+    al. (2020)'s vastus lateralis and medialis envelopes (indoor rower; research/crew/vieira2020_emg.py), renormalised to
+    peak 1, its drive mapped onto the on-water drive and its recovery onto the on-water recovery (a time normalisation
+    by phase; the ergometer's drive is 37.9 % of its cycle against 52.1 % on water)."""
+    vc, env = _read(path)
+    w = np.mean([env["vastus_lateralis"], env["vastus_medialis"]], axis=0)
+    w = w / w.max()
+    c = np.asarray(cycle, float)
+    src = np.where(c <= PITTO2024_FINISH, c / PITTO2024_FINISH * VIEIRA2020_FINISH,
+                   VIEIRA2020_FINISH + (c - PITTO2024_FINISH) / (1.0 - PITTO2024_FINISH) * (1.0 - VIEIRA2020_FINISH))
+    return np.interp(src, vc, w, period=1.0)
+
+
 def _read(path=PITTO2024_FILE):
     rows = list(csv.DictReader(l for l in open(path, encoding="utf-8") if not l.startswith("#")))
     cyc = np.array([float(r["cycle"]) for r in rows])
@@ -55,15 +75,24 @@ class Modules:
     waveforms: Dict[str, np.ndarray] = field(repr=False)
     finish: float = PITTO2024_FINISH
     source: str = "Pitto et al. (2024), Appl. Sci. 14:9055, Fig. 3 (on-water, 12 scullers)"
+    #: module -> where its waveform comes from (every module's provenance travels with it)
+    sources: Dict[str, str] = field(default_factory=dict, repr=False)
 
     @classmethod
-    def pitto2024(cls, path: str = PITTO2024_FILE) -> "Modules":
+    def pitto2024(cls, path: str = PITTO2024_FILE, legs: bool = True) -> "Modules":
+        """Pitto et al.'s on-water modules; with ``legs``, the leg extensors from Vieira et al. (2020)'s indoor-rowing
+        vasti (``vieira2020_leg_extensors``; an **ergometer** source, flagged in ``sources``)."""
         cyc, env = _read(path)
-        waves = {}
+        waves, src = {}, {}
         for m, muscles in MODULE_MUSCLES.items():
             w = np.mean([env[k] for k in muscles], axis=0)
             waves[m] = w / w.max()
-        return cls(cyc, waves)
+            src[m] = "Pitto et al. 2024, on water: " + ", ".join(muscles)
+        if legs:
+            waves["leg_extensors"] = vieira2020_leg_extensors(cyc)
+            src["leg_extensors"] = ("Vieira et al. 2020, Sensors 20:1666, indoor rower (ERGOMETER): vastus lateralis and "
+                                    "medialis, drive and recovery mapped separately onto the on-water cycle")
+        return cls(cyc, waves, sources=src)
 
     @property
     def names(self):

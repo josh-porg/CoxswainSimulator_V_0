@@ -23,7 +23,8 @@ ROOT = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, ROOT)
 from coxswain.crew.excitation import Modules, PITTO2024_FINISH    # noqa: E402
 
-PAIRS = (("hip_ext", "trunk_extensors", "trunk extensors (hip moment)"),
+PAIRS = (("knee", "leg_extensors", "leg extensors (knee moment; EMG ergometer)"),
+         ("hip_ext", "trunk_extensors", "trunk extensors (hip moment)"),
          ("elbow", "arm_pullers", "arm pullers (elbow flexor moment)"))
 
 
