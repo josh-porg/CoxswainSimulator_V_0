@@ -16321,3 +16321,20 @@ the population's force after the finish −19 / −16 % of peak → −18 / −1
 drive 8 → 4–5 % (less ringing is carried into the next catch, so the shaft enters less pre-bent); rung 2 unchanged
 (speed within 0.001 m/s, IVV within 0.1 point). Cosmetic for every rung; **kept an option, not a default** (no
 sourced recovery grip force). The deferred item is closed.
+
+## 251. Where the oar angle is measured: what the published sources say (2026-11-19)
+
+Sought before the data author's answer, to test §246's hypothesis now (`data/local/literature/kleshnev1999_isbs/`,
+`biorow_2017_wr_conference/`; both open):
+- **Kleshnev (1999), ISBS Proceedings** ("Propulsive efficiency of rowing", the reference [CR06] cites for its
+  telemetry): "The angle between the oar and boat in the horizontal dimension was measured using a servo
+  potentiometer" — no attachment point or distance.
+- **Cabrera, Ruina & Kleshnev (2006)**, Appendix A.5: "servo potentiometers ... connected with a light arm and bracket
+  to the oar shaft" — the angle is taken from the shaft, which is what the hypothesis needs, but the bracket's distance
+  from the pin is not given.
+- **Kleshnev (2017), World Rowing coaches' conference slides (BioRow)**: lists BioRow's angle sensors and its
+  instrumented-oarlock developments (rotating-pin and gate-type sensors with angle, as in NK EmPower), without saying
+  which the BioRowTel boat system used for the 2024 file.
+
+So the sources make the hypothesis possible for [CR06] (shaft-mounted bracket) and leave [BR24] open; neither gives
+*d*. The question stays with the data's author (DATA_REQUESTS #2, sent 2026-11-19). Nothing changed.
