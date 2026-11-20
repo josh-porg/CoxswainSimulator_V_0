@@ -16379,3 +16379,37 @@ listed with their instances.
 **4. Ladder on the new default** (`data/local/validation/ladder_2026-11-19.log`): **27 criteria, 0 fail, 2 expected
 fail** (C1, B2s). Rung 2: [CR06] 4.203 m/s, IVV 52.9 %, 262 W; [BR24] 4.774, 50.0 %, 427 W; half step within 0.1 % /
 0.3 point. Tests: `test_bend_dynamics.py` (grip default), `test_blade_immersion.py` — 15 passed.
+
+## 253. The multi-clock body resumed: on-water EMG modules, a phase oscillator, and the body's sequencing measured (2026-11-19)
+
+The user: "multi clock bodies and noting where we are blocked ... what we can do safely now with things in place for
+what we are currently missing". Plan, blockers and placeholders: docs/MULTI_CLOCK_BODY_PLAN.md (new).
+
+**1. What exists** (review §12): step 1's actuators and capacity check (§208, §216; fails only beyond the strength
+data's angles at the catch — blocker B1); steps 2, 3 and 5 for the trunk (intrinsic, 40 ms reflex, predictor; wander
+10–13°, §213). **Step 4 — excitations from modules on a phase oscillator — had not been started.**
+
+**2. On-water EMG as numbers** (`research/crew/pitto2024_emg.py` → `data/literature/pitto2024_emg.csv`): Pitto, Ertel,
+Simon, Gauchard & Mornieux (2024), Appl. Sci. 14:9055 (CC BY), Fig. 3, 13 muscles, 12 national-level male scullers on
+water at race rate, digitised from the raster on each panel's own axes (overlay checked by eye: the trace sits on the
+published curves). The reading reproduces the paper's stated timings: biceps, brachioradialis and posterior deltoid peak
+at 56 % of the drive ("peak together at 55 %"), triceps at 35 % (34 %), flexor carpi ulnaris at 46 % (45 %). The finish
+at 52.1 % of the cycle. **No knee extensor was recorded** (blocker B2).
+
+**3. Step 4's component** (`coxswain/crew/excitation.py`, tests `test_excitation.py`, 4 passed): `Modules.pitto2024()`
+— trunk extensors (thoracic and lumbar erector spinae, gluteus maximus; peak 40 % of the drive), arm pullers (56 %),
+trunk flexors (rectus abdominis, obliques; at the finish), arm return (anterior deltoid; recovery), arm extensors
+(triceps; 35 %); the leg extensors deliberately absent (a `KeyError` that names the blocker). `PhaseOscillator` — one
+stroke phase, phase-resetting on sensed events with period adaptation (Kuo 2002; Dzeladini et al. 2014); a test shows it
+entraining from a 1.70 s free period to 1.85 s events.
+
+**4. Today's body against on-water muscle timing** (`research/crew/sequencing_vs_emg.py` on `muscle_capacity.py
+--rung2`, re-run; `data/local/validation/sequencing_vs_emg_s253.log`): the model's hip-extensor demand peaks at 28–29 %
+of the drive and its elbow-flexor demand at 25–26 %; rowers' trunk extensors fire at 40 %, their arm pullers at 56 %.
+With force following EMG by ~50–100 ms, the model's body loads the trunk ~150–200 ms and the arms ~300–350 ms too early
+(both athletes alike). This is §205's sequencing gap measured against on-water muscles, and step 4's gate baseline.
+
+**Blockers** (MULTI_CLOCK_BODY_PLAN): B1 strength at deep flexion; B2 on-water knee-extensor EMG; B3 shoulder strength
+and girdle kinematics; B4 module amplitudes (placeholder: power-matched, as rung 2); B5 auditory delay; B6 the data
+author's answers. **Next:** the arms on step 4 (elbow driven by the arm modules, gate: Pitto et al.'s measured elbow
+flexion), then the trunk's feedforward from its modules.
