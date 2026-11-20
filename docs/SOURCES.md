@@ -16484,3 +16484,40 @@ force's derivation, frictionless seat, MODELLING_ASSUMPTIONS).
 
 **Step 4's gate, now fully specified:** with all three groups excited by these modules on the phase oscillator, the
 demand peaks should follow the EMG by 50–100 ms, with nothing fitted. Today: −55 / −80 / −220 ms.
+
+## 256. Step 4's first closed loop: rung 2's clock driven by the body's own joint muscles on the EMG modules (2026-11-20)
+
+`research/crew/rung2_modules.py`. Rung 2's clock (the hands' time law an output) driven by a generalised force built
+from the body's joint muscles instead of a borrowed population force:
+Q(τ, τ', t) = A Σ_g m_g(φ(t − d)) T_g,max(θ_g(τ), r_g τ') r_g, over the knee extensors (Anderson et al. 2007), hip
+extensors (passive dropped) and elbow flexors (Frey-Law et al. 2012); θ_g and r_g = dθ/dτ from the model's posture
+(`muscle_capacity.geometry`); m_g the modules (legs from Vieira et al. 2020 — ergometer —, trunk and arms from Pitto et
+al. 2024 on water) on the cycle phase from the catch; the torque generators carry the force–velocity, so no handle F–V
+or hold. **Placeholders, named:** d = 0.075 s excitation to force; A one amplitude per athlete, set so the drive's
+muscle work equals the reference run's scaled to the measured power (B4); angles held at the last tested angle beyond
+the strength data (B1). Body: the model's (its postures are the joint tables'); research blade, buried catch, Patton ×
+κ 0.1, flexible shaft with bend dynamics.
+
+Results (10 strokes; `data/local/crew/rung2_modules_delay0.075.json`, `logs/rung2_modules_s256.log`), against the
+population-driven rung 2 on the **same model body** (`logs/rung2_population_modelbody_s256.log`):
+
+| | speed (measured) | IVV (measured) | power | oar progress rms | clock rate |
+|---|---|---|---|---|---|
+| [CR06] population-driven | 4.206 (4.191) | 52.8 % (49.4) | 260 W | 0.039 | 0.89–1.00 |
+| [CR06] **module-driven** | 4.156 | **51.7 %** | 258 W | **0.035** | 0.81–1.55 |
+| [BR24] population-driven | 4.830 (4.641) | **53.4 %** (49.1) | 430 W | 0.019 | 1.00–1.15 |
+| [BR24] **module-driven** | **4.704** | 56.7 % | 416 W | **0.016** | 0.81–1.83 |
+
+- **It runs**: the first forward rower in the project whose hands' timing comes from its own joint muscles fired on
+  measured muscle timing — stable, no overruns, with nothing fitted but one amplitude per athlete.
+- Against the borrowed population force on the same body it is better on the oar's timing for both athletes, on speed
+  for [BR24] (+1.4 % against +4.1 %) and on IVV for [CR06]; worse on IVV for [BR24] (+3.3 points), whose power comes out
+  3.7 % low (the energy-matched amplitude is a crude B4 placeholder) and whose clock reaches 1.83 late in the drive.
+- The torque peaks follow the EMG by 62–170 ms; that is largely by construction (d plus the strength curves' shaping),
+  so the kinematic results above are the test, not the timing.
+- What it is not yet: the body's segments still move on their clocks along τ (only the hands' time law is an output),
+  so the IVV is the model body's; making the legs, trunk and arms each a degree of freedom driven by its own group is the
+  next step (the trunk's layers of §208–213 exist).
+
+**Next:** the clock-rate spike (where in the drive; whether the hand-over or a group's strength clamp), the amplitude
+by group (B4: from the reference's joint demands rather than one scale), then the segments as degrees of freedom.

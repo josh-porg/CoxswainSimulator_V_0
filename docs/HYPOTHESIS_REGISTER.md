@@ -66,6 +66,7 @@ them into the profile is **pending the user's decision** (listed as R1 below).
 | H33 | The angle sensor captures part of the bend (double-counted compliance) | [CR06]'s bracket-on-shaft telemetry | f(d); what-if ladder | needs d 0.18–0.33 m; IVV better, two shape criteria fail | pending the sensor's position | pending | — | 246, 248, 251 |
 | H34 | The blade wets from the measured vertical angle | sculling averages' vertical angle | timeline | minor, early only; conflicts with the entry rule | not implemented | pending | **yes**: a sourced entry rule should be designed, not left | 247 |
 | H35 | A real grip damps the post-release ringing | Dong et al. 2007 hand-arm model | coupled modes | ζ 0.14–0.28 vs 0.034 | option (§250) → **default 0.14** (§252) | adopted (scripts) | done §252 | 250, 252 |
+| H36 | The hands' timing can come from the body's own joint muscles fired on measured muscle timing (step 4) | review §12; Pitto 2024, Vieira 2020; Anderson 2007, Frey-Law 2012 | rung 2 with a module-driven force, against the population-driven force on the same body | stable; oar timing better for both athletes; speed better ([BR24]), IVV better ([CR06]) and worse ([BR24]) | first closed loop; next: segments as degrees of freedom | finding (option, research) | under development | 256 |
 
 **R1 — the research profile.** H03, H10–H13, H18 (if adopted), H20, H26, H27 and H35 are validated in the ladder's
 configuration but are not in `PROFILES["research"]`. Moving the uncontested ones into the profile, and deciding the

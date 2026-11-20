@@ -52,6 +52,14 @@ demands peak at 25–31 % of the drive against EMG at 33 / 40 / 56 %): every gro
 catch. The straight-arm catch spike is the shoulder girdle's missing compliance (B3), not the elbow's (a straight arm
 carries no elbow moment); the arm-chain stretch placeholder halves it.
 
+## Step 4's first closed loop (§256)
+
+`research/crew/rung2_modules.py`: rung 2's clock driven by the knee, hip and elbow muscles excited on the modules
+(placeholders: d 0.075 s, one amplitude per athlete, B1's angle clamp). Stable on both athletes; against the borrowed
+population force on the same (model) body: oar timing better for both (rms 0.035 / 0.016 against 0.039 / 0.019), speed
+better for [BR24], IVV better for [CR06], worse for [BR24]. The segments still move on their clocks along τ; making each
+a degree of freedom is next.
+
 ## Next (in order)
 
 1. Re-run the sequencing check on today's rung 2 (`muscle_capacity.py --rung2` on the current defaults) — the baseline
