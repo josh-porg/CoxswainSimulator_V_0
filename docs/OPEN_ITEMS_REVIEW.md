@@ -135,6 +135,13 @@ target, the kinematic body's inverse dynamics, is itself wrong in timing** (the 
 EMG-timed muscle cannot reproduce a demand the real body never makes. The calibration is circular until the body's
 kinematics come out of its muscles (§10) or the target is measured kinematics.
 
+**Measured kinematics, tried (§264).** On each athlete's own measured trunk motion the trunk extensors still need
+1.29–1.32× their maximal strength, at excitation delays of 0, 75 and 150 ms alike. So the antagonists are physical
+(the flexors take 0.7–0.95 of their strength late in the drive, as the EMG says), but **the extensors' strength at
+the catch angles is the binding flaw**: blocker B1, where Anderson's data stop at ~75° of hip flexion and the
+placeholder holds the strength flat. Other studies find hip-extension torque still rising to 90–100°, worth ~10–15 %,
+about half the gap. A rowing-posture strength curve is requested (DATA_REQUESTS §13).
+
 ## 10. From kinematics to dynamics
 
 **How the field does it** (gait, cycling, upper limb):

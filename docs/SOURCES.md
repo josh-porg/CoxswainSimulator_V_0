@@ -16742,3 +16742,32 @@ every integrated quantity; two local gaps: B2s's early loading and the body's se
 (area scales, it cannot fix shape or sign); tau(theta) (the old profile's torque shape, superseded in the validated
 configuration; fixed by R1, not by tuning); the measured recovery law; the expected failures; the antagonists; the
 kinematics-to-dynamics path.
+
+## 264. The trunk's muscles on measured motion: the strength at catch angles binds, not the timing (2026-11-23)
+
+The literature's check before tracking (docs/OPEN_ITEMS_REVIEW.md §10): does a *measured* trunk motion fit its
+EMG-timed muscles? `rung2_trunk_modules.py --own-body`: the reference run on each athlete's own leg and back
+channels, its hip moment calibrated on the trunk extensor and flexor modules, at excitation-to-force delays of 0, 75
+and 150 ms:
+
+| | 0 ms | 75 ms | 150 ms |
+|---|---|---|---|
+| [CR06] extensors / flexors (× maximal strength), r² | 1.29 / 0.72, 0.67 | 1.29 / 0.86, 0.60 | 1.12 / 0.80, 0.35 |
+| [BR24] | 1.32 / 0.77, 0.58 | 1.31 / 0.95, 0.51 | 1.18 / 0.95, 0.32 |
+
+On the model body (§262) the extensors needed 1.24 / 1.46. **Measured motion does not make the muscles feasible, and
+no delay does either** (the best fit, at 0 ms, still needs ~1.3× maximal strength). So the binding gap is not the
+kinematic body's timing alone nor the delay placeholder; it is the hip extensors' strength where the catch puts them:
+blocker B1 (Anderson et al. 2007 tested to ~75° of hip flexion; the placeholder holds the angle factor there).
+
+**Literature on B1.** Hip-extension torque keeps rising with flexion through the tested range of other studies: a
+handheld-dynamometer study measured it highest at 90° (1.43 against 0.83 N m/kg·m at 0°, i.e. 1.72×; PubMed
+28900559), and a torque–angle study in older women found the extensors strongest at the deepest angle tested
+(100°). Anderson's own curve rises 1.54× from 0 to 1.2 rad. Carried on at the 90° rise, strength at the catch would be
+~10–15 % above the placeholder: the right direction, about half the gap, from different populations and devices.
+**Not adopted** (no rowing-posture source; knee flexed changes the hamstrings' share). B1 stays the blocker; its data
+request stands (DATA_REQUESTS §13).
+
+**Consequence for the body build.** The trunk cannot be driven by its muscles at sourced strength until B1 is
+resolved, whatever its target. Until then the placeholder for step 4's trunk is a strength scale (named, like the
+amplitude B4), or the trunk keeps the computed-muscle-control structure with its feedforward from the reference.

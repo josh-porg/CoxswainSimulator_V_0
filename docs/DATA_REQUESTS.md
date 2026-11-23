@@ -860,7 +860,11 @@ The muscle-driven body (SOURCES §207–208) needs three things no source found 
    at 100°).
 2. **Hip- and lumbar-extension torque against angle with the knee flexed**, out to the catch's ~120° of hip flexion
    plus lumbar flexion. Anderson's hip data were taken standing, knee near straight, to 75°. Elite rowers' isometric
-   trunk extension is ~319 N·m, at one angle.
+   trunk extension is ~319 N·m, at one angle. **Now the binding item (§264, 2026-11-23):** on the athletes' own
+   measured trunk motion, EMG-timed trunk muscles need ~1.3× the placeholder strength at any delay. Partial
+   literature: hip-extension torque highest at 90° (handheld, 1.72× its 0° value; PubMed 28900559) and at 100° in
+   older women; worth ~10–15 %. A rowing-posture (knee-flexed) hip/lumbar extension torque–angle curve to 120° is the
+   request; candidate authors to be identified (rowing strength or low-back-in-rowing groups).
 3. **The compliance of the chain from the upper back to the hands under a pull** *(revised 2026-11-02, §210).* The
    thesis (Urbanczyk 2021, Imperial; read from Spiral) shows the scapula's *kinematics* retracting through the drive,
    so the "1.12 arm lengths" is not posture. It is a stretch proportional to the handle force, 11–14 cm at each

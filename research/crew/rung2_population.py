@@ -553,7 +553,7 @@ def main():
     # 2. each athlete
     for name in a.athletes:
         out[name] = athlete(name, a.strokes, s_pop, q_drive, ph, q, s_p["power"])
-    json.dump(out, open(os.path.join(OUT, "rung2_population%s%s.json" % ("" if BLADE == "slip" else "_" + BLADE,
+    write_named(out, ("rung2_population%s%s.json" % ("" if BLADE == "slip" else "_" + BLADE,
                                                             ("" if a.catch == "dynamic" else "_" + a.catch) + ("" if a.body == "model" else "_ownbody")
                                                             + ("" if a.catch_posture == "as-built" else "_straightarms")
                                                             + "".join("_" + c for c in a.clocks)
@@ -585,8 +585,23 @@ def main():
                                                             + ("_oar" + __import__("hashlib").md5(json.dumps(
                                                                 {k: v for k, v in OAR_OVERRIDES.items() if v},
                                                                 sort_keys=True).encode()).hexdigest()[:6]
-                                                               if any(OAR_OVERRIDES.values()) else ""))), "w"), indent=1, default=float)
+                                                               if any(OAR_OVERRIDES.values()) else ""))))
     print("oar corrections:", {k: v for k, v in OAR_OVERRIDES.items() if v} or "none")
+
+
+def write_named(out, name):
+    """Write ``out`` as ``name`` in OUT; a name past Windows' path limit is written under a short digest instead, and
+    the long name recorded in rung2_population_index.json (lost twice to the limit, 2026-11-23)."""
+    path = os.path.join(OUT, name)
+    if len(path) > 240:
+        short = "rung2_population_%s.json" % __import__("hashlib").md5(name.encode()).hexdigest()[:10]
+        index_path = os.path.join(OUT, "rung2_population_index.json")
+        index = json.load(open(index_path)) if os.path.exists(index_path) else {}
+        index[short] = name
+        json.dump(index, open(index_path, "w"), indent=1)
+        path = os.path.join(OUT, short)
+    json.dump(out, open(path, "w"), indent=1, default=float)
+    print("wrote", path)
 
 
 if __name__ == "__main__":
