@@ -24,7 +24,9 @@ CSV = os.path.join(ROOT, "data", "literature", "vieira2020_leg_emg.csv")
 X_CATCH, X_FINISH, X_END = 117.0, 345.0, 718.0
 FINISH = (X_FINISH - X_CATCH) / (X_END - X_CATCH)
 #: panel: (y window, label columns to skip)
-PANELS = {"vastus_lateralis": ((505, 655), (440, 700)), "vastus_medialis": ((648, 790), (440, 700))}
+PANELS = {"vastus_lateralis": ((505, 655), (440, 700)), "vastus_medialis": ((648, 790), (440, 700)),
+          # the hamstrings (§273): the trunk's hip-extension moment has a second, leg-timed contributor
+          "semitendinosus": ((790, 935), (440, 700)), "biceps_femoris": ((935, 1075), (440, 700))}
 GRID = np.linspace(0.0, 1.0, 101)
 
 

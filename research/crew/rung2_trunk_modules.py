@@ -101,6 +101,29 @@ LUMBAR_FRACTION_FINISH, LUMBAR_FRACTION_CATCH = 0.40, 0.90
 SHIFT_E, SHIFT_F = 0.0, 0.0
 
 
+#: the hamstrings as their own hip-extensor group (§273): Vieira et al. 2020's semitendinosus and biceps femoris
+#: (indoor rower; data/literature/vieira2020_leg_emg.csv), their mean renormalised to peak 1, the ergometer's drive
+#: (finish 0.379 of its cycle) mapped onto the on-water drive (0.521) and its recovery onto the recovery, as the leg
+#: module is (coxswain.crew.excitation); sharing Anderson's hip-extension capacity, with its own calibrated level
+HAMSTRINGS = False
+_HAM = None
+
+
+def hamstrings(phase):
+    global _HAM
+    if _HAM is None:
+        rows = [ln.strip().split(",") for ln in open(os.path.join(ROOT, "data", "literature", "vieira2020_leg_emg.csv"))
+                if not ln.startswith("#")]
+        head, data = rows[0], np.array([[float(x) for x in r] for r in rows[1:]])
+        env = 0.5 * (data[:, head.index("semitendinosus")] + data[:, head.index("biceps_femoris")])
+        _HAM = (data[:, 0], env / env.max())
+    cyc, env = _HAM
+    f_on, f_erg = 0.521, 0.379
+    p = float(phase) % 1.0
+    v = p / f_on * f_erg if p < f_on else f_erg + (p - f_on) / (1.0 - f_on) * (1.0 - f_erg)
+    return float(np.interp(v, cyc, env, period=1.0))
+
+
 def silder_passive_hip_extension(h, k, sides=2):
     """The passive hip moment, EXTENSOR-positive, both legs (Silder et al. 2007 eq. A.5 with Table 4's means)."""
     bRFh, bRFk, aRF = SILDER2007["RF"]
@@ -140,7 +163,9 @@ class TrunkMuscles:
             r2 = 1.0 - np.sum((y - pred) ** 2) / np.sum((y - y.mean()) ** 2)
             if best is None or r2 > best[0]:
                 best = (r2, sigma, x)
-        self.r2, self.sigma, (self.aE, self.aF) = float(best[0]), best[1], (float(best[2][0]), float(best[2][1]))
+        self.r2, self.sigma = float(best[0]), best[1]
+        self.aE, self.aF = float(best[2][0]), float(best[2][1])
+        self.aH = float(best[2][2]) if len(best[2]) > 2 else 0.0
         self.y_ref, self.taus = y, taus
 
     def _cols(self, tau, c, td):
@@ -154,6 +179,9 @@ class TrunkMuscles:
         pF = ((c - self.delay - SHIFT_F) / self.P) % 1.0
         tE = float(self.mods("trunk_extensors", pE)) * float(np.ravel(self.HE.max_active(theta, -w))[0])
         tF = float(self.mods("trunk_flexors", pF)) * float(np.ravel(self.HF.max_active(theta, w))[0])
+        if HAMSTRINGS:                                   # the leg-timed hip extensors (Vieira 2020, ergometer; §273)
+            tH = float(hamstrings(pE)) * float(np.ravel(self.HE.max_active(theta, -w))[0])
+            return np.array([tE, -tF, tH])
         return np.array([tE, -tF])
 
     def passive(self, tau):
@@ -195,8 +223,10 @@ class TrunkMuscles:
         return np.radians(TELFER_HIP_FINISH_DEG) + (h - lo) * self._anat_slope()
 
     def __call__(self, tau, c, td):
-        cE, cF = self._cols(tau, c, td)
-        return self.sigma * (self.aE * cE + self.aF * cF + self.passive(tau))
+        cols = self._cols(tau, c, td)
+        cE, cF = cols[0], cols[1]
+        cH = cols[2] if len(cols) > 2 else 0.0
+        return self.sigma * (self.aE * cE + self.aF * cF + self.aH * cH + self.passive(tau))
 
 
 def measured_trunk_calibration(name, strokes):
@@ -328,14 +358,16 @@ def main():
     ap.add_argument("--lumbar-catch", type=float, default=0.90, help="lumbar flexion at the catch as a fraction of full (bracket 0.8-1.0)")
     ap.add_argument("--clock", default="population", choices=["population", "reference"],
                     help="the stroke clock's force in the forward test (reference: the fair gate, §272)")
+    ap.add_argument("--hamstrings", action="store_true", help="the hamstrings as their own hip-extensor group (§273)")
     ap.add_argument("--anatomical", action="store_true",
                     help="read hip strength and passive moment on the anatomical hip angle (Telfer et al. 2023 split)")
     a = ap.parse_args()
-    global PASSIVE, ANATOMICAL, PASSIVE_LUMBAR, LUMBAR_FRACTION_CATCH, CLOCK
+    global PASSIVE, ANATOMICAL, PASSIVE_LUMBAR, LUMBAR_FRACTION_CATCH, CLOCK, HAMSTRINGS
     PASSIVE, ANATOMICAL, PASSIVE_LUMBAR = bool(a.passive), bool(a.anatomical), bool(a.passive_lumbar)
     LUMBAR_FRACTION_CATCH = float(a.lumbar_catch)
     CLOCK = a.clock
-    tag_clock = "" if a.clock == "population" else "_clockref"
+    HAMSTRINGS = bool(a.hamstrings)
+    tag_clock = ("" if a.clock == "population" else "_clockref") + ("_ham" if a.hamstrings else "")
     tag = ("_passive" if a.passive else "") + ("_anat" if a.anatomical else "") + ("_lumbar%g" % a.lumbar_catch if a.passive_lumbar else "") + tag_clock
     if a.layers is not None:
         import rung2_trunk_layers as TL
