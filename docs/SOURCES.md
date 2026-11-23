@@ -16771,3 +16771,20 @@ request stands (DATA_REQUESTS §13).
 **Consequence for the body build.** The trunk cannot be driven by its muscles at sourced strength until B1 is
 resolved, whatever its target. Until then the placeholder for step 4's trunk is a strength scale (named, like the
 amplitude B4), or the trunk keeps the computed-muscle-control structure with its feedforward from the reference.
+
+## 265. The measured sculling recovery law adopted (2026-11-23)
+
+The user asked whether a measured oar deceleration law exists. It does in the form rowing measures: Kleshnev's
+sculling averages give the handle speed through the whole recovery (rates 32/36/40), including the deceleration into
+the catch; built as `--pop-recovery sculling` in §242 and left an option ("no material effect"). Under the adopt rule
+it went through the ladder: athletes on it (main and half step, the §263 oar default; files `rung2_population_
+1002005bad.json` / `_05d55a8813.json`, long names in `rung2_population_index.json`) and the population's four B2/B2s
+runs re-made on it (the cosine files kept as `*_pre_s265.json`).
+
+**Ladder (`ladder_2026-11-23_s265.log`): 27 criteria, 0 fail, 2 expected fail.** [CR06] IVV 52.7 % (52.9), D1 +0.2 %;
+[BR24] D1 +1.8 % (+1.9), IVV 50.0 %, D4 centre 0.50, least force 109 N (93); A3 0.04 % / 0.13 pt; B2 9.2 points (9.5),
+**peak at 50 % (band 40–50: at the edge, narrow)**; B2s 22.4 / 12.5 unchanged. **Adopted:** `POP_RECOVERY =
+"sculling"` is the research default (rung 2's output names carry `_recsculling`).
+
+Also this round: the output writer now falls back to a short digest name when a configuration's full name would pass
+Windows' path limit (two runs lost to it), indexing the long name.

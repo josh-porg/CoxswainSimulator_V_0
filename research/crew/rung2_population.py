@@ -101,8 +101,9 @@ SHAFT_EI = None
 #: population's own force curve is reproduced to 10 points rms against 17.5)
 POP_DRIVE = "rbn2023"
 #: the planned recovery under the rbn2023 drive (athletes and population): "cosine" -- the parent sweep's raised cosine
-#: (as built); "sculling" -- the data author's sculling averages at the boat's rate (SOURCES §242)
-POP_RECOVERY = "cosine"
+#: (as built); "sculling" -- the data author's sculling averages at the boat's rate (SOURCES §242). Default "sculling"
+#: since §265: measured, sourced, and the ladder passes on it (27 / 0 / 2; the user's rule).
+POP_RECOVERY = "sculling"
 #: the population's drive fraction, set by population_tables
 POP = {}
 

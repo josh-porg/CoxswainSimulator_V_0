@@ -143,3 +143,4 @@ angle. Both athletes are held-out tests: nothing in the model was fitted to eith
   blade lowers his open-loop force further, consistent with his force channel reading high, §161). C1: passes at the
   photographed Big Blade area (11.6 %) but stays expected-fail (sources conflict, H40). B2s: the oar's mass
   distribution does not close it. Bands unchanged.
+- **2026-11-23, the measured sculling recovery law adopted** (SOURCES §265; `ladder_2026-11-23_s265.log`): athletes and population on Kleshnev's sculling averages through the recovery. **27 criteria, 0 fail, 2 expected fail**; B2's force peak at 50 % sits on its band's edge (narrow). Bands unchanged.

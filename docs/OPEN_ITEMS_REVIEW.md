@@ -89,9 +89,9 @@ the end error.
 ## 7. A measured oar deceleration law
 
 Yes, partly. Kleshnev's sculling averages give the handle speed through the whole recovery at rates 32, 36 and 40,
-including the deceleration into the catch. It is built as `--pop-recovery sculling` (§242), where it fitted [BR24]'s
+including the deceleration into the catch. It was built as `--pop-recovery sculling` (§242), where it fitted [BR24]'s
 recovery better and [CR06]'s worse with no material effect, and was kept as an option. Under the adopt rule it is a
-sourced, physically real change, so it was run through the ladder (§263): the same rung-2 results within 0.2 points; adoption waits on its half-step run. The finish's deceleration (the
+sourced, physically real change, so it was run through the ladder: 27 / 0 / 2 with small gains, and it is **now the research default** (§265). The finish's deceleration (the
 turn-round) was reproduced from [CR06]'s own data (the ledger's finish row). No open source gives the oar's angular deceleration
 directly; the handle-speed curve is the measured form of it.
 
