@@ -209,3 +209,5 @@ musculoskeletal rowing model was found.
   is the data that would decide it.
 
 * **Timing as an output (§270):** optimising the trunk modules' timing on measured motion wants the extensors 100–150 ms *earlier* than the EMG and the flexors as much later; even so the forward gate fails (30–44°). The remaining error is now localised to the model's inverse dynamics of the trunk (what makes its hip moment peak so early), not to the muscles, their strength or the angle definition.
+
+* **The hip moment decomposed; flexion-relaxation (§271):** the early peak is gravity and trunk inertia at the catch with the spine deeply flexed. Adding the in-vivo passive lumbar moment (Dolan et al. 1994) lets the *measured* EMG timing fit (r² up to 0.86, best at a physiological 75 ms delay; extensors 0.70–0.86 of strength): the antagonists and extensors are now consistent with their EMG. The forward trunk reaches 18–34°; the exact inverse-dynamics feedforward itself only reaches 9–11° in this test, so the 5° gate is not attainable in this configuration and needs a fair reference.

@@ -86,6 +86,12 @@ PASSIVE = False
 #: catch (Telfer et al. 2023, 11 rowers at rate 32: 41.4 and 120.8 deg; data/literature/telfer2023_hip_spine_split_rate32.json)
 ANATOMICAL = False
 TELFER_HIP_FINISH_DEG, TELFER_HIP_CATCH_DEG = 41.4, 120.8
+#: the lumbar spine's passive extensor moment (§271): Dolan, Mannion & Adams 1994 endpoints, an exponential rising
+#: steeply beyond ~80 % of full flexion (DOLAN_K 8: 70 % of the rise in the last 15 % of flexion; a shape choice)
+PASSIVE_LUMBAR = False
+DOLAN1994_FULL_FLEXION_NM = {"M": 120.0, "F": 77.0}
+DOLAN_K = 8.0
+LUMBAR_FRACTION_FINISH, LUMBAR_FRACTION_CATCH = 0.40, 0.90
 #: extra excitation timing shifts of the two trunk modules, s (positive: later than the EMG); 0 = the EMG as measured.
 #: Set by the timing optimisation (`--optimise-timing`, §270): the timing an output, not an input
 SHIFT_E, SHIFT_F = 0.0, 0.0
@@ -111,6 +117,7 @@ class TrunkMuscles:
         self.P, grid, th, w = RM.tables(boat)
         self.grid, self.th, self.w = grid, th["hip"], w["hip"]
         self.th_knee = th["knee"]
+        self.sex = RM.MC.SEX[name]
         mass = float(np.sum(np.asarray(boat.crew_field(0.0)[0], float)))
         stature = float(boat.crew[0].rower.anthropometry.stature)
         g = RM.MC.GROUP[name]
@@ -153,8 +160,25 @@ class TrunkMuscles:
         h = float(np.interp(x, self.grid, self.th, period=self.P))
         k = float(np.interp(x, self.grid, self.th_knee, period=self.P))
         if ANATOMICAL:
-            h = self.anatomical_hip(h)
-        return float(silder_passive_hip_extension(h, k))
+            h_anat = self.anatomical_hip(h)
+        else:
+            h_anat = h
+        total = float(silder_passive_hip_extension(h_anat, k))
+        if PASSIVE_LUMBAR:
+            total += self.passive_lumbar(h)
+        return total
+
+    def passive_lumbar(self, h):
+        """The lumbar spine's passive extensor moment (Dolan, Mannion & Adams 1994, J Biomech: ~25 N m lordotic, 120 N m
+        men / 77 N m women at full flexion, rising steeply beyond ~80 % of full flexion), along the stroke's lumbar
+        flexion as a fraction of full: LUMBAR_FRACTION_FINISH at the trunk-thigh angle's minimum to
+        LUMBAR_FRACTION_CATCH at its maximum (Telfer et al. 2023's lumbar -13.6 -> -30.2 deg at rate 32, the catch
+        taken as ~90 % of full flexion: an assumption, bracketed)."""
+        lo, hi = float(np.min(self.th)), float(np.max(self.th))
+        s = float(np.clip((h - lo) / max(hi - lo, 1e-9), 0.0, 1.0))
+        f = LUMBAR_FRACTION_FINISH + s * (LUMBAR_FRACTION_CATCH - LUMBAR_FRACTION_FINISH)
+        full = DOLAN1994_FULL_FLEXION_NM[self.sex]
+        return 25.0 + (full - 25.0) * (np.exp(DOLAN_K * f) - 1.0) / (np.exp(DOLAN_K) - 1.0)
 
     def _anat_slope(self):
         lo, hi = float(np.min(self.th)), float(np.max(self.th))
@@ -296,12 +320,15 @@ def main():
                     help="the passive hip moment (Silder et al. 2007 eq. A.5, mean parameters) in the trunk's muscles")
     ap.add_argument("--optimise-timing", action="store_true",
                     help="the modules' timing as an output: fit on the athletes' own trunk motion, then the forward gate")
+    ap.add_argument("--passive-lumbar", action="store_true", help="the lumbar spine's passive extensor moment (Dolan et al. 1994; needs --passive)")
+    ap.add_argument("--lumbar-catch", type=float, default=0.90, help="lumbar flexion at the catch as a fraction of full (bracket 0.8-1.0)")
     ap.add_argument("--anatomical", action="store_true",
                     help="read hip strength and passive moment on the anatomical hip angle (Telfer et al. 2023 split)")
     a = ap.parse_args()
-    global PASSIVE, ANATOMICAL
-    PASSIVE, ANATOMICAL = bool(a.passive), bool(a.anatomical)
-    tag = ("_passive" if a.passive else "") + ("_anat" if a.anatomical else "")
+    global PASSIVE, ANATOMICAL, PASSIVE_LUMBAR, LUMBAR_FRACTION_CATCH
+    PASSIVE, ANATOMICAL, PASSIVE_LUMBAR = bool(a.passive), bool(a.anatomical), bool(a.passive_lumbar)
+    LUMBAR_FRACTION_CATCH = float(a.lumbar_catch)
+    tag = ("_passive" if a.passive else "") + ("_anat" if a.anatomical else "") + ("_lumbar%g" % a.lumbar_catch if a.passive_lumbar else "")
     if a.layers is not None:
         import rung2_trunk_layers as TL
         TL.LayersSim.LAYERS = tuple(a.layers)
