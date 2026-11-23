@@ -46,7 +46,9 @@ only structurally; a sourced grip (Dong et al. 2007) damps it 4–8× faster.
 | [BR24]'s trunk travel scaled, legs not | fixed (§240) |
 | the arms follow the model's hand law, not the athlete's measured hands | open — a deliberate rung design; recorded (§242: not the excess) |
 | [CR06]'s boat mass: Table 1's 19.7 kg against the paper's 15.8 kg rigged boat | checked: 19.7 = 15.8 rigged + 3.9 kg of telemetry (`validate_blade.CR06_HULL`; SOURCES line ~210) — consistent |
-| the implied-impulse check's system mass leaves out the oars | recorded (§242); asked |
+| the implied-impulse check's system mass leaves out the oars | recorded (§242); asked — Kleshnev did not measure them (§258); Concept2 asked (#18) |
+| [BR24]'s blade: the catalogue's generic 0.083 m², though his blade type is now known (Smoothie2) | **open (§259, H39)**: Concept2's outline and photographs give 0.071–0.077 m²; ladder run pending |
+| [CR06]'s blade: the 2006 paper's 0.0903 m², against 0.068–0.074 m² for the Big Blade by Concept2's photographs | **conflict recorded (§259, H40)**; not resolved by fitting |
 
 ## A4. A synthetic reference built from mixed sources
 

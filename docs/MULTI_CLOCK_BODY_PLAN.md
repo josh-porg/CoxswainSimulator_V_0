@@ -42,7 +42,7 @@ stored file of that run, `muscle_capacity_rung2.json`, is superseded.)
 | B3 | shoulder strength and scapular (girdle) kinematics unsourced | a rowing scapular-kinematics series; shoulder extension strength by angle | the arm pullers are driven at the elbow (Frey-Law), the shoulder taking the rest kinematically | arm forces are elbow-limited |
 | B4 | the module amplitudes (how hard each group is driven), including the antagonists' co-contraction level (§257) | step 5's estimator, or LQG (step 6); for the antagonists a rowing %MVC source | matched to the athlete's measured power, as rung 2 scales its muscles (one scale per athlete, not a fit of shape); antagonists off by default | the same status as rung 2's scale; H37's level open |
 | B5 | the auditory delay (for coxswain calls) | a sourced auditory-motor delay in rowing | not needed until calls drive the crew | none yet |
-| B6 | the data author's answers (oars, angle sensor, original recordings) | DATA_REQUESTS #2 | — | C1, B2s, the sensor hypothesis |
+| B6 | the data author's answers (oars, angle sensor, original recordings) | **answered 2026-11-22 (§258)**: sensor inboard (H33 refuted), shafts confirmed, [CR06]'s originals lost | — | C1 has no data route; B2s's cause open; blade areas now from Concept2 (§259, request #18 drafted) |
 
 ## Step 4's gate, fully specified (§255)
 

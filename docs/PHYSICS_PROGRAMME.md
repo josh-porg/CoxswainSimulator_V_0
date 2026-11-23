@@ -1410,6 +1410,29 @@ the boat speeds that go with their drive durations).
   - *Next:* the population's 10–20 % (the shaft's lag against the blade's grip: blade water inertia near the surface,
     wetting from Fig. 1b); a sourced oar mass and balance; ask the data's author about [BR24]'s oars and channels
     (user's call); C1 and D1.
+- **§251–252 (2026-11-19):** published sources on where oar angles are sensed (gate vs shaft). **Methodology (user):**
+  physically motivated, sourced, non-failing changes go into the research default; docs/HYPOTHESIS_REGISTER.md and
+  docs/MODELLING_ASSUMPTIONS.md created. Grip damping ζ 0.14 and release slip 16.6° made defaults (ladder 27 / 0 fail /
+  2 expected fail). Audit finding R1: `PROFILES["research"]` lags the validated configuration (user's decision).
+- **§253–255 (2026-11-19/20): the multi-clock body resumed** (docs/MULTI_CLOCK_BODY_PLAN.md). On-water EMG modules
+  (Pitto et al. 2024), the leg module from indoor rowing (Vieira et al. 2020, flagged), `coxswain/crew/excitation.py`
+  (modules + phase oscillator, tested). Today's body loads legs / trunk / arms ~105–160 / 125–180 / 260–330 ms too
+  early against EMG; the straight-arm catch spike is the girdle's missing compliance (B3).
+- **§256–257 (2026-11-20): step 4's first closed loop** (`research/crew/rung2_modules.py`): rung 2's clock driven by
+  knee, hip and elbow muscles on the modules; stable; oar timing better than the population force for both athletes.
+  The late-drive clock spike is the missing antagonists (trunk flexors braking the layback): adding them at equal
+  amplitude removes / reduces it but worsens IVV, so not adopted (H37; level is blocker B4). Power-matched: [BR24]
+  +2.8 % speed, IVV still +7 points.
+- **§258 (2026-11-22): the data author's answers.** Angle sensor clamped 0.40 m *inboard* → H33 refuted (the inboard
+  bend makes the real oar ×0.84–0.94 as stiff on a measured angle, H38); [BR24]'s shafts are the model's [L14] Skinny
+  medium; channels synchronised; pre-catch / post-finish force not horizontal (sensor turns with feathering); [CR06]'s
+  2006 recordings lost (C1 has no data route).
+- **§259 (2026-11-23): blade areas from Concept2's photographs.** Smoothie2 Plain Edge scull ~0.071–0.077 m² against
+  the model's 0.083 (H39); the Big Blade's photograph-scaled 0.068–0.074 conflicts with [CR06]'s stated 0.0903 (H40,
+  recorded, not resolved). Concept2 asked (draft, DATA_REQUESTS #18).
+  - *Next:* the ladder with [BR24]'s Smoothie2 area (adopt if non-failing); C1's sensitivity to [CR06]'s area
+    (diagnostic); per-group module amplitudes (B4); segments as degrees of freedom; the early-loading deficit (B2s)
+    with its two data-route candidates gone.
 
 ## Calibration and validation data from the squad's own boats (noted 2026-10-08)
 
@@ -1571,6 +1594,11 @@ research depth term; see TRACKING for the decision and what it needs.
 | date | decision | why |
 |---|---|---|
 | 2026-10-31 | **The research (and learned) profile's blade is the cross-flow normal law, in strips** (`blade_law="liftdrag"`, `"crossflow-normal@2.2"`); the fitted scull C2 is retired from both (user decision) | Sourced and unfitted to any athlete; fits two measured blade loads open loop; [CG07] and [H10] put the tangential load at ~2–3 % of the normal; passes rung 2's gate on both athletes and, for the first time, every scorecard target on both boats (blade efficiency 0.793 / 0.765 in Kleshnev's band). SOURCES §199–202; scorecard above |
+| 2026-11-19 | **Physically motivated, sourced changes that do not fail validation go into the research default** (at the conservative end of their range); every hypothesis and its outcome in docs/HYPOTHESIS_REGISTER.md; each assumption class audited model-wide (docs/MODELLING_ASSUMPTIONS.md) (user) | Improvements had been tested, found better and left as options; a PhD audit needs every hypothesis and its outcome on record |
+| 2026-11-19 | B2 keeps its all-boat test; the like-for-like sculling test B2s is added as an expected failure to follow up (user) | Both references are sourced; demoting a rung to make progress is not allowed |
+| 2026-11-19 | **Multi-clock body** resumed in review §12's order, on named placeholders where data are missing (user) | The body is the largest remaining error on the coxing questions; placeholders keep progress moving without reporting them as sourced |
+| 2026-11-18 | C1 an expected failure pending data (user); 2026-11-22 the data route closed (originals lost) | The force-level excess is one athlete's, opposite in sign to the other's; no single-athlete fit |
+| 2026-11-23 | Blade area from Concept2's own face-on photographs and published outline, and Concept2 asked for the figures (user) | The stronger athlete's blade type is now known; its area was assumed |
 | 2026-09-12 | Torque level, not muscle level | Hill-type muscles buy fidelity we cannot validate without EMG; gross efficiency is known to be 0.20 and rate-independent, so the metabolic layer is a scalar applied afterwards |
 | 2026-09-12 | Tier 1 before tier 2 | Tier 1 fixes the defect; tier 2's value is decided by phase 1's gate |
 | 2026-09-12 | Phase 0 is worth a whole phase | The baseline gets set before anyone has a stake in beating it. It found two bugs on its first run, which settles the argument |

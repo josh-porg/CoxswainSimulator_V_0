@@ -16522,7 +16522,7 @@ population-driven rung 2 on the **same model body** (`logs/rung2_population_mode
 **Next:** the clock-rate spike (where in the drive; whether the hand-over or a group's strength clamp), the amplitude
 by group (B4: from the reference's joint demands rather than one scale), then the segments as degrees of freedom.
 
-## §257 — Step 4: the clock's late-drive spike is the missing antagonists; power-matched amplitude (2026-11-20)
+## 257. Step 4: the clock's late-drive spike is the missing antagonists; power-matched amplitude (2026-11-20)
 
 `research/crew/rung2_modules.py` now saves the last stroke's clock trace (`clock_trace`, `clock_peak`), iterates the
 amplitude to the measured power (`--iterate-power N`), takes per-group multipliers (`--group-scales`), and can add the
@@ -16567,7 +16567,7 @@ iterations each (`_pow2`, `_pow2_antag`; logs `rung2_modules_s257_pow2.log`, `ru
 **Next:** per-group amplitudes from the reference stroke's joint demands (B4, which also sets the antagonists' level),
 then the segments as degrees of freedom; the finish's turning point stays on HANDOVER 0.95.
 
-## §258 — The data author's answers: the oars, the angle sensor, the force before the catch (2026-11-22)
+## 258. The data author's answers: the oars, the angle sensor, the force before the catch (2026-11-22)
 
 Kleshnev's reply (email 2026-11-22, DATA_REQUESTS #2) to §243's questions:
 
@@ -16605,3 +16605,43 @@ candidates the data could have given (the shaft's spec and the sensor's position
 inboard bend. The remaining candidates are the blade (Smoothie area and shape), the force sensor's orientation just
 after the catch (if squaring is not complete at the measured catch), and something in the catch physics the model
 lacks.
+
+## 259. Scull blade areas from Concept2's face-on photographs (2026-11-23)
+
+The user (2026-11-23): use the blade-type images for the area, and ask Concept2 for the data, as Kleshnev suggested.
+Concept2 publishes each scull blade's outline (length, tip width, widest width; concept2.com/oars/sculls/blades) but
+no areas. Its product photographs show the blades face-on, white on a plain blue ground (downloaded with the user's
+permission to `data/local/literature/concept2_blades/`). `research/blade/concept2_blade_area.py` segments each blade,
+takes the pixel scale from the published length, checks it against the published widest width, and reports the
+projected face area and the fill fraction area / (length × widest width):
+
+| blade (scull) | published L × W, cm | measured W on the length's scale | projected area, m² | fill |
+|---|---|---|---|---|
+| Big Blade | 44 × 21.5 | 20.7 (−4 %) | 0.068 (0.074 on the width's scale) | 0.72 |
+| Fat2 | 46 × 23 | 23.3 (+1 %) | 0.084 | 0.79 |
+| Comp | 37 × 23 | 23.3 (+1 %) | 0.064 | 0.75 |
+| Smoothie2 (sweep photograph, shape only) | — | — | — | 0.78 |
+
+- The widths agree with Concept2's to 1–4 %, so the photographs are face-on and the published length is the blade's
+  extent along the shaft. The published "width at the tip" is not reproduced at any single section (the tips are
+  slanted and rounded), so it is not used.
+- **[BR24]'s blade (Smoothie2, Kleshnev 2026-11-22):** no face-on scull photograph exists. On the Smoothie2 Plain Edge
+  scull's outline (46 × 21.5 cm) the Smoothie2 sweep's fill gives **0.077 m²** and the Big Blade scull's fill gives
+  **0.071 m²**. The Vortex Edge (tip 16.5 cm) is smaller still, and Kleshnev did not say which edge. The model
+  uses the catalogue scull's **0.083 m²** (assumed), 8–17 % above the Plain Edge estimate (H39).
+- **[CR06]'s 0.0903 m²** (Cabrera, Ruina & Kleshnev 2006, her paper's stated area) is 22–33 % above the Big Blade's
+  photograph-scaled area, the scull blade most likely in use when her data were recorded. The paper's value may be a
+  developed (curved-face) area, a different blade, or an error. Concept2 has been asked. C1's force excess (+12–17 %)
+  has the sign a too-large blade would give (H40). **Not acted on:** the paper is a source and the photograph estimate
+  is indirect, so the two sources conflict and the conflict is recorded rather than resolved by choosing the one that
+  fits.
+- Uncertainty: ±4 % on the scale (the length and width disagree by up to 4 %), so ±8 % on area; the photographs are
+  projections of a curved face.
+
+**Data request (DATA_REQUESTS #18, drafted, unsent):** Concept2 (info@concept2.com, their own page): the blades' face
+areas and how they are defined, how the published length is measured, a Skinny medium scull's mass and balance point,
+and whether the Big Blade has changed since the mid-2000s.
+
+**Next (sensitivity, sourced inputs only):** the ladder with [BR24]'s blade at 0.071–0.077 m² (an input correction
+under the adopt rule if it does not fail), and C1's sensitivity to [CR06]'s area across 0.07–0.09 m² (a diagnostic
+only, until Concept2 or the paper's author settles it).
