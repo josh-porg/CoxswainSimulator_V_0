@@ -191,7 +191,7 @@ musculoskeletal rowing model was found.
 | Oar weight moment from the recovery | **done and adopted**: centre of mass 0.67 m, inertia +28 % | a third athlete's oar |
 | τ(θ) | **answered**: superseded in the validated configuration; fixed by R1 (the user's decision) | R1 |
 | Measured oar deceleration (recovery) law | **done and adopted**: Kleshnev's sculling averages (§265) | — |
-| C1 expected failure | **not closed**: passes at the photographed Big Blade area (11.6 %), not adopted while two sources conflict | Concept2's figures |
-| B2s expected failure | **not closed**: sensor position, shaft spec and oar mass ruled out; literature agrees flexible shafts ramp slower | a measured early-drive blade or handle force on a flexible scull |
+| C1 expected failure | **not closed**: passes at the photographed Big Blade area (11.6 %), not adopted while two sources conflict | Concept2's figures (asked), or her blade type from Kleshnev (follow-up drafted) |
+| B2s expected failure | **not closed**: sensor position, shaft spec and oar mass ruled out; literature agrees flexible shafts ramp slower | a measured early-drive force on a flexible scull: Laschowski's on-water shaft trials (request to his supervisor drafted, #19) |
 | Antagonists | **reviewed and built** (EMG-assisted calibration); physical, with flexors at 0.7–0.95 of strength late in the drive; **the model's flaw located**: the extensors' strength at catch angles (B1) | a rowing-posture hip/lumbar extension strength curve to 120° |
 | Kinematics → dynamics | **literature reviewed; first step (computed muscle control of the trunk) built and run; fails its gate** (best 31–37° against 5°) | B1, then collocation / predictive simulation |
