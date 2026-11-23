@@ -81,6 +81,10 @@ def population_Q(strokes, name, boat, m):
 SILDER2007 = dict(RF=(3.1, 1.9, 24.4), HAM=(5.1, 3.9, 30.8), HF=(5.1, 19.5), HE=(2.0, 27.3))
 #: include the passive hip moment in the trunk's muscle model (§267); False: active modules only (§262-266)
 PASSIVE = False
+#: read the passive hip moment on the anatomical hip angle, the lumbar share removed (§268); a diagnostic: the
+#: anatomical hip still exceeds Silder's measured 100 deg at the catch
+LUMBAR_SPLIT = False
+LUMBAR_CATCH_DEG, LUMBAR_FINISH_DEG = 37.0, -23.0
 
 
 def silder_passive_hip_extension(h, k, sides=2):
@@ -140,7 +144,18 @@ class TrunkMuscles:
         x = float(tau) % self.P
         h = float(np.interp(x, self.grid, self.th, period=self.P))
         k = float(np.interp(x, self.grid, self.th_knee, period=self.P))
+        if LUMBAR_SPLIT:
+            h = self.anatomical_hip(h)
         return float(silder_passive_hip_extension(h, k))
+
+    def anatomical_hip(self, h):
+        """The model's trunk-thigh angle less the lumbar spine's share (§268, H47): lumbar flexion mapped linearly from
+        LUMBAR_FINISH_DEG at the stroke's smallest trunk-thigh angle to LUMBAR_CATCH_DEG at its largest (rowing
+        lumbo-pelvic studies: ~37 deg at the catch, range ~59-67 deg); pelvic tilt (a few degrees) neglected."""
+        lo, hi = float(np.min(self.th)), float(np.max(self.th))
+        s = (h - lo) / max(hi - lo, 1e-9)
+        lumbar = np.radians(LUMBAR_FINISH_DEG + s * (LUMBAR_CATCH_DEG - LUMBAR_FINISH_DEG))
+        return h - lumbar
 
     def __call__(self, tau, c, td):
         cE, cF = self._cols(tau, c, td)
