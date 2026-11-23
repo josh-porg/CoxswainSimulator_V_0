@@ -195,3 +195,15 @@ musculoskeletal rowing model was found.
 | B2s expected failure | **not closed**: sensor position, shaft spec and oar mass ruled out; literature agrees flexible shafts ramp slower | a measured early-drive force on a flexible scull: Laschowski's on-water shaft trials (request to his supervisor drafted, #19) |
 | Antagonists | **reviewed and built** (EMG-assisted calibration); physical, with flexors at 0.7–0.95 of strength late in the drive; **the model's flaw located**: the extensors' strength at catch angles (B1) | a rowing-posture hip/lumbar extension strength curve to 120° |
 | Kinematics → dynamics | **literature reviewed; first step (computed muscle control of the trunk) built and run; fails its gate** (best 31–37° against 5°); the blocker narrowed to a definition mismatch (§267): the lumped trunk–thigh angle | split the angle into pelvis, lumbar and hip from a sourced rowing series, then re-test; then collocation / predictive simulation |
+
+## Update (2026-11-23, later; SOURCES §268–269)
+
+* **Hip data, from the literature (the user's request):** open motion capture of 11 rowers (Telfer et al. 2023, MIT
+  data) gives the anatomical hip (41° at the finish, 121° at the catch). Read on it, with Silder et al.'s passive hip
+  tissue, the trunk's muscles need 0.91–0.99 of their strength on the athletes' measured motion (was 1.3): **feasible**.
+  The muscle-driven trunk improves to 22–32° wander; the 5° gate still fails (the next literature step: tracking or
+  predictive optimisation).
+* **An empirical early-loading correction (the user's question):** the data are enough to *test* one, and the test
+  says a single effective-stiffness factor does **not** generalise: the all-boat population wants ≤×1.5 (above it the
+  force peak leaves its band), the athletes ×1.5–2, the sculling population ≥×3. Not adopted; the Nolte request (sent)
+  is the data that would decide it.

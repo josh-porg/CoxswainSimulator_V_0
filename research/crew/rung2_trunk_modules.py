@@ -81,10 +81,11 @@ def population_Q(strokes, name, boat, m):
 SILDER2007 = dict(RF=(3.1, 1.9, 24.4), HAM=(5.1, 3.9, 30.8), HF=(5.1, 19.5), HE=(2.0, 27.3))
 #: include the passive hip moment in the trunk's muscle model (§267); False: active modules only (§262-266)
 PASSIVE = False
-#: read the passive hip moment on the anatomical hip angle, the lumbar share removed (§268); a diagnostic: the
-#: anatomical hip still exceeds Silder's measured 100 deg at the catch
-LUMBAR_SPLIT = False
-LUMBAR_CATCH_DEG, LUMBAR_FINISH_DEG = 37.0, -23.0
+#: read the hip's strength and passive moment on the ANATOMICAL hip angle (§268, H47): the model's trunk-thigh angle
+#: mapped linearly from its stroke minimum and maximum onto the population's anatomical hip at the finish and at the
+#: catch (Telfer et al. 2023, 11 rowers at rate 32: 41.4 and 120.8 deg; data/literature/telfer2023_hip_spine_split_rate32.json)
+ANATOMICAL = False
+TELFER_HIP_FINISH_DEG, TELFER_HIP_CATCH_DEG = 41.4, 120.8
 
 
 def silder_passive_hip_extension(h, k, sides=2):
@@ -130,8 +131,11 @@ class TrunkMuscles:
 
     def _cols(self, tau, c, td):
         x = float(tau) % self.P
-        theta = float(np.clip(np.interp(x, self.grid, self.th, period=self.P), *RM.TESTED["hip"]))
+        theta = float(np.interp(x, self.grid, self.th, period=self.P))
         w = float(np.interp(x, self.grid, self.w, period=self.P)) * td        # d(flexion)/dt
+        if ANATOMICAL:
+            theta, w = self.anatomical_hip(theta), w * self._anat_slope()
+        theta = float(np.clip(theta, *RM.TESTED["hip"]))
         phase = ((c - self.delay) / self.P) % 1.0
         tE = float(self.mods("trunk_extensors", phase)) * float(np.ravel(self.HE.max_active(theta, -w))[0])
         tF = float(self.mods("trunk_flexors", phase)) * float(np.ravel(self.HF.max_active(theta, w))[0])
@@ -144,18 +148,19 @@ class TrunkMuscles:
         x = float(tau) % self.P
         h = float(np.interp(x, self.grid, self.th, period=self.P))
         k = float(np.interp(x, self.grid, self.th_knee, period=self.P))
-        if LUMBAR_SPLIT:
+        if ANATOMICAL:
             h = self.anatomical_hip(h)
         return float(silder_passive_hip_extension(h, k))
 
-    def anatomical_hip(self, h):
-        """The model's trunk-thigh angle less the lumbar spine's share (§268, H47): lumbar flexion mapped linearly from
-        LUMBAR_FINISH_DEG at the stroke's smallest trunk-thigh angle to LUMBAR_CATCH_DEG at its largest (rowing
-        lumbo-pelvic studies: ~37 deg at the catch, range ~59-67 deg); pelvic tilt (a few degrees) neglected."""
+    def _anat_slope(self):
         lo, hi = float(np.min(self.th)), float(np.max(self.th))
-        s = (h - lo) / max(hi - lo, 1e-9)
-        lumbar = np.radians(LUMBAR_FINISH_DEG + s * (LUMBAR_CATCH_DEG - LUMBAR_FINISH_DEG))
-        return h - lumbar
+        return np.radians(TELFER_HIP_CATCH_DEG - TELFER_HIP_FINISH_DEG) / max(hi - lo, 1e-9)
+
+    def anatomical_hip(self, h):
+        """The model's trunk-thigh angle mapped onto the population's anatomical hip (§268, H47): linear from the
+        stroke's smallest to largest trunk-thigh angle onto Telfer et al. 2023's hip at the finish and at the catch."""
+        lo = float(np.min(self.th))
+        return np.radians(TELFER_HIP_FINISH_DEG) + (h - lo) * self._anat_slope()
 
     def __call__(self, tau, c, td):
         cE, cF = self._cols(tau, c, td)
@@ -252,10 +257,12 @@ def main():
     ap.add_argument("--observer", type=float, default=0.0, help="with --predict, rung 5's disturbance observer gain")
     ap.add_argument("--passive", action="store_true",
                     help="the passive hip moment (Silder et al. 2007 eq. A.5, mean parameters) in the trunk's muscles")
+    ap.add_argument("--anatomical", action="store_true",
+                    help="read hip strength and passive moment on the anatomical hip angle (Telfer et al. 2023 split)")
     a = ap.parse_args()
-    global PASSIVE
-    PASSIVE = bool(a.passive)
-    tag = "_passive" if a.passive else ""
+    global PASSIVE, ANATOMICAL
+    PASSIVE, ANATOMICAL = bool(a.passive), bool(a.anatomical)
+    tag = ("_passive" if a.passive else "") + ("_anat" if a.anatomical else "")
     if a.layers is not None:
         import rung2_trunk_layers as TL
         TL.LayersSim.LAYERS = tuple(a.layers)

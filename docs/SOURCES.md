@@ -16853,3 +16853,55 @@ stays off.** Next, in order: split the model's trunk–thigh angle into pelvis, 
 lumbo-pelvic kinematic series (the McGregor / Bull electromagnetic-tracking papers), apply Anderson's hip strength and
 Silder's passive hip on the anatomical hip angle, add the lumbar extensors' own strength (elite rowers' isometric
 trunk extension ~319 N m) for the spine's share, then recalibrate and re-run the trunk gate.
+
+## 268. Anatomical hip angles from open motion capture: the trunk's muscles become feasible (2026-11-23)
+
+The user (2026-11-23): get the data the hip needs through a literature review. **Found and downloaded (open, MIT
+licence):** Telfer et al. (2023), "The effect of foot-stretcher position and stroke rate on ergometer rowing
+kinematics", PLoS ONE (PMC10174490); data github.com/Telfer/Rowing_Biomechanics, cloned to
+`data/local/literature/telfer2023_rowing_kinematics/`: 11 collegiate rowers (6 women, 5 men), Concept2 ergometer, seven
+foot-stretcher positions × rates 22/26/32, Visual3D joint angles for both hips, both knees, the lower back (lumbar on
+pelvis) and the upper back, ~100 strokes per rower per rate, each normalised finish to finish. Also read: Buckeridge
+et al. 2012 (MSSE; PDF in `data/local/literature/buckeridge2012/`): elite anatomical hip range 93–97°; Graves et al.
+1990 (Spine): isometric lumbar extension strength linear in flexion, 236→465 N m (men) from 0 to 72°.
+
+`research/crew/telfer2023_kinematics.py` (pooled, rate 32; `data/literature/telfer2023_hip_spine_split_rate32.json`):
+anatomical hip **41.4° (SD 16.7) at the finish, 120.8° (19.4) at the catch**, knee 122.8° at the catch; lumbar −13.6 →
+−30.2°, thoracic −8.3 → 21.0°; hip 79° of the stroke's ~125° trunk-thigh change (share 0.63). The model's lumped
+trunk-thigh angle (67–180°) is therefore mapped linearly onto 41–121° (`rung2_trunk_modules --anatomical`), and
+Anderson's hip strength and Silder's passive hip are read on it (`--passive`).
+
+| on the athletes' own trunk motion, 0–150 ms delay | extensors needed (× maximal strength) | r² |
+|---|---|---|
+| lumped angle (§264) | 1.29–1.32 | 0.51–0.67 |
+| anatomical angle | 1.04–1.11 | 0.52–0.68 |
+| **anatomical angle + passive hip (Silder 2007)** | **0.91–0.99** | **0.66–0.77** |
+
+**The trunk's muscles are feasible at sourced strength once the angle is defined as the data define it** (H47
+resolved; the "B1 strength gap" of §264 was largely the definition mismatch). The flexors take 0.54–0.69 of their
+strength late in the drive (the antagonists, H37: physical, as the EMG says). Forward, with the full layers at 100 ms
+(`--anatomical --passive --layers ... --predict --observer 2`): calibration r² 0.75 / 0.73, extensors 0.88 / 1.12;
+wander **32° / 22°** (from 37° / 31°; reference feedforward 11° / 9°). **The 5° gate still fails**; the remaining gap
+is the shape of the EMG-timed moment against the kinematic trunk's demand, which the literature's next step
+(tracking or predictive optimisation, the trunk's timing an output) addresses.
+
+## 269. Can an empirical early-loading correction be fitted and generalised? Tested: no single factor (2026-11-23)
+
+The user: do we have enough data to fit an empirical adjustment for the early loading that generalises to other
+athletes? The only adjustment the four references can test is an effective shaft stiffness (the deficit is the
+flexible shaft loading late). Fitted on population data, checked on the athletes it never saw:
+
+| reference | ×1 | ×1.25 | ×1.5 | ×2 | ×3 | rigid |
+|---|---|---|---|---|---|---|
+| B2s: sculling averages, rms (points) | 22.4 | 18.1 | 15.5 | 12.6 | 10.6 | 12.5 |
+| B2: all-boat reference, rms / peak (band 40–50 %) | 9.2 / 50 % | — | 7.8 / **39 %** | 11.0 / **36 %** | 15.6 / **28 %** | 23.2 |
+| [BR24] open loop, rms % of peak (pre-§263 oar) | 18.5 | 17.3 (×1.17) | 16.2 | 16.2 | — | 23.5 |
+| [CR06] open loop | 13.7 | 13.0 (×1.17) | 12.3 | 12.5 | — | 21.6 |
+
+**Not generalisable.** The four references want different factors (all-boat ≤×1.5, the athletes ×1.5–2, the sculling
+population ≥×3); every factor above ×1.25 moves B2's force peak out of its band, and none brings B2s to the rigid oar's
+level without failing B2. A single empirical correction would fit one reference by breaking another, and no source
+gives a scull stiffer than ×1.125 (Concept2). **Not adopted.** The disagreement between the two population references
+(the all-boat curves favour the flexible shaft, the sculling averages a stiff one) points at the references'
+different hands and force sources rather than at one shaft parameter; the data that would decide it are measured
+early-drive forces on soft and medium sculls (DATA_REQUESTS #19, sent 2026-11-23).
