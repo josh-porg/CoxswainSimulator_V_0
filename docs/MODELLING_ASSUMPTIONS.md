@@ -37,6 +37,7 @@ only structurally; a sourced grip (Dong et al. 2007) damps it 4–8× faster.
 | the catch: the model's first wet sample against the data's turning point | handled in the speed-trace overlay (§241) |
 | **the oar angle: where the sensor reads the shaft** | **answered (§258)**: clamped ~0.40 m inboard of the pin (Kleshnev); the outboard-capture hypothesis H33 refuted |
 | the handle force before the catch and after the finish | **answered (§258)**: the shaft's force sensor turns with the feathering, so the recorded force there is not the horizontal force (Kleshnev); any use of it (§238's in-air inertia check) is void |
+| **the "hip" angle: the model's trunk–thigh angle (to 180° at the catch) against anatomical hip flexion in the strength and passive data** | **found (§267, H47)**: the model's rigid trunk lumps the lumbar spine and pelvis into the hip; Anderson's strength (B1) and Silder's passive moment have been read on it. Open: split it from a sourced rowing lumbo-pelvic series |
 | the stroke-averaged measured cycle against one model stroke | examined: ~1 % of peaks (§234) |
 
 ## A3. A measured input applied to part of the model and not the rest (STRUCTURAL_ISSUES S16)

@@ -73,12 +73,36 @@ def population_Q(strokes, name, boat, m):
     return Q
 
 
+#: Silder, Whittington, Heiderscheit & Thelen (2007), J Biomech 40:2628, Table 4: mean passive-moment parameters of 20
+#: young adults (gains per rad, offsets in degrees); their eq. A.5 gives the hip's passive moment, flexor-positive:
+#:   M_h = e^{-b_RFh (h - (b_RFk/b_RFh) k - a_RF)} + e^{-b_HF (h - a_HF)} - e^{b_HAMh (h - (b_HAMk/b_HAMh) k - a_HAM)}
+#:         - e^{b_HE (h - a_HE)}            (h hip flexion, k knee flexion, rad; N m, one leg)
+#: Measured to 100 deg of hip flexion (85 deg with the knee flexed to 135); beyond, an extrapolation of their fit.
+SILDER2007 = dict(RF=(3.1, 1.9, 24.4), HAM=(5.1, 3.9, 30.8), HF=(5.1, 19.5), HE=(2.0, 27.3))
+#: include the passive hip moment in the trunk's muscle model (§267); False: active modules only (§262-266)
+PASSIVE = False
+
+
+def silder_passive_hip_extension(h, k, sides=2):
+    """The passive hip moment, EXTENSOR-positive, both legs (Silder et al. 2007 eq. A.5 with Table 4's means)."""
+    bRFh, bRFk, aRF = SILDER2007["RF"]
+    bHAMh, bHAMk, aHAM = SILDER2007["HAM"]
+    bHF, aHF = SILDER2007["HF"]
+    bHE, aHE = SILDER2007["HE"]
+    r = np.radians
+    flexor = (np.exp(-bRFh * (h - (bRFk / bRFh) * k - r(aRF))) + np.exp(-bHF * (h - r(aHF)))
+              - np.exp(bHAMh * (h - (bHAMk / bHAMh) * k - r(aHAM))) - np.exp(bHE * (h - r(aHE))))
+    return -sides * flexor
+
+
 class TrunkMuscles:
-    """The hip moment from the trunk extensor and flexor modules, calibrated on a reference hip moment."""
+    """The hip moment from the trunk extensor and flexor modules, calibrated on a reference hip moment; with
+    ``PASSIVE`` the passive hip moment (Silder et al. 2007) acts too and the modules are calibrated on the rest."""
 
     def __init__(self, name, boat, M_ref, delay=DELAY):
         self.P, grid, th, w = RM.tables(boat)
         self.grid, self.th, self.w = grid, th["hip"], w["hip"]
+        self.th_knee = th["knee"]
         mass = float(np.sum(np.asarray(boat.crew_field(0.0)[0], float)))
         stature = float(boat.crew[0].rower.anthropometry.stature)
         g = RM.MC.GROUP[name]
@@ -89,10 +113,11 @@ class TrunkMuscles:
         taus = np.linspace(0.0, self.P, 600, endpoint=False)
         y = np.array([M_ref(x) for x in taus])
         A = np.column_stack([self._cols(x, x, 1.0) for x in taus]).T
+        pas = np.array([self.passive(x) for x in taus])
         best = None
         for sigma in (+1.0, -1.0):
-            x, _ = nnls(sigma * A, y)
-            pred = sigma * A @ x
+            x, _ = nnls(sigma * A, y - sigma * pas)
+            pred = sigma * (A @ x + pas)
             r2 = 1.0 - np.sum((y - pred) ** 2) / np.sum((y - y.mean()) ** 2)
             if best is None or r2 > best[0]:
                 best = (r2, sigma, x)
@@ -108,9 +133,18 @@ class TrunkMuscles:
         tF = float(self.mods("trunk_flexors", phase)) * float(np.ravel(self.HF.max_active(theta, w))[0])
         return np.array([tE, -tF])
 
+    def passive(self, tau):
+        """The passive hip moment along the planned posture (extensor-positive, both legs), zero unless PASSIVE."""
+        if not PASSIVE:
+            return 0.0
+        x = float(tau) % self.P
+        h = float(np.interp(x, self.grid, self.th, period=self.P))
+        k = float(np.interp(x, self.grid, self.th_knee, period=self.P))
+        return float(silder_passive_hip_extension(h, k))
+
     def __call__(self, tau, c, td):
         cE, cF = self._cols(tau, c, td)
-        return self.sigma * (self.aE * cE + self.aF * cF)
+        return self.sigma * (self.aE * cE + self.aF * cF + self.passive(tau))
 
 
 def measured_trunk_calibration(name, strokes):
@@ -201,18 +235,22 @@ def main():
                          "stiffness, 40 ms reflex, long-latency PD) in place of the plain PD")
     ap.add_argument("--predict", action="store_true", help="the long-latency layer on the predicted state")
     ap.add_argument("--observer", type=float, default=0.0, help="with --predict, rung 5's disturbance observer gain")
+    ap.add_argument("--passive", action="store_true",
+                    help="the passive hip moment (Silder et al. 2007 eq. A.5, mean parameters) in the trunk's muscles")
     a = ap.parse_args()
-    tag = ""
+    global PASSIVE
+    PASSIVE = bool(a.passive)
+    tag = "_passive" if a.passive else ""
     if a.layers is not None:
         import rung2_trunk_layers as TL
         TL.LayersSim.LAYERS = tuple(a.layers)
         TL.LayersSim.PREDICT = bool(a.predict or a.observer)
         TL.LayersSim.OBSERVER = float(a.observer)
         RT.TrunkClockSim = TL.LayersSim
-        tag = "_layers_" + "_".join(a.layers) + ("_pred" if a.predict else "") + ("_obs%g" % a.observer if a.observer else "")
+        tag += "_layers_" + "_".join(a.layers) + ("_pred" if a.predict else "") + ("_obs%g" % a.observer if a.observer else "")
     if a.own_body:
         res = {n: measured_trunk_calibration(n, a.strokes) for n in a.athletes}
-        path = os.path.join(RT.OUT, "rung2_trunk_modules_ownbody.json")
+        path = os.path.join(RT.OUT, "rung2_trunk_modules_ownbody%s.json" % tag)
         json.dump(res, open(path, "w"), indent=1, default=float)
         print("wrote", path)
         return

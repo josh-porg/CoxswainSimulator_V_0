@@ -16821,3 +16821,35 @@ placeholder strength at the catch (§264, B1) and their EMG-timed moment fits th
 
 The trunk therefore stays on its reference feedforward with the layers (the validated configuration) until B1 has a
 source.
+
+## 267. The passive hip moment (Silder et al. 2007) and a definition mismatch in the model's "hip" angle (2026-11-23)
+
+**Literature.** The hip extensors' early-drive demand at the catch, which EMG-timed muscles miss, is where passive
+tissue acts (no activation, no delay). Silder, Whittington, Heiderscheit & Thelen (2007, J Biomech 40:2628; PMC2020832,
+read on PMC) give a passive model with biarticular coupling (their eq. A.5) and the mean parameters of 20 young adults
+(Table 4: RF 3.1 / 1.9 / 24.4°, HAM 5.1 / 3.9 / 30.8°, HF 5.1 / 19.5°, HE 2.0 / 27.3°; gains per rad), measured to
+100° of hip flexion (85° with the knee flexed to 135°):
+`M_h = e^{-b_RFh(h - (b_RFk/b_RFh)k - a_RF)} + e^{-b_HF(h - a_HF)} - e^{b_HAMh(h - (b_HAMk/b_HAMh)k - a_HAM)} - e^{b_HE(h - a_HE)}`
+(flexor-positive, one leg). Built: `rung2_trunk_modules.silder_passive_hip_extension`, `--passive`. Both legs, knee
+flexed 100–130°: 23–25 N m at 100° of hip flexion, 35–38 at 110°, 51–57 at 120° (beyond 100° an extrapolation).
+Also found: Waters et al. (J Rehabil Med 1983) report hip-extensor strength unaffected by knee angle, peaking at 90°
+of hip flexion; Chen & Franklin (bioRxiv 2024, a compilation of 985 joint-moment datasets) put hip-extension strength
+in flexed positions at 1.0–1.6 N m/(kg·m), Anderson & Pandy (1999) above 2.0. The placeholder's level (Anderson 2007,
+~1.4 per leg for [BR24]) is inside that spread.
+
+**Result: the passive term breaks the calibration** (extensors 0, flexors 1.3–1.9× strength, r² −1.5 to 0.1 on the
+athletes' own motion; layered forward run 64° / 39° wander). **Cause: the model's "hip" angle is not the anatomical
+hip angle.** Along rung 2's stroke it runs 67–180° (the catch at 179–180° with the knee at 136–139°): it is the
+trunk-to-thigh angle with the **lumbar spine and pelvic tilt lumped in** (the trunk is one rigid segment). At 180° the
+Silder exponential gives 470–520 N m, which is nonsense for the hip alone. The same lumping means the strength
+placeholder B1 (Anderson's data held at their last tested *anatomical* hip angle, 75°) has been applied to an angle
+that includes ~35–60° of spine: rowing studies put lumbar flexion at the catch at ~37° (rig comparison), lumbar range
+of motion 59–67°, pelvic tilt at the catch a few degrees (ergometer and tank studies; McGregor, Bull et al.).
+
+**This is an A2 finding (a measured quantity compared with a model quantity defined differently).** The trunk's
+strength gap (§264) and the failed passive term both rest on reading anatomical-hip data at a lumped angle; the
+literature and the model's own range say the anatomical hip at the catch is ~110–140°, not 180°. **The passive term
+stays off.** Next, in order: split the model's trunk–thigh angle into pelvis, lumbar and hip from a sourced rowing
+lumbo-pelvic kinematic series (the McGregor / Bull electromagnetic-tracking papers), apply Anderson's hip strength and
+Silder's passive hip on the anatomical hip angle, add the lumbar extensors' own strength (elite rowers' isometric
+trunk extension ~319 N m) for the spine's share, then recalibrate and re-run the trunk gate.
