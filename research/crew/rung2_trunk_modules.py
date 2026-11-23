@@ -89,6 +89,10 @@ TELFER_HIP_FINISH_DEG, TELFER_HIP_CATCH_DEG = 41.4, 120.8
 #: the lumbar spine's passive extensor moment (§271): Dolan, Mannion & Adams 1994 endpoints, an exponential rising
 #: steeply beyond ~80 % of full flexion (DOLAN_K 8: 70 % of the rise in the last 15 % of flexion; a shape choice)
 PASSIVE_LUMBAR = False
+#: the stroke clock's force in the forward test: "population" (as built: the stroke moves off the reference timing, so
+#: even the exact feedforward wanders 9-11 deg) or "reference" (the reference run's own force: the exact feedforward
+#: holds the trunk, so any wander is the muscle model's; the fair gate, §272)
+CLOCK = "population"
 DOLAN1994_FULL_FLEXION_NM = {"M": 120.0, "F": 77.0}
 DOLAN_K = 8.0
 LUMBAR_FRACTION_FINISH, LUMBAR_FRACTION_CATCH = 0.40, 0.90
@@ -260,7 +264,7 @@ def run(name, strokes, delays):
     m = C2.R.V.ATHLETES[name][0]()
     boat = C2.R.boat_for(name, m, "on-water", drive_law=True)
     ref, run_r, _Qr, M = RT.reference(boat, strokes)
-    Q = population_Q(strokes, name, boat, m)
+    Q = _Qr if CLOCK == "reference" else population_Q(strokes, name, boat, m)   # "reference": the fair gate (§272)
     tm = TrunkMuscles(name, boat, M)
     print("%s: calibrated trunk muscles: extensors %.3f, flexors %.3f of maximal strength at the module peak (sign %+d);"
           " fit to the reference hip moment r^2 %.2f" % (name, tm.aE, tm.aF, tm.sigma, tm.r2), flush=True)
@@ -322,13 +326,17 @@ def main():
                     help="the modules' timing as an output: fit on the athletes' own trunk motion, then the forward gate")
     ap.add_argument("--passive-lumbar", action="store_true", help="the lumbar spine's passive extensor moment (Dolan et al. 1994; needs --passive)")
     ap.add_argument("--lumbar-catch", type=float, default=0.90, help="lumbar flexion at the catch as a fraction of full (bracket 0.8-1.0)")
+    ap.add_argument("--clock", default="population", choices=["population", "reference"],
+                    help="the stroke clock's force in the forward test (reference: the fair gate, §272)")
     ap.add_argument("--anatomical", action="store_true",
                     help="read hip strength and passive moment on the anatomical hip angle (Telfer et al. 2023 split)")
     a = ap.parse_args()
-    global PASSIVE, ANATOMICAL, PASSIVE_LUMBAR, LUMBAR_FRACTION_CATCH
+    global PASSIVE, ANATOMICAL, PASSIVE_LUMBAR, LUMBAR_FRACTION_CATCH, CLOCK
     PASSIVE, ANATOMICAL, PASSIVE_LUMBAR = bool(a.passive), bool(a.anatomical), bool(a.passive_lumbar)
     LUMBAR_FRACTION_CATCH = float(a.lumbar_catch)
-    tag = ("_passive" if a.passive else "") + ("_anat" if a.anatomical else "") + ("_lumbar%g" % a.lumbar_catch if a.passive_lumbar else "")
+    CLOCK = a.clock
+    tag_clock = "" if a.clock == "population" else "_clockref"
+    tag = ("_passive" if a.passive else "") + ("_anat" if a.anatomical else "") + ("_lumbar%g" % a.lumbar_catch if a.passive_lumbar else "") + tag_clock
     if a.layers is not None:
         import rung2_trunk_layers as TL
         TL.LayersSim.LAYERS = tuple(a.layers)
