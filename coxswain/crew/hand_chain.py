@@ -60,7 +60,21 @@ class StretchTerm:
 
 
 #: reach terms by name
-TERMS = {"stretch": StretchTerm}
+#: The sourced part of the stretch (SOURCES §277): the thoracic spine's extension from the catch to mid-drive in Telfer
+#: et al. 2023's open data (11 rowers, rate 32: 8.7 deg, i.e. 45-53 mm of shoulder travel over a 0.30-0.35 m upper
+#: trunk), which a rigid trunk cannot make; the rest of the athletes' 0.124 m (scapular glide) stays unsourced.
+THORACIC_STRETCH = 0.049
+
+
+@dataclass(frozen=True)
+class ThoracicTerm(StretchTerm):
+    """The rigid trunk's missing thoracic extension under load, as a reach term (sourced, §277)."""
+
+    peak: float = THORACIC_STRETCH
+    name: str = "thoracic"
+
+
+TERMS = {"stretch": StretchTerm, "thoracic": ThoracicTerm}
 
 
 @dataclass(frozen=True)

@@ -223,3 +223,5 @@ musculoskeletal rowing model was found.
 * **Straight arms (§276):** on the straight-arm body with the girdle-compliance placeholder, the single sculler's arm muscles land on their EMG timing (triceps at zero lag, flexors within 6 points) and the knee extensors' centroids match the vasti; the catch spike (missing girdle compliance, B3) and the stronger athlete's late arm remain. Next: a sourced girdle compliance, then §274's optimisation on that body.
 
 * **The arm-chain stretch (§277):** no sourced shoulder-girdle stiffness exists, and the glenohumeral joint barely separates under traction; but the open data show the upper back extending ~9° from catch to mid-drive, ~45–53 mm of shoulder travel, about 40 % of the stretch, which a rigid trunk cannot produce. A two-segment trunk would carry that part from data.
+
+* **The thoracic share tested (§278):** the sourced 0.049 m alone does not bring the arms onto their EMG (flexors 27–35 % vs 50 %); the unsourced scapular remainder is what did in §276. The limbs stay blocked on B3 (a scapular source).
