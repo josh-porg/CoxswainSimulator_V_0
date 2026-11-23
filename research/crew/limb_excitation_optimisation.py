@@ -71,8 +71,10 @@ def compare(tau, e, emg, D, P):
                 lag_ms=1000.0 * best[1] * P / N)
 
 
-def main():
-    d = json.load(open(DEMANDS))
+def main(path=None):
+    path = path or (sys.argv[1] if len(sys.argv) > 1 else DEMANDS)
+    d = json.load(open(path))
+    print("demands from", os.path.basename(path))
     mods = Modules.pitto2024()
     res = {}
     for a in ("cr06", "br24"):
@@ -112,9 +114,9 @@ def main():
                                                                100 * v["emg_peak"], 100 * v["emg_centroid"],
                                                                v["r_zero"], v["r_best"], v["lag_ms"]))
         res[a] = out
-    path = os.path.join(ROOT, "data", "local", "crew", "limb_excitation_optimisation.json")
-    json.dump(res, open(path, "w"), indent=1, default=float)
-    print("wrote", path)
+    out_path = os.path.join(ROOT, "data", "local", "crew", "limb_excitation_optimisation_%s" % os.path.basename(path))
+    json.dump(res, open(out_path, "w"), indent=1, default=float)
+    print("wrote", out_path)
 
 
 if __name__ == "__main__":

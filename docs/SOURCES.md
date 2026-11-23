@@ -16952,3 +16952,17 @@ The literature's next step after computed muscle control is optimal control: the
 ## 275. The optimisation step on the knee and elbow: the moments are reproduced, the timing exposes the kinematic body (2026-11-23)
 
 `research/crew/limb_excitation_optimisation.py`: §274's method (excitations solved over the stroke, activation dynamics, minimum effort, nothing fitted to EMG) on the knee (Anderson KE/KF) and elbow (Frey-Law flexion/extension), matching rung 2's logged joint demands (`muscle_capacity_rung2_s253.json`, the kinematic body). Moments reproduced r² 0.87 / 0.88 (knee), 0.95 / 0.99 (elbow), with the agonists at their strength limit (activations 0.97–1.00). **Validation against EMG fails on timing:** elbow flexors solved peak 17–20 % of the drive against the on-water arm pullers' 56 %, correlating 0.81–0.82 only when the EMG is moved **185–236 ms earlier**; knee extensors solved peak 16–20 % against the vasti's 33 % (r −0.22 / 0.27). The elbow's lead is §254's ~0.22 s (the bent-arm body pulls with the arms before rowers do), now measured from the muscles' side with the method that matched the EMG on the trunk (§274). **Reading:** the optimiser is not the problem; the limbs' prescribed kinematics are mistimed (§255), as the trunk's angle definition and passive tissue were before §267–271. The limbs' fix is their motion: the arms held near straight until mid-drive (Pitto's elbow law, the straight-arm posture with a compliant girdle, B3) and the legs on a sourced time course, then the same optimisation.
+
+## 276. The limbs on straight arms: the arm timing moves to the EMG (2026-11-23)
+
+§275's limb optimisation re-run on the straight-arm body's demands (Pitto 2024's population elbow law, `muscle_capacity_rung2_straightarms_s254.json`) and with the arm-chain stretch (the girdle-compliance placeholder, `..._stretch_s255.json`; `limb_excitation_optimisation.py <demands>`).
+
+| | bent arms (§275) | straight arms | straight arms + stretch |
+|---|---|---|---|
+| [CR06] elbow flexors: solved centroid vs EMG 50 % | 37 % (−185 ms best lag) | 22 % | **44 %** (peak 50 vs 56 %) |
+| [CR06] triceps: centroid vs EMG 34 %; r at zero lag | 26 %; 0.60 | 67 %; −0.20 | **35 %; 0.66** (best +31 ms) |
+| [BR24] elbow flexors | 32 % (−236 ms) | 27 % | 57 % (peak 97 %, late) |
+| [BR24] triceps | 49 % | 57 % | 69 % (late) |
+| knee extensors: centroid vs EMG 40 % | 39 / 44 % | 38 / 41 % | **48 / 39 %** (peaks 9 / 19 %: the catch spike) |
+
+**Reading.** Straight arms with the girdle's compliance (even as a placeholder) bring the single sculler's arm muscles onto their EMG timing (triceps matched at zero lag; flexors within 6 points of the EMG's centroid), where the bent-arm body led by ~0.2 s; the knee extensors' centroids match the vasti on every body. What remains is the catch spike (the girdle's missing compliance, B3: the knee and elbow peaks at 9–20 % of the drive) and the stronger athlete's late arm with the athlete-measured stretch. The limbs' next build is a sourced girdle compliance (B3), then the optimisation of §274 on that body.
