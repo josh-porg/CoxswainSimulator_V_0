@@ -44,8 +44,10 @@ def measured_curve():
 
 def model_curve(bending, strokes):
     m = V.ATHLETES["cr06"][0]()
-    boat = RP.C2.R.boat_for("cr06", m, "on-water", drive_law=RP.POP_DRIVE if RP.POP_DRIVE.startswith("rbn2023") else True,
-                               own_joints=RP.OWN_BODY_JOINTS if OWN_BODY else ())
+    boat = RP.with_oar(RP.C2.R.boat_for("cr06", m, "on-water",
+                                        drive_law=RP.POP_DRIVE if RP.POP_DRIVE.startswith("rbn2023") else True,
+                                        own_joints=RP.OWN_BODY_JOINTS if OWN_BODY else ()),
+                       **RP.OAR_OVERRIDES.get("cr06", {}))
     if RP.BEND_DYNAMICS is not None:                              # the dynamic shaft through rung 2's own options
         RP.RIGID, RP.BENDING = bending is None, bending is not None
     else:
@@ -97,7 +99,11 @@ def main():
     ap.add_argument("--lift-scale", type=float, default=1.0, help="the cross-flow lift slope over Helmbold's (§231)")
     ap.add_argument("--release-slip", type=float, default=RP.RELEASE_SLIP,
                     help="the blade comes out over this much oar travel (§235); default rung 2's own (§252); 0 or less: none")
+    ap.add_argument("--blade-area", type=float, default=None,
+                    help="her blade's area, m^2 (default her paper's 0.0903): a sensitivity for H40, never a fit")
     args = ap.parse_args()
+    if args.blade_area is not None:
+        RP.OAR_OVERRIDES["cr06"] = dict(blade_area=float(args.blade_area))
     RP.ADDED_MASS, RP.SURFACE_FACTOR, RP.LIFT_SCALE = args.added_mass, args.surface_factor, args.lift_scale
     RP.RELEASE_SLIP = args.release_slip if (args.release_slip is not None and args.release_slip > 0) else None
     RP.POP_DRIVE = args.pop_drive
@@ -120,8 +126,10 @@ def main():
     rows = {}
     for label in ("rigid", "bending"):
         m = V.ATHLETES["cr06"][0]()
-        boat = RP.C2.R.boat_for("cr06", m, "on-water", drive_law=RP.POP_DRIVE if RP.POP_DRIVE.startswith("rbn2023") else True,
-                               own_joints=RP.OWN_BODY_JOINTS if OWN_BODY else ())
+        boat = RP.with_oar(RP.C2.R.boat_for("cr06", m, "on-water",
+                                            drive_law=RP.POP_DRIVE if RP.POP_DRIVE.startswith("rbn2023") else True,
+                                            own_joints=RP.OWN_BODY_JOINTS if OWN_BODY else ()),
+                           **RP.OAR_OVERRIDES.get("cr06", {}))
         oar = boat.rig.seats[0].oarlocks[0].oar
         from coxswain.crew.oar_bending import L14_MEDIUM_EI
         law = (OarBending.laschowski2014_scull(float(oar.blade_centre_outboard), float(oar.blade_length),

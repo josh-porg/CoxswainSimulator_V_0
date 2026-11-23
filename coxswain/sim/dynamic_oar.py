@@ -1982,7 +1982,11 @@ def _match_key(boat, watts, catch, blade_law, added_mass="none",
                         tuple(np.round(np.asarray(lock.position, float), 9)),
                         float(oar.inboard), float(oar.outboard),
                         float(getattr(oar, "blade_length", 0.0)),
-                        float(getattr(oar, "mass", 0.0))))
+                        float(getattr(oar, "mass", 0.0)),
+                        # the blade's area sets its load and a measured centre of mass the oar's inertia: both
+                        # were missing from the key until 2026-11-23 (STRUCTURAL_ISSUES S1; SOURCES §260)
+                        float(getattr(oar, "blade_area", 0.0)),
+                        float(oar.centre_of_mass_offset)))
     # How the crew moves: the sweep carries the crew's momentum in, so two
     # crews of one mass that move differently need different torques.
     # Missing until 2026-09-26, when a research boat with the corrected leg

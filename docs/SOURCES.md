@@ -16645,3 +16645,100 @@ and whether the Big Blade has changed since the mid-2000s.
 **Next (sensitivity, sourced inputs only):** the ladder with [BR24]'s blade at 0.071–0.077 m² (an input correction
 under the adopt rule if it does not fail), and C1's sensitivity to [CR06]'s area across 0.07–0.09 m² (a diagnostic
 only, until Concept2 or the paper's author settles it).
+
+## 260. The oar's centre of mass from the feathered recovery; Concept2's scull mass; the request sent (2026-11-23)
+
+The user (2026-11-23): can the feathered oar's weight moment in the recovery tell us where its centre of mass is? It
+can. Kleshnev (§258): feathered, the shaft's force sensor reads the vertical plane, so in mid-recovery (blade clear,
+away from squaring and feathering) the hands hold the oar's weight about the pin:
+`F_h l_h = m g x_cg cos(psi) + I_v psi''`. `research/biorow/recovery_oar_moment.py` on [BR24]'s file (16 samples per
+oar, 1.58 s to 0.32 s wrapping): force 8–16 N; **static moment m x_cg = 0.92 kg m** (oars 0.88 / 0.96; the psi''
+term poorly conditioned, psi varies ~2°). Concept2 states its Ultralight racing sculls weigh ~1375 g and the Skinny
+"nearly the same" (concept2.com, Bantam and Skinny pages): **x_cg = 0.67 m outboard** of the pin (1.54 m from the
+handle end) against the uniform rod's 0.567 m; inertia about the pin ~1.56 kg m² against the model's 1.22 (1.2 kg
+rod). The `Oar` docstring's "the rod is an upper bound on the inertia" is contradicted for a Concept2 scull.
+
+Code: `Oar.centre_of_mass` (optional, default None = the rod; validated between lock and tip); the matched-torque
+cache key now carries `blade_area` and the centre of mass, both missing (STRUCTURAL_ISSUES S1 class); per-athlete
+oar corrections through `rung2_population.OAR_OVERRIDES` / `--oar`, also routed into the C1 script
+(`--blade-area`) and the population test (`--oar-mass`, `--oar-cg`).
+
+The Concept2 request (DATA_REQUESTS #18) was **sent 2026-11-23** on the user's instruction, carrying the photograph
+areas.
+
+## 261. The blade areas and the oar tested; EMG-assisted calibration of the muscle levels (2026-11-23)
+
+**C1 ([CR06], rung 1, her own body, dynamic shaft), H40:** at her paper's 0.0903 m² the ladder's 18.2 % is
+reproduced exactly; at the photographed Big Blade's 0.071 m², **11.6 %** (band 15 %), peak at 18.2° against her
+13.7°; and on the same imposed motion speed 4.365 → **4.201 m/s** (measured 4.191) and power 294 → **273 W** (261).
+Three quantities move toward her measurements together. Rung 2 with 0.071: 4.125 m/s, IVV 53.8 % (+0.9 worse),
+oar timing 0.026 (better than 0.037). **Not adopted:** two sources conflict (her paper; Concept2's outline and
+photographs), and choosing the one that passes is a fit. C1 stays expected-fail with this as its leading
+explanation; decided by Concept2's figures.
+
+**[BR24], rung 2 (the ladder's configuration), H39 / H42:** blade 0.074 m²: 4.727 m/s (baseline 4.774; measured
+4.641), IVV 50.2 % (50.0), oar timing 0.033 (0.026). Adding Concept2's 1.375 kg and the measured centre of mass:
+4.728 m/s, IVV 50.0 %, timing 0.033.
+
+**B2s with the corrected oar (population, 1.375 kg, CG 0.665 m):** flexible 22.3 points rms (22.4 on the default
+files), rigid 12.7 (12.5). The heavier oar does not close the early-loading deficit.
+
+**EMG-assisted calibration (H44; `rung2_modules.py --calibrate`).** Literature: static optimisation underestimates
+antagonists (Kian et al. 2019, shoulder); EMG-driven / EMG-assisted models (Lloyd & Besier 2003; Sartori et al.
+2012, CEINMS) take each muscle's timing from EMG and calibrate its level to the inverse-dynamics joint moments. In
+rowing, normalising EMG to isometric MVCs has failed (rowers exceed their isolated MVCs; JSSM 2005; an
+ergometer–on-water comparison), so absolute antagonist levels cannot come from rowing EMG. Built: non-negative least
+squares, joint by joint, of the module torques on rung 2's logged joint demands
+(`muscle_capacity_rung2_s253.json`). Result: hip r² 0.49–0.62 (flexors 0.75–0.78 of strength), knee r² −0.24 /
+0.05, elbow −0.18 / −0.14. Closed loop with the calibrated levels (power-matched): [CR06] 4.163 m/s, IVV 55.9 %;
+[BR24] 4.778 m/s, IVV 56.3 %, finish spike 1.67: no better than one amplitude. **Finding:** the calibration target
+(the kinematic body's inverse dynamics) loads 0.1–0.3 s before rowers' muscles fire (§255), so an EMG-timed
+muscle cannot reproduce it: the calibration is circular until the body's kinematics come from its muscles.
+
+## 262. The trunk on its muscles: computed muscle control on one joint (2026-11-23)
+
+Literature (docs/OPEN_ITEMS_REVIEW.md §10): the field goes from kinematics to dynamics by computed muscle control
+(Thelen & Anderson 2006: excitations recomputed to track the kinematics within a forward simulation), tracking
+optimal control (direct collocation; OpenSim Moco, Dembia et al. 2020; cycling models and code for 16 riders, Sci.
+Rep. 2023), then predictive simulation. In rowing, Hase et al. 2002 built a control model (PD, a neural model,
+inverse-dynamics feedback); Hase et al. 2004 ran the inverse pipeline on ergometer rowing; no open on-water
+predictive musculoskeletal model was found.
+
+`research/crew/rung2_trunk_modules.py`: rung 2 with the trunk free (rung2_trunk), its feedforward replaced by the
+trunk extensor and flexor modules (Pitto 2024) through Anderson's HE/HF, the two levels by EMG-assisted calibration
+on the reference run's own hip moment; feedback rung 5's PD at 0 and 100 ms; clock force the population's.
+
+| [CR06] | speed | IVV (meas. 49.4) | trunk wander max | feedback max |
+|---|---|---|---|---|
+| reference feedforward, fb 0 ms | 4.090 | 52.7 % | 6.9° | 51 N m |
+| reference feedforward, fb 100 ms | 3.857 | 57.6 % | 24.1° | 185 N m |
+| muscle feedforward, fb 0 ms | 4.124 | 59.9 % | **26.7°** | 183 N m |
+| muscle feedforward, fb 100 ms | 4.362 | 71.9 % | **63.7°** | 486 N m |
+
+Calibration: [CR06] extensors 1.24, flexors 0.91 of maximal strength at the module peak (r² 0.64); [BR24] 1.46 /
+1.12 (r² 0.63). **The gate (< 5°) fails, and the calibration asks for more than maximal strength.** Same finding as
+§261, now as a forward simulation: the trunk's *planned* motion (the population trunk clock on the model's
+postures) is not one its EMG-timed muscles can produce. The CMC structure works (the forward simulation runs, the
+layers act); the target is wrong. **Next, in the literature's order:** the trunk's target must stop being the
+kinematic clock. Either track measured trunk kinematics (the athletes' own back channels, as a diagnostic) to check
+the muscles can produce a real trunk, or go predictive: lower the tracking gains so the trunk's timing becomes an
+output, which is step 4's gate.
+
+## 263. The stronger athlete's oar correction adopted; the review of the open items (2026-11-23)
+
+**Ladder on the candidate** (`ladder_s260_candidate.log`): [BR24]'s Smoothie2 0.074 m², Concept2's 1.375 kg, centre
+of mass 0.665 m; [CR06] unchanged. **27 criteria, 0 fail, 2 expected fail.** [BR24] D1 +1.9 % (was +2.97 %, the
+narrowest pass), D2 +1.0 pt, D2b +0.89, D3 −1.7 %, D5 0.033, D4 centre 0.51, peak 447 N; A3 half step 0.03 % /
+0.01 pt. **Adopted** under the user's rule as the rung-2 research default (`rung2_population.OAR_OVERRIDES`; the
+output's name always carries a digest of the corrections, S4). The open-loop rung C2 re-run on it.
+
+**The sculling recovery law (H43)** gives the same rung-2 results within 0.2 points (BR24 4.726 m/s, IVV 50.0 %;
+CR06 4.202, 52.7 %); its half-step run decides adoption.
+
+**The open items reviewed** in docs/OPEN_ITEMS_REVIEW.md: replication against validation (none of the open items is
+a failed replication); whether [H10]'s entry/release parallel force, [GTW21]'s tangential lag and [G19]'s
+entrainment growth are needed (not now; H41); how far the model is from right (inside the between-rower spread on
+every integrated quantity; two local gaps: B2s's early loading and the body's sequencing); tier 2 and the blade area
+(area scales, it cannot fix shape or sign); tau(theta) (the old profile's torque shape, superseded in the validated
+configuration; fixed by R1, not by tuning); the measured recovery law; the expected failures; the antagonists; the
+kinematics-to-dynamics path.

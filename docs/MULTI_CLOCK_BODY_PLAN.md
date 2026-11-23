@@ -70,6 +70,18 @@ reduced, but the IVV worsens (+4.8 / +1.6 points). The mechanism is confirmed bu
 antagonists' level joins B4. Power matching (`--iterate-power 2`) reaches the measured power exactly; [BR24]'s IVV gap
 (+7 points) is not the amplitude.
 
+## The muscles' levels and the trunk on its muscles (§261–262)
+
+The literature's remedy for antagonist levels is EMG-assisted calibration (Lloyd & Besier 2003; Sartori et al.
+2012): EMG fixes each muscle's timing, a fit to the inverse-dynamics joint moments fixes its level (rowing EMG cannot
+be MVC-normalised). Built (`rung2_modules.py --calibrate`) and as computed muscle control on the trunk
+(`rung2_trunk_modules.py`, Thelen & Anderson 2006). **Both fail for one reason:** the calibration target is the
+kinematic body, whose demands come 0.1–0.3 s before rowers' muscles fire. Knee and elbow fits r² < 0.1, and the trunk
+needs 1.24–1.46× maximal strength; the muscle-driven trunk wanders 27° at no delay. The CMC structure works and the
+target is wrong. **Per the literature's order: track measured trunk motion (the athletes' own channels) to test
+feasibility, then lower the tracking so the timing becomes an output.** B4 is now "the levels, after the target is
+right".
+
 ## Next (in order)
 
 1. Re-run the sequencing check on today's rung 2 (`muscle_capacity.py --rung2` on the current defaults) — the baseline

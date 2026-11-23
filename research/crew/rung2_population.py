@@ -156,13 +156,36 @@ BODY = "model"
 OWN_BODY_JOINTS = ("shank", "thigh", "trunk")
 
 
+#: Per-athlete oar corrections: Oar fields replaced on every lock of that athlete's boat. Research default since §263
+#: (the ladder passes, 27 / 0 / 2; the user's rule): [BR24]'s Smoothie2 blade by Concept2's outline and photographs
+#: (0.074 m², §259), Concept2's scull mass (1.375 kg) and the centre of mass his feathered recovery measures (0.665 m
+#: outboard, §260). [CR06]'s blade stays her paper's 0.0903 m² (H40: the sources conflict). ``--oar br24:`` (empty)
+#: restores the rig as built.
+OAR_OVERRIDES = {"br24": {"blade_area": 0.074, "mass": 1.375, "centre_of_mass": 0.665}}
+
+
+def with_oar(boat, **changes):
+    """``boat`` with every oar's fields replaced by ``changes`` (dataclasses.replace through the rig)."""
+    import dataclasses
+    if not changes:
+        return boat
+    rig = boat.rig
+    boat.rig = dataclasses.replace(rig, seats=tuple(
+        dataclasses.replace(seat, oarlocks=tuple(
+            dataclasses.replace(lock, oar=dataclasses.replace(lock.oar, **changes)) for lock in seat.oarlocks))
+        for seat in rig.seats))
+    return boat
+
+
 def athlete_boat(name, m):
     """The athlete's boat; with their own body (``BODY == "own"``) built with no population clock on the joints their
-    channels time (``own_joints``; SOURCES §228), as their boat was before the research profile's trunk clock."""
+    channels time (``own_joints``; SOURCES §228), as their boat was before the research profile's trunk clock.
+    ``OAR_OVERRIDES[name]`` replaces the oar's fields (blade area, mass, centre of mass)."""
     # the athlete's planned oar motion is the population's drive law on the athlete's own arc (POP_DRIVE; §237)
     C2.R.RBN_RECOVERY = POP_RECOVERY
-    return C2.R.boat_for(name, m, "on-water", drive_law=POP_DRIVE if POP_DRIVE.startswith("rbn2023") else True,
+    boat = C2.R.boat_for(name, m, "on-water", drive_law=POP_DRIVE if POP_DRIVE.startswith("rbn2023") else True,
                          own_joints=OWN_BODY_JOINTS if BODY == "own" else ())
+    return with_oar(boat, **OAR_OVERRIDES.get(name, {}))
 
 
 def own_body(name, boat):
@@ -350,6 +373,7 @@ def population_sim(drive=None, body_drive=None):
         pop_boat = V.cr06_boat(dict(leg_travel=None), oar_sweep=sweep, **kw)
     elif drive != "k05":
         raise ValueError("the population's drive is 'k05', 'rbn2023' or 'rbn2023-scull', got %r" % (drive,))
+    pop_boat = with_oar(pop_boat, **OAR_OVERRIDES.get("population", {}))   # e.g. Concept2's scull mass (§260)
     body, _k = k05_body.body_field(pop_boat, leg_travel=0.51, drive=body_drive or drive)
     return pop_boat, make(pop_boat, "reference", body=body)
 
@@ -473,7 +497,13 @@ def main():
     ap.add_argument("--q-map", default=Q_MAP, choices=["progress", "time", "split"],
                     help="hand the population's muscle force over by drive progress (as built), drive time, or the "
                          "athlete's own body part plus the population's handle part (§225; default split since §227)")
+    ap.add_argument("--oar", nargs="*", default=[],
+                    help="per-athlete oar corrections, e.g. br24:blade_area=0.074,mass=1.375,centre_of_mass=0.665 "
+                         "(SOURCES §259-260)")
     a = ap.parse_args()
+    for spec in a.oar:
+        who, fields = spec.split(":", 1)
+        OAR_OVERRIDES[who] = {k: float(v) for k, v in (f.split("=") for f in fields.split(",") if f)}
     if a.dt:
         import coxswain.core.integrators as I
         I.estimate_step = lambda *args, **kw: float(a.dt)
@@ -512,7 +542,7 @@ def main():
     C2.R.HAND_TERMS = tuple(a.hand_terms)
     C2.R.BODY_TRAVEL = a.travel
     print("blade: %s; catch: %s" % (BLADE, a.catch), flush=True)
-    out = dict(handover=C2.HANDOVER)
+    out = dict(handover=C2.HANDOVER, oar_overrides={k: dict(v) for k, v in OAR_OVERRIDES.items()})
 
     # 1. the population, rung 1 with its own body and drive law
     s_p, (s_pop, q_drive, ph, q) = population_tables(a.strokes)
@@ -547,7 +577,16 @@ def main():
                                                             + (("_grip%g" % BEND_DYNAMICS.grip_damping_ratio
                                                                 if BEND_DYNAMICS.grip_damping_ratio is not None else "_gripnone")
                                                                if BEND_DYNAMICS is not None else "")
-                                                            + ("" if a.athletes == ["cr06", "br24"] else "_" + "_".join(a.athletes)))), "w"), indent=1, default=float)
+                                                            + ("" if a.athletes == ["cr06", "br24"] else "_" + "_".join(a.athletes))
+                                                            # Windows' 260-character path limit: the oar corrections
+                                                            # go in as a short digest; the full spec is in the file
+                                                            # (always named when any correction is on: the default moved
+                                                            # in §263, S4)
+                                                            + ("_oar" + __import__("hashlib").md5(json.dumps(
+                                                                {k: v for k, v in OAR_OVERRIDES.items() if v},
+                                                                sort_keys=True).encode()).hexdigest()[:6]
+                                                               if any(OAR_OVERRIDES.values()) else ""))), "w"), indent=1, default=float)
+    print("oar corrections:", {k: v for k, v in OAR_OVERRIDES.items() if v} or "none")
 
 
 if __name__ == "__main__":

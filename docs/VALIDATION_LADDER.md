@@ -136,3 +136,10 @@ angle. Both athletes are held-out tests: nothing in the model was fitted to eith
   double-counted-bend hypothesis is refuted (the angle sensor is 0.40 m inboard, which makes the real oar softer on a
   measured angle, not stiffer); the cause of the early-loading deficit is open. Still 27 criteria, 0 fail, 2 expected
   fail.
+- **2026-11-23, the stronger athlete's oar corrected** (SOURCES §259–263; `ladder_2026-11-23.log`): his Smoothie2
+  blade at 0.074 m² (Concept2's outline and photographs) and Concept2's 1.375 kg scull with the centre of mass his
+  feathered recovery measures (0.665 m outboard) are the rung-2 research default. **27 criteria, 0 fail, 2 expected
+  fail.** [BR24] D1 +1.9 % (was +2.97 %); C2 open loop 23.1 % against rigid 27.7 % (was 18.5 / 23.5: the smaller
+  blade lowers his open-loop force further, consistent with his force channel reading high, §161). C1: passes at the
+  photographed Big Blade area (11.6 %) but stays expected-fail (sources conflict, H40). B2s: the oar's mass
+  distribution does not close it. Bands unchanged.

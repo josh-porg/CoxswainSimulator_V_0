@@ -19,7 +19,7 @@ overstated the thrust by more than a factor of three.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 
@@ -75,8 +75,14 @@ class Oar:
     #: force at ``outboard - blade_length / 2``.  Zero keeps the old tip
     #: lever arm for an oar built without one.
     blade_length: float = 0.0
+    #: The oar's centre of mass outboard of the lock, metres, when measured; ``None`` keeps the uniform rod's
+    #: ``L/2 - inboard``.  A research input (SOURCES §260): [BR24]'s feathered recovery gives a static moment
+    #: ``m x_cg`` of 0.92 kg m, i.e. 0.67 m outboard at Concept2's 1.375 kg, against the rod's 0.57 m.
+    centre_of_mass: Optional[float] = None
 
     def __post_init__(self) -> None:
+        if self.centre_of_mass is not None and not 0.0 < self.centre_of_mass < self.length - self.inboard:
+            raise ValueError("centre_of_mass must lie between the lock and the blade tip")
         if not 0.0 < self.blade_efficiency <= 1.0:
             raise ValueError("blade_efficiency must lie in (0, 1]")
         if not 0.0 <= self.grip_separation < self.inboard:
@@ -101,13 +107,19 @@ class Oar:
         modern shafts taper -- so this is an upper bound on the inertia and
         therefore a *conservative* estimate of recovery authority: a
         lighter-ended oar is easier to swing, not harder.
+
+        With a measured :attr:`centre_of_mass` the rod's radius of gyration about its centre is kept and the
+        centre moved: ``m (L^2/12 + x_cg^2)``.  (The "upper bound" above is contradicted for a Concept2 scull:
+        its centre of mass lies *further* out than the rod's, SOURCES §260.)
         """
-        offset = 0.5 * self.length - self.inboard
+        offset = self.centre_of_mass_offset
         return self.mass * (self.length ** 2 / 12.0 + offset ** 2)
 
     @property
     def centre_of_mass_offset(self) -> float:
-        """Distance of the oar's centre of mass outboard of the lock."""
+        """Distance of the oar's centre of mass outboard of the lock (measured if given, else the uniform rod's)."""
+        if self.centre_of_mass is not None:
+            return float(self.centre_of_mass)
         return 0.5 * self.length - self.inboard
 
     @property

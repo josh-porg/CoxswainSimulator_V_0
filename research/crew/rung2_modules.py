@@ -92,13 +92,71 @@ def module_force(tau, td, c, P, grid, th, w, strength, mods, delay, amp, parts=N
     return amp * q
 
 
-def athlete(name, strokes, delay, iterate_power=0, amps=None):
+#: The joint demands the calibration matches: rung 2's stroke as the muscle check logs it (muscle_capacity.py --rung2;
+#: knee and hip extensor-positive, elbow flexor-positive, N m, against time from the catch)
+DEMANDS = os.path.join(ROOT, "data", "local", "crew", "muscle_capacity_rung2_s253.json")
+#: each joint's demand convention: +1 where a group's torque adds to the demand, -1 where it opposes it
+DEMAND_KEY = {"knee": "knee", "hip": "hip_ext", "elbow": "elbow"}
+DEMAND_SIGN = {"knee": +1.0, "hip": +1.0, "elbow": +1.0, "hip_flex": -1.0, "elbow_ext": -1.0}
+
+
+def calibrate(name, P, delay, mods, strength, path=DEMANDS):
+    """EMG-assisted calibration (Lloyd & Besier 2003; Sartori et al. 2012, CEINMS; SOURCES §261): one non-negative
+    gain per group so that the module-shaped torques reproduce the stroke's inverse-dynamics joint moments,
+
+        M_j(t) ~ sum_{g at j} s_g * a_g * m_g(phi(t - d)) * T_g,max(theta_j(t), sigma_g theta_dot_j(t)),
+
+    solved by non-negative least squares joint by joint over the logged stroke. The EMG fixes each group's *timing*;
+    the gains fix each group's *level*, including the antagonists' (which a peak-normalised EMG cannot). Fitted to the
+    model's own inverse dynamics, not to an athlete's measurement. Returns ({group: gain}, {joint: r^2})."""
+    from scipy.optimize import nnls
+    s = {k: np.asarray(v, float) for k, v in json.load(open(path))[name]["series"].items()}
+    t = s["t"]
+    phase = ((t - delay) / P) % 1.0
+    gains, fit = {}, {}
+    for joint in ("knee", "hip", "elbow"):
+        y = s[DEMAND_KEY[joint]]
+        cols, names = [], []
+        for g, j, mod, sign in GROUPS:
+            if j != joint:
+                continue
+            T = np.array([strength(g, th, sign * w) for th, w in zip(s["th_" + joint], s["w_" + joint])])
+            cols.append(DEMAND_SIGN[g] * mods(mod, phase) * T)
+            names.append(g)
+        ok = np.isfinite(y) & np.all(np.isfinite(cols), axis=0)
+        A = np.column_stack(cols)[ok]
+        x, _ = nnls(A, y[ok])
+        pred = A @ x
+        fit[joint] = float(1.0 - np.sum((y[ok] - pred) ** 2) / np.sum((y[ok] - y[ok].mean()) ** 2))
+        gains.update({n: float(v) for n, v in zip(names, x)})
+    return gains, fit
+
+
+def athlete(name, strokes, delay, iterate_power=0, amps=None, calibrated=False):
     """``iterate_power``: re-run that many times, rescaling the amplitude by measured / model power each time (B4's
-    placeholder made to hit the power it is defined by). ``amps``: per-group multipliers on the amplitude."""
+    placeholder made to hit the power it is defined by). ``amps``: per-group multipliers on the amplitude.
+    ``calibrated``: the per-group multipliers from :func:`calibrate` (their ratios kept; the amplitude still sets the
+    level to the measured power)."""
+    if calibrated:
+        m = RP.V.ATHLETES[name][0]()
+        b = RP.athlete_boat(name, m)
+        P = float(b.timing.period)
+        mass = float(np.sum(np.asarray(b.crew_field(0.0)[0], float)))
+        st = Strength(name, mass, float(b.crew[0].rower.anthropometry.stature))
+        gains, fit = calibrate(name, P, delay, Modules.pitto2024(), st)
+        top = max(gains.values())
+        amps = {g: v / top for g, v in gains.items()}
+        print("%s: calibrated gains %s; joint-moment fit r^2 %s" % (
+            name, {g: round(v, 3) for g, v in gains.items()}, {j: round(v, 2) for j, v in fit.items()}), flush=True)
     out = _athlete(name, strokes, delay, amps=amps)
+    if calibrated:
+        out["calibration"] = dict(gains=gains, r2=fit)
     for _ in range(int(iterate_power)):
         meas, got = out["measured"]["power"], out["free"]["power"]
+        cal = out.get("calibration")
         out = _athlete(name, strokes, delay, amp_override=out["amp"] * meas / got, amps=amps)
+        if cal:
+            out["calibration"] = cal
     return out
 
 
@@ -204,12 +262,16 @@ def main():
                     help="per-group multipliers on the amplitude (B4)")
     ap.add_argument("--antagonists", action="store_true",
                     help="add the trunk flexors and the arm extensor (Pitto et al. 2024 modules), same amplitude")
+    ap.add_argument("--calibrate", action="store_true",
+                    help="per-group gains from the stroke's joint demands (EMG-assisted calibration, §261)")
     ap.add_argument("--tag", default="")
     a = ap.parse_args()
     global GROUPS
     if a.antagonists:
         GROUPS = AGONISTS + ANTAGONISTS
         a.tag = "_antag" + a.tag
+    if a.calibrate:
+        a.tag = "_cal" + a.tag
     # rung 2's research configuration, the body the model's own (its postures are the joint tables')
     RP.BODY, RP.BLADE = "model", "crossflow_normal"
     RP.C2.TAKEOVER_DEG = RP.C2.BIOROW_CATCH_TO_BURIED_DEG
@@ -219,7 +281,7 @@ def main():
     RP.BEND_DYNAMICS = BendDynamics()
     RP.FV, RP.HOLD = None, 0.0
     amps = dict(zip(("knee", "hip", "elbow"), a.group_scales)) if a.group_scales else None
-    res = {n: athlete(n, a.strokes, a.delay, a.iterate_power, amps) for n in a.athletes}
+    res = {n: athlete(n, a.strokes, a.delay, a.iterate_power, amps, calibrated=a.calibrate) for n in a.athletes}
     out = os.path.join(ROOT, "data", "local", "crew", "rung2_modules_delay%g%s%s.json"
                        % (a.delay, "_pow%d" % a.iterate_power if a.iterate_power else "", a.tag))
     json.dump(res, open(out, "w"), indent=1, default=float)

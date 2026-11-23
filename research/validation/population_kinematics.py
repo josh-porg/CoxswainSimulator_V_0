@@ -96,7 +96,14 @@ def main():
     ap.add_argument("--ei-scale", type=float, default=1.0,
                     help="the shaft's EI over [L14]'s medium (a what-if, e.g. the sensor-capture equivalence, §248); "
                          "the output's name carries it")
+    ap.add_argument("--oar-mass", type=float, default=None,
+                    help="the population's scull mass, kg (Concept2: 1.375); with --oar-cg its centre of mass outboard "
+                         "of the pin, m (§260: 0.665); the output's name carries them")
+    ap.add_argument("--oar-cg", type=float, default=None)
     a = ap.parse_args()
+    ov = {k: v for k, v in (("mass", a.oar_mass), ("centre_of_mass", a.oar_cg)) if v is not None}
+    if ov:
+        RP.OAR_OVERRIDES["population"] = ov
     if a.ei_scale != 1.0:
         from coxswain.crew.oar_bending import L14_MEDIUM_EI
         RP.SHAFT_EI = L14_MEDIUM_EI * a.ei_scale
@@ -124,7 +131,8 @@ def main():
     json.dump(dict(out, shaft=a.shaft, drive=a.drive, summary=RP.C2.summary(run)),
               open(os.path.join(ROOT, "data", "local", "validation", "population_kinematics_%s_%s%s.json"
                                 % (a.shaft, a.drive, ("" if a.ei_scale == 1.0 else "_ei%g" % a.ei_scale)
-                                   + ("" if a.release_slip is None else "_relslip%g" % a.release_slip))), "w"),
+                                   + ("" if a.release_slip is None else "_relslip%g" % a.release_slip)
+                                   + "".join("_oar%s%g" % (k[:4], v) for k, v in sorted(ov.items())))), "w"),
               indent=1)
     print("\n time | gate deg | blade speed from the gate | boat's part | unbending | slip w_n | incidence deg | boat "
           "m/s | bend deg | force N")

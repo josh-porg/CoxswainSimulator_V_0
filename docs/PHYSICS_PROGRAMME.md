@@ -1433,6 +1433,14 @@ the boat speeds that go with their drive durations).
   - *Next:* the ladder with [BR24]'s Smoothie2 area (adopt if non-failing); C1's sensitivity to [CR06]'s area
     (diagnostic); per-group module amplitudes (B4); segments as degrees of freedom; the early-loading deficit (B2s)
     with its two data-route candidates gone.
+- **§260–263 (2026-11-23): open items reviewed (docs/OPEN_ITEMS_REVIEW.md).** Concept2 request sent. The oar's centre
+  of mass from the feathered recovery (0.67 m outboard; inertia +28 %); `Oar.centre_of_mass`; cache key fixed.
+  **[BR24]'s Smoothie2 area and Concept2's oar adopted** (ladder 27 / 0 / 2; D1 +1.9 %). C1 passes at the
+  photographed Big Blade area (11.6 %), not adopted (sources conflict, H40). B2s not closed by the oar. EMG-assisted
+  calibration of muscle levels and computed muscle control of the trunk both built; both fail for one reason: the
+  kinematic body's timing is not producible by EMG-timed muscles.
+  - *Next:* the trunk tracked on measured motion (feasibility), then the tracking lowered so the timing is an output;
+    the sculling recovery law's ladder (H43); Concept2's reply.
 
 ## Calibration and validation data from the squad's own boats (noted 2026-10-08)
 

@@ -44,13 +44,15 @@ XFAIL = {
     ("C1", "[CR06] rung 1 handle force rms / her peak"): (
         "user 2026-11-18: force level +12-17 % on her own blade area, mass and oar lengths, opposite in sign to [BR24]'s "
         "-29 % (his blade assumed); her original recordings are lost and her oars unknown (Kleshnev 2026-11-22), so "
-        "the data route is closed: open until an independent check of her digitised curves or a third athlete -- "
-        "SOURCES 241, 258"),
+        "the data route is closed. Leading explanation (H40, SOURCES 261): at the photographed Big Blade's 0.071 m2 "
+        "C1 passes (11.6 %) and her speed and power move to her measurements, but it conflicts with her paper's 0.0903; "
+        "decided by Concept2's figures (DATA_REQUESTS #18, sent 2026-11-23) -- SOURCES 241, 258, 261"),
     ("B2s", "population force curve, rms vs sculling averages (like for like)"): (
         "user 2026-11-19: keep both B2 tests, this one to follow up later; on the like-for-like sculling reference the "
         "flexible shaft loads too slowly early (SOURCES 244-245); the double-counted-bend hypothesis is refuted -- the "
         "angle sensor is clamped 0.40 m inboard, which makes the real oar 6-16 % softer on a measured angle, not "
-        "stiffer (Kleshnev 2026-11-22; SOURCES 258); cause open"),
+        "stiffer (Kleshnev 2026-11-22; SOURCES 258); the oar's measured mass distribution does not close it either "
+        "(22.3 against 22.4, SOURCES 261); cause open"),
 }
 #: [BR24]'s rig (BioRow file header) and BioRow's sculling force point from the handle's top (the data's author)
 BIOROW_INBOARD, BIOROW_FORCE_POINT = 0.875, 0.06
