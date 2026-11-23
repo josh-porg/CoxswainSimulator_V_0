@@ -47,6 +47,30 @@ def main():
         print("%-40s" % name + " ".join("%6.3f" % f for f in fs) + " |    %.2f m    |   %.2f m" % (d33, d50))
     print("\nequivalent stiffness on a measured angle: 1 / (1 - f): f 0.05 -> x1.05, 0.10 -> x1.11, 0.33 -> x1.5, "
           "0.5 -> x2")
+    inboard_sensor()
+
+
+def inboard_sensor(clamp=0.40, l_handle=0.82):
+    """The sensor as it is (Kleshnev, email 2026-11-22; SOURCES §258): BioRow's 2D oar-angle sensor on the pin, its arm
+    clamped to the shaft ~0.40 m INBOARD of the pin. The model's inboard is rigid, so it reads the measured angle as the
+    shaft's tangent at the pin. A real inboard bends too (three-point bending, the moment F_h y' falling to zero at the
+    handle): the handle and the clamp lead the pin's tangent, so the sensor's chord angle leads it by
+
+        Delta = F_h (l_h c / 2 - c^2 / 6) / EI_in        (cantilever from the pin, load F_h at l_h, chord to c)
+
+    and the real blade lags the *measured* angle by phi + Delta, not the model's phi = F_h l_h / K_ang: on a measured
+    angle the real oar is 1 / (1 + g) times as stiff as the model's, g = Delta / phi -- the opposite sign to §246's
+    outboard hypothesis. l_h: the handle force's point, 0.06 m from the top of the 0.88 m inboard (Kleshnev 2026-10-28).
+    EI_in is not measured for the inboard; bracketed at 1-3x [L14]'s medium shaft (the handle end is the thicker)."""
+    from coxswain.crew.oar_bending import L14_MEDIUM_EI, OarBending
+    k_ang = OarBending.laschowski2014_scull(L_CENTRE, 0.43).k_ang
+    print("\nthe sensor as it is: clamped %.2f m inboard of the pin (Kleshnev 2026-11-22); model K_ang %.0f N m/rad"
+          % (clamp, k_ang))
+    for m in (1.0, 2.0, 3.0):
+        ei = m * L14_MEDIUM_EI
+        g = (l_handle * clamp / 2.0 - clamp ** 2 / 6.0) * k_ang / (ei * l_handle)
+        print("  inboard EI %.1f x [L14] (%.0f N m^2): g = %.3f -> on the measured angle the oar is x%.2f as stiff as "
+              "the model's (the fits wanted x1.5-2)" % (m, ei, g, 1.0 / (1.0 + g)))
 
 
 if __name__ == "__main__":

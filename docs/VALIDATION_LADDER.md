@@ -130,3 +130,9 @@ angle. Both athletes are held-out tests: nothing in the model was fitted to eith
   physically motivated, sourced changes that do not fail validation go into the research default. The grip damping
   (ζ 0.14 out of the water, Dong et al. 2007) and the blade's extraction over BioRow's release slip (16.6°) are now
   default. **27 criteria, 0 fail, 2 expected fail** (C1, B2s). Bands unchanged.
+- **2026-11-22, the expected failures' routes after the data author's answers** (SOURCES §258; no re-run, no band
+  moved): **C1**: [CR06]'s 2006 recordings are lost and her oars unknown, so the data route is closed; it stays an
+  expected failure, open until an independent check of the digitised curves or a third athlete. **B2s**: the
+  double-counted-bend hypothesis is refuted (the angle sensor is 0.40 m inboard, which makes the real oar softer on a
+  measured angle, not stiffer); the cause of the early-loading deficit is open. Still 27 criteria, 0 fail, 2 expected
+  fail.

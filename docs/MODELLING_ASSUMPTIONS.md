@@ -24,6 +24,7 @@ only structurally; a sourced grip (Dong et al. 2007) damps it 4–8× faster.
 | the seat on its rails | rigid, Kato roll friction | wheel and rail compliance | friction sourced (Kato) | L | adequate |
 | the hull | a rigid body | hull flexes slightly | negligible at stroke frequencies for a single | L | adequate |
 | the blade face | rigid | the blade flexes and twists a little | no source | L | open |
+| the inboard shaft | rigid (the bend is outboard of the pin only) | the inboard bends under the handle force (three-point bending about the pin) | with the angle sensor 0.40 m inboard, the real oar is ×0.84–0.94 as stiff on a measured angle (H38, §258); inboard EI unmeasured | M | open — needs an inboard EI; it would deepen the early-loading deficit, not close it |
 | the shaft, vertical bending and torsion | only horizontal bending | the shaft also bends vertically and twists | the vertical load is small; torsion sets the blade's pitch | L–M | open |
 
 ## A2. A measured quantity compared with a model quantity defined differently (STRUCTURAL_ISSUES S12)
@@ -34,7 +35,8 @@ only structurally; a sourced grip (Dong et al. 2007) damps it 4–8× faster.
 | handle force on BioRow's lever (0.06 m from the top) | fixed (§233) |
 | blade wetting on the gate's travel, not the blade's | fixed (§228) |
 | the catch: the model's first wet sample against the data's turning point | handled in the speed-trace overlay (§241) |
-| **the oar angle: where the sensor reads the shaft** | **pending** (§246, §251; asked of the data's author) |
+| **the oar angle: where the sensor reads the shaft** | **answered (§258)**: clamped ~0.40 m inboard of the pin (Kleshnev); the outboard-capture hypothesis H33 refuted |
+| the handle force before the catch and after the finish | **answered (§258)**: the shaft's force sensor turns with the feathering, so the recorded force there is not the horizontal force (Kleshnev); any use of it (§238's in-air inertia check) is void |
 | the stroke-averaged measured cycle against one model stroke | examined: ~1 % of peaks (§234) |
 
 ## A3. A measured input applied to part of the model and not the rest (STRUCTURAL_ISSUES S16)

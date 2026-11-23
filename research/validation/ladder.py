@@ -43,12 +43,14 @@ ATHLETES = ("cr06", "br24")
 XFAIL = {
     ("C1", "[CR06] rung 1 handle force rms / her peak"): (
         "user 2026-11-18: force level +12-17 % on her own blade area, mass and oar lengths, opposite in sign to [BR24]'s "
-        "-29 % (his blade assumed); pending her original 51.9 Hz recordings (digitising error) and both athletes' oar "
-        "specification (blade type, shaft stiffness) -- DATA_REQUESTS #2; SOURCES 241"),
+        "-29 % (his blade assumed); her original recordings are lost and her oars unknown (Kleshnev 2026-11-22), so "
+        "the data route is closed: open until an independent check of her digitised curves or a third athlete -- "
+        "SOURCES 241, 258"),
     ("B2s", "population force curve, rms vs sculling averages (like for like)"): (
         "user 2026-11-19: keep both B2 tests, this one to follow up later; on the like-for-like sculling reference the "
-        "flexible shaft loads too slowly early (SOURCES 244-245); pending the oar-angle sensor's position (the "
-        "double-counted-bend hypothesis, 246/248) -- DATA_REQUESTS #2"),
+        "flexible shaft loads too slowly early (SOURCES 244-245); the double-counted-bend hypothesis is refuted -- the "
+        "angle sensor is clamped 0.40 m inboard, which makes the real oar 6-16 % softer on a measured angle, not "
+        "stiffer (Kleshnev 2026-11-22; SOURCES 258); cause open"),
 }
 #: [BR24]'s rig (BioRow file header) and BioRow's sculling force point from the handle's top (the data's author)
 BIOROW_INBOARD, BIOROW_FORCE_POINT = 0.875, 0.06

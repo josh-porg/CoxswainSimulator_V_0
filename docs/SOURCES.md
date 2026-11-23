@@ -16566,3 +16566,42 @@ iterations each (`_pow2`, `_pow2_antag`; logs `rung2_modules_s257_pow2.log`, `ru
 
 **Next:** per-group amplitudes from the reference stroke's joint demands (B4, which also sets the antagonists' level),
 then the segments as degrees of freedom; the finish's turning point stays on HANDOVER 0.95.
+
+## §258 — The data author's answers: the oars, the angle sensor, the force before the catch (2026-11-22)
+
+Kleshnev's reply (email 2026-11-22, DATA_REQUESTS #2) to §243's questions:
+
+1. **[BR24]'s oars:** Concept2 Smoothie-type ("Smooth") blades on **Skinny medium** shafts, not measured. The model's
+   shaft is already [L14]'s measured Concept2 Skinny medium scull (`L14_MEDIUM_EI`), so his shaft is confirmed and no
+   stiffness change is open. The blade area stays the catalogue scull's 0.083 m² (assumed, now type-known). Concept2's
+   Smoothie area is to be sourced.
+2. **The horizontal oar angle:** BioRow's standard 2D oar-angle sensor, its arm clamped to the shaft **~0.40 m
+   inboard** of the pin. H33 (§246, §248) needed a sensor 0.18–0.33 m *outboard* capturing part of the outboard bend,
+   so it is **refuted**. The sensor's actual position works the other way. The model's inboard is rigid; a real inboard
+   bends about the pin, so the clamp's chord leads the pin's tangent and the real blade lags the measured angle by more
+   than the model's bend. On a measured angle the real oar is ×0.84 / 0.91 / 0.94 as stiff as the model's for an
+   inboard EI of 1 / 2 / 3 × [L14]'s medium (`research/blade/sensor_bend_capture.py`, `inboard_sensor`; the inboard EI
+   is unmeasured). The fits wanted ×1.5–2. The early-loading deficit of §245 (B2s, the athletes' preference for a
+   stiffer shaft) is therefore **unexplained again**, and slightly deepened. The rigid inboard is a new A1 entry
+   (H38). §248's sensor-capture what-if ladder is void.
+3. **Synchronisation:** the channels are sampled together to microseconds, so no channel misalignment.
+   **The force before the catch and after the finish:** the force sensor on the shaft turns with the feathering. In
+   the recovery it measures in the vertical plane, squared at the catch it measures in the horizontal (at the gate's 4°
+   pitch), and the squaring is not recorded. The recorded force around the catch and finish is therefore not the
+   horizontal handle force. This explains §238's in-air force rising 16 → 52 N while the oar decelerated (the reason
+   that "oar inertia" figure was withdrawn in §239). Any comparison of recovery or pre-catch handle force with the
+   model is void (MODELLING_ASSUMPTIONS A2, new row).
+4. **[CR06]'s 2006 recordings cannot be found** (over 20 years old). C1's data route is closed. Her oars remain
+   unknown. C1 stays an expected failure with its reason updated (`ladder.py` XFAIL), open until an independent check
+   of the digitised curves or a third athlete.
+5. Citation: the sculling averages as Kleshnev (2020).
+
+Requests 2–3 (other rates; per-point velocity SDs) were not addressed. They are not worth chasing in a follow-up;
+the user decides.
+
+**What stands after this:** the flexible shaft's slow early loading (B2s) and [BR24]'s early-drive force beyond the
+no-slip bound (§238: 127 N against 73 N at 10 % of the drive on the measured angle) are now both without the two
+candidates the data could have given (the shaft's spec and the sensor's position). The bound becomes tighter with the
+inboard bend. The remaining candidates are the blade (Smoothie area and shape), the force sensor's orientation just
+after the catch (if squaring is not complete at the measured catch), and something in the catch physics the model
+lacks.
