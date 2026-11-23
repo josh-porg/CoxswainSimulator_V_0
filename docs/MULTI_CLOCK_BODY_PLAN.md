@@ -105,3 +105,7 @@ right".
 - **The research profile (R1 in HYPOTHESIS_REGISTER):** moving the validated, uncontested pieces into
   `PROFILES["research"]` — the user's decision.
 - **Back-filling the hypothesis register** for SOURCES §1–§155.
+
+## Step 4 on the trunk: passed (§274)
+
+The trunk's EMG-timed muscles became feasible once read on the anatomical hip (Telfer et al. 2023's open data, §268) with passive hip (Silder 2007) and lumbar (Dolan 1994, flexion-relaxation, §271) tissue. Computed muscle control with module-shaped excitations stayed outside the gate (18–48°, §272–273). **The optimisation step (excitations solved, timing an output) passes it: 0.6–2.1° with instant feedback, 1.5–4.9° at the trunk's 100 ms delay**, activations ≤ 0.97, and the solved extensor timing matches the on-water EMG (best correlation at +69–97 ms). Next: the legs (knee extensors, hamstrings; Vieira 2020) and the arms (Pitto 2024) the same way, then the segments coupled in the stroke.

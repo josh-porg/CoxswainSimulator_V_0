@@ -16931,3 +16931,20 @@ Tracking optimisation in its simplest form (`rung2_trunk_modules.py --optimise-t
 ## 273. The hamstrings as their own hip-extensor group: a small gain (2026-11-23)
 
 Vieira et al. 2020's semitendinosus and biceps femoris digitised from the same figure as the vasti (`research/crew/vieira2020_emg.py`; peaks at 45 / 42 % of the ergometer drive; the vasti columns unchanged to 0.000), mapped drive-to-drive onto the on-water cycle, and given to the trunk as a third group sharing Anderson's hip-extension capacity with its own level (`rung2_trunk_modules.py --hamstrings`). On measured motion r² 0.80–0.85 (from 0.73–0.86), the fit moving most of the extension onto the hamstrings (back/gluteal module 0.00–0.62); on the model body r² 0.82 / 0.81 (from 0.79 / 0.78). Fair gate: **18.4° / 18.2° with instant feedback** (from 22.8 / 22.4), 48° / 38° at 100 ms. **A few degrees per added group.** The gate needs the feedforward moment within a few per cent (r² ≳ 0.95), which adding module groups one at a time is not approaching quickly; the literature's answer is the optimisation step, solving the excitations and the trunk's motion together (direct collocation, the trunk's timing an output), with the sourced muscles, strength, passive tissues and angles of §267–273 as its model.
+
+## 274. The optimisation step on the trunk: solved excitations pass the gate and match the on-water EMG (2026-11-23)
+
+The literature's next step after computed muscle control is optimal control: the excitations solved, not prescribed. `research/crew/trunk_excitation_optimisation.py`: over one stroke (240 nodes), the trunk-extensor and trunk-flexor excitations e(t) in [0, 1] minimise the hip-moment error plus a small effort term, through first-order activation dynamics (tau 25 ms, periodic), with the sourced trunk model of §267–273 (Anderson's hip strength on Telfer's anatomical hip angle; Silder's passive hip; Dolan's passive lumbar at 90 %). The moment matched is the reference run's (rung2_trunk). **Nothing is fitted to EMG; the excitations' timing is the output.**
+
+| | [CR06] | [BR24] |
+|---|---|---|
+| hip moment reproduced, r² | 0.999 | 0.995 |
+| peak activation, extensors / flexors | 0.92 / 0.89 | 0.97 / 0.91 |
+| extensors: solved peak / centroid (% drive) vs EMG | 48 / 38 vs 40 / 39 | 47 / 35 vs 39 / 38 |
+| extensors: r with EMG at zero lag; best | 0.66; **0.77 at +97 ms** | 0.71; **0.76 at +69 ms** |
+| flexors: solved peak / centroid vs EMG | 90 / 87 vs 86 / 66 | 80 / 84 vs 85 / 65 |
+| flexors: r at zero lag; best | 0.45; 0.68 at +185 ms | 0.47; 0.66 at +194 ms |
+| **fair gate, PD 0 ms** | **0.60°** | **2.12°** |
+| **fair gate, PD 100 ms** | **1.51°** | **4.85°** |
+
+**Step 4's trunk gate (wander < 5°) passes on both athletes at the trunk's 100 ms delay**, with the muscles inside their sourced strength (activations ≤ 0.97). **Validation:** the solved extensor excitation, never shown the EMG, has the on-water EMG's centroid (35–38 % against 38–39 %) and correlates best at +69 to +97 ms, the excitation-to-force delay (50–100 ms) a muscle's force should lag its EMG by; the flexors peak where the EMG does (80–90 % against 85–86 %), with a narrower burst than the recorded EMG (centroid 84–87 % against 65–66 %: the EMG's broad early-drive activity, the antagonists' co-contraction, is not needed by the moment, so a minimum-effort solution leaves it out, as static optimisation is known to; Kian et al. 2019). **The kinematics-to-dynamics step is complete for the trunk:** the inverse pipeline (§208–255), computed muscle control (§262–273), and the optimisation step (here) with timing as an output, validated against independent EMG. Next, the same for the legs and the arms, then the coupled stroke.

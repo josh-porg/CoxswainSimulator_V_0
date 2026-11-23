@@ -194,7 +194,7 @@ musculoskeletal rowing model was found.
 | C1 expected failure | **not closed**: passes at the photographed Big Blade area (11.6 %), not adopted while two sources conflict | Concept2's figures (asked), or her blade type from Kleshnev (follow-up drafted) |
 | B2s expected failure | **not closed**: sensor position, shaft spec and oar mass ruled out; literature agrees flexible shafts ramp slower | a measured early-drive force on a flexible scull: Laschowski's on-water shaft trials (request to his supervisor drafted, #19) |
 | Antagonists | **reviewed and built** (EMG-assisted calibration); physical, with flexors at 0.7–0.95 of strength late in the drive; **the model's flaw located**: the extensors' strength at catch angles (B1) | a rowing-posture hip/lumbar extension strength curve to 120° |
-| Kinematics → dynamics | **literature reviewed; first step (computed muscle control of the trunk) built and run; fails its gate** (best 31–37° against 5°); the blocker narrowed to a definition mismatch (§267): the lumped trunk–thigh angle | split the angle into pelvis, lumbar and hip from a sourced rowing series, then re-test; then collocation / predictive simulation |
+| Kinematics → dynamics | **done for the trunk (§274)**: inverse pipeline, computed muscle control, then the optimisation step: solved excitations pass the 5° gate (0.6–4.9°) and match the on-water EMG timing | legs and arms the same way, then the coupled stroke |
 
 ## Update (2026-11-23, later; SOURCES §268–269)
 
@@ -215,3 +215,5 @@ musculoskeletal rowing model was found.
 * **The fair gate (§272):** with the clock on its reference force, the exact feedforward holds the trunk at 0.00°, so the test is fair; the muscle feedforward wanders 22° with instant feedback and 34–56° at 100 ms. The gate fails on the muscle model's ~20 % unexplained moment variance; passing needs more muscle structure (the hamstrings as a module, hip flexors, knee coupling) or predictive optimisation.
 
 * **Hamstrings as their own group (§273):** r² 0.81–0.85, fair-gate wander 18° (instant feedback), 38–48° at 100 ms: a few degrees per added group. The gate needs the moment within a few per cent; the optimisation step (collocation) is the literature's route, and its muscle model is now sourced end to end (EMG timing, strength on the anatomical angle, passive hip and spine).
+
+* **The optimisation step (§274): the trunk gate passes.** Excitations solved over the stroke (timing an output) with the sourced muscle model reproduce the hip moment (r² 0.995–0.999) and hold the trunk to **0.6–2.1° (instant feedback) and 1.5–4.9° (100 ms)** on the fair gate, under 5° for both athletes, at activations ≤ 0.97. The solved extensor timing matches the on-water EMG (centroid 35–38 % vs 38–39 %, best correlation at +69–97 ms, the excitation-to-force delay) without being fitted to it. **Kinematics to dynamics is complete for the trunk**; legs and arms next.
