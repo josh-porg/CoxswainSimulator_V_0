@@ -86,6 +86,9 @@ PASSIVE = False
 #: catch (Telfer et al. 2023, 11 rowers at rate 32: 41.4 and 120.8 deg; data/literature/telfer2023_hip_spine_split_rate32.json)
 ANATOMICAL = False
 TELFER_HIP_FINISH_DEG, TELFER_HIP_CATCH_DEG = 41.4, 120.8
+#: extra excitation timing shifts of the two trunk modules, s (positive: later than the EMG); 0 = the EMG as measured.
+#: Set by the timing optimisation (`--optimise-timing`, §270): the timing an output, not an input
+SHIFT_E, SHIFT_F = 0.0, 0.0
 
 
 def silder_passive_hip_extension(h, k, sides=2):
@@ -136,9 +139,10 @@ class TrunkMuscles:
         if ANATOMICAL:
             theta, w = self.anatomical_hip(theta), w * self._anat_slope()
         theta = float(np.clip(theta, *RM.TESTED["hip"]))
-        phase = ((c - self.delay) / self.P) % 1.0
-        tE = float(self.mods("trunk_extensors", phase)) * float(np.ravel(self.HE.max_active(theta, -w))[0])
-        tF = float(self.mods("trunk_flexors", phase)) * float(np.ravel(self.HF.max_active(theta, w))[0])
+        pE = ((c - self.delay - SHIFT_E) / self.P) % 1.0
+        pF = ((c - self.delay - SHIFT_F) / self.P) % 1.0
+        tE = float(self.mods("trunk_extensors", pE)) * float(np.ravel(self.HE.max_active(theta, -w))[0])
+        tF = float(self.mods("trunk_flexors", pF)) * float(np.ravel(self.HF.max_active(theta, w))[0])
         return np.array([tE, -tF])
 
     def passive(self, tau):
@@ -186,6 +190,39 @@ def measured_trunk_calibration(name, strokes):
         print("%s, OWN trunk motion, delay %.0f ms: extensors %.3f, flexors %.3f of maximal strength at the module peak "
               "(sign %+d); r^2 %.2f" % (name, 1000 * d, tm.aE, tm.aF, tm.sigma, tm.r2), flush=True)
         out["delay%.0fms" % (1000 * d)] = dict(extensors=tm.aE, flexors=tm.aF, sign=tm.sigma, r2=tm.r2)
+    return out
+
+
+def optimise_timing(name, strokes, delays, shifts=np.arange(-0.20, 0.2001, 0.05)):
+    """Tracking optimisation in its simplest form (§270): the two trunk modules' excitation timing becomes an output.
+    On the athlete's own measured trunk motion (the target), choose the extensor and flexor timing shifts (relative to
+    the EMG, within +-0.2 s) and their levels that best reproduce the hip moment; then run the forward gate with them.
+    A shift beyond the EMG's ~50-100 ms uncertainty is itself a finding (the EMG timing would be contradicted)."""
+    global SHIFT_E, SHIFT_F
+    RP.BLADE = "crossflow_normal"
+    C2.TAKEOVER_DEG = C2.BIOROW_CATCH_TO_BURIED_DEG
+    m = C2.R.V.ATHLETES[name][0]()
+    boat = C2.R.boat_for(name, m, "on-water", drive_law=True, own_joints=RP.OWN_BODY_JOINTS)
+    ref = RT.make(boat, "reference", body=RP.own_body(name, boat))
+    run_r = ref.run_strokes(strokes, surge_speed=4.3)
+    P = float(boat.timing.period)
+    start = float(run_r.last_time[0])
+    M = RT.table([(t, c, v) for t, c, v in ref.mlog if t >= start], P)
+    grid = []
+    for sE in shifts:
+        for sF in shifts:
+            SHIFT_E, SHIFT_F = float(sE), float(sF)
+            tm = TrunkMuscles(name, boat, M)
+            grid.append((tm.r2, float(sE), float(sF), tm.aE, tm.aF))
+    grid.sort(reverse=True)
+    r2, sE, sF, aE, aF = grid[0]
+    base = [g for g in grid if abs(g[1]) < 1e-9 and abs(g[2]) < 1e-9][0]
+    print("%s, timing optimised on OWN trunk motion: extensors %+.0f ms, flexors %+.0f ms from the EMG; levels %.2f / "
+          "%.2f; r^2 %.2f (EMG timing: %.2f)" % (name, 1000 * sE, 1000 * sF, aE, aF, r2, base[0]), flush=True)
+    SHIFT_E, SHIFT_F = sE, sF
+    out = dict(shift_extensors=sE, shift_flexors=sF, levels=(aE, aF), r2=r2, r2_emg_timing=base[0],
+               forward=run(name, strokes, delays))
+    SHIFT_E, SHIFT_F = 0.0, 0.0
     return out
 
 
@@ -257,6 +294,8 @@ def main():
     ap.add_argument("--observer", type=float, default=0.0, help="with --predict, rung 5's disturbance observer gain")
     ap.add_argument("--passive", action="store_true",
                     help="the passive hip moment (Silder et al. 2007 eq. A.5, mean parameters) in the trunk's muscles")
+    ap.add_argument("--optimise-timing", action="store_true",
+                    help="the modules' timing as an output: fit on the athletes' own trunk motion, then the forward gate")
     ap.add_argument("--anatomical", action="store_true",
                     help="read hip strength and passive moment on the anatomical hip angle (Telfer et al. 2023 split)")
     a = ap.parse_args()
@@ -270,6 +309,12 @@ def main():
         TL.LayersSim.OBSERVER = float(a.observer)
         RT.TrunkClockSim = TL.LayersSim
         tag += "_layers_" + "_".join(a.layers) + ("_pred" if a.predict else "") + ("_obs%g" % a.observer if a.observer else "")
+    if a.optimise_timing:
+        res = {n: optimise_timing(n, a.strokes, a.delays) for n in a.athletes}
+        path = os.path.join(RT.OUT, "rung2_trunk_modules_timing%s.json" % tag)
+        json.dump(res, open(path, "w"), indent=1, default=float)
+        print("wrote", path)
+        return
     if a.own_body:
         res = {n: measured_trunk_calibration(n, a.strokes) for n in a.athletes}
         path = os.path.join(RT.OUT, "rung2_trunk_modules_ownbody%s.json" % tag)

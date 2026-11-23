@@ -207,3 +207,5 @@ musculoskeletal rowing model was found.
   says a single effective-stiffness factor does **not** generalise: the all-boat population wants ≤×1.5 (above it the
   force peak leaves its band), the athletes ×1.5–2, the sculling population ≥×3. Not adopted; the Nolte request (sent)
   is the data that would decide it.
+
+* **Timing as an output (§270):** optimising the trunk modules' timing on measured motion wants the extensors 100–150 ms *earlier* than the EMG and the flexors as much later; even so the forward gate fails (30–44°). The remaining error is now localised to the model's inverse dynamics of the trunk (what makes its hip moment peak so early), not to the muscles, their strength or the angle definition.
