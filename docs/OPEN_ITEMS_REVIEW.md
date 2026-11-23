@@ -168,10 +168,30 @@ musculoskeletal rowing model was found.
   feedback the layers already built (`rung2_trunk_modules.py`, §262). **Done, and it fails its gate for a reason the
   literature predicts:** CMC tracks a *target*, and our target is the kinematic trunk clock, which its EMG-timed
   muscles cannot produce (wander 27° at no delay, 64° at 100 ms; calibrated levels above maximal strength). The
-  structure works; the target must change. Two next steps, both in the literature's order: track the athletes'
-  *measured* trunk motion (does a real trunk fit its muscles?), then lower the tracking so the timing is an output;
+  structure works; the target must change. **Followed up:** on the athletes' *measured* trunk motion the muscles
+  still need ~1.3× their strength at any delay (§264), and with the trunk's full measured feedback layers the
+  muscle-driven trunk's wander halves to 37° / 31° but stays outside the 5° gate (§266; the reference feedforward
+  itself reaches only 11° / 9° at 100 ms). **Not achieved:** a muscle-driven trunk inside its gate. The critical path
+  is B1 (hip-extensor strength at catch angles); collocation or predictive simulation needs it too;
 * then the legs (knee extensors, the seat as a state) and the arms (the elbow held by the triceps' stiffness, drawn
   by the pullers), each with the same structure;
 * then reduce the tracking gains toward zero: the segments' timing becomes an output, which is the gate of step 4
   (sequencing emerges);
 * then the predictive version (collocation over one stroke) when every segment is a state.
+
+## Status of each item at the end of this round (2026-11-23)
+
+| item | state | what would close it |
+|---|---|---|
+| Concept2 request with the updated blade numbers | **done** (sent 2026-11-23) | their reply |
+| "Failing to reproduce papers" | **answered**: none is a failed replication; validation gaps only | — |
+| [H10] / [GTW21] / [G19] effects | **answered**: not needed now (H41), sizes and directions given | a full-scale coefficient |
+| How far off the model is | **answered**: inside the between-rower spread on every integrated quantity; two local gaps | — |
+| Blade areas and tier 2 | **answered**: area cannot fix tier 2's shape or sign; it fixed [BR24]'s level (adopted) | — |
+| Oar weight moment from the recovery | **done and adopted**: centre of mass 0.67 m, inertia +28 % | a third athlete's oar |
+| τ(θ) | **answered**: superseded in the validated configuration; fixed by R1 (the user's decision) | R1 |
+| Measured oar deceleration (recovery) law | **done and adopted**: Kleshnev's sculling averages (§265) | — |
+| C1 expected failure | **not closed**: passes at the photographed Big Blade area (11.6 %), not adopted while two sources conflict | Concept2's figures |
+| B2s expected failure | **not closed**: sensor position, shaft spec and oar mass ruled out; literature agrees flexible shafts ramp slower | a measured early-drive blade or handle force on a flexible scull |
+| Antagonists | **reviewed and built** (EMG-assisted calibration); physical, with flexors at 0.7–0.95 of strength late in the drive; **the model's flaw located**: the extensors' strength at catch angles (B1) | a rowing-posture hip/lumbar extension strength curve to 120° |
+| Kinematics → dynamics | **literature reviewed; first step (computed muscle control of the trunk) built and run; fails its gate** (best 31–37° against 5°) | B1, then collocation / predictive simulation |

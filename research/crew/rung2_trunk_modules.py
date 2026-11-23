@@ -155,8 +155,15 @@ def run(name, strokes, delays):
             boat2 = C2.R.boat_for(name, m, "on-water", drive_law=True)
             P = float(boat2.timing.period)
             holder = {}
-            ff = M if ff_kind == "reference" else (lambda tau: tm(tau, holder.get("c", 0.0), holder.get("td", 1.0)))
+
+            def ff(tau, holder=holder):
+                v = float(M(tau)) if ff_kind == "reference" else tm(tau, holder.get("c", 0.0), holder.get("td", 1.0))
+                sim = holder.get("sim")
+                if sim is not None:
+                    sim._ff_now = v                    # the layers' effort reads the feedforward (rung2_trunk_layers)
+                return v
             free = RT.make(boat2, "free", Q=Q, tau_ff=ff, delay=dly)
+            holder["sim"] = free
             orig = free.derivative
 
             def derivative(t, y, free=free, orig=orig, holder=holder):
@@ -189,7 +196,20 @@ def main():
     ap.add_argument("--athletes", nargs="+", default=["cr06", "br24"])
     ap.add_argument("--own-body", action="store_true",
                     help="only the calibration on each athlete's own measured trunk motion (the feasibility check)")
+    ap.add_argument("--layers", nargs="*", default=None, choices=["intrinsic", "reflex", "ll"],
+                    help="the trunk's measured feedback layers (rung2_trunk_layers: activation-scaled intrinsic "
+                         "stiffness, 40 ms reflex, long-latency PD) in place of the plain PD")
+    ap.add_argument("--predict", action="store_true", help="the long-latency layer on the predicted state")
+    ap.add_argument("--observer", type=float, default=0.0, help="with --predict, rung 5's disturbance observer gain")
     a = ap.parse_args()
+    tag = ""
+    if a.layers is not None:
+        import rung2_trunk_layers as TL
+        TL.LayersSim.LAYERS = tuple(a.layers)
+        TL.LayersSim.PREDICT = bool(a.predict or a.observer)
+        TL.LayersSim.OBSERVER = float(a.observer)
+        RT.TrunkClockSim = TL.LayersSim
+        tag = "_layers_" + "_".join(a.layers) + ("_pred" if a.predict else "") + ("_obs%g" % a.observer if a.observer else "")
     if a.own_body:
         res = {n: measured_trunk_calibration(n, a.strokes) for n in a.athletes}
         path = os.path.join(RT.OUT, "rung2_trunk_modules_ownbody.json")
@@ -197,7 +217,7 @@ def main():
         print("wrote", path)
         return
     res = {n: run(n, a.strokes, a.delays) for n in a.athletes}
-    path = os.path.join(RT.OUT, "rung2_trunk_modules.json")
+    path = os.path.join(RT.OUT, "rung2_trunk_modules%s.json" % tag)
     json.dump(res, open(path, "w"), indent=1, default=float)
     print("wrote", path)
 

@@ -16788,3 +16788,36 @@ runs re-made on it (the cosine files kept as `*_pre_s265.json`).
 
 Also this round: the output writer now falls back to a short digest name when a configuration's full name would pass
 Windows' path limit (two runs lost to it), indexing the long name.
+
+## 266. The trunk on its muscles with its measured feedback layers: better, still outside the gate (2026-11-23)
+
+Computed muscle control pairs a feedforward with feedback strong enough to track. §262 used only rung 5's delayed PD;
+the model also has the trunk's measured lower layers (rung2_trunk_layers: activation-scaled intrinsic stiffness and
+the 40 ms velocity reflex, Moorhouse & Granata 2007; rung 5's long-latency PD on a predicted state with its
+disturbance observer, §215). `rung2_trunk_modules.py --layers ...` runs them under the muscle feedforward (the layers'
+effort now read from it). Feedback delay 100 ms, population clock force, 8 strokes; trunk wander, max:
+
+| | reference feedforward | muscle feedforward |
+|---|---|---|
+| [CR06], plain PD (§262) | 24.1° | 63.7° |
+| [CR06], intrinsic + reflex | 80.7° | 116.4° |
+| [CR06], intrinsic + reflex + predicted long-latency + observer | **10.7°** | **37.4°** |
+| [BR24], plain PD | — | 41.6° |
+| [BR24], intrinsic + reflex | 18.5° | 54.3° |
+| [BR24], all layers, predicted + observer | **9.4°** | **30.5°** |
+
+**The full layers roughly halve the muscle-driven trunk's error, and the gate (< 5°) still fails**, as it does for the
+inverse-dynamics feedforward under the population's clock at 100 ms (9–11°; §213's 10–13° on the predictor). The
+muscle feedforward's error is 3–4× the reference's. Two causes, each documented: the trunk's muscles need ~1.3× the
+placeholder strength at the catch (§264, B1) and their EMG-timed moment fits the needed one at r² ≈ 0.6.
+
+**Where the build stands, against the literature's sequence** (docs/OPEN_ITEMS_REVIEW.md §10):
+1. inverse pipeline: done (muscle_capacity, §208–255);
+2. computed muscle control on one joint: built and run, **fails its gate**; the binding inputs are named (B1 strength;
+   the trunk's planned clock as target);
+3. tracking optimal control (direct collocation) and 4. predictive simulation: not started. They solve for the
+   excitations and the motion together, so they do not need a feasible kinematic target; they do need B1 (a muscle
+   cannot exceed its strength in an optimisation either), so B1 is now the critical path for the muscle-driven body.
+
+The trunk therefore stays on its reference feedforward with the layers (the validated configuration) until B1 has a
+source.
